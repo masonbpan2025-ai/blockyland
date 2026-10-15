@@ -184,6 +184,7 @@ export class ChestManager {
   }
 
   placeChest(world, pos, facing = 0) {
+    const placedId=world.getVoxel(...pos)===BLOCKS.TRAPPED_CHEST?BLOCKS.TRAPPED_CHEST:BLOCKS.CHEST;
     const [x, y, z] = pos.map(Math.floor);
     const key = this.getKey(x, y, z);
 
@@ -202,7 +203,7 @@ export class ChestManager {
       const nx = x + dx;
       const nz = z + dz;
       const neighborVoxel = world.getVoxel(nx, y, nz);
-      if (neighborVoxel === BLOCKS.CHEST) {
+      if (neighborVoxel === placedId) {
         const neighborChest = this.getChest(nx, y, nz);
         if (neighborChest && !neighborChest.isDouble && neighborChest.facing === facing) {
           // Found an unlinked neighbor chest facing the same direction!
@@ -223,7 +224,7 @@ export class ChestManager {
     }
 
     this.chests.set(key, chest);
-    world.setVoxel(x, y, z, BLOCKS.CHEST);
+    world.setVoxel(x, y, z, placedId);
 
     const chunk = world.getChunk(Math.floor(x / 16), Math.floor(z / 16));
     if (chunk && this.game?.rebuildChunkMesh) this.game.rebuildChunkMesh(chunk);

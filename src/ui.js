@@ -1,3 +1,4 @@
+import { compassTarget, needleAngle } from './compass.js';
 import { renderHorseInventory } from './horseInventory.js';
 import { packsModal } from './packsModal.js';
 import { syncAgentTerminalControls } from './agentTerminalControls.js';
@@ -43,6 +44,7 @@ import { escapeHtml } from './multiplayer/shareProtocol.js';
 import { decorateTrimIcon } from './trimIcon.js';
 import { trimTooltipLine } from './trimVisuals.js';
 import { calculateBeaconPyramid, applyBeaconBuffs, calculateConduitFrame, applyConduitPower } from './beaconConduit.js';
+import { showDifficultyDialog } from './dialogUtils.js';
 
 /**
  * Resolve an item icon path, falling back to a generated tile when the asset is missing.
@@ -140,6 +142,20 @@ export function advancedTooltipLines(item) {
   return lines;
 }
 
+/**
+ * The compass direction the camera looks along, for the debug screen. The camera looks down -Z at yaw 0, which is
+ * north, and turning left (yaw increasing) goes west. Yaw 0 was labelled "south (+Z)" and yaw π "north": the
+ * player starts every world looking north (wiki, Your first 10 minutes: "you are always facing north at the start
+ * of the game") and the debug screen said south.
+ */
+export function facingLabel(yaw = 0) {
+  const a = ((yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  if (a >= Math.PI * 0.25 && a < Math.PI * 0.75) return 'west (-X)';
+  if (a >= Math.PI * 0.75 && a < Math.PI * 1.25) return 'south (+Z)';
+  if (a >= Math.PI * 1.25 && a < Math.PI * 1.75) return 'east (+X)';
+  return 'north (-Z)';
+}
+
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds, game = null) {
     this.inv = inventory;
@@ -154,6 +170,7 @@ export class UIManager {
     this.healthBarEl = document.getElementById('health-bar');
     this.armorBarEl = document.getElementById('armor-bar');
     this.hungerBarEl = document.getElementById('hunger-bar');
+    this.airBarEl = document.getElementById('air-bar');
     this.offhandHudEl = document.getElementById('offhand-hud-slot');
     this.expBarEl = document.getElementById('exp-bar');
     this.expLevelEl = document.getElementById('exp-level');
@@ -254,6 +271,11 @@ export class UIManager {
     this.geminiKeyInput = document.getElementById('gemini-key-input');
     this.geminiSaveKeyBtn = document.getElementById('gemini-save-key-btn');
     this.geminiClearKeyBtn = document.getElementById('gemini-clear-key-btn');
+    this.geminiRememberKey = document.getElementById('gemini-remember-key');
+    this.geminiVaultPassphrase = document.getElementById('gemini-vault-passphrase');
+    this.geminiUnlockKeyBtn = document.getElementById('gemini-unlock-key-btn');
+    this.geminiLockKeyBtn = document.getElementById('gemini-lock-key-btn');
+    this.geminiKeyStorageStatus = document.getElementById('gemini-key-storage-status');
     this.geminiOfflineBtn = document.getElementById('gemini-offline-btn');
     this.geminiOfflineState = document.getElementById('gemini-offline-state');
     this.geminiToggleKeyBtn = document.getElementById('gemini-toggle-key');
@@ -511,8 +533,9 @@ export class UIManager {
         } else if (this.isModalOpen()) {
           this.closeAllModals();
         } else if (document.pointerLockElement) {
-          // Mouse attached: this Escape only detaches it (browsers that deliver the keydown too).
+          // Mouse attached: release pointer lock and show pause menu
           document.exitPointerLock();
+          this.togglePauseMenu();
         } else {
           this.togglePauseMenu();
         }
@@ -703,6 +726,22 @@ export class UIManager {
     this.updateHotbar();
   }
 
+  /** Turn each hotbar compass's needle toward its target, or spin it where there is none. */
+  updateCompassNeedles(game) {
+    if (!this.hotbarEl || !game?.player) return;
+    const needles = this.hotbarEl.querySelectorAll('.compass-needle');
+    if (!needles.length) return;
+    const now = performance.now() / 1000;
+    for (const needle of needles) {
+      const item = this.inv.hotbar[Number(needle.dataset.slot)];
+      const target = compassTarget(game, item);
+      const angle = target ? needleAngle(game.player.position, game.player.yaw, target) : (now * 7 + Number(needle.dataset.slot)) % (Math.PI * 2);
+      needle.style.transform = `translate(-50%, -100%) rotate(${angle}rad)`;
+      needle.dataset.angle = angle.toFixed(3);
+      needle.dataset.spinning = target ? '0' : '1';
+    }
+  }
+
   updateHotbar() {
     if (!this.hotbarEl) return;
     const slots = this.hotbarEl.children;
@@ -733,6 +772,13 @@ export class UIManager {
 
           // The hotbar is where a tool is watched while mining, so it gets the bar too.
           this.addDurabilityBar(slot, item);
+          // A compass shows where it points (compass.js), turned every frame by updateCompassNeedles.
+          if (item.id === 'compass') {
+            const needle = document.createElement('div');
+            needle.className = 'compass-needle' + (item.lodestone ? ' lodestone' : '');
+            needle.dataset.slot = String(i);
+            slot.appendChild(needle);
+          }
         }
       }
     }
@@ -805,16 +851,34 @@ export class UIManager {
         this.hungerBarEl.appendChild(drum);
       }
     }
+
+    // 10 Breathing Bubbles
+    if (this.airBarEl) {
+      this.airBarEl.innerHTML = '';
+      for (let i = 0; i < 10; i++) {
+        const bubble = document.createElement('div');
+        bubble.className = 'stat-icon bubble-icon';
+        this.airBarEl.appendChild(bubble);
+      }
+    }
   }
 
   updateStats() {
     const isCreative = this.player.gamemode === 'creative';
+    const respiration = this.player?.armourEnchantmentLevel ? this.player.armourEnchantmentLevel('respiration') : 0;
+    const capacity = 15 + respiration * 15;
+    const submerged = Boolean(this.player?.headInWater || (typeof this.player?.isEyeInWater === 'function' && this.player.isEyeInWater()) || this.player?.inWater || this.game?.isUnderwater);
+    const currentBreath = (this.player?.breath !== undefined) ? this.player.breath : capacity;
+    const showAir = !isCreative && (submerged || currentBreath < capacity);
+    const bubbleCount = Math.max(0, Math.min(10, Math.ceil((currentBreath / capacity) * 10)));
+
     // Called every frame, and it rewrites some forty inline styles (gradients among them) each time. Skipped when
     // nothing it draws has changed; the bars' own child counts are part of the key, so a rebuilt bar is redrawn.
     const signature = isCreative ? 'creative' : [
       this.player.maxHealth, Math.ceil(this.player.health), !!this.player.hasStatusEffect?.('wither'), Math.ceil(this.player.hunger),
       this.inv?.getTotalArmorPoints ? this.inv.getTotalArmorPoints() : 0, this.player.level, getExpProgress(this.player),
       this.healthBarEl?.children.length, this.hungerBarEl?.children.length, this.armorBarEl?.children.length,
+      showAir, bubbleCount, this.airBarEl?.children.length
     ].join('|');
     if (signature === this.statsSignature) return;
     this.statsSignature = signature;
@@ -827,6 +891,9 @@ export class UIManager {
     const expectedHearts = Math.max(10, Math.ceil((this.player?.maxHealth || 20) / 2));
 
     if (this.healthBarEl && this.healthBarEl.children.length !== expectedHearts) {
+      this.initStatusBarsDOM();
+    }
+    if (this.airBarEl && this.airBarEl.children.length !== 10) {
       this.initStatusBarsDOM();
     }
 
@@ -884,6 +951,23 @@ export class UIManager {
       drumsticks[i].style.opacity = (hunger >= val) ? '1' : '0.35';
     }
 
+    // Breathing bubbles
+    if (this.airBarEl) {
+      this.airBarEl.style.display = showAir ? 'flex' : 'none';
+      if (showAir) {
+        const bubbles = this.airBarEl.children;
+        for (let i = 0; i < bubbles.length; i++) {
+          if (i < bubbleCount) {
+            bubbles[i].style.opacity = '1';
+            bubbles[i].style.visibility = 'visible';
+          } else {
+            bubbles[i].style.opacity = '0';
+            bubbles[i].style.visibility = 'hidden';
+          }
+        }
+      }
+    }
+
     // Experience
     if (this.expLevelEl) {
       this.expLevelEl.textContent = this.player.level > 0 ? this.player.level : '';
@@ -911,13 +995,7 @@ export class UIManager {
     const cz = Math.floor(pos.z / 16);
     document.getElementById('dbg-chunk').textContent = `Chunk: ${cx}, ${cz}`;
 
-    // Facing direction
-    const yaw = (this.player.yaw % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-    let facing = 'south (+Z)';
-    if (yaw >= Math.PI * 0.25 && yaw < Math.PI * 0.75) facing = 'west (-X)';
-    else if (yaw >= Math.PI * 0.75 && yaw < Math.PI * 1.25) facing = 'north (-Z)';
-    else if (yaw >= Math.PI * 1.25 && yaw < Math.PI * 1.75) facing = 'east (+X)';
-    document.getElementById('dbg-facing').textContent = `Facing: ${facing}`;
+    document.getElementById('dbg-facing').textContent = `Facing: ${facingLabel(this.player.yaw)}`;
 
     const biome = this.world.getBiome(Math.floor(pos.x), Math.floor(pos.z));
     document.getElementById('dbg-biome').textContent = `Biome: ${biome.charAt(0).toUpperCase() + biome.slice(1)}`;
@@ -1498,6 +1576,11 @@ export class UIManager {
     const btnGamemode = document.getElementById('btn-gamemode');
     if (btnGamemode && mode) {
       btnGamemode.textContent = `Game Mode: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`;
+    }
+    const btnDifficulty = document.getElementById('btn-difficulty');
+    if (btnDifficulty) {
+      const diff = this.game?.difficulty || this.player?.difficulty || 'normal';
+      btnDifficulty.textContent = `Difficulty: ${diff.charAt(0).toUpperCase() + diff.slice(1)}`;
     }
   }
 
@@ -3712,16 +3795,47 @@ export class UIManager {
       btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
       btnGamemode.onclick = () => {
         if (this.game.modRuntime?.canChangeGameMode?.() === false) return;
-        // Through `setGameMode`, so this and `/gamemode` cannot disagree. It used to assign
-        // `player.gamemode` directly, which left Creative flight switched on after entering Survival.
-        this.game.setGameMode(this.player.gamemode === 'survival' ? 'creative' : 'survival');
-        btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
-        this.addChatMessage(`Set game mode to ${this.player.gamemode} mode`, 'system');
-
         if (this.player.gamemode === 'creative') {
+          showDifficultyDialog({
+            title: '⚔️ Switch to Survival Mode',
+            currentDifficulty: this.game?.difficulty || this.player?.difficulty || 'normal',
+            onSelect: (chosenDiff) => {
+              if (this.game?.setDifficulty) {
+                this.game.setDifficulty(chosenDiff);
+              }
+              this.game.setGameMode('survival');
+              btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
+              this.refreshPauseMenuLabels();
+              this.addChatMessage(`Set game mode to survival mode (${chosenDiff})`, 'system');
+            }
+          });
+        } else {
+          this.game.setGameMode('creative');
+          btnGamemode.textContent = `Game Mode: ${this.player.gamemode.charAt(0).toUpperCase() + this.player.gamemode.slice(1)}`;
+          this.refreshPauseMenuLabels();
+          this.addChatMessage(`Set game mode to creative mode`, 'system');
           this.closeAllModals();
           this.openCreativeInventory();
         }
+      };
+    }
+
+    const btnDifficulty = document.getElementById('btn-difficulty');
+    if (btnDifficulty) {
+      const currentDiff = this.game?.difficulty || this.player?.difficulty || 'normal';
+      btnDifficulty.textContent = `Difficulty: ${currentDiff.charAt(0).toUpperCase() + currentDiff.slice(1)}`;
+      btnDifficulty.onclick = () => {
+        showDifficultyDialog({
+          title: '⚙️ Change Difficulty',
+          currentDifficulty: this.game?.difficulty || this.player?.difficulty || 'normal',
+          onSelect: (diff) => {
+            if (this.game?.setDifficulty) {
+              this.game.setDifficulty(diff);
+            }
+            this.refreshPauseMenuLabels();
+            this.addChatMessage(`Difficulty set to ${diff}`, 'system');
+          }
+        });
       };
     }
 
@@ -4211,19 +4325,19 @@ export class UIManager {
 
   async refreshDesignedWorldsList() {
     if (!this.mapDesignedList) return;
-    this.mapDesignedList.innerHTML = '<div class="map-saves-loading">Loading designed worlds...</div>';
+    this.mapDesignedList.innerHTML = '<div class="map-saves-loading">Loading mods...</div>';
 
     try {
       const { worlds } = await fetchDesignedWorlds();
       if (this.mapDesignedCount) {
-        this.mapDesignedCount.textContent = `${worlds.length} world${worlds.length === 1 ? '' : 's'}`;
+        this.mapDesignedCount.textContent = `${worlds.length} mod${worlds.length === 1 ? '' : 's'}`;
       }
 
       if (!worlds || worlds.length === 0) {
         this.mapDesignedList.innerHTML = `
           <div class="map-saves-empty">
-            No designed worlds available.<br>
-            <span style="font-size:11px; opacity:0.8;">Check the designed_worlds folder.</span>
+            No mods available.<br>
+            <span style="font-size:11px; opacity:0.8;">Check the mods folder.</span>
           </div>
         `;
         return;
@@ -4275,7 +4389,7 @@ export class UIManager {
 
         const btnPlay = document.createElement('button');
         btnPlay.className = 'map-card-btn mc-btn-designed';
-        btnPlay.textContent = 'Play World';
+        btnPlay.textContent = 'Play Mod';
         btnPlay.onclick = async () => {
           if (!this.game) {
             this.showMapFeedback('designed', 'Game instance not ready', true);
@@ -4286,10 +4400,10 @@ export class UIManager {
           try {
             await this.runWorldLoad(
               progress => loadDesignedWorld(this.game, world.filename, { progress }),
-              'Loading Designed World'
+              'Loading Mod'
             );
             this.playPopSound();
-            this.showMapFeedback('designed', `Designed world "${world.name}" loaded!`, false);
+            this.showMapFeedback('designed', `Mod "${world.name}" loaded!`, false);
             this.closeAllModals();
             if (this.startOverlay) this.startOverlay.style.display = 'none';
             if (typeof document !== 'undefined' && document.activeElement?.blur) {
@@ -4298,7 +4412,7 @@ export class UIManager {
             this.requestGamePointerLock();
           } catch (err) {
             btnPlay.disabled = false;
-            btnPlay.textContent = 'Play World';
+            btnPlay.textContent = 'Play Mod';
             this.showMapFeedback('designed', `Load failed: ${err.message}`, true);
           }
         };
@@ -4308,7 +4422,7 @@ export class UIManager {
         this.mapDesignedList.appendChild(card);
       }
     } catch (err) {
-      this.mapDesignedList.innerHTML = `<div class="map-saves-empty" style="color:#ef5350;">Failed to load designed worlds: ${err.message}</div>`;
+      this.mapDesignedList.innerHTML = `<div class="map-saves-empty" style="color:#ef5350;">Failed to load mods: ${err.message}</div>`;
     }
   }
 
@@ -4808,6 +4922,8 @@ export class UIManager {
   }
 
   closeGeminiTerminal() {
+    if (this.geminiKeyInput) this.geminiKeyInput.value = '';
+    if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
     if (this.geminiModal) {
       this.geminiModal.classList.add('hidden');
     }
@@ -4834,7 +4950,7 @@ export class UIManager {
       } else if (geminiAgent.offlineMode) {
         this.geminiStatusText.textContent = 'OFFLINE MODE';
       } else if (!geminiAgent.apiKey) {
-        this.geminiStatusText.textContent = 'NO KEY';
+        this.geminiStatusText.textContent = geminiAgent.keyStatus?.().locked ? 'KEY LOCKED' : 'NO KEY';
       } else {
         this.geminiStatusText.textContent = `${vendorLabel().toUpperCase()} READY`;
       }
@@ -4909,12 +5025,35 @@ export class UIManager {
     };
 
     const refreshKeyState = () => {
+      const keyStatus = geminiAgent.keyStatus?.() || {remembered:false,active:!!geminiAgent.apiKey};
+      if (this.keyVaultVendor !== geminiAgent.vendor) {
+        this.keyVaultVendor = geminiAgent.vendor;
+        if (this.geminiRememberKey) this.geminiRememberKey.checked = keyStatus.remembered;
+        if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
+        if (this.geminiKeyInput) this.geminiKeyInput.value = '';
+      }
+      if (this.geminiKeyStorageStatus) this.geminiKeyStorageStatus.textContent = keyStatus.locked
+        ? 'Encrypted key is locked. Enter its passphrase and choose Unlock.'
+        : keyStatus.active ? (keyStatus.remembered ? 'Remembered key unlocked for this page.' : 'Session-only key: lost on reload or closing this page.')
+        : 'No active key. Keys are session-only unless you choose Remember.';
+      if (this.geminiSaveKeyBtn) {
+        this.geminiSaveKeyBtn.textContent = this.geminiRememberKey?.checked ? 'Remember encrypted' : 'Use for session';
+        this.geminiSaveKeyBtn.disabled = !!this.keyVaultBusy;
+      }
+      if (this.geminiUnlockKeyBtn) { this.geminiUnlockKeyBtn.hidden = !keyStatus.remembered; this.geminiUnlockKeyBtn.disabled = !!this.keyVaultBusy || !keyStatus.locked; }
+      if (this.geminiLockKeyBtn) this.geminiLockKeyBtn.disabled = !!this.keyVaultBusy || !keyStatus.active;
+      if (this.geminiClearKeyBtn) this.geminiClearKeyBtn.disabled = !!this.keyVaultBusy;
+      if (this.geminiRememberKey) this.geminiRememberKey.disabled = !!this.keyVaultBusy || !globalThis.crypto?.subtle || !geminiAgent.settings.store;
+      if (this.geminiVaultPassphrase) {
+        this.geminiVaultPassphrase.hidden = !keyStatus.remembered && !this.geminiRememberKey?.checked;
+        this.geminiVaultPassphrase.disabled = !!this.keyVaultBusy;
+      }
       if (this.geminiKeyInput) {
         const key = geminiAgent.apiKey;
-        const focused = document.activeElement === this.geminiKeyInput;
-        if (!focused) this.geminiKeyInput.value = '';
+        // Keep a draft while changing Remember/model options. Clear explicitly
+        // on save, vendor switch, lock/delete or closing the terminal.
         this.geminiKeyInput.placeholder = geminiAgent.apiKey
-          ? `Saved key ••••${geminiAgent.apiKey.slice(-4)} (type to replace)`
+          ? `Active key ••••${geminiAgent.apiKey.slice(-4)} (type to replace)`
           : (geminiAgent.constructor.vendors?.[geminiAgent.vendor]?.keyPlaceholder || 'API key');
         this.geminiKeyInput.dataset.hasKey = key ? 'true' : 'false';
       }
@@ -4933,7 +5072,7 @@ export class UIManager {
           const state = button.querySelector('[data-key-state]');
           if (state) {
             const hasKey = !!geminiAgent.getApiKey(vendorId);
-            state.textContent = hasKey ? 'key saved' : 'key needed';
+            state.textContent = hasKey ? 'key active' : geminiAgent.keyStatus?.(vendorId).locked ? 'key locked' : 'key needed';
             state.classList.toggle('ready', hasKey);
           }
         }
@@ -4960,7 +5099,7 @@ export class UIManager {
     };
 
     const applyVendor = (vendorId) => {
-      if (geminiAgent.offlineMode || !vendorId || vendorId === geminiAgent.vendor) return;
+      if (this.keyVaultBusy || geminiAgent.offlineMode || !vendorId || vendorId === geminiAgent.vendor) return;
       geminiAgent.setVendor(vendorId);
       refreshAgentControls();
       this.addGeminiLog(`Vendor switched to ${vendorLabel()} (${geminiAgent.model}${geminiAgent.effort ? `, effort ${geminiAgent.effort}` : ''}).`, 'info');
@@ -4970,6 +5109,8 @@ export class UIManager {
     this.refreshAgentControls=refreshAgentControls;
     geminiAgent.onSettingsChanged=refreshAgentControls;
     refreshAgentControls();
+    if (geminiAgent.settings.vault?.migratedVendors.length) this.addGeminiLog('Old unencrypted saved keys were removed from browser storage. Recovered keys are available for this page only; choose Remember key to store an encrypted copy.', 'warning');
+    if (geminiAgent.settings.vault?.migrationErrors.length) this.addGeminiLog('Could not remove an old saved key from browser storage. Clear this site’s storage manually before using Remember key.', 'error');
 
     // Explain a forced-offline start, so a saved key does not look broken.
     if (geminiAgent.offlineMode) {
@@ -5084,6 +5225,10 @@ export class UIManager {
           syncAgentTerminalControls(this,geminiAgent);
           // Opening Settings brings the model list up to date (a cached list younger than a day is reused).
           if (!this.geminiKeyDrawer.classList.contains('hidden')) refreshLiveModels().catch(() => {});
+          else {
+            if (this.geminiKeyInput) this.geminiKeyInput.value = '';
+            if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
+          }
         }
       };
     }
@@ -5210,33 +5355,58 @@ export class UIManager {
       });
     }
 
-    // Save settings for the active vendor
-    if (this.geminiSaveKeyBtn) {
-      this.geminiSaveKeyBtn.onclick = () => {
-        if(geminiAgent.offlineMode)return;
-        const key = (this.geminiKeyInput?.value || '').trim();
-        if (key) geminiAgent.setApiKey(key);
-        geminiAgent.lastError = null;
-        refreshAgentControls();
-        this.addGeminiLog(
-          geminiAgent.apiKey
-            ? `✓ ${vendorLabel()} saved (${geminiAgent.model}${geminiAgent.effort ? `, effort ${geminiAgent.effort}` : ''}). Free-form prompts enabled.`
-            : `No API key set for ${vendorLabel()}. Offline preset mode remains active.`,
-          geminiAgent.apiKey ? 'success' : 'warning'
-        );
-        if (this.geminiKeyDrawer) this.geminiKeyDrawer.classList.add('hidden');
-        syncAgentTerminalControls(this,geminiAgent);
-        // A new key may see different models; fetch its list.
-        if (key) refreshLiveModels({ force: true }).catch(() => {});
-      };
-    }
+    this.geminiRememberKey?.addEventListener('change', refreshKeyState);
+    const runKeyAction = async action => {
+      if (geminiAgent.offlineMode || this.keyVaultBusy) return;
+      this.keyVaultBusy = true;
+      const vendor = geminiAgent.vendor;
+      const key = (this.geminiKeyInput?.value || '').trim() || geminiAgent.getApiKey(vendor);
+      const passphrase = this.geminiVaultPassphrase?.value || '';
+      const remember = !!this.geminiRememberKey?.checked;
+      if (this.geminiKeyInput) this.geminiKeyInput.value = '';
+      if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
+      refreshKeyState();
+      try {
+        if (action === 'unlock') await geminiAgent.unlockApiKey(passphrase, vendor);
+        else if (remember) await geminiAgent.rememberApiKey(key, passphrase, vendor);
+        else {
+          if (!key) throw new Error('Enter an API key, or unlock the remembered key first.');
+          geminiAgent.setApiKey(key, vendor);
+        }
+        if (this.geminiRememberKey) this.geminiRememberKey.checked = geminiAgent.keyStatus(vendor).remembered;
+        this.addGeminiLog(action === 'unlock' ? 'Key unlocked for this page.' : remember ? 'Encrypted key remembered. Its passphrase will be required after reload.' : 'Key available for this page only. It will be lost on reload.', 'success');
+        // Keys are sent only to the vendor, including this model-list refresh.
+        refreshLiveModels({force:true}).catch(() => {});
+      } catch (error) {
+        this.addGeminiLog(error.message || 'Could not update the API key.', 'error');
+        if (this.geminiKeyStorageStatus) this.geminiKeyStorageStatus.textContent = error.message;
+        this.keyVaultError = error.message;
+      } finally {
+        this.keyVaultBusy = false; refreshAgentControls();
+        if (this.keyVaultError && this.geminiKeyStorageStatus) this.geminiKeyStorageStatus.textContent = this.keyVaultError;
+        this.keyVaultError = null;
+      }
+    };
+    if (this.geminiSaveKeyBtn) this.geminiSaveKeyBtn.onclick = () => runKeyAction('save');
+    if (this.geminiUnlockKeyBtn) this.geminiUnlockKeyBtn.onclick = () => runKeyAction('unlock');
+    if (this.geminiLockKeyBtn) this.geminiLockKeyBtn.onclick = () => {
+      if (this.keyVaultBusy || geminiAgent.offlineMode) return;
+      geminiAgent.lockApiKey();
+      if (this.geminiKeyInput) this.geminiKeyInput.value = '';
+      if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
+      refreshAgentControls();
+      this.addGeminiLog('Active key forgotten by this page. Any encrypted copy remains locked. Requests already sent are not recalled.', 'info');
+    };
 
     // Clear the stored key for the active vendor only
     if (this.geminiClearKeyBtn) {
       this.geminiClearKeyBtn.onclick = () => {
-        if(geminiAgent.offlineMode)return;
+        if(geminiAgent.offlineMode || this.keyVaultBusy)return;
         if (this.geminiKeyInput) this.geminiKeyInput.value = '';
-        geminiAgent.setApiKey('');
+        if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
+        try { geminiAgent.setApiKey(''); }
+        catch { this.addGeminiLog('Could not delete the stored key. Clear this site’s browser storage manually.', 'error'); refreshAgentControls(); return; }
+        if (this.geminiRememberKey) this.geminiRememberKey.checked = false;
         geminiAgent.lastError = null;
         refreshAgentControls();
         this.addGeminiLog(`${vendorLabel()} API key removed. Offline preset mode supports limited commands.`, 'info');

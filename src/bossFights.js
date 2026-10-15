@@ -106,13 +106,14 @@ export class BossFightManager {
       if(state.crystals[index])this.spawnEndCrystal(spike.x + 0.5, spike.top + 1.5, spike.z + 0.5,{spikeIndex:index});
     }
     this.mobManager.endCrystals=this.endCrystals;
+    if(!state.defeated&&state.health<=0)this.onDragonDefeated();
     if(!state.defeated)this.spawnEnderDragonBoss(0,48,0);
     if(state.respawning)for(const [dx,dz]of [[3,0],[-3,0],[0,3],[0,-3]])this.spawnEndCrystal(dx+.5,this.podiumY()+1,dz+.5,{placed:true});
     if(state.defeated)this.activateEndExitPortal(false);
   }
 
   clearEndVisuals() {
-    for(const c of this.endCrystals??[])c.mesh?.removeFromParent();
+    for(const c of this.endCrystals??[]){c.mesh?.removeFromParent();c.mesh?.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});}
     for(const c of this.dragonBreathClouds??[]) {c.mesh?.removeFromParent();c.mesh?.geometry?.dispose();c.mesh?.material?.dispose();}
     this.enderDragon=null;this.endCrystals=[];this.dragonBreathClouds=[];
     this.mobManager.endCrystals=this.endCrystals;
@@ -197,6 +198,9 @@ export class BossFightManager {
           const closest = rayOrigin.clone().addScaledVector(rayDir, proj);
           const dist = closest.distanceTo(c.position);
           if (dist < 1.8) {
+            let blocked=false;
+            for(let d=.2;d<Math.max(0,proj-1);d+=.2){const p=rayOrigin.clone().addScaledVector(rayDir,d);if(this.mobManager.isBlockSolid?.(Math.floor(p.x),Math.floor(p.y),Math.floor(p.z))){blocked=true;break;}}
+            if(blocked)continue;
             this.destroyEndCrystal(c);
             return true;
           }
@@ -256,6 +260,7 @@ export class BossFightManager {
       this.updateWitherBoss(dt, player);
     }
 
+    this.updateWitherSkulls(dt, player);
     if(this.world?.dimension!=='the_end')return;
     this.updateDragonRespawn(dt);
     // 2. Update Ender Dragon Boss
@@ -266,8 +271,6 @@ export class BossFightManager {
     // 3. Update Dragon Breath Pools
     this.updateDragonBreath(dt, player);
 
-    // 4. Update Wither Skulls
-    this.updateWitherSkulls(dt, player);
   }
 
   // ==========================================

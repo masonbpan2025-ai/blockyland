@@ -119,7 +119,7 @@ test('the agent ships four vendors, defaults to DeepSeek V4.1 Flash at high effo
   assert.equal(WorldAgent.supportsEffort('gemini'), false);
 });
 
-test('per-vendor model, effort and key selections persist and migrate the legacy Gemini key', () => {
+test('preferences persist but keys are session-only; legacy plaintext is retired', () => {
   const storage = memoryStorage({ gemini_api_key: 'legacy-google-key' });
   const settings = new AgentSettings(storage);
 
@@ -137,10 +137,13 @@ test('per-vendor model, effort and key selections persist and migrate the legacy
   assert.equal(reloaded.vendor, 'chatgpt');
   assert.equal(reloaded.modelFor('chatgpt'), 'gpt-6-luna');
   assert.equal(reloaded.effortFor('chatgpt'), 'low');
-  assert.equal(reloaded.keyFor('chatgpt'), 'sk-openai');
+  assert.equal(reloaded.keyFor('chatgpt'), '');
   assert.equal(reloaded.modelFor('deepseek'), 'deepseek-v4-pro');
   // Writing the Gemini key retires the legacy entry.
-  assert.equal(reloaded.keyFor('gemini'), 'fresh-google-key');
+  assert.equal(reloaded.keyFor('gemini'), '');
+  assert.equal(settings.keyFor('chatgpt'), 'sk-openai');
+  assert.equal(settings.keyFor('gemini'), 'fresh-google-key');
+  assert.equal(storage.getItem('mc_agent_key_chatgpt'), null);
   assert.equal(storage.getItem('gemini_api_key'), null);
 });
 

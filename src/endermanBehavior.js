@@ -46,7 +46,8 @@ export const ENDERMAN_CHASE_SPEED = 3.4;
 /** The state a freshly spawned wild Enderman is in. */
 export function createWildEndermanState() {
   return {
-    state: 'idle',      // 'idle' | 'provoked'
+    state: 'idle',      // 'idle' | 'provoked' (shown state; the shared walking code also writes it)
+    provoked: false,    // the mood itself, which nothing else writes
     anger: 0,           // seconds of anger remaining
     angeredBy: null,    // 'damage' | 'gaze', for telemetry and tests
     // Deliberately NOT set: the old code gave it `teleportCooldown: 4.5` at spawn, which meant the first
@@ -57,7 +58,9 @@ export function createWildEndermanState() {
 
 /** Is this Enderman currently hostile? */
 export function isProvoked(mob) {
-  return (mob?.anger ?? 0) > 0 && mob?.state === 'provoked';
+  // Its own flag: `state` is also written by the shared walking code ('idle', 'chase') on the very tick a gaze
+  // provoked it, so reading `state` here lost every provocation at once, leaving `anger` at 20 and the enderman calm.
+  return (mob?.anger ?? 0) > 0 && (mob?.provoked === true || mob?.state === 'provoked');
 }
 
 /**
@@ -72,6 +75,7 @@ export function provoke(mob, reason, seconds = ANGER_SECONDS) {
   if (!mob) return false;
   const wasProvoked = isProvoked(mob);
   mob.state = 'provoked';
+  mob.provoked = true;
   mob.anger = Math.max(mob.anger ?? 0, seconds);
   mob.angeredBy = reason;
   return !wasProvoked;
@@ -83,6 +87,7 @@ export function tickAnger(mob, dt) {
   mob.anger = Math.max(0, mob.anger - dt);
   if (mob.anger === 0) {
     mob.state = 'idle';
+    mob.provoked = false;
     mob.angeredBy = null;
     return true;
   }

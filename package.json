@@ -9,7 +9,8 @@
     "test:list": "node scripts/test.mjs --list",
     "test:mob": "node scripts/test.mjs mob",
     "test:agent": "node scripts/test.mjs agent",
-    "test:bot": "node --test --test-isolation=none tests/playerBot.test.js tests/playerBotSurvival.test.js tests/playerBotSurvivalScenarios.test.js",
+    "test:bot": "node --test --test-isolation=none tests/playerBot.test.js tests/playerBotSurvival.test.js tests/playerBotSurvivalScenarios.test.js tests/playerBotCapabilities.test.js",
+    "test:tutorials": "node --test --test-isolation=none tests/tutorials/tier*.test.js",
     "test:survival:bot": "playwright test -c playwright.survival.config.js",
     "test:smith:bot": "playwright test -c playwright.smith.config.js",
     "test:water:browser": "playwright test -c playwright.water.config.js",
@@ -36,7 +37,9 @@
     "prebuild": "npm run mods:generate",
     "test:mods": "node --test --test-isolation=none tests/modStructure.test.js tests/modInspectorIsolation.test.js tests/rescueAdventure.test.js tests/modAuthority.test.js tests/savedMapLoadProgress.test.js tests/campaignPresentation.test.js",
     "test:mods:visuals": "node scripts/test-campaign-visuals.mjs",
-    "benchmark:textures:cpu": "node scripts/benchmark-textures-cpu.mjs"
+    "benchmark:textures:cpu": "node scripts/benchmark-textures-cpu.mjs",
+    "test:agent:vault": "node --test --test-isolation=none tests/agentKeyVault.test.js",
+    "test:agent:vault:browser": "node scripts/test-agent-key-vault.mjs"
   },
   "type": "module",
   "dependencies": {

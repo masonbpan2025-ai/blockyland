@@ -27,14 +27,15 @@
 //     and the live game initializes the corresponding containers and spawners.
 
 import { createStructureEngine, getSetForStructure, generatorCoverage } from './worldgen/index.js';
-import { BLOCKS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { getBiomeDef } from './biomes.js';
 import { PACK_STRUCTURES, packSuppressesStructures, winningStructureIds } from './dataPackRuntime.js';
 
 /**
  * The structures enabled in generated worlds.
  *
- * Surface starters plus the Nether survival structures whose generators fit the 64-block world.
- * Dimension and biome gates still apply: enabling a fortress does not put one in the Overworld.
+ * Surface starters plus the Nether and End structures whose generators fit the 64-block world.
+ * Dimension and biome gates still apply to every enabled structure.
  */
 export const WORLD_STRUCTURE_IDS = ['village_plains', 'igloo', 'desert_pyramid',
   'fortress', 'bastion_remnant', 'nether_fossil', 'ruined_portal_nether',
@@ -112,6 +113,23 @@ export function packStructureIds() {
  */
 export const STRUCTURE_SEARCH_RADIUS_CHUNKS = 8;
 
+/**
+ * Vegetation the terrain pass plants before structures are written: logs, leaves, flowers, grass, cactus, snow
+ * layers. A structure clears these from its pieces; it never clears terrain, which is terrain adaptation's job.
+ */
+const VEGETATION = /(^|_)(log|leaves|wood|stem|sapling|vine|vines|bamboo|cactus|sugar_cane|flower|poppy|dandelion|tulip|orchid|allium|bluet|daisy|cornflower|lily|rose_bush|peony|lilac|sunflower|petals|wildflowers|short_grass|tall_grass|fern|large_fern|bush|dead_bush|roots|plant|mushroom|mushroom_block|azalea|moss_carpet|leaf_litter|dry_grass)$/;
+const vegetationCache = new Map();
+export function isVegetation(id) {
+  let known = vegetationCache.get(id);
+  if (known === undefined) {
+    const name = String(BLOCK_DEFS[id]?.name ?? '').toLowerCase().replace(/[^a-z]+/g, '_').replace(/^_|_$/g, '');
+    // The snow LAYER is named plain "Snow" (the full block is "Snow Block"), so it is matched by id.
+    known = id === BLOCKS.SNOW_LAYER || (Boolean(name) && VEGETATION.test(name));
+    vegetationCache.set(id, known);
+  }
+  return known;
+}
+
 /** A stable identity for one start, used to write it into a chunk at most once. */
 function startKey(start) {
   const box = start.box;
@@ -187,7 +205,37 @@ export function createWorldStructures({
   // (the world registers a chunk before generating it, and callers re-enter), so this keeps writes idempotent.
   const applied = new Set();
   const loot = [];
-  const stats = { chunks: 0, planned: 0, structures: 0, blocks: 0, outOfWorld: 0, mobs: 0, spawned: 0, oriented: 0 };
+  const stats = { chunks: 0, planned: 0, structures: 0, blocks: 0, outOfWorld: 0, mobs: 0, spawned: 0, oriented: 0, cleared: 0 };
+
+  /**
+   * Remove vegetation standing inside a structure's pieces, above each piece's floor, wherever the structure itself
+   * wrote nothing. Tree planting already keeps clear of planned structures; this catches what it cannot -- flowers
+   * and grass from the surface pass, and a canopy from a tree just outside the margin.
+   */
+  function clearVegetation(chunk, start, own, baseX, baseZ) {
+    let cleared = 0;
+    const maxX = baseX + sizes.x - 1; const maxZ = baseZ + sizes.z - 1;
+    for (const piece of start.pieces) {
+      const b = piece.box;
+      if (b.maxX < baseX || b.minX > maxX || b.maxZ < baseZ || b.minZ > maxZ) continue;
+      const offsets = piece.meta?.columnOffsets ?? null;
+      const width = b.maxX - b.minX + 1;
+      for (let x = Math.max(b.minX, baseX); x <= Math.min(b.maxX, maxX); x++) {
+        for (let z = Math.max(b.minZ, baseZ); z <= Math.min(b.maxZ, maxZ); z++) {
+          // A terrain-matching street's floor is its own column's ground, not the box bottom.
+          const floor = offsets ? piece.meta.baseY + (offsets[(z - b.minZ) * width + (x - b.minX)] ?? 0) : b.minY;
+          const lx = x - baseX; const lz = z - baseZ;
+          for (let y = Math.max(0, floor + 1); y <= Math.min(b.maxY, sizes.height - 1); y++) {
+            if (own.has((y * sizes.z + lz) * sizes.x + lx)) continue;
+            if (!isVegetation(chunk.getVoxel(lx, y, lz))) continue;
+            chunk.setVoxel(lx, y, lz, blockIds.AIR);
+            cleared++;
+          }
+        }
+      }
+    }
+    return cleared;
+  }
   // Things a structure hands to the GAME rather than to the voxels: mobs (a village's villagers, golem and pen
   // animals) and block orientation (which way a door, bed, chest or stair faces -- the voxel world stores only
   // block ids). Each is requested exactly once, by the chunk that contains it. `onSpawn` / `onOrientation` put
@@ -274,6 +322,34 @@ export function createWorldStructures({
   }
 
   /**
+   * The piece boxes of every planned structure that reach into this chunk grown by `margin` blocks.
+   *
+   * Tree planting asks this once per chunk so it can leave room for structures: trees are planted BEFORE
+   * structures are written, and a canopy that lands in a village street or an igloo cannot be repaired afterwards
+   * without leaving half a tree floating beside it. Pure planning, so it never generates a chunk.
+   */
+  function pieceBoxesNear(chunkX, chunkZ, margin = 0) {
+    const dimension = dimensionNow();
+    const minX = chunkX * sizes.x - margin; const maxX = chunkX * sizes.x + sizes.x - 1 + margin;
+    const minZ = chunkZ * sizes.z - margin; const maxZ = chunkZ * sizes.z + sizes.z - 1 + margin;
+    const boxes = [];
+    for (let dx = -radiusChunks; dx <= radiusChunks; dx++) {
+      for (let dz = -radiusChunks; dz <= radiusChunks; dz++) {
+        for (const start of plansAt(chunkX + dx, chunkZ + dz, dimension)) {
+          const box = start.box;
+          if (box.maxX < minX || box.minX > maxX || box.maxZ < minZ || box.minZ > maxZ) continue;
+          for (const piece of start.pieces) {
+            const b = piece.box;
+            if (b.maxX < minX || b.minX > maxX || b.maxZ < minZ || b.minZ > maxZ) continue;
+            boxes.push(b);
+          }
+        }
+      }
+    }
+    return boxes;
+  }
+
+  /**
    * Write every structure that overlaps this chunk, clipped to it.
    *
    * @returns {object} the running stats, for tests and for a caller that wants to report them
@@ -300,6 +376,7 @@ export function createWorldStructures({
         if (applied.has(key)) continue;
         applied.add(key);
 
+        const own = new Set();
         const written = engine.realize(start, (x, y, z, id, meta) => {
           const lx = x - baseX;
           const lz = z - baseZ;
@@ -310,6 +387,7 @@ export function createWorldStructures({
             stats.outOfWorld++;
             return false;
           }
+          if (!meta?.terrainAdaptation) own.add((y * sizes.z + lz) * sizes.x + lx);
           // A village path over water becomes planks (the generator says which, through `ifWater`).
           if (meta && meta.ifWater !== undefined && chunk.getVoxel(lx, y, lz) === blockIds.WATER) id = meta.ifWater;
           chunk.setVoxel(lx, y, lz, id);
@@ -345,8 +423,11 @@ export function createWorldStructures({
           chunkZ: chunk.cz,
           surfaceY: (x, z) => world.surfaceHeightAt(x, z),
           foundationBlock,
+          airBlock: blockIds.AIR,
+          surfaceBlock: (x, z) => getBiomeDef(world.getBiome(x, z))?.surfaceBlock ?? blockIds.GRASS,
           adapt
         });
+        stats.cleared += clearVegetation(chunk, start, own, baseX, baseZ);
 
         stats.structures++;
         stats.blocks += typeof written === 'number' ? written : 0;
@@ -360,6 +441,7 @@ export function createWorldStructures({
     applyToChunk,
     planAt,
     plansAt,
+    pieceBoxesNear,
     structureIdAt,
     stats,
     loot,

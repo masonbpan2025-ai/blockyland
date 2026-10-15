@@ -463,6 +463,9 @@ export class BedManager {
 
   startSleeping(bed, player) {
     this.isSleeping = true;
+    // Phantom: they come to a player whose "time since rest" is three days or more, and lying in a bed resets it.
+    // Nothing reset either insomnia timer, so sleeping every night still brought phantoms after the third day.
+    resetInsomnia(this.game);
     this.sleepingBed = bed;
     this.sleepTimer = 0;
     player.isSleeping = true;
@@ -605,4 +608,10 @@ export class BedManager {
     }
     return false;
   }
+}
+
+/** Reset the player's "time since rest" (the phantom insomnia timers): on lying down in a bed, and on death. */
+export function resetInsomnia(game) {
+  game?.mobs?.hostileBehaviors?.resetSleep?.();
+  game?.spawnManager?.specialSpawners?.phantom?.reset?.();
 }

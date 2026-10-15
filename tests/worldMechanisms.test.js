@@ -19,17 +19,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
 
-test('Start screen has Generate New World, Load Designed World, and Load Saved World buttons', () => {
+test('Start screen has Generate New World, Load Mod, and Load Saved World buttons', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf-8');
 
   // Verify all 3 start screen buttons exist
   assert.ok(html.includes('id="btn-start-new-world"'), 'Start screen has Generate New World button');
-  assert.ok(html.includes('id="btn-start-designed-world"'), 'Start screen has Load Designed World button');
+  assert.ok(html.includes('id="btn-start-designed-world"'), 'Start screen has Load Mod button');
   assert.ok(html.includes('id="btn-start-load-world"'), 'Start screen has Load Saved World button');
 
   // Verify text content
   assert.match(html, />\s*Generate New World\s*</);
-  assert.match(html, />\s*Load Designed World\s*</);
+  assert.match(html, />\s*Load Mod\s*</);
   assert.match(html, />\s*Load Saved World\s*</);
 
   // Verify Dedicated Designed Worlds modal exists and is isolated
@@ -119,7 +119,8 @@ test('Serialization and Deserialization preserve mechanism and worldType for bot
     getChunk: () => null,
     getOrCreateChunk: () => ({ voxels: new Uint8Array(16384), waterLevels: new Uint8Array(16384) }),
     chunkKey: (cx, cz) => `${cx},${cz}`,
-    reseed: () => {}
+    reseed: () => {},
+    switchDimension(dimension) { this.dimension = dimension; }, // restoreMapDimension puts the saved dimension back
   };
   const mockPlayer = {
     position: { x: 10, y: 25, z: 15, set: () => {} },

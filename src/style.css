@@ -142,6 +142,35 @@ html, body {
   min-height: 18px;
 }
 
+#air-bar {
+  display: flex;
+  gap: 2px;
+  min-height: 18px;
+  justify-content: flex-end;
+}
+
+.bubble-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid #082f49;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, #7dd3fc 35%, #0284c7 70%, #0369a1 90%);
+  box-shadow: 0 0 3px rgba(56, 189, 248, 0.5), inset 0 0 2px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.1s ease;
+}
+
+.difficulty-choice-btn {
+  transition: all 0.15s ease;
+  line-height: 1.4;
+}
+
+.difficulty-choice-btn:hover {
+  background: #2563eb !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+
 .armor-icon {
   clip-path: polygon(50% 100%, 0% 65%, 0% 10%, 50% 0%, 100% 10%, 100% 65%);
   background: radial-gradient(circle, #f1f5f9 60%, #94a3b8 90%);
@@ -1589,8 +1618,13 @@ html, body {
 
 .gemini-key-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
+
+.gemini-key-vault { display: grid; gap: 8px; padding: 8px 0; }
+.gemini-key-vault [hidden] { display: none !important; }
+.gemini-key-row input { min-width: 160px; }
 
 /* Refresh / custom id / follow-newest, under the model picker. */
 .gemini-model-tools {
@@ -3745,3 +3779,8 @@ body.hud-hidden #offhand-hud-slot {
   }
 }
 
+
+/* A compass in the hotbar shows its needle (compass.js): red toward the target, spinning where there is none. */
+.hotbar-slot { position: relative; }
+.compass-needle { position: absolute; left: 50%; top: 50%; width: 3px; height: 38%; background: linear-gradient(#e53935 0 55%, #f5f5f5 55%); transform-origin: 50% 100%; transform: translate(-50%, -100%); border-radius: 2px; pointer-events: none; box-shadow: 0 0 1px rgba(0,0,0,.8); }
+.compass-needle.lodestone { background: linear-gradient(#7e57c2 0 55%, #f5f5f5 55%); }

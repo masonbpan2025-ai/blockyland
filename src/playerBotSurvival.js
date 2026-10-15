@@ -8,8 +8,41 @@ import { calculateBookshelfCount, generateEnchantmentOffers, applyEnchantment } 
 import { executeTrade } from './villagerEconomy.js';
 import { BrewingManager } from './brewing.js';
 import { calculateSmithingResult, resolveSmithingTemplate } from './smithing.js';
+import { ChestManager } from './chest.js';
+import { calculateAnvilResult, getAnvilDegradation } from './anvil.js';
+import { consumePlayerLevels } from './experience.js';
+import { isDrinkablePotion, drinkPotion } from './potionUse.js';
+import { canEat } from './hunger.js';
 
-export const SURVIVAL_ACTIONS = ['craft', 'place', 'cook', 'eat', 'sleep', 'till', 'use', 'brew', 'enchant', 'smith', 'trade'];
+export const SURVIVAL_ACTIONS = ['craft', 'place', 'cook', 'eat', 'sleep', 'till', 'use', 'activate', 'brew', 'enchant', 'smith', 'anvil', 'trade', 'store', 'withdraw', 'open', 'build', 'wire'];
+
+export const BUILTIN_SCHEMATICS = {
+  shelter: [
+    // 4x4 cobblestone floor
+    ...Array.from({ length: 4 }, (_, x) => Array.from({ length: 4 }, (_, z) => ({ offset: [x, 0, z], item: 'cobblestone' }))).flat(),
+    // 4x4 oak planks walls (h=1..2) leaving door opening at [1, 1, 0] and [1, 2, 0]
+    ...[1, 2].flatMap(y => [
+      { offset: [0, y, 0], item: 'oak_planks' },
+      { offset: [2, y, 0], item: 'oak_planks' },
+      { offset: [3, y, 0], item: 'oak_planks' },
+      { offset: [0, y, 1], item: 'oak_planks' },
+      { offset: [3, y, 1], item: 'oak_planks' },
+      { offset: [0, y, 2], item: 'oak_planks' },
+      { offset: [3, y, 2], item: 'oak_planks' },
+      { offset: [0, y, 3], item: 'oak_planks' },
+      { offset: [1, y, 3], item: 'oak_planks' },
+      { offset: [2, y, 3], item: 'oak_planks' },
+      { offset: [3, y, 3], item: 'oak_planks' }
+    ]),
+    // Doorway
+    { offset: [1, 1, 0], item: 'oak_door' },
+    // 4x4 roof at y=3
+    ...Array.from({ length: 4 }, (_, x) => Array.from({ length: 4 }, (_, z) => ({ offset: [x, 3, z], item: 'oak_planks' }))).flat(),
+    // Interior torch
+    { offset: [2, 2, 2], item: 'torch' }
+  ]
+};
+
 export function itemId(name) {
   if (typeof name === 'number' && BLOCK_DEFS[name]) return name;
   if (typeof name !== 'string') throw new Error('Specify an item name or block ID.');
@@ -30,20 +63,39 @@ export function itemId(name) {
 }
 export function validateSurvivalAction(c) {
   if (!SURVIVAL_ACTIONS.includes(c.type)) return c;
-  if (c.type !== 'sleep' && c.type !== 'till' && c.type !== 'trade' && c.type !== 'smith') itemId(c.item);
+  if(c.type==='activate'){
+    if(!Array.isArray(c.position)||c.position.length!==3||c.position.some(v=>!Number.isInteger(v)||Math.abs(v)>30000000))throw new Error('Activate needs three integer world coordinates.');
+    return c;
+  }
+  if(c.type==='build'&&Array.isArray(c.schematic))for(const cell of c.schematic){
+    if(!Array.isArray(cell.offset)||cell.offset.length!==3||cell.offset.some(n=>!Number.isInteger(n)||Math.abs(n)>128))throw new Error('Invalid schematic offset.');
+    itemId(cell.item);
+    if(cell.dir!==undefined&&(!Number.isInteger(cell.dir)||cell.dir<0||cell.dir>5))throw new Error('Invalid component facing.');
+    if(cell.delay!==undefined&&(!Number.isInteger(cell.delay)||cell.delay<1||cell.delay>4))throw new Error('Repeater delay must be 1–4.');
+    if(cell.note!==undefined&&(!Number.isInteger(cell.note)||cell.note<0||cell.note>24))throw new Error('Note must be 0–24.');
+  }
+  if (c.type !== 'sleep' && c.type !== 'till' && c.type !== 'trade' && c.type !== 'smith' && c.type !== 'anvil' && c.type !== 'open' && c.type !== 'build') itemId(c.item || 'redstone');
   if (c.type === 'smith') {
     if (!resolveSmithingTemplate(c.template)) throw new Error(`Unknown smithing template: ${c.template}`);
     itemId(c.base);
     itemId(c.addition);
   }
-  if (['place', 'cook', 'sleep', 'till', 'use', 'brew', 'enchant', 'smith'].includes(c.type)) {
+  if (c.type === 'anvil') {
+    itemId(c.left);
+    if (c.right) itemId(c.right);
+  }
+  if (['place', 'cook', 'sleep', 'till', 'use', 'brew', 'enchant', 'smith', 'anvil', 'store', 'withdraw', 'open', 'build'].includes(c.type)) {
     if (!Array.isArray(c.position) || c.position.length !== 3 || c.position.some(n => !Number.isInteger(n) || Math.abs(n) > 30000000)) throw new Error('Action needs three integer world coordinates.');
+  }
+  if (c.type === 'wire') {
+    if (!Array.isArray(c.from) || c.from.length !== 3 || c.from.some(n => !Number.isInteger(n))) throw new Error('Wire needs 3 integer starting coordinates.');
+    if (!Array.isArray(c.to) || c.to.length !== 3 || c.to.some(n => !Number.isInteger(n))) throw new Error('Wire needs 3 integer ending coordinates.');
   }
   if (c.type === 'cook') itemId(c.fuel);
   if (c.type === 'brew' && c.bottle) itemId(c.bottle);
   if (c.type === 'trade' && !c.mob) throw new Error('Trade needs a merchant mob name.');
   for (const value of [c.count ?? 1, c.fuelCount ?? 1, c.bottleCount ?? 1]) if (!Number.isInteger(value) || value < 1 || value > 64) throw new Error('Use a count from 1 to 64.');
-  if (['place','eat','sleep','till','use','enchant','smith'].includes(c.type) && (c.count??1)!==1) throw new Error('Placement, eating, sleeping, tilling, item use, enchanting and smithing act once per command.');
+  if (['place','eat','sleep','till','use','enchant','smith','anvil','open','build'].includes(c.type) && (c.count??1)!==1) throw new Error('Placement, eating, sleeping, tilling, item use, enchanting, smithing, anvil, opening and building act once per command.');
   return c;
 }
 
@@ -61,6 +113,10 @@ export class BotSurvival {
    * reported zero wool while `itemCount` -- which normalises -- reported three, and the bed recipe could never
    * be satisfied however much wool the player had.
    */
+  /** What the player holds, stack by stack (id, count, durability), to notice any change a use makes. */
+  inventorySignature() {
+    return JSON.stringify([...(this.inventory.hotbar || []), ...(this.inventory.storage || [])].map((i) => i ? `${i.id}x${i.count}d${i.durability ?? ''}` : ''));
+  }
   sameItem(stackId, wanted) {
     if (stackId === wanted) return true;
     const name = (value) => {
@@ -108,6 +164,69 @@ export class BotSurvival {
     }
     return false;
   }
+  /**
+   * A point on a supporting face of the cell (x, y, z) that the eye can see: the first block a ray toward it meets is
+   * that face's block, through that face. Faces turned away from the eye are skipped, and each face is sampled on a
+   * 3 x 3 grid, nearest-to-centre first.
+   */
+  placementAim(x, y, z, faces, eyeAt = null) {
+    const p = this.game.player;
+    const eye = eyeAt ?? { x: p.position.x, y: p.position.y + (p.isSneaking ? 1.38 : p.eyeHeight || 1.62), z: p.position.z };
+    const offsets = [0.5, 0.2, 0.8];
+    for (const f of faces) {
+      const anchor = { x: x + f[0], y: y + f[1], z: z + f[2] };
+      // The face shared by the anchor and the cell, seen from the cell's side: its normal is -f.
+      const cx = x + 0.5 + f[0] * 0.5, cy = y + 0.5 + f[1] * 0.5, cz = z + 0.5 + f[2] * 0.5;
+      if (-f[0] * (eye.x - cx) - f[1] * (eye.y - cy) - f[2] * (eye.z - cz) <= 0) continue;
+      for (const u of offsets) for (const v of offsets) {
+        const point = f[0] ? { x: cx, y: y + u, z: z + v } : f[1] ? { x: x + u, y: cy, z: z + v } : { x: x + u, y: y + v, z: cz };
+        const hit = this.raycastBlock(eye, point, 5.2);
+        if (hit && hit.x === anchor.x && hit.y === anchor.y && hit.z === anchor.z && hit.nx === -f[0] && hit.ny === -f[1] && hit.nz === -f[2]) {
+          return { anchor, point: { x: point.x - f[0] * 0.001, y: point.y - f[1] * 0.001, z: point.z - f[2] * 0.001 } };
+        }
+      }
+    }
+    return null;
+  }
+  /**
+   * The nearest cell the player could stand in (solid, safe floor; two clear cells) from which a supporting face of
+   * (x, y, z) is visible within reach.
+   */
+  vantagePoint(x, y, z, faces) {
+    const p = this.game.player.position, world = this.game.world, bot = this.bot;
+    let best = null;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) for (let dy = -3; dy <= 2; dy++) {
+      const sx = x + dx, sy = y + dy, sz = z + dz;
+      if (sx === x && sz === z && (sy === y || sy + 1 === y)) continue;
+      const floor = world.getVoxel(sx, sy - 1, sz);
+      if (bot.passable(floor) || bot.hazard(floor) || !bot.passable(world.getVoxel(sx, sy, sz)) || !bot.passable(world.getVoxel(sx, sy + 1, sz))) continue;
+      const eye = { x: sx + 0.5, y: sy + 1.38, z: sz + 0.5 };
+      if (Math.hypot(x + 0.5 - eye.x, y + 0.5 - (sy + 0.5), z + 0.5 - eye.z) > 4.3) continue;
+      if (!this.placementAim(x, y, z, faces, eye)) continue;
+      const d = Math.hypot(sx + 0.5 - p.x, sy - p.y, sz + 0.5 - p.z);
+      if (!best || d < best.d) best = { x: sx, y: sy, z: sz, d };
+    }
+    return best;
+  }
+  /** The game's block raycast (main.js updateRaycast), from `from` toward `to`: the first non-air, non-water block. */
+  raycastBlock(from, to, maxDist) {
+    const world = this.game.world;
+    let dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
+    const len = Math.hypot(dx, dy, dz) || 1; dx /= len; dy /= len; dz /= len;
+    let x = Math.floor(from.x), y = Math.floor(from.y), z = Math.floor(from.z);
+    const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1;
+    const tdx = Math.abs(1 / dx), tdy = Math.abs(1 / dy), tdz = Math.abs(1 / dz);
+    let tx = (sx > 0 ? x + 1 - from.x : from.x - x) * tdx, ty = (sy > 0 ? y + 1 - from.y : from.y - y) * tdy, tz = (sz > 0 ? z + 1 - from.z : from.z - z) * tdz;
+    let nx = 0, ny = 0, nz = 0, dist = 0;
+    for (let i = 0; i < 24; i++) {
+      const id = world.getVoxel(x, y, z);
+      if (id !== BLOCKS.AIR && id !== BLOCKS.WATER) return { x, y, z, nx, ny, nz, dist };
+      if (tx < ty) { if (tx < tz) { x += sx; dist = tx; tx += tdx; nx = -sx; ny = 0; nz = 0; } else { z += sz; dist = tz; tz += tdz; nx = 0; ny = 0; nz = -sz; } }
+      else if (ty < tz) { y += sy; dist = ty; ty += tdy; nx = 0; ny = -sy; nz = 0; } else { z += sz; dist = tz; tz += tdz; nx = 0; ny = 0; nz = -sz; }
+      if (dist > maxDist) return null;
+    }
+    return null;
+  }
   requireReach(position, ids) {
     const [x,y,z] = position, p = this.game.player.position;
     if (Math.hypot(x+.5-p.x,y+.5-p.y,z+.5-p.z) > 4.5) throw new Error('Walk within reach of the station first.');
@@ -140,7 +259,7 @@ export class BotSurvival {
       // that decide it -- whether a table is in reach, whether any candidate matched the id, and which
       // ingredient is short.
       const nearTable = this.nearby(BLOCKS.CRAFTING_TABLE);
-      const candidates = recipes.filter(({ r }) => String(r.result?.id) === String(id)
+      const candidates = recipes.filter(({ r }) => this.sameItem(r.result?.id, id)
         || (bedFamily(r.result?.id) && bedFamily(id)));
       const detail = candidates.slice(0, 3).map(({ r }) => {
         const needed = new Map();
@@ -172,8 +291,157 @@ export class BotSurvival {
       Object.assign(inv,saved); inv.craft2x2.fill(null); inv.craft3x3.fill(null); inv.cursorItem=null; inv.checkCrafting(); throw e;
     }
   }
+  store(c) {
+    this.requireReach(c.position, [BLOCKS.CHEST, BLOCKS.TRAPPED_CHEST]);
+    this.game.chestManager ??= new ChestManager(this.game);
+    const cm = this.game.chestManager;
+    let chest = cm.getChest(...c.position);
+    if (!chest) {
+      chest = cm.placeChest(this.game.world, c.position, 0);
+    }
+    if (!cm.canOpen(c.position[0], c.position[1], c.position[2], this.game.world)) {
+      throw new Error('This chest is obstructed.');
+    }
+    const id = itemId(c.item);
+    const count = c.count ?? 1;
+    const isBlock = typeof id === 'number' || (BLOCKS[String(c.item).toUpperCase()] !== undefined);
+    if (this.game.player.gamemode !== 'creative' && this.count(id) < count) {
+      throw new Error(`Not enough ${c.item} in inventory.`);
+    }
+    cm.addItem(c.position[0], c.position[1], c.position[2], id, isBlock, count);
+    if (this.game.player.gamemode !== 'creative') {
+      this.remove(id, count);
+    }
+    this.inventory.updateHotbar?.();
+    return this.bot.finish(true, `Stored ${count} ${c.item} in chest at ${c.position}.`);
+  }
+  withdraw(c) {
+    this.requireReach(c.position, [BLOCKS.CHEST, BLOCKS.TRAPPED_CHEST]);
+    this.game.chestManager ??= new ChestManager(this.game);
+    const cm = this.game.chestManager;
+    let chest = cm.getChest(...c.position);
+    if (!chest) throw new Error('No chest at specified coordinates.');
+    if (!cm.canOpen(c.position[0], c.position[1], c.position[2], this.game.world)) {
+      throw new Error('This chest is obstructed.');
+    }
+    const id = itemId(c.item);
+    const count = c.count ?? 1;
+    const items = cm.getCombinedItems(c.position[0], c.position[1], c.position[2]);
+    const available = items.reduce((sum, s) => sum + (s && this.sameItem(s.id, id) ? s.count : 0), 0);
+    if (available < count) {
+      throw new Error(`Not enough ${c.item} in chest (found ${available}).`);
+    }
+    let remaining = count;
+    for (let i = 0; i < items.length && remaining > 0; i++) {
+      const s = items[i];
+      if (s && this.sameItem(s.id, id)) {
+        const take = Math.min(remaining, s.count);
+        s.count -= take;
+        remaining -= take;
+        if (s.count <= 0) cm.setCombinedSlot(c.position[0], c.position[1], c.position[2], i, null);
+        else cm.setCombinedSlot(c.position[0], c.position[1], c.position[2], i, s);
+      }
+    }
+    const isBlock = typeof id === 'number' || (BLOCKS[String(c.item).toUpperCase()] !== undefined);
+    this.inventory.addItem(c.item, isBlock, count);
+    this.inventory.updateHotbar?.();
+    return this.bot.finish(true, `Withdrew ${count} ${c.item} from chest at ${c.position}.`);
+  }
+  open(c) {
+    this.requireReach(c.position, [BLOCKS.CHEST, BLOCKS.TRAPPED_CHEST]);
+    this.game.chestManager ??= new ChestManager(this.game);
+    const cm = this.game.chestManager;
+    if (!cm.canOpen(c.position[0], c.position[1], c.position[2], this.game.world)) {
+      throw new Error('This chest is obstructed.');
+    }
+    cm.interact(c.position[0], c.position[1], c.position[2], this.game.player);
+    return this.bot.finish(true, `Opened chest at ${c.position}.`);
+  }
+  build(c) {
+    const [origX, origY, origZ] = c.position;
+    let blocks = Array.isArray(c.schematic) ? c.schematic : (BUILTIN_SCHEMATICS[c.schematic] || BUILTIN_SCHEMATICS.shelter);
+    if (!blocks || !blocks.length) throw new Error(`Unknown schematic: ${c.schematic}`);
+
+    const sorted = [...blocks].sort((a, b) => a.offset[1] - b.offset[1]);
+    let placedCount = 0;
+    const isCreative = this.game.player.gamemode === 'creative';
+
+    for (const b of sorted) {
+      const bx = origX + b.offset[0], by = origY + b.offset[1], bz = origZ + b.offset[2];
+      const itemKey = b.item;
+      const id = itemId(itemKey);
+      if (!isCreative && this.count(id) < 1) {
+        continue;
+      }
+      if (String(itemKey).endsWith('_door') || itemKey === 'door' || itemKey === BLOCKS.OAK_DOOR) {
+        if (this.game.doorManager) {
+          this.game.doorManager.placeDoor(this.game.world, [bx, by, bz], 0);
+        } else {
+          this.game.world.setVoxel(bx, by, bz, BLOCKS.OAK_DOOR);
+          this.game.world.setVoxel(bx, by + 1, bz, BLOCKS.OAK_DOOR_TOP);
+        }
+      } else if (itemKey === 'torch' || id === BLOCKS.TORCH) {
+        this.game.world.setVoxel(bx, by, bz, BLOCKS.TORCH);
+      } else {
+        const blockId = typeof id === 'number' ? id : (ITEMS[id]?.blockId ?? BLOCKS[String(id).toUpperCase()]);
+        if (typeof blockId === 'number') {
+          this.game.world.setVoxel(bx, by, bz, blockId);
+          const redstone=this.game.world.redstone;
+          redstone?.configure?.([bx,by,bz],b.dir??0);
+          const state=redstone?.state?.([bx,by,bz]);
+          if(state){if(b.delay!==undefined)state.delay=b.delay;if(b.note!==undefined)state.note=b.note;if(b.subtract!==undefined)state.subtract=!!b.subtract;if(b.dot!==undefined)state.dot=!!b.dot;if(b.attach)state.attach=[...b.attach];}
+        }
+      }
+      if (!isCreative) {
+        this.remove(id, 1);
+      }
+      placedCount++;
+    }
+    this.inventory.updateHotbar?.();
+    return this.bot.finish(true, `Built ${c.schematic} at ${c.position} (${placedCount} blocks placed).`);
+  }
+  wire(c) {
+    const from = c.from, to = c.to;
+    const id = itemId(c.item || 'redstone');
+    const blockId = typeof id === 'number' ? id : (ITEMS[id]?.blockId ?? BLOCKS.REDSTONE_WIRE);
+    const isCreative = this.game.player.gamemode === 'creative';
+
+    const dx = Math.sign(to[0] - from[0]);
+    const dy = Math.sign(to[1] - from[1]);
+    const dz = Math.sign(to[2] - from[2]);
+    let cx = from[0], cy = from[1], cz = from[2];
+    let wiredCount = 0;
+
+    while (true) {
+      if (!isCreative && this.count(id) < 1) {
+        throw new Error(`Out of ${c.item} for wiring.`);
+      }
+      this.game.world.setVoxel(cx, cy, cz, blockId);
+      this.game.world?.redstone?.updateNeighbors?.([cx, cy, cz]);
+      if (!isCreative) this.remove(id, 1);
+      wiredCount++;
+      if (cx === to[0] && cy === to[1] && cz === to[2]) break;
+      if (cx !== to[0]) cx += dx;
+      else if (cy !== to[1]) cy += dy;
+      else if (cz !== to[2]) cz += dz;
+    }
+    this.inventory.updateHotbar?.();
+    return this.bot.finish(true, `Wired ${c.item || 'redstone'} from ${c.from} to ${c.to} (${wiredCount} placed).`);
+  }
   tick(t) {
     const c=t.command, p=this.game.player;
+    if(c.type==='activate'){
+      if(!this.game.world.redstone?.state(c.position))throw new Error('There is no redstone control at that position.');
+      this.requireReach(c.position,[this.game.world.getVoxel(...c.position)]);
+      this.bot.lookAt({x:c.position[0]+.5,y:c.position[1]+.3,z:c.position[2]+.5});
+      if(t.elapsed>5)throw new Error('Cannot see the redstone control.');
+      return;
+    }
+    if (c.type === 'store') return this.store(c);
+    if (c.type === 'withdraw') return this.withdraw(c);
+    if (c.type === 'open') return this.open(c);
+    if (c.type === 'build') return this.build(c);
+    if (c.type === 'wire') return this.wire(c);
     if (c.type === 'place') {
       const [x,y,z]=c.position;
       if (this.game.world.getVoxel(x,y,z)!==BLOCKS.AIR) throw new Error('Placement cell is occupied.');
@@ -189,11 +457,27 @@ export class BotSurvival {
       const faces=[[0,-1,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0]];
       t.faces ??= faces.filter(([a,b,d])=>!this.bot.passable(this.game.world.getVoxel(x+a,y+b,z+d)));
       if (!t.faces.length) throw new Error('Placement needs a supporting face.');
-      const f=t.faces[Math.floor(t.elapsed/.25)%t.faces.length];
-      t.anchor={x:x+f[0],y:y+f[1],z:z+f[2]};
-      this.requireReach([t.anchor.x,t.anchor.y,t.anchor.z],[this.game.world.getVoxel(t.anchor.x,t.anchor.y,t.anchor.z)]);
-      this.bot.lookAt({x:x+.5+f[0]*.501,y:y+.5+f[1]*.501,z:z+.5+f[2]*.501});
       p.isSneaking=true; p.botControls.ShiftLeft=true;
+      // Aim where a player would: at a part of a supporting face that can actually be seen from the eye (the game's
+      // own block raycast reaches that face first). A face's centre is often hidden or only grazed -- the block
+      // beside it is in the way -- and the old aim at the centres then fell back to writing the block directly.
+      const aim = this.placementAim(x, y, z, t.faces);
+      // Nothing visible from here: step to a spot that has a view of a supporting face, as a player would, once.
+      if (!aim && !t.repositioned) {
+        t.repositioned = true;
+        const spot = this.vantagePoint(x, y, z, t.faces);
+        if (spot) { this.bot.walkForSurvival(spot); return; }
+      }
+      if (aim) {
+        t.anchor = aim.anchor;
+        this.requireReach([aim.anchor.x, aim.anchor.y, aim.anchor.z], [this.game.world.getVoxel(aim.anchor.x, aim.anchor.y, aim.anchor.z)]);
+        this.bot.lookAt(aim.point);
+      } else {
+        const f=t.faces[Math.floor(t.elapsed/.25)%t.faces.length];
+        t.anchor={x:x+f[0],y:y+f[1],z:z+f[2]};
+        this.requireReach([t.anchor.x,t.anchor.y,t.anchor.z],[this.game.world.getVoxel(t.anchor.x,t.anchor.y,t.anchor.z)]);
+        this.bot.lookAt({x:x+.5+f[0]*.501,y:y+.5+f[1]*.501,z:z+.5+f[2]*.501});
+      }
       if(t.elapsed>4) throw new Error('No visible supporting face could place this block.');
     } else if(c.type==='cook') {
       this.requireReach(c.position,[BLOCKS.FURNACE,BLOCKS.LIT_FURNACE]);
@@ -214,7 +498,9 @@ export class BotSurvival {
           }
         }
         if(!recipe || !getFuelBurnTime(fuel)) throw new Error('Invalid smelting input or fuel.');
-        if(f.input || f.fuel || f.output || f.burnTime>0) throw new Error('Use an empty, unlit furnace.');
+        // Empty slots are enough: a furnace still burning off its last fuel cooks the next batch with what is left of
+        // it, as it does for a player who drops more in. Refusing a lit furnace stalled every second batch.
+        if(f.input || f.fuel || f.output) throw new Error('Use an empty furnace (input, fuel and output slots).');
         if(this.count(id)<count || this.count(fuel)<fuelCount+(id===fuel?count:0)) throw new Error('Not enough input or fuel.');
         if(this.capacity(recipe)<count*recipe.count) throw new Error('Inventory has no room for cooked output.');
         manager.addItem(...c.position,id,typeof id==='number',count,'input'); this.remove(id,count);
@@ -235,14 +521,18 @@ export class BotSurvival {
       }
       if(!f.input && !f.output) throw new Error('Cooking output disappeared.');
     } else if(c.type==='eat') {
+      // Eating finishes inside the game loop (eating.js), so by this tick the food may already be gone: that is done.
+      if (t.before !== undefined && this.count(itemId(c.item)) < t.before) { this.bot.finish(true, `Ate ${c.item}.`); return; }
       if(!this.bot.equip(s => this.sameItem(s.id, itemId(c.item)))) throw new Error('Food is missing.');
       t.before ??= this.count(itemId(c.item));
-      if (p.hunger >= (p.maxHunger || 20) && p.health >= (p.maxHealth || 20) && !['golden_apple', 'enchanted_golden_apple', 'chorus_fruit'].includes(c.item)) {
+      // The game's own rule (canEat): hunger decides, health does not; milk and potions can always be drunk.
+      if (!canEat(c.item, p.hunger, { creative: p.gamemode === 'creative', maxHunger: p.maxHunger || 20 }) && c.item !== 'milk_bucket' && !isDrinkablePotion(c.item) && !c.item.includes('potion')) {
         this.bot.finish(true, `Player is already full; did not consume ${c.item}.`);
         return;
       }
       this.bot.lookAt({x:p.position.x,y:p.position.y-1,z:p.position.z});
-      if(t.elapsed>2) throw new Error('Game did not consume the food.');
+      // Eating is held for 1.6 s (2 s for a honey bottle; eating.js) before the game consumes the food.
+      if(t.elapsed>3.5) throw new Error('Game did not consume the food.');
     } else if(c.type==='sleep') {
       this.requireReach(c.position,[BLOCKS.RED_BED_FOOT,BLOCKS.RED_BED_HEAD]);
       if (!t.started) {
@@ -277,6 +567,8 @@ export class BotSurvival {
       }
       if (!this.bot.equip(s => this.sameItem(s?.id, itemId(c.item)))) throw new Error(`You do not have ${c.item}.`);
       t.before ??= this.count(itemId(c.item));
+      // Shears on a full hive give honeycomb and change no block: any change to the inventory is the use landing.
+      t.beforeInventory ??= this.inventorySignature();
       this.bot.lookAt({ x: x + 0.5, y: y + 0.5, z: z + 0.5 });
       if (t.elapsed > 3) throw new Error(`Using ${c.item} timed out.`);
     } else if (c.type === 'brew') {
@@ -437,6 +729,43 @@ export class BotSurvival {
         throw error;
       }
       return;
+    } else if (c.type === 'anvil') {
+      this.requireReach(c.position, [BLOCKS.ANVIL, BLOCKS.CHIPPED_ANVIL, BLOCKS.DAMAGED_ANVIL]);
+      const isCreative = p.gamemode === 'creative';
+      const leftId = itemId(c.left);
+      const rightId = c.right ? itemId(c.right) : null;
+      if (this.count(leftId) < 1) throw new Error(`You do not have ${c.left}.`);
+      if (rightId && this.count(rightId) < 1) throw new Error(`You do not have ${c.right}.`);
+
+      const left = this.remove(leftId, 1);
+      const right = rightId ? this.remove(rightId, 1) : null;
+      const calc = calculateAnvilResult(left, right, c.customName || '', p.gamemode);
+      if (!calc.valid || !calc.result) {
+        if (left) this.inventory.addItem(left);
+        if (right) this.inventory.addItem(right);
+        throw new Error(calc.tooExpensive ? 'Too Expensive!' : 'Anvil combination is invalid.');
+      }
+      if (!isCreative && (p.level || 0) < calc.levelCost) {
+        if (left) this.inventory.addItem(left);
+        if (right) this.inventory.addItem(right);
+        throw new Error(`Enchantment cost (${calc.levelCost}) exceeds player level (${p.level || 0}).`);
+      }
+      if (!isCreative && calc.levelCost > 0) {
+        consumePlayerLevels(p, calc.levelCost);
+      }
+      if (right && calc.materialUnitsConsumed < (right.count || 1)) {
+        right.count -= (calc.materialUnitsConsumed || 1);
+        if (right.count > 0) this.inventory.addItem(right);
+      }
+      this.inventory.addItem(calc.result);
+      const curBlock = this.game.world.getVoxel(c.position[0], c.position[1], c.position[2]);
+      const nextBlock = getAnvilDegradation(curBlock);
+      if (nextBlock !== curBlock) {
+        this.game.world.setVoxel(c.position[0], c.position[1], c.position[2], nextBlock);
+      }
+      this.inventory.updateHotbar?.();
+      this.bot.finish(true, `Used anvil to produce ${calc.result.customName || calc.result.id} (cost: ${calc.levelCost} levels).`);
+      return;
     } else if (c.type === 'trade') {
       const isCreative = p.gamemode === 'creative';
       const mobsList = this.game.mobs?.mobs || [];
@@ -494,7 +823,20 @@ export class BotSurvival {
   }
   afterRaycast(t) {
     const c=t.command, target=this.game.targetBlock, p=this.game.player;
+    if(c.type==='activate'){
+      if(!target||[target.x,target.y,target.z].some((v,i)=>v!==c.position[i]))return;
+      const state=this.game.world.redstone.state(c.position),before=JSON.stringify(state);
+      if(!this.game.handleRightClick)throw new Error('Gameplay interaction is unavailable.');
+      this.game.handleRightClick();
+      this.bot.finish(JSON.stringify(this.game.world.redstone.state(c.position))!==before,'Activated redstone control at '+c.position+'.');
+      return;
+    }
     if(c.type==='eat') {
+      if (isDrinkablePotion(c.item)) {
+        drinkPotion(c.item, p, this.inventory, { gamemode: p.gamemode });
+        this.bot.finish(true, `Drank ${c.item}.`);
+        return;
+      }
       if (typeof this.game.handleRightClick === 'function') {
         this.game.handleRightClick();
       } else {
@@ -550,6 +892,7 @@ export class BotSurvival {
       if (
         this.count(itemId(c.item)) < t.before ||
         voxAfter !== t.beforeVoxel ||
+        (t.beforeInventory !== undefined && this.inventorySignature() !== t.beforeInventory) ||
         this.game.world.getVoxel(x, y + 1, z) === BLOCKS.NETHER_PORTAL ||
         this.game.world.getVoxel(x, y, z) === BLOCKS.NETHER_PORTAL ||
         this.game.world.getVoxel(x, y, z) === BLOCKS.END_PORTAL_FRAME_FILLED
@@ -559,7 +902,12 @@ export class BotSurvival {
     } else if(c.type==='place') {
       const actual = target?.normal ? [target.x+target.normal.x,target.y+target.normal.y,target.z+target.normal.z] : null;
       const matched = actual && !actual.some((n,i)=>n!==c.position[i]);
-      if (!matched && p.gamemode !== 'creative' && t.elapsed < 1.0) return;
+      // Only ever place the way a player does: through the game's own right-click, once the crosshair is on a face
+      // next to the target. The aim phase above keeps turning between the supporting faces and gives up after 4 s.
+      // This used to fall through after 1 s (at once in creative) to writing the block straight into the world --
+      // seeds became a crop on bare grass, beds and doors skipped their placement rules -- so a "placed" result did
+      // not show that a player could have placed it. The direct paths remain only for a host with no right-click.
+      if (!matched && (typeof this.game.handleRightClick === 'function' || (p.gamemode !== 'creative' && t.elapsed < 1.0))) return;
       const before=this.count(itemId(c.item));
       if (matched && typeof this.game.handleRightClick === 'function') {
         this.game.handleRightClick();
@@ -590,10 +938,14 @@ export class BotSurvival {
         if (typeof blockId === 'number') {
           this.game.world.setVoxel(c.position[0], c.position[1], c.position[2], blockId);
           if (p.gamemode !== 'creative') this.remove(id, 1);
+          if (blockId === BLOCKS.WITHER_SKELETON_SKULL_BLOCK || blockId === BLOCKS.WITHER_SKELETON_SKULL) {
+            this.game.bossManager?.checkWitherSummon?.(c.position[0], c.position[1], c.position[2]);
+          }
         }
       }
       const [x,y,z]=c.position;
-      if(this.game.world.getVoxel(x,y,z)!==BLOCKS.AIR && (p.gamemode === 'creative' || this.count(itemId(c.item))===before-1)) this.bot.finish(true,`Placed ${c.item} at ${c.position}.`);
+      const witherSpawned = !!(this.game.bossManager?.wither && this.game.bossManager.wither.health > 0);
+      if((this.game.world.getVoxel(x,y,z)!==BLOCKS.AIR || witherSpawned) && (p.gamemode === 'creative' || this.count(itemId(c.item))===before-1)) this.bot.finish(true,`Placed ${c.item} at ${c.position}.`);
     }
   }
 }

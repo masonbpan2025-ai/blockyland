@@ -204,6 +204,26 @@ export class DespawnManager {
   }
 
   /**
+   * Peaceful's removal alone. Java removes hostile mobs on Peaceful whether or not anything spawns, but the full
+   * pass above runs only with the natural spawner, which an authored world (a custom map, Building Studio, a mod)
+   * switches off, so there a monster lived on in Peaceful and kept attacking. Found by the Tips and tricks play-test
+   * ("all hostile mobs instantly despawn").
+   */
+  removePeaceful() {
+    const difficulty = this.manager.difficulty || Difficulty.NORMAL;
+    if (difficultyRank(difficulty) !== difficultyRank(Difficulty.PEACEFUL)) return 0;
+    let removed = 0;
+    for (const mob of [...this.manager.mobs]) {
+      if (!mob || !mob.mesh || mob.health <= 0) continue;
+      if (SURVIVES_PEACEFUL.has(mob.type) && !isPiglinBrute(mob)) continue;
+      if (this.manager.shouldSurvivePeaceful(mob)) continue;
+      this.manager.removeMob(mob, 'peaceful');
+      removed++; this.stats.peacefulRemovals++;
+    }
+    return removed;
+  }
+
+  /**
    * `Mob.checkDespawn()` for one mob. Returns the reason to remove, or null to keep.
    *
    * @returns {'peaceful'|'hard'|'random'|null}

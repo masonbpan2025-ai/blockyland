@@ -41,7 +41,7 @@ function stubInventory(over = {}) {
     consumed: 0,
     added: [],
     consumeActiveItem(n = 1) { this.consumed += n; },
-    addItem(id, count, isBlock) { this.added.push({ id, count, isBlock }); },
+    addItem(id, isBlock, count) { this.added.push({ id, count, isBlock }); }, // Inventory.addItem(id, isBlock, count)
     ...over,
   };
 }
@@ -257,10 +257,10 @@ test('Regeneration adds to the hunger model rather than replacing it', () => {
   const one = healthGain('regeneration', 1);
   const two = healthGain('regeneration', 2);
 
-  // With a full hunger bar the player's own regeneration heals three points in this window, so the
-  // potion's contribution is the difference. Asserting the absolute number too is what makes this a
-  // test of the potion rather than of the hunger model: level I adds exactly one point, level II two.
-  assert.ok(near(none, 3), `the hunger model alone should heal three points here, healed ${none}`);
+  // With a full hunger bar the player's own regeneration heals in this window too, so the potion's contribution is
+  // the difference. Java's food tick heals min(saturation, 6) / 6 HP every 10 ticks: from 5 saturation, 5/6 + 4/6 +
+  // 3/6 = 2 over these 30 ticks (it was a continuous 2 HP/s, 3 here, before hunger.js took Java's timer).
+  assert.ok(near(none, 2), `the hunger model alone should heal two points here, healed ${none}`);
   assert.ok(near(one - none, 1), `Regeneration I should add one point, added ${one - none}`);
   assert.ok(near(two - none, 2), `Regeneration II should add two points, added ${two - none}`);
 });

@@ -4,6 +4,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 // deliberately differ from vanilla, and silently losing them to a generated duplicate would be a
 // regression that no coverage number would show.
 import { EXTRA_RECIPES } from './extraRecipes.js';
+import { maxDurabilityFor } from './durability.js';
 import { applyWikiRecipeFixes, redyeResult } from './wikiRecipeFixes.js';
 
 export const RECIPES_2X2 = [
@@ -646,3 +647,23 @@ export const WIKI_ADOPTED_RECIPES = applyWikiRecipeFixes(RECIPES_2X2, RECIPES_3X
 export const GENERATED_RECIPE_COUNT = EXTRA_RECIPES.length;
 
 
+
+// Item repair in the crafting grid. Wiki (Item repair): "Two items of the same type and material can be placed anywhere
+// on the crafting grid ... The durability of the repaired item equals the sum of the old items' durability plus a
+// 'repair bonus' of 5% of the item's maximum uses", i.e. min(A + B + floor(max / 20), max); "The repaired object is
+// never enchanted ... with the exception of curse enchantments, which are transferred". Found by the wiki-tutorial
+// play-test (The second day: "put two damaged tools of the same type and material in a grindstone or your crafting
+// grid"); the grid made nothing.
+const CURSES = new Set(['binding_curse', 'vanishing_curse']);
+export function gridRepairResult(grid) {
+  const items = grid.filter((s) => s && s.count > 0);
+  if (items.length !== 2) return null;
+  const [a, b] = items;
+  if (a.isBlock || a.id !== b.id || a.count !== 1 || b.count !== 1) return null;
+  const max = a.maxDurability ?? b.maxDurability ?? maxDurabilityFor(a.id);
+  if (!max) return null;
+  const uses = (s) => (typeof s.durability === 'number' ? s.durability : max);
+  const curses = [];
+  for (const e of [...(a.enchantments || []), ...(b.enchantments || [])]) if (CURSES.has(e?.id) && !curses.some((c) => c.id === e.id)) curses.push({ ...e });
+  return { id: a.id, isBlock: false, count: 1, durability: Math.min(uses(a) + uses(b) + Math.floor(max / 20), max), maxDurability: max, enchantments: curses, repair: true };
+}

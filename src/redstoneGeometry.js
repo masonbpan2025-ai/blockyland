@@ -11,10 +11,10 @@ export function redstoneGeometry(id,tm,state={}){
   };
   const indicator=(x,y,z,on=power)=>box([.1,.1,.1],[x,y,z],on?0xff3020:0x651510,on?.9:0);
   if(id===B.LEVER){box([.45,.16,.4],[.5,.08,.5],0x777d83);box([.09,.5,.09],[.5,.37,state.on?.4:.6],0xbba078,0,state.on?.5:-.5);indicator(.5,.13,.24,state.on);}
-  else if(id===B.REDSTONE_WIRE){box([.18,.025,.18],[.5,.025,.5],power?0xff2424:0x6a0c0c,power*.6);for(const d of state.connections||[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]])box(d[0]?[.5,.025,.08]:[.08,.025,.5],[.5+d[0]*.25,.025,.5+d[2]*.25],power?0xff2424:0x6a0c0c,power*.6);}
+  else if(id===B.REDSTONE_WIRE){const level=Math.max(0,Math.min(15,state.power??0))/15,color=new THREE.Color().setRGB(.12+.88*level,.005+.025*level,.005+.01*level);box([.18,.025,.18],[.5,.025,.5],color,level*.6);for(const d of state.connections||[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]])box(d[0]?[.5,.025,.08]:[.08,.025,.5],[.5+d[0]*.25,.025,.5+d[2]*.25],color,level*.6);for(const d of state.risers??[])box(d[0]?[.025,1,.08]:[.08,1,.025],[.5+d[0]*.49,.52,.5+d[2]*.49],color,level*.6);}
   else if(id===B.STONE_BUTTON){box([.28,power?.07:.13,.2],[.5,.07,.5],power?0xbcb8b0:0x777b80);}
   else if(id===B.PRESSURE_PLATE||id===B.DAYLIGHT_DETECTOR){box([.85,id===B.DAYLIGHT_DETECTOR?.35:.07,.85],[.5,id===B.DAYLIGHT_DETECTOR?.175:.05,.5],id===B.DAYLIGHT_DETECTOR?0xadb6ca:power?0xe7b966:0x8f8981);}
-  else if(id===B.REPEATER||id===B.COMPARATOR){box([.95,.12,.85],[.5,.06,.5],0xc6c2ad);box([.7,.025,.06],[.5,.135,.5],power?0xff3222:0x780b0b,power*.6);for(const x of [.2,.8]){box([.065,.22,.065],[x,.23,.5],0x725036);indicator(x,.36,.5);}if(id===B.COMPARATOR)indicator(.2,.3,.2,state.subtract);else box([.07,.1,.25],[.3+(state.delay||1)*.1,.2,.5],0x7d7670);}
+  else if(id===B.REPEATER||id===B.COMPARATOR){box([.95,.12,.85],[.5,.06,.5],0xc6c2ad);box([.7,.025,.06],[.5,.135,.5],power?0xff3222:0x780b0b,power*.6);for(const x of [.2,.8]){box([.065,.22,.065],[x,.23,.5],0x725036);indicator(x,.36,.5);}if(id===B.COMPARATOR)indicator(.2,.3,.2,state.subtract);else if(state.locked)box([.14,.14,.7],[.4,.29,.5],0x3e4147);else box([.07,.1,.25],[.3+(state.delay||1)*.1,.2,.5],0x7d7670);}
   else if(id===B.REDSTONE_TORCH){box([.12,.52,.12],[.5,.26,.5],0x8c683c);box([.17,.15,.17],[.5,.59,.5],power?0xff3422:0x5b1611,power);}
   else if(id===B.PISTON_HEAD){box([.18,.95,.95],[.9,.5,.5],0xc2aa75);box([.8,.22,.22],[.4,.5,.5],0x9f8b65);}
   else if(id===B.PISTON||id===B.STICKY_PISTON){box([state.extended?.75:1,1,1],[state.extended?.375:.5,.5,.5],0x7d7f78);if(!state.extended)box([.07,.92,.92],[.97,.5,.5],id===B.STICKY_PISTON?0x83b657:0xc7aa79);box([.72,.15,.96],[.4,.2,.5],0x9e8f70);box([.72,.15,.96],[.4,.8,.5],0x9e8f70);}
@@ -34,6 +34,7 @@ export function redstoneGeometry(id,tm,state={}){
   else if(id===B.REDSTONE_LAMP){box([1,1,1],[.5,.5,.5],state.on?0xffd082:0x4b3024,state.on?.95:0,0,B.REDSTONE_LAMP);}
   else {const color=id===B.REDSTONE_BLOCK?0xcc2220:id===B.SLIME_BLOCK?0x80bf53:id===B.HONEY_BLOCK?0xdca037:id===B.NOTE_BLOCK?0x805232:0x8b918e;box([1,1,1],[.5,.5,.5],color);if(id===B.OBSERVER){box([.025,.8,.8],[.995,.5,.5],0xc3c4bd);for(const z of [.3,.7])box([.03,.12,.12],[1.015,.65,z],0x252d30);indicator(-.01,.5,.5);}if(id===B.DISPENSER||id===B.DROPPER)box([.025,.35,.35],[1.01,.5,.5],0x282b2a);if(id===B.HOPPER)box([.75,.08,.75],[.5,1.01,.5],0x303936);if(id===B.TARGET_BLOCK){box([.03,.65,.65],[1.01,.5,.5],0xf3dfb0);box([.04,.28,.28],[1.02,.5,.5],0xad2d25);}}
   const geo=mergeGeometries(parts);parts.forEach(p=>p.dispose());
+  if(id===B.LEVER&&state.attach){geo.translate(-.5,0,-.5);geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(...state.attach).negate()));geo.translate(.5+state.attach[0]*.5,.5+state.attach[1]*.5,.5+state.attach[2]*.5);}
   if([B.PISTON,B.STICKY_PISTON,B.PISTON_HEAD,B.OBSERVER,B.REPEATER,B.COMPARATOR,B.DISPENSER,B.DROPPER,B.HOPPER].includes(id)){geo.translate(-.5,-.5,-.5);geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1,0,0),new THREE.Vector3(...dirs[state.dir||0])));geo.translate(.5,.5,.5);}
   return geo;
 }

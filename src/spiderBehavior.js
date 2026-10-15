@@ -54,7 +54,9 @@ export function isSpider(mob) {
 export function lightAt(manager, x, y, z) {
   const world = manager?.world;
   if (typeof world?.getLightLevel === 'function') {
-    const level = world.getLightLevel(x, y, z);
+    // The cell the spider stands in, not the ground under it: its feet sit a hair below the block top (y = 4.98 on
+    // ground at 5), and flooring that read the solid block's light, 0, so every spider hunted at noon.
+    const level = world.getLightLevel(x, y + 0.1, z);
     if (typeof level === 'number') return level;
   }
   const worldTime = manager?.game?.worldTime ?? 6000;
@@ -267,6 +269,9 @@ export function updateSpiderHunt(manager, mob, dt, player) {
   if (!isSpiderVariant(mob) || !player?.position || mob.health <= 0) return false;
 
   mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+  // Attacks run on their own timer: `hitCooldown` is the hurt-immunity window, and sharing it made the mob immune
+  // to the player for as long as it kept biting.
+  mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
 
   if (!spiderWantsTarget(manager, mob, player)) {
     // Not allowed to target: drift to a halt rather than freezing mid-stride.
@@ -299,7 +304,7 @@ export function updateSpiderHunt(manager, mob, dt, player) {
     mob.velocity.x *= 0.5;
     mob.velocity.z *= 0.5;
     mob.isPouncing = false;
-    if (mob.hitCooldown <= 0) {
+    if (mob.attackCooldown <= 0) {
       const difficulty = manager?.game?.difficulty ?? 'normal';
       const damage = isCaveSpider(mob)
         ? caveSpiderMeleeFor(difficulty)
@@ -307,7 +312,7 @@ export function updateSpiderHunt(manager, mob, dt, player) {
       if (damage > 0) player.takeDamage?.(damage, mob.mesh.position, mob.type);
       // Wiki: cave spiders poison on Normal and Hard only.
       applyCaveSpiderPoison(manager, mob, player, difficulty);
-      mob.hitCooldown = SPIDER_ATTACK_COOLDOWN;
+      mob.attackCooldown = SPIDER_ATTACK_COOLDOWN;
     }
   }
   return true;

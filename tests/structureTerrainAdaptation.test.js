@@ -47,8 +47,15 @@ test('a valley gets foundation columns and a hill gets shaved', () => {
 
   // Hill: terrain one block above the floor.
   const hill = adaptToTerrain({ adaptation: 'beard_thin', box, surfaceY: () => 71, foundationBlock: FOUNDATION, airBlock: AIR });
-  assert.equal(hill.counts.shaved, 9 * 2, 'nine columns, two blocks of terrain standing at or above the floor');
+  assert.equal(hill.counts.shaved, 9, 'nine columns, one block of terrain standing above the floor');
   for (const write of hill.writes) assert.equal(write.block, AIR);
+  assert.ok(hill.writes.every((write) => write.y > 70), 'the floor layer is the ground the structure stands on; shaving it digs a moat');
+
+  // A surface block re-tops each shaved column at the floor, so the exposed ground is grass rather than dirt.
+  const GRASS = 2;
+  const capped = adaptToTerrain({ adaptation: 'beard_thin', box, surfaceY: () => 71, foundationBlock: FOUNDATION, airBlock: AIR, surfaceBlock: GRASS });
+  assert.equal(capped.writes.filter((write) => write.kind === 'cap' && write.y === 70 && write.block === GRASS).length, 9);
+  assert.equal(capped.counts.shaved, 9);
   assert.equal(hill.counts.foundation, 0, 'a hill must not also be given foundation');
 });
 

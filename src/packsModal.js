@@ -77,6 +77,10 @@ export class PacksModal {
   renderResourcePacksContent() {
     const activePacks = resourcePackManager.getActivePacks();
     const availablePacks = resourcePackManager.getAvailablePacks();
+    const isStayTrueActive = resourcePackManager.activePackIds[0] === 'stay_true';
+    const isFaithfulActive = resourcePackManager.activePackIds.includes('faithful_64x');
+    const isAshenActive = resourcePackManager.activePackIds[0] === 'ashen_16x';
+    const isVanillaActive = resourcePackManager.activePackIds.length === 0;
 
     return `
       <div style="display: flex; flex-direction: column; gap: 16px;">
@@ -84,25 +88,25 @@ export class PacksModal {
         <div>
           <div style="font-size: 13px; font-weight: bold; color: #ffff55; margin-bottom: 8px;">🌟 Featured Resource Packs</div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;">
-            <div class="preset-card" style="background: rgba(0,0,0,0.3); border: 2px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
+            <div class="preset-card" style="background: rgba(0,0,0,0.3); border: 2px solid ${isStayTrueActive ? '#a3e635' : '#444'}; border-radius: 4px; padding: 10px; text-align: center;">
               <div style="font-weight: bold; color: #a3e635; font-size: 13px;">Stay True (16x)</div>
               <div style="font-size: 11px; color: #cbd5e1; margin: 4px 0 8px; line-height: 1.3;">Enhanced vanilla-plus with rich organic foliage & detailed stone.</div>
-              <button type="button" class="mc-btn" data-preset="stay_true" style="width: 100%; height: 28px; font-size: 12px;">Activate</button>
+              <button type="button" class="mc-btn ${isStayTrueActive ? 'mc-btn-primary' : ''}" data-preset="stay_true" style="width: 100%; height: 28px; font-size: 12px;">${isStayTrueActive ? '✓ Active' : 'Activate'}</button>
             </div>
-            <div class="preset-card" style="background: rgba(0,0,0,0.3); border: 2px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
-              <div style="font-weight: bold; color: #38bdf8; font-size: 13px;">Faithful 64x</div>
+            <div class="preset-card" style="background: rgba(0,0,0,0.3); border: 2px solid ${isFaithfulActive ? '#38bdf8' : '#444'}; border-radius: 4px; padding: 10px; text-align: center;">
+              <div style="font-weight: bold; color: #38bdf8; font-size: 13px;">Faithful 64x <span style="font-size: 10px; color: #fde047; font-weight: normal;">(Default)</span></div>
               <div style="font-size: 11px; color: #cbd5e1; margin: 4px 0 8px; line-height: 1.3;">High-definition 64x upscale preserving authentic classic textures.</div>
-              <button type="button" class="mc-btn" data-preset="faithful_64x" style="width: 100%; height: 28px; font-size: 12px;">Activate</button>
+              <button type="button" class="mc-btn ${isFaithfulActive ? 'mc-btn-primary' : ''}" data-preset="faithful_64x" style="width: 100%; height: 28px; font-size: 12px;">${isFaithfulActive ? '✓ Active' : 'Activate'}</button>
             </div>
-            <div class="preset-card" style="background: rgba(0,0,0,0.3); border: 2px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
+            <div class="preset-card" style="background: rgba(0,0,0,0.3); border: 2px solid ${isAshenActive ? '#fb923c' : '#444'}; border-radius: 4px; padding: 10px; text-align: center;">
               <div style="font-weight: bold; color: #fb923c; font-size: 13px;">Ashen (16x)</div>
               <div style="font-size: 11px; color: #cbd5e1; margin: 4px 0 8px; line-height: 1.3;">Moody, weathered, rustic aesthetic with atmospheric stone & wood.</div>
-              <button type="button" class="mc-btn" data-preset="ashen_16x" style="width: 100%; height: 28px; font-size: 12px;">Activate</button>
+              <button type="button" class="mc-btn ${isAshenActive ? 'mc-btn-primary' : ''}" data-preset="ashen_16x" style="width: 100%; height: 28px; font-size: 12px;">${isAshenActive ? '✓ Active' : 'Activate'}</button>
             </div>
-            <div class="preset-card" style="background: rgba(0,0,0,0.3); border: 2px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
-              <div style="font-weight: bold; color: #f8fafc; font-size: 13px;">Default Vanilla</div>
-              <div style="font-size: 11px; color: #cbd5e1; margin: 4px 0 8px; line-height: 1.3;">Standard official default textures.</div>
-              <button type="button" class="mc-btn" data-preset="vanilla" style="width: 100%; height: 28px; font-size: 12px;">Reset Default</button>
+            <div class="preset-card" style="background: rgba(0,0,0,0.3); border: 2px solid ${isVanillaActive ? '#ffffff' : '#444'}; border-radius: 4px; padding: 10px; text-align: center;">
+              <div style="font-weight: bold; color: #f8fafc; font-size: 13px;">Vanilla (16x)</div>
+              <div style="font-size: 11px; color: #cbd5e1; margin: 4px 0 8px; line-height: 1.3;">Standard official 16x textures without HD upscale.</div>
+              <button type="button" class="mc-btn ${isVanillaActive ? 'mc-btn-primary' : ''}" data-preset="vanilla" style="width: 100%; height: 28px; font-size: 12px;">${isVanillaActive ? '✓ Active' : 'Switch to Vanilla'}</button>
             </div>
           </div>
         </div>

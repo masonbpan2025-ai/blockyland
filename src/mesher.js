@@ -143,7 +143,7 @@ function blockTables() {
     t.occludes[id] = occludesWholeFace(def) ? 1 : 0;
     t.solid[id] = id !== BLOCKS.AIR && id !== BLOCKS.WATER && def.solid !== false && !def.plant ? 1 : 0;
     t.special[id] = (def.slab || def.pane || def.carpet || def.stair || def.candle || def.chain || def.fence || def.wall || def.pressurePlate || def.button || def.fenceGate || def.banner || def.hangingSign || def.wallSign || def.wallFan || def.head || def.wallHead || def.sign || def.rod || def.rail || def.flowerPot || def.model) ? SPECIAL.SHAPED
-      : def.door ? SPECIAL.DOOR : def.trapdoor ? SPECIAL.TRAPDOOR : def.redstone ? SPECIAL.REDSTONE : def.bed ? SPECIAL.BED
+      : def.door ? SPECIAL.DOOR : def.trapdoor ? SPECIAL.TRAPDOOR : def.redstone && (!def.redstoneNativeModel || def.redstoneBulb) ? SPECIAL.REDSTONE : def.bed ? SPECIAL.BED
       : (def.chest || id === BLOCKS.CHEST) ? SPECIAL.CHEST : SPECIAL.NONE;
     t.plant[id] = def.plant ? 1 : 0;
     t.transparent[id] = def.transparent || def.plant ? 1 : 0;
@@ -385,7 +385,7 @@ export class ChunkMesher {
           // rather than a missing feature.
           if (special === SPECIAL.SHAPED) {
             // A structure's stair carries its facing in `structureOrientations`; everything else here reads redstone state.
-            const state = world.redstone?.state([wx, wy, wz]) || ((def.stair || def.slab || def.plant || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
+            const state = world.redstone?.state([wx, wy, wz]) || ((def.stair || def.slab || def.plant || blockId===BLOCKS.CHORUS_FLOWER || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
               || (def.model?.connections ? { connect: chorusConnections(world, wx, wy, wz) } : null) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             if (def.snowLayer) {
@@ -432,7 +432,7 @@ export class ChunkMesher {
             const geometry=createBlockGeometry(blockId,this.tm,state);geometry.translate(wx,wy,wz);
             const origin=new Float32Array(geometry.attributes.position.count*3);for(let i=0;i<origin.length;i+=3)origin.set([wx+.5,wy+.5,wz+.5],i);
             geometry.setAttribute('lightOrigin',new THREE.Float32BufferAttribute(origin,3));lightGeometries.push(geometry);
-            const level=blockId===BLOCKS.REDSTONE_LAMP&&state.on?15:blockId===BLOCKS.REDSTONE_TORCH&&state.output?7:0;
+            const level=def.redstoneBulb&&state.on?def.light:blockId===BLOCKS.REDSTONE_LAMP&&state.on?15:[BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(blockId)&&state.output?7:0;
             if(level)lightSources.push({position:new THREE.Vector3(wx+.5,wy+.5,wz+.5),level,color:blockId===BLOCKS.REDSTONE_TORCH?0xff4335:0xffc477});
             continue;
           }

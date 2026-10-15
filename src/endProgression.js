@@ -29,7 +29,7 @@ export function restoreEndState(world, saved) {
     state.gateways = (Array.isArray(saved.gateways) ? saved.gateways : []).filter(g=>[g.x,g.y,g.z].every(Number.isFinite)).map(g=>({x:g.x,y:g.y,z:g.z,destination:g.destination && [g.destination.x,g.destination.y,g.destination.z].every(Number.isFinite)?{...g.destination}:null}));
     // A save during the ritual restarts the ritual on next arena entry.
     state.respawning = saved.respawning === true;
-    state.residents=(saved.residents??[]).filter(m=>['enderman','shulker'].includes(m.type)&&[m.x,m.y,m.z,m.health].every(Number.isFinite));
+    state.residents=(Array.isArray(saved.residents)?saved.residents:[]).filter(m=>m&&['enderman','shulker'].includes(m.type)&&[m.x,m.y,m.z,m.health].every(Number.isFinite));
   }
   world.endState = state;
   return state;

@@ -32,10 +32,11 @@ const testsDir = join(root, 'tests');
  * areas aligned with the source modules so "I changed X" maps to an obvious area.
  */
 export const AREAS = {
+  end: ['endSurvival', 'endPortal', 'enderDragonParity', 'endermanParity', 'endermiteParity', 'shulkerBullet', 'structureEndFeatures', 'structureEndCity', 'dragonEgg', 'survivalSaveLoad', 'mapManager', 'worldChunkCache', 'bed', 'waterRules'],
   nether: ['netherSurvival', 'nether', 'netherParity', 'netherPortal', 'netherCombat', 'netherLavaEscape', 'piglin', 'piglinBruteParity', 'blazeParity', 'striderParity', 'cubeHopParity', 'zombifiedPiglinParity', 'witherSkeletonParity', 'monsterSpawner', 'farming', 'worldStructures', 'worldSpawn', 'playerDeathRespawn', 'survivalSaveLoad'],
   fishing: ['fishingParity', 'fishingExperience', 'rails', 'vehicles_transport', 'waterFlow'],
   // --- agent / terminal ---
-  agent: ['agentGuidance', 'agentProviders', 'claudeProvider', 'agentModelCatalog', 'stagedBuild', 'cheatsCreativeDefault', 'agentPerception', 'paintings', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'agentTerminalControls', 'forwardView', 'domWiring', 'startScreenBinding', 'playerBot'],
+  agent: ['agentGuidance', 'agentProviders', 'agentKeyVault', 'claudeProvider', 'agentModelCatalog', 'stagedBuild', 'cheatsCreativeDefault', 'agentPerception', 'paintings', 'answerShapes', 'planRecovery', 'thinkingStream', 'geminiAgent', 'terminalControls', 'agentTerminalControls', 'forwardView', 'domWiring', 'startScreenBinding', 'playerBot'],
   // --- mobs ---
   // The natural-spawning subsystem's own tests come first because they are the slowest files in the
   // area and a failure there is the most informative:
@@ -46,7 +47,7 @@ export const AREAS = {
   //   spawnConstructionIntegration the real spawner + constructor wiring, pack walks, generation
   mob: ['reefMobOptimization', 'mobSpawningParity', 'lushGeneration', 'presetWildlife', 'mobStatsReport', 'mobSpawningTravel', 'spawnPlacementRegression', 'spawnEligibilityRegression', 'spawnConstructionIntegration', 'heldBlockInteraction', 'mobs', 'mobs_expansion', 'mobAnatomy', 'mobSkins', 'mobHitFeedback', 'mobUpdateIsolation', 'mobInspectorEntry', 'mobJitter', 'mobShowcase', 'mobDebugSession', 'mobDebugSessionMore', 'mobDebugLabels', 'mob_collision_breeding', 'horseBreeding', 'horseParity', 'packEquineParity', 'striderParity', 'squidParity', 'witherSkeletonParity', 'zombifiedPiglinParity', 'chicken', 'cow', 'cat', 'ghast', 'ghast-arrows', 'piglin', 'villagers_economy', 'mcData', 'hazardAvoidance', 'netherLavaEscape', 'netherLavaEscapeInspector', 'blazeParity', 'sheepParity', 'mooshroomParity', 'salmonParity', 'dolphinParity', 'endermanParity', 'slimeParity', 'wolfParity', 'spiderParity', 'caveSpiderParity', 'silverfishParity', 'endermiteParity', 'rabbitParity', 'batParity', 'musicDiscs', 'drownedDrops', 'foxParity', 'beeParity', 'babyGrowthParity', 'spawnEggCoverage', 'mobUpdateSmoke', 'ambientLocomotion', 'cubeHopParity', 'goatParity', 'llamaParity', 'turtleParity', 'frogParity', 'tadpoleParity', 'parrotParity', 'phantomParity', 'polarBearParity', 'pandaParity', 'breedingInheritance', 'spawnVariantOptions', 'armadilloParity', 'undeadVariantsParity', 'windChargeBreeze', 'snifferParity', 'allayParity', 'groundednessSpawn', 'wanderingTraderParity', 'camelParity', 'parchedParity', 'creakingParity', 'killerBunnyParity', 'snowGolemParity', 'illusionerParity', 'undeadHorseParity', 'mobVisualAssets', 'mobVisualUv', 'mobWikiParity', 'mobShowcaseCoverage', 'waterAnimalAirSupply', 'frogspawn'],
   // --- redstone and machines ---
-  redstone: ['redstone', 'advanced_redstone', 'numericBlockIdSafety', 'redstoneGames', 'doors', 'door', 'rails', 'riding', 'vehicles_transport'],
+  redstone: ['redstone', 'redstoneParity', 'redstoneTutorials', 'redstoneMachines', 'advanced_redstone', 'numericBlockIdSafety', 'redstoneGames', 'doors', 'door', 'rails', 'riding', 'vehicles_transport'],
   // --- studio tools ---
   studio: ['buildingStudio', 'buildingStudioAgent', 'buildingContext', 'studioBugs', 'studioEditTarget'],
   // --- item/block Inspector scenarios and their actual world rendering ---

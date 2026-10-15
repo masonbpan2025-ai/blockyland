@@ -3,12 +3,14 @@
 // The agent plans against one JSON schema regardless of vendor, so this module
 // owns everything vendor specific:
 //   * the catalogue of vendors and selectable models
-//   * which model / API key is active, persisted per vendor in localStorage
+//   * model preferences in localStorage; live keys in memory, optional encrypted vault
 //   * request body assembly for each wire protocol
 //   * extracting the assistant text + reasoning from each response shape
 //
 // It is deliberately free of DOM and three.js imports so the Node test runner
 // can exercise it directly.
+
+import { AgentKeyVault } from './agentKeyVault.js';
 
 export const DEFAULT_VENDOR = 'deepseek';
 export const STORAGE_PREFIX = 'mc_agent_';
@@ -29,7 +31,9 @@ function readEnv(name) {
 
 function getStore() {
   try {
-    return typeof localStorage !== 'undefined' ? localStorage : null;
+    if (typeof localStorage === 'undefined') return null;
+    localStorage.getItem(`${STORAGE_PREFIX}vendor`); // Access may be denied even when the object exists.
+    return localStorage;
   } catch {
     return null;
   }
@@ -209,19 +213,12 @@ export class AgentSettings {
     const stored = this.store ? this.store.getItem(`${STORAGE_PREFIX}vendor`) : null;
     this.vendor = normalizeVendor(vendorOverride || stored);
     this.models = {};
-    this.keys = {};
+    this.vault = new AgentKeyVault(this.store, VENDOR_IDS);
     this.efforts = {};
     for (const id of VENDOR_IDS) {
       this.models[id] = resolveModel(id, this.store ? this.store.getItem(`${STORAGE_PREFIX}model_${id}`) : null);
-      this.keys[id] = (this.store ? this.store.getItem(`${STORAGE_PREFIX}key_${id}`) : '') || this.#legacyKey(id);
       this.efforts[id] = resolveEffort(id, this.store ? this.store.getItem(`${STORAGE_PREFIX}effort_${id}`) : null);
     }
-  }
-
-  #legacyKey(vendorId) {
-    if (vendorId !== 'gemini' || !this.store) return '';
-    const legacy = this.store.getItem(LEGACY_GEMINI_KEY_STORAGE);
-    return legacy || '';
   }
 
   modelFor(vendorId = this.vendor) {
@@ -233,7 +230,7 @@ export class AgentSettings {
   }
 
   keyFor(vendorId = this.vendor) {
-    return this.keys[vendorId] || '';
+    return this.vault.keyFor(vendorId);
   }
 
   /** Whether to move to a newer model of the chosen family as soon as the vendor lists one. Off by default. */
@@ -283,17 +280,7 @@ export class AgentSettings {
 
   setKey(vendorId, key) {
     if (!VENDORS[vendorId]) return '';
-    const value = String(key || '').trim();
-    this.keys[vendorId] = value;
-    if (this.store) {
-      if (value) {
-        this.store.setItem(`${STORAGE_PREFIX}key_${vendorId}`, value);
-      } else {
-        this.store.removeItem(`${STORAGE_PREFIX}key_${vendorId}`);
-      }
-      if (vendorId === 'gemini') this.store.removeItem(LEGACY_GEMINI_KEY_STORAGE);
-    }
-    return value;
+    return this.vault.setSession(vendorId, key);
   }
 
   toJSON() {

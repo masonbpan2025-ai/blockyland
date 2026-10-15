@@ -133,14 +133,14 @@ test('a hostile mob in reach damages the player and then waits out its cooldown'
   const mob = manager.spawnMob('vindicator', 0, 1, 0);
   updateAmbientLocomotion(manager, mob, 1 / 60, player, { wander: () => {} });
   assert.equal(player.damageTaken, locomotionFor('vindicator').damage, 'one hit lands');
-  assert.equal(mob.hitCooldown, 1.0, 'and the cooldown starts');
+  assert.equal(mob.attackCooldown, 1.0, 'and the cooldown starts');
 
   // Inside the cooldown: no second hit.
   updateAmbientLocomotion(manager, mob, 1 / 60, player, { wander: () => {} });
   assert.equal(player.damageTaken, locomotionFor('vindicator').damage, 'no double hit');
 
   // Past the cooldown: it hits again.
-  mob.hitCooldown = 0;
+  mob.attackCooldown = 0;
   updateAmbientLocomotion(manager, mob, 1 / 60, player, { wander: () => {} });
   assert.equal(player.damageTaken, locomotionFor('vindicator').damage * 2);
 });
@@ -311,4 +311,20 @@ test('the Inspector still updates covered mobs cleanly', async () => {
     assert.doesNotThrow(() => { for (let i = 0; i < 120; i++) s.tick(1 / 60); });
     assert.ok(s.snapshot().health > 0, `${type} is still healthy`);
   }
+});
+
+// Found by the wiki-tutorial play-test ("Your first 10 minutes", dusk): the attack timer was `hitCooldown`, the same
+// field `damageMob` reads as the mob's hurt immunity, so a zombie that kept biting could not be hurt -- one sword hit
+// landed, every later one was refused, and the zombie killed the player. Damage: a mob is immune for half a second
+// after being hurt, and only then.
+test('a mob that keeps attacking can still be hurt between its bites', () => {
+  const { manager, player } = fixture({ playerAt: new THREE.Vector3(0.8, 1, 0) });
+  const mob = manager.spawnMob('vindicator', 0, 1, 0);
+  updateAmbientLocomotion(manager, mob, 1 / 60, player, { wander: () => {} });
+  assert.equal(player.damageTaken, locomotionFor('vindicator').damage, 'it bit');
+  assert.ok(mob.attackCooldown > 0.9, 'its swing timer runs');
+  assert.ok(!(mob.hitCooldown > 0), 'and is not its hurt immunity');
+  const before = mob.health;
+  assert.notEqual(manager.damageMob(mob, 5, player.position, false, player), false, 'the sword hit lands');
+  assert.equal(mob.health, before - 5);
 });

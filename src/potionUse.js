@@ -91,7 +91,7 @@ export function drinkPotion(itemId, player, inventory, { gamemode = 'survival' }
   if (gamemode !== 'creative') {
     inventory.consumeActiveItem?.(1);
     // The empty bottle comes back, so a potion is a bottle plus an ingredient rather than a loss.
-    inventory.addItem?.('glass_bottle', 1, false);
+    inventory.addItem?.('glass_bottle', false, 1);
   }
   const applied = applyPotionEffect(potion, player);
   return { drunk: true, effect: applied.effect, instant: applied.instant };

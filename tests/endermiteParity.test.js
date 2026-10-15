@@ -257,11 +257,11 @@ test('endermites chase players within 16 blocks and bite', () => {
 
   // Bite.
   mite.mesh.position.set(0, 1, ENDERMITE_ATTACK_REACH - 0.1);
-  mite.hitCooldown = 0;
+  mite.attackCooldown = 0;
   const before = near.player.health;
   updateEndermiteHunt(near.manager, mite, 1 / 60, near.player);
   assert.equal(near.player.health, before - 2, 'wiki: 2 damage on Normal');
-  assert.ok(mite.hitCooldown > 0, 'the bite went on cooldown');
+  assert.ok(mite.attackCooldown > 0, 'the bite went on cooldown');
 });
 
 test('an endermite fights an enderman when one is targeting it', () => {

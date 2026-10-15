@@ -190,6 +190,13 @@ export class SoundEngine {
     }
   }
 
+  /**
+   * A bucket filled or emptied. main.js calls this for every bucket use, and it did not exist: each use threw after the
+   * world had changed, so the hotbar never showed the new bucket and the chunk was not redrawn until something else
+   * touched it. Found by the wiki-tutorial play-test (The third day: scooping up lava).
+   */
+  playWater() { this.playSplash(); }
+
   playSplash() {
     this.ensureContext();
     if (!this.soundEnabled || !this.ctx) return;

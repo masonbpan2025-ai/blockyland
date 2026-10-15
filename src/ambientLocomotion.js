@@ -137,11 +137,19 @@ export function updateAmbientLocomotion(manager, mob, dt, player, { wander = nul
     //
     // `fire` is injected for the same reason `wander` is: this module stays free of THREE and of the
     // projectile system, so it can decide WHEN to fire without knowing how.
-    if (spec.ranged && typeof fire === 'function') {
+    const canTarget=manager.game?.difficulty!=='peaceful'&&!player?.isDead&&!['creative','spectator'].includes(player?.gamemode);
+    if (spec.ranged && typeof fire === 'function' && canTarget) {
       const aim = aimAt(mob, player);
       if (aim) {
         mob.rangedCooldown = Math.max(0, (mob.rangedCooldown ?? 0) - dt);
-        if (aim.distance <= spec.range && mob.rangedCooldown <= 0) {
+        let visible=true;
+        if(manager.isBlockSolid&&player?.position) {
+          const from=mob.mesh.position.clone().add(new THREE.Vector3(0,.5,0));
+          const delta=player.position.clone().add(new THREE.Vector3(0,.5,0)).sub(from);
+          const steps=Math.ceil(delta.length()/.25);
+          for(let i=1;i<steps;i++){const p=from.clone().addScaledVector(delta,i/steps);if(manager.isBlockSolid(Math.floor(p.x),Math.floor(p.y),Math.floor(p.z))){visible=false;break;}}
+        }
+        if (aim.distance <= spec.range && mob.rangedCooldown <= 0 && visible) {
           mob.rangedCooldown = spec.ranged.cooldown ?? 1.5;
           fire(mob, player, spec);
         }
@@ -193,10 +201,13 @@ export function updateAmbientLocomotion(manager, mob, dt, player, { wander = nul
       mob.velocity.z *= 0.5;
     }
 
-    if (spec.damage > 0 && dist < spec.attackReach && (mob.hitCooldown ?? 0) <= 0) {
+    // The mob's own attack timer. It used to be `hitCooldown` -- the hurt-immunity window `damageMob` checks -- so a
+    // zombie biting every second was immune to the player's sword for that second, and won every melee fight.
+    mob.attackCooldown = Math.max(0, (mob.attackCooldown ?? 0) - dt);
+    if (spec.damage > 0 && dist < spec.attackReach && mob.attackCooldown <= 0) {
       // Wiki: melee damage is stated per difficulty; the table's flat figure is only the fallback.
       player.takeDamage?.(meleeDamage(mob.type, manager?.game?.difficulty, spec.damage), mob.mesh.position, mob.type);
-      mob.hitCooldown = 1.0;
+      mob.attackCooldown = 1.0;
     }
     mob.state = 'chase';
     return 'chasing';

@@ -1,20 +1,24 @@
 import { soulSpeedMultiplier } from './barterItems.js';
+import { USING_ITEM_SPEED } from './eating.js';
 import { modeRules, isSurvivalLike, takesDamage } from './gameModeRules.js';
 import { tickWither } from './witherEffect.js';
 import { damageTakenMultiplier, attackDamageBonus, tickEffect, speedMultiplier, fallDamage, hasSlowFalling, FALL_DAMAGE, absorptionShield, jumpVelocityMultiplier, immuneToEffect } from './statusEffects.js';
 import { thornsReflect, depthStriderMultiplier, protectionPoints } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
+import { shieldWear } from './toolWear.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { cameraTurnAllowed } from './pointerLock.js';
 import { SWIM_SPEED, CURRENT_PUSH, sprintSwimSpeed, canSprintSwim, SWIMMING_HEIGHT, SWIMMING_EYE_HEIGHT } from './waterRules.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
-import { addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
+import { HUNGER_EFFECT_EXHAUSTION_PER_SECOND, addExhaustion, tickHunger, eat, starvationFloor, createHungerState, EXHAUSTION, MAX_HUNGER } from './hunger.js';
 import { normaliseSettings, normaliseGameMode, gameruleFor } from './sessionSettings.js';
 import { collectDeathDrops, xpLossFor, resolveRespawn, resetSurvivalState } from './deathAndRespawn.js';
 import { getTotalXpForLevel } from './experience.js';
 import { consumeAnchorRespawn } from './respawnAnchor.js';
+import { createPlayerModel } from './playerModel.js';
+import { calculateThirdPersonCamera, getPlayerSightline } from './thirdPersonCamera.js';
 
 /**
  * How much of a fall the block landed on absorbs.
@@ -149,8 +153,6 @@ export class Player {
     // Punch state (Key U)
     this.isPunching = false;
     this.punchTimer = 0;
-      // Landing a hit costs 0.1 exhaustion in vanilla.
-      this.addExhaustion(EXHAUSTION.attack);
     this.punchDuration = 0.22;
     this.punchCooldown = 0;
     this.onPunch = null;
@@ -368,6 +370,8 @@ export class Player {
         this.camera.rotation.y = this.yaw;
         this.camera.rotation.x = this.pitch;
         this.camera.rotation.z = 0;
+      } else if (this.camera && !this.isDungeonMode) {
+        this.updateCameraAndModel(0);
       }
     });
   }
@@ -423,65 +427,8 @@ export class Player {
     return true;
   }
 
-  createPlayerModel() {
-    const group = new THREE.Group();
-
-    // Material with Steve-like colors
-    const skinMat = new THREE.MeshLambertMaterial({ color: 0xdbb494 });
-    const blueShirtMat = new THREE.MeshLambertMaterial({ color: 0x0080aa });
-    const pantsMat = new THREE.MeshLambertMaterial({ color: 0x2b398a });
-    const hairMat = new THREE.MeshLambertMaterial({ color: 0x4a2a18 });
-
-    // Head
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
-    head.position.y = 1.5;
-    group.add(head);
-
-    // Torso
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.25), blueShirtMat);
-    torso.position.y = 0.9;
-    group.add(torso);
-
-    // Left Arm (Shoulder Pivot Group)
-    const leftArm = new THREE.Group();
-    leftArm.position.set(-0.38, 1.25, 0);
-    const leftArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.75, 0.25), skinMat);
-    leftArmMesh.position.set(0, -0.375, 0);
-    leftArm.add(leftArmMesh);
-    group.add(leftArm);
-
-    // Right Arm (Shoulder Pivot Group)
-    const rightArm = new THREE.Group();
-    rightArm.position.set(0.38, 1.25, 0);
-    const rightArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.75, 0.25), skinMat);
-    rightArmMesh.position.set(0, -0.375, 0);
-    rightArm.add(rightArmMesh);
-    group.add(rightArm);
-
-    // Left Leg (Hip Pivot Group)
-    const leftLeg = new THREE.Group();
-    leftLeg.position.set(-0.13, 0.75, 0);
-    const leftLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.75, 0.24), pantsMat);
-    leftLegMesh.position.set(0, -0.375, 0);
-    leftLeg.add(leftLegMesh);
-    group.add(leftLeg);
-
-    // Right Leg (Hip Pivot Group)
-    const rightLeg = new THREE.Group();
-    rightLeg.position.set(0.13, 0.75, 0);
-    const rightLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.75, 0.24), pantsMat);
-    rightLegMesh.position.set(0, -0.375, 0);
-    rightLeg.add(rightLegMesh);
-    group.add(rightLeg);
-
-    group.head = head;
-    group.torso = torso;
-    group.leftArm = leftArm;
-    group.rightArm = rightArm;
-    group.leftLeg = leftLeg;
-    group.rightLeg = rightLeg;
-
-    return group;
+  createPlayerModel(options = {}) {
+    return createPlayerModel(options);
   }
 
   isBlockSolid(x, y, z) {
@@ -526,6 +473,14 @@ export class Player {
       return;
     }
 
+    // The attack cooldown's clock (attackCooldown.js): time since the last swing, restarted when the held item
+    // changes, as the wiki's "ticks since the last attack or item switch" says.
+    this.secondsSinceSwing = (this.secondsSinceSwing ?? Infinity) + dt;
+    const heldNow = this.game?.inventory?.getActiveItem?.() ?? null;
+    const heldKey = heldNow ? `${heldNow.id}` : '';
+    if (this.lastHeldKey !== undefined && heldKey !== this.lastHeldKey) this.secondsSinceSwing = 0;
+    this.lastHeldKey = heldKey;
+
     // Invulnerability timer countdown
     if (this.invulnerableTimer > 0) {
       this.invulnerableTimer -= dt;
@@ -533,6 +488,9 @@ export class Player {
 
     // Breath and drowning, before the effects tick so `water_breathing` this frame is honoured.
     this.tickBreath(dt);
+
+    // Suffocation in solid opaque blocks (https://minecraft.wiki/w/Damage#Suffocation)
+    this.tickSuffocation(dt);
 
     // Update active status effects (poison, wither, slowness, dolphins_grace, etc.)
     for (const [effect, data] of this.statusEffects.entries()) {
@@ -651,6 +609,8 @@ export class Player {
     // which makes Slowness IV (0.52) bite much harder than Slowness I (0.85) for the first time -- the
     // Turtle Master and Slowness IV potions both carry level 4.
     targetSpeed *= speedMultiplier(this.statusEffects);
+    // Using an item -- eating, drinking, drawing a bow -- slows the player to a fifth of their speed (eating.js).
+    if ((this.usingItem || this.bowDraw > 0) && !this.isFlying) targetSpeed *= USING_ITEM_SPEED;
 
     // Movement direction input
     let moveForward = 0;
@@ -738,6 +698,12 @@ export class Player {
       if (!controlsDisabled && this.keys['ShiftLeft'] && !this.keys['Space']) {
         this.velocity.y = Math.max(this.velocity.y - this.gravity * 0.45 * dt, -4.5);
       }
+    } else if (this.world && [0, 0.35, -0.35].some(dx => [0, 0.35, -0.35].some(dz => this.world.getVoxel?.(Math.floor(this.position.x + dx), Math.floor(this.position.y), Math.floor(this.position.z + dz)) === BLOCKS.LADDER))) {
+      if (!controlsDisabled && (this.keys['Space'] || this.keys['KeyW'])) {
+        this.velocity.y = 2.35;
+      } else {
+        this.velocity.y = Math.max(this.velocity.y - this.gravity * 0.1 * dt, -0.15);
+      }
     } else {
       // Normal Gravity
       this.velocity.y -= this.gravity * (this.gravityAttributeScale ?? 1) * dt;
@@ -784,7 +750,7 @@ export class Player {
     // This used to be a flat `health += dt * 0.3` at any hunger above 18, which is about six times
     // vanilla's fast rate and applied at hunger levels where vanilla regenerates slowly or not at all.
     if (isSurvivalLike(this.gamemode) && !this.isDead) {
-      if (this.position.y < -10) {
+      if (this.position.y < -70) {
         this.takeDamage(10);
         if (!this.isDead) {
           this.position.set(8.5, 35, 8.5);
@@ -857,6 +823,12 @@ export class Player {
   /** One tick of regeneration, starvation and the difficulty floor. */
   updateHungerModel(dt) {
     const state = this.ensureHungerState();
+    // The Hunger effect: "0.1 exhaustion per second, per Hunger status effect level" (Food). Its table entry and
+    // `exhaustionFor` existed and nothing called them, so rotten flesh's food poisoning cost nothing.
+    const hungerEffect = this.statusEffects?.get?.('hunger');
+    if (hungerEffect && (hungerEffect.duration ?? 0) > 0 && this.difficultyLevel !== 'peaceful') {
+      addExhaustion(state, HUNGER_EFFECT_EXHAUSTION_PER_SECOND * Math.max(1, Math.floor(hungerEffect.level ?? 1)) * dt);
+    }
     const result = tickHunger(state, dt, {
       peaceful: this.difficultyLevel === 'peaceful',
       naturalRegeneration: gameruleFor(this.game, 'naturalRegeneration'),
@@ -872,8 +844,10 @@ export class Player {
     }
     if (result.starve > 0 && this.health > 0) {
       // Starvation is floored by difficulty, so it cannot kill on easy or normal.
+      // Wiki (Food, Starvation): on Hard it "does not stop at any health threshold". The old test
+      // `health - starve > floor` skipped the last fraction, so a starving Hard player hung on at 0.02 HP.
       const floor = starvationFloor(this.difficultyLevel);
-      if (this.health - result.starve > floor) {
+      if (this.health > floor) {
         this.health = Math.max(floor, this.health - result.starve);
       }
     }
@@ -1058,7 +1032,7 @@ export class Player {
    */
   /** True when the eye is inside water, below that block's surface. Water plants count: they are waterlogged. */
   isEyeInWater() {
-    if (!this.world) return false;
+    if (!this.world || typeof this.world.getVoxel !== 'function') return false;
     const x = Math.floor(this.position.x), z = Math.floor(this.position.z);
     const eyeY = this.position.y + (this.eyeHeight ?? 1.62);
     const y = Math.floor(eyeY);
@@ -1183,14 +1157,22 @@ export class Player {
   tickBreath(dt) {
     const respiration = this.armourEnchantmentLevel ? this.armourEnchantmentLevel('respiration') : 0;
     const capacity = 15 + respiration * 15;
+    if (this.gamemode === 'creative' || this.gamemode === 'spectator' || this.isDead) {
+      this.breath = capacity;
+      this.drownTimer = 0;
+      return;
+    }
     const head = this.world?.getVoxel(
       Math.floor(this.position.x),
       Math.floor(this.position.y + (this.eyeHeight ?? 1.62)),
       Math.floor(this.position.z),
     );
     // A bubble column is air for breathing, which is what lets one be used as a lift out of the water.
-    const submerged = head === BLOCKS.WATER
-      && !(this.hasStatusEffect?.('water_breathing'));
+    const eyeUnderwater = typeof this.isEyeInWater === 'function' ? this.isEyeInWater() : (head === BLOCKS.WATER);
+    const inWaterBlock = eyeUnderwater || head === BLOCKS.WATER || Boolean(BLOCK_DEFS[head]?.waterPlant);
+    const hasAirPocket = head === BLOCKS.BUBBLE_COLUMN || head === BLOCKS.AIR;
+    const immuneToDrowning = Boolean(this.hasStatusEffect?.('water_breathing') || this.hasStatusEffect?.('conduit_power'));
+    const submerged = inWaterBlock && !hasAirPocket && !immuneToDrowning;
     if (!submerged) {
       this.breath = capacity;
       this.drownTimer = 0;
@@ -1205,7 +1187,47 @@ export class Player {
     if (this.drownTimer < 1) return;
     this.drownTimer -= 1;
     if (respiration > 0 && Math.random() < respiration / (respiration + 1)) return;
-    this.takeDamage(2, null, 'drowning');
+    const allowsDrowning = this.game ? (gameruleFor(this.game, 'drowningDamage') !== false) : true;
+    if (allowsDrowning) {
+      this.takeDamage(2, null, 'drowning');
+    }
+  }
+
+  /**
+   * True if a block is a solid opaque full cube that causes suffocation when inside it.
+   */
+  isSuffocatingBlock(blockId) {
+    if (!blockId || blockId === BLOCKS.AIR || blockId === BLOCKS.WATER || blockId === BLOCKS.LAVA) return false;
+    const def = BLOCK_DEFS[blockId];
+    if (!def) return false;
+    if (def.solid === false || def.transparent === true || def.plant === true) return false;
+    if (def.shape && def.shape !== 'cube') return false;
+    return true;
+  }
+
+  /**
+   * Suffocation damage in solid blocks (https://minecraft.wiki/w/Damage#Suffocation).
+   * 1 damage (half a heart) every 0.5s while head is trapped in a solid opaque block.
+   */
+  tickSuffocation(dt) {
+    if (this.gamemode === 'creative' || this.gamemode === 'spectator' || this.isDead) {
+      this.suffocationTimer = 0;
+      return;
+    }
+    const x = Math.floor(this.position.x);
+    const eyeY = this.position.y + (this.isSneaking ? 1.38 : (this.eyeHeight ?? 1.62));
+    const y = Math.floor(eyeY);
+    const z = Math.floor(this.position.z);
+    const blockId = this.world?.getVoxel?.(x, y, z);
+    if (!this.isSuffocatingBlock(blockId)) {
+      this.suffocationTimer = 0;
+      return;
+    }
+    this.suffocationTimer = (this.suffocationTimer || 0) + dt;
+    if (this.suffocationTimer >= 0.5) {
+      this.suffocationTimer -= 0.5;
+      this.takeDamage(1, null, 'suffocation');
+    }
   }
 
   applyFallDamage(fallDistance, blockY) {
@@ -1247,7 +1269,7 @@ export class Player {
     // Shield blocking check: 100% deflection within frontal 180° cone
     const hasShield = (this.inventory?.getOffhandItem()?.id === 'shield') ||
                       (this.inventory?.getActiveItem()?.id === 'shield');
-    if (this.isBlocking && hasShield && !['fall','starvation','void','wither'].includes(damageType)) {
+    if (this.isBlocking && hasShield && !['fall','starvation','void','wither','drowning','suffocation'].includes(damageType)) {
       let blocked = true;
       if (sourcePos) {
         const toSource = new THREE.Vector3(sourcePos.x - this.position.x, 0, sourcePos.z - this.position.z).normalize();
@@ -1267,16 +1289,17 @@ export class Player {
         // any of it, so a shield was permanent. That is the same gap tool durability and armour durability
         // each had, and the third and last piece of it.
         //
-        // Vanilla charges more for a heavy melee hit and for an explosion. That rule is NOT implemented:
-        // the exact figures are not derivable from anything in `.cache/mc-data`, and inventing them would
-        // be worse than charging the documented common case of one point per blocked attack.
-        if (this.gamemode === 'survival') {
+        // Durability: "When the shield blocks an attack dealing more than 3 HP, it takes damage equal to the
+        // strength of the attack (rounded down) plus 1" -- and nothing for a weaker one (toolWear.js). This charged a
+        // flat point per blocked hit.
+        const shieldCost = shieldWear(amount);
+        if (this.gamemode === 'survival' && shieldCost > 0) {
           const shield = this.inventory?.getOffhandItem?.()?.id === 'shield'
             ? this.inventory.getOffhandItem()
             : this.inventory?.getActiveItem?.();
           if (shield && shield.id === 'shield') {
             const roll = typeof this.random === 'function' ? this.random : Math.random;
-            const wear = spendDurability(shield, 1, roll);
+            const wear = spendDurability(shield, shieldCost, roll);
             if (wear.broke) {
               this.ui?.addChatMessage?.('<span style="color:#ef4444;">Your shield broke.</span>');
             }
@@ -1297,7 +1320,7 @@ export class Player {
 
     // Armor damage mitigation (Minecraft Java Edition formula)
     // Formula: A_eff = max(A / 5, A - D / (2 + T / 4)), DamageReduction = min(20, max(0, A_eff)) / 25
-    if (damageType !== 'void' && damageType !== 'starvation' && damageType !== 'fall') {
+    if (damageType !== 'void' && damageType !== 'starvation' && damageType !== 'fall' && damageType !== 'drowning' && damageType !== 'suffocation') {
       const armor = this.inventory ? this.inventory.getTotalArmorPoints() : 0;
       const toughness = this.inventory ? this.inventory.getTotalArmorToughness() : 0;
       if (armor > 0 && damageType !== 'wither') {
@@ -1359,7 +1382,8 @@ export class Player {
 
     // Armour wears for the damage that got through. In vanilla every worn piece is charged, so this runs
     // after the reductions rather than on the raw amount.
-    if (amount > 0 && this.gamemode === 'survival') {
+    const noWearTypes = ['drowning', 'suffocation', 'starvation', 'void', 'freeze', 'wither', 'magic'];
+    if (amount > 0 && this.gamemode === 'survival' && !noWearTypes.includes(damageType)) {
       const broken = this.wearArmour(amount);
       for (const slotKey of broken) {
         this.ui?.addChatMessage?.(
@@ -1488,6 +1512,9 @@ export class Player {
     // `statusEffects.clear()` at the end -- so poison, fire, absorption and every other transient survived
     // death for anyone who had bound a bed.
     resetSurvivalState(this);
+    // Death resets "time since rest" too (Phantom), so a respawned player is not hunted by phantoms at once.
+    this.game?.mobs?.hostileBehaviors?.resetSleep?.();
+    this.game?.spawnManager?.specialSpawners?.phantom?.reset?.();
     this.deathDropsDone = false;
     this.isDungeonMode = false;
     if (this.velocity) this.velocity.set(0, 0, 0);
@@ -1625,6 +1652,22 @@ export class Player {
     return this.statusEffects.has(effect);
   }
 
+  getViewVector(target = new THREE.Vector3()) {
+    const dx = -Math.sin(this.yaw) * Math.cos(this.pitch);
+    const dy = Math.sin(this.pitch);
+    const dz = -Math.cos(this.yaw) * Math.cos(this.pitch);
+    return target.set(
+      Math.abs(dx) < 1e-10 ? 0 : dx,
+      Math.abs(dy) < 1e-10 ? 0 : dy,
+      Math.abs(dz) < 1e-10 ? 0 : dz
+    ).normalize();
+  }
+
+  getEyePosition(target = new THREE.Vector3()) {
+    const eyeY = this.position.y + (this.isSneaking ? 1.38 : (this.eyeHeight || 1.62));
+    return target.set(this.position.x, eyeY, this.position.z);
+  }
+
   updateCameraAndModel(dt) {
     const eyeY = this.position.y + (this.isSneaking ? 1.38 : this.eyeHeight);
 
@@ -1658,57 +1701,56 @@ export class Player {
           // Right arm raises horizontally and punches forward from shoulder
           this.model.rightArm.rotation.x = -Math.PI / 2 - 0.25 * punchProg;
           this.model.rightArm.rotation.y = -0.25 * punchProg;
-          this.model.rightArm.position.set(0.38, 1.25, -0.6 * punchProg);
+          this.model.rightArm.position.set(0.38, 1.375, -0.6 * punchProg);
           // Left arm raises into martial arts guard stance
           this.model.leftArm.rotation.x = -0.8 * punchProg;
-          this.model.leftArm.position.set(-0.38, 1.25, 0.25 * punchProg);
+          this.model.leftArm.position.set(-0.38, 1.375, 0.25 * punchProg);
         } else {
           if (this.model.torso) this.model.torso.rotation.y = 0;
           this.model.leftArm.rotation.x = -legSwing;
           this.model.rightArm.rotation.x = legSwing;
           this.model.leftArm.rotation.y = 0;
           this.model.rightArm.rotation.y = 0;
-          this.model.leftArm.position.set(-0.38, 1.25, 0);
-          this.model.rightArm.position.set(0.38, 1.25, 0);
+          this.model.leftArm.position.set(-0.38, 1.375, 0);
+          this.model.rightArm.position.set(0.38, 1.375, 0);
         }
 
         this.model.head.rotation.x = this.isDungeonMode ? 0 : this.pitch;
       }
-
-      // Hide model in 1st person UNLESS in Dungeon Mode
-      this.model.visible = (this.perspective !== 0 || this.isDungeonMode);
     }
 
     // Position Camera based on Dungeon Mode or perspective
     if (this.isDungeonMode) {
-      // Minecraft Dungeons Style Top-Down Isometric View
+      if (this.model) this.model.visible = true;
       const targetCamPos = this.position.clone().add(this.dungeonCameraOffset);
       this.camera.position.lerp(targetCamPos, Math.min(1.0, 8.0 * (dt || 0.016)));
       this.camera.lookAt(this.position.x, this.position.y + 0.8, this.position.z);
     } else if (this.perspective === 0) {
       // 1st Person
+      if (this.model) this.model.visible = false;
       this.camera.position.set(this.position.x, eyeY, this.position.z);
       if (this.camera.up?.set) this.camera.up.set(0, 1, 0);
       this.camera.rotation.order = 'YXZ';
       this.camera.rotation.y = this.yaw;
       this.camera.rotation.x = this.pitch;
       this.camera.rotation.z = 0;
-    } else if (this.perspective === 1) {
-      // 3rd Person Back
-      const dist = 3.5;
-      const cx = this.position.x + Math.sin(this.yaw) * Math.cos(this.pitch) * dist;
-      const cy = eyeY + Math.sin(this.pitch) * dist;
-      const cz = this.position.z + Math.cos(this.yaw) * Math.cos(this.pitch) * dist;
-      this.camera.position.set(cx, cy, cz);
-      this.camera.lookAt(this.position.x, eyeY, this.position.z);
-    } else if (this.perspective === 2) {
-      // 3rd Person Front (Selfie)
-      const dist = 3.5;
-      const cx = this.position.x - Math.sin(this.yaw) * Math.cos(this.pitch) * dist;
-      const cy = eyeY + Math.sin(this.pitch) * dist;
-      const cz = this.position.z - Math.cos(this.yaw) * Math.cos(this.pitch) * dist;
-      this.camera.position.set(cx, cy, cz);
-      this.camera.lookAt(this.position.x, eyeY, this.position.z);
+      if (typeof document !== 'undefined') {
+        const crosshair = document.getElementById('crosshair');
+        if (crosshair) crosshair.style.display = 'block';
+      }
+    } else {
+      // Third Person (Perspective 1: Back, Perspective 2: Front)
+      const camData = calculateThirdPersonCamera(this, this.world);
+      this.camera.position.copy(camData.position);
+      if (this.camera.up?.set) this.camera.up.set(0, 1, 0);
+      this.camera.lookAt(camData.lookTarget);
+      if (this.model) {
+        this.model.visible = camData.showModel;
+      }
+      if (typeof document !== 'undefined') {
+        const crosshair = document.getElementById('crosshair');
+        if (crosshair) crosshair.style.display = camData.showCrosshair ? 'block' : 'none';
+      }
     }
   }
 }

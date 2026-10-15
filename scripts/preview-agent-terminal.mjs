@@ -38,7 +38,7 @@ try{
   await settings.click();assert.equal(await drawer.isVisible(),true);assert.equal(await settings.getAttribute('aria-expanded'),'true');assert.equal(await drawer.locator('input').first().isEnabled(),true);
   for(const vendor of ['gemini','deepseek','chatgpt','claude']){
     await page.locator(`[data-vendor="${vendor}"]`).click();assert.equal(await page.evaluate(()=>window.agent.vendor),vendor);
-    await page.locator('#gemini-key-input').fill(`test-${vendor}-key`);await page.locator('#gemini-save-key-btn').click();await settings.click();
+    await page.locator('#gemini-key-input').fill(`test-${vendor}-key`);await page.locator('#gemini-save-key-btn').click();
   }
   await page.screenshot({path:'docs/artifacts/agent-terminal-online-settings.png'});
   const before=await page.evaluate(()=>({vendor:window.agent.vendor,model:window.agent.model,keys:['gemini','deepseek','chatgpt','claude'].map(v=>window.agent.getApiKey(v)),fetches:window.modelFetches}));
@@ -49,7 +49,7 @@ try{
   });assert.deepEqual(locked,before,'offline settings cannot change or fetch models');
   await page.evaluate(()=>{window.agent.setOfflineMode(false);window.ui.openAgentSettings();});assert.equal(await settings.isEnabled(),true);assert.equal(await drawer.isVisible(),true);
   await page.evaluate(async()=>{const {runCommand,buildCommandContext}=await import('/src/commandRunner.js');runCommand(buildCommandContext(window.ui.game),'/offline');});assert.equal(await toggle.getAttribute('aria-checked'),'true');assert.equal(await settings.isDisabled(),true);assert.equal(await drawer.isVisible(),false);
-  const persisted=await page.evaluate(async()=>{const {WorldAgent}=await import('/src/worldAgent.js');const fresh=new WorldAgent(window.ui.game);return {offline:fresh.offlineMode,keys:['gemini','deepseek','chatgpt','claude'].map(v=>fresh.getApiKey(v))};});assert.equal(persisted.offline,true);assert.deepEqual(persisted.keys,before.keys);
+  const persisted=await page.evaluate(async()=>{const {WorldAgent}=await import('/src/worldAgent.js');const fresh=new WorldAgent(window.ui.game);return {offline:fresh.offlineMode,keys:['gemini','deepseek','chatgpt','claude'].map(v=>fresh.getApiKey(v))};});assert.equal(persisted.offline,true);assert.deepEqual(persisted.keys,['','','','']);
   await toggle.focus();await page.keyboard.press('Space');assert.equal(await toggle.getAttribute('aria-checked'),'false');await settings.click();
   await page.setViewportSize({width:600,height:850});await page.screenshot({path:'docs/artifacts/agent-terminal-compact.png'});
   const layout=await page.evaluate(()=>{const card=document.querySelector('.gemini-terminal-card'),actions=document.querySelector('.gemini-header-actions'),c=card.getBoundingClientRect(),a=actions.getBoundingClientRect();return {width:innerWidth,right:c.right,actionsRight:a.right,scrollWidth:document.documentElement.scrollWidth};});

@@ -71,6 +71,7 @@ export function teardownWorld(game) {
 
   // Entities that belong to the world, not to the player: dropped items hold their own visuals.
   step('mobs', () => game.mobs?.clearMobs?.());
+  step('End encounter',()=>{game.bossManager?.clearEndVisuals?.();game.endItems?.clear?.();game.endArenaBuilt=false;});
   step('dropped items', () => {
     const entities = game.entities;
     if (!entities) return;

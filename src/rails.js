@@ -75,7 +75,7 @@ export class RailSystem {
 
   isRail(p) {
     const id = this.world.getVoxel(...p);
-    return id === B.RAIL || id === B.POWERED_RAIL;
+    return [B.RAIL,B.POWERED_RAIL,B.ACTIVATOR_RAIL,B.DETECTOR_RAIL].includes(id);
   }
 
   /** Rail direction, from the redstone state: 0 east, 1 west, 2 up, 3 down, 4 south, 5 north. */
@@ -92,7 +92,7 @@ export class RailSystem {
   /** A powered rail pushes when it has a signal. */
   railIsPowered(p) {
     if (!this.isPoweredRail(p)) return false;
-    return (this.world.redstone?.input(p) || 0) > 0;
+    return this.world.redstone?.railPowered?.(p)??((this.world.redstone?.input(p)||0)>0);
   }
 
   nextRail(from, previous = null, preferred = null) {
@@ -336,6 +336,12 @@ export class RailSystem {
   #cartStep(dt) {
     for (const cart of this.carts) {
       if (!cart.rail) continue;
+      if(this.world.getVoxel(...cart.rail)===B.ACTIVATOR_RAIL&&this.world.redstone?.railPowered?.(cart.rail)){
+        if(cart.subType==='tnt_minecart'&&cart.fuse===undefined){cart.primed=true;cart.fuse=4;}
+        if(cart.subType==='hopper_minecart')cart.hopperDisabled=true;
+        if(cart.rider){if(this.game?.riding===cart)this.game.dismount?.();if(cart.rider?.vehicle===cart)cart.rider.vehicle=null;cart.rider=null;}
+      }else if(this.world.getVoxel(...cart.rail)===B.ACTIVATOR_RAIL&&cart.subType==='hopper_minecart')cart.hopperDisabled=false;
+      if(cart.fuse!==undefined){cart.fuse-=dt;if(cart.fuse<=0){this.explodeTntCart(cart);continue;}}
       const dir = this.railDir(cart.rail);
       let forward = this.#cartHeading(cart, dir);
 
@@ -363,7 +369,7 @@ export class RailSystem {
       }
 
       // Hopper Minecart: item suction and container transfer
-      if (cart.subType === 'hopper_minecart') {
+      if (cart.subType === 'hopper_minecart'&&!cart.hopperDisabled) {
         if (this.game?.entities?.droppedItems) {
           const dropped = this.game.entities.droppedItems;
           for (let i = dropped.length - 1; i >= 0; i--) {

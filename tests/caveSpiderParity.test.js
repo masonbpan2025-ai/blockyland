@@ -183,21 +183,21 @@ test('the hunt bites the player and poisons on Normal', () => {
   const cave = manager.spawnMob('cave_spider', 0, 1, 0);
   // Stand the spider right next to the player, inside the bite reach.
   cave.mesh.position.set(0, 1, SPIDER_ATTACK_REACH - 0.2);
-  cave.hitCooldown = 0;
+  cave.attackCooldown = 0;
 
   assert.equal(updateSpiderHunt(manager, cave, 1 / 60, player), true, 'the spider acted');
   assert.equal(player.damageEvents, 1, 'it bit the player');
   assert.equal(player.health, 18, 'wiki: 2 melee damage on Normal');
   assert.ok(player.hasStatusEffect('poison'), 'and poisoned them');
   assert.equal(player.statusEffects.poison.seconds, 7);
-  assert.ok(cave.hitCooldown > 0, 'the bite went on cooldown');
+  assert.ok(cave.attackCooldown > 0, 'the bite went on cooldown');
 });
 
 test('the hunt respects the attack cooldown', () => {
   const { manager, player } = fixture({ light: 0 });
   const cave = manager.spawnMob('cave_spider', 0, 1, 0);
   cave.mesh.position.set(0, 1, SPIDER_ATTACK_REACH - 0.2);
-  cave.hitCooldown = 0;
+  cave.attackCooldown = 0;
   updateSpiderHunt(manager, cave, 1 / 60, player);
   const afterFirst = player.damageEvents;
   // Immediately again: still on cooldown.
@@ -278,7 +278,7 @@ test('existing cave spider behaviour is unaffected by plain spiders', () => {
   const { manager, player } = fixture({ light: 0 });
   const spider = manager.spawnMob('spider', 0, 1, 0);
   spider.mesh.position.set(0, 1, SPIDER_ATTACK_REACH - 0.2);
-  spider.hitCooldown = 0;
+  spider.attackCooldown = 0;
   updateSpiderHunt(manager, spider, 1 / 60, player);
   assert.equal(player.health, 18, 'a plain spider deals 2 damage');
   assert.equal(player.hasStatusEffect('poison'), false, 'and does not poison');

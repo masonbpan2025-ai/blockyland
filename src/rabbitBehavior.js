@@ -192,6 +192,9 @@ export function rabbitDrops(mob, random = Math.random) {
 export function updateKillerBunnyHunt(manager, mob, dt, player) {
   if (!isKillerBunny(mob) || mob.health <= 0) return false;
   mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+  // Attacks run on their own timer: `hitCooldown` is the hurt-immunity window, and sharing it made the mob immune
+  // to the player for as long as it kept biting.
+  mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
 
   // Wolves are the fallback target, as the wiki describes.
   let target = null;
@@ -239,13 +242,13 @@ export function updateKillerBunnyHunt(manager, mob, dt, player) {
   } else {
     mob.velocity.x *= 0.5;
     mob.velocity.z *= 0.5;
-    if (mob.hitCooldown <= 0) {
+    if (mob.attackCooldown <= 0) {
       const damage = killerBunnyDamageFor(manager?.game?.difficulty);
       // Wiki: on Peaceful it still attacks wolves, just not the player.
       if (target === player && damage <= 0) { /* no player damage on Peaceful */ }
       else if (target === player) player.takeDamage?.(damage, mob.mesh.position, mob.type);
       else manager.damageMob?.(target, killerBunnyDamageFor(manager?.game?.difficulty) || 4, mob.mesh.position, false, mob);
-      mob.hitCooldown = 1.0;
+      mob.attackCooldown = 1.0;
     }
   }
   return true;

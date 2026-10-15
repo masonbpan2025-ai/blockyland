@@ -132,7 +132,9 @@ test('smithing spends no experience: the table and the bot never touch the exper
   assert.ok(start > 0, 'takeSmithingOutput exists');
   assert.doesNotMatch(body, /xp|experience/i, 'taking the output charges no experience');
   const survival = read('src/playerBotSurvival.js');
-  const smith = survival.slice(survival.indexOf("} else if (c.type === 'smith') {"), survival.indexOf("} else if (c.type === 'trade') {"));
+  // Bounded by the next branch: the anvil branch that follows says "Too Expensive!", which contains "xp".
+  const smithAt = survival.indexOf("} else if (c.type === 'smith') {");
+  const smith = survival.slice(smithAt, survival.indexOf("} else if (c.type === '", smithAt + 10));
   assert.ok(smith.length > 0, 'the bot branch exists');
   assert.doesNotMatch(smith, /xp|experience/i, 'and the bot charges none either');
 });

@@ -1015,12 +1015,16 @@ export class AnimalBehaviors {
           mob.jebTime = (mob.jebTime || 0) + dt;
           sheepApplyWool(mob);
         }
-        mob.grazeTimer = (mob.grazeTimer !== undefined ? mob.grazeTimer : (mob.eatGrassTimer !== undefined ? mob.eatGrassTimer : (15 + Math.random() * 25))) - dt;
+        // Sheep: an adult tries to eat grass with a 1-in-1000 chance each tick, a lamb 1 in 50 -- on average every 50 s
+        // and 2.5 s. The wait was an invented 15-50 s timer, and a second grazing pass (mobEnvironment.js) ran on top
+        // of it, so a sheared sheep had its wool back within seconds (The second day play-test).
+        mob.grazeTimer = (mob.grazeTimer !== undefined ? mob.grazeTimer : (mob.eatGrassTimer !== undefined ? mob.eatGrassTimer : sheepGrazeWait(mob, this.mobManager?.random ?? Math.random))) - dt;
         if (mob.grazeTimer <= 0) {
-          mob.grazeTimer = mob.isBaby ? (10 + Math.random() * 15) : (20 + Math.random() * 30);
-          const bx = Math.round(mob.mesh.position.x);
-          const by = Math.round(mob.mesh.position.y) - 1;
-          const bz = Math.round(mob.mesh.position.z);
+          mob.grazeTimer = sheepGrazeWait(mob, this.mobManager?.random ?? Math.random);
+          // The block under its feet: floored, not rounded (a sheep at x = 10.5 stands on block 10).
+          const bx = Math.floor(mob.mesh.position.x);
+          const by = Math.floor(mob.mesh.position.y - 0.1);
+          const bz = Math.floor(mob.mesh.position.z);
           const blockBelow = this.world?.getVoxel(bx, by, bz);
           if (blockBelow === BLOCKS.GRASS || blockBelow === BLOCKS.GRASS_BLOCK) {
             this.world?.setVoxel(bx, by, bz, BLOCKS.DIRT);
@@ -1610,4 +1614,10 @@ export class AnimalBehaviors {
     }
     return true;
   }
+}
+
+/** Seconds until a sheep next tries to graze: geometric in ticks with p = 1/1000 (adult) or 1/50 (lamb). */
+export function sheepGrazeWait(mob, random = Math.random) {
+  const ticksMean = mob?.isBaby ? 50 : 1000;
+  return -Math.log(1 - random()) * ticksMean / 20;
 }

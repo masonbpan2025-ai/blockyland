@@ -443,7 +443,7 @@ async function restoreWorldAsync(game, mapData, options = {}) {
       if (dbgMode) dbgMode.textContent = `Mode: ${game.player.gamemode.charAt(0).toUpperCase() + game.player.gamemode.slice(1)}`;
     }
     if (game.ui.addChatMessage) {
-      const typeLabel = targetWorldType === 'designed' ? 'Designed World' : 'World';
+      const typeLabel = targetWorldType === 'designed' ? 'Mod' : 'World';
       game.ui.addChatMessage(`Loaded ${typeLabel}: "${mapData.name}"`, 'system');
     }
   }
@@ -684,7 +684,7 @@ export function deserializeWorld(game, mapData, options = {}) {
       }
     }
     if (game.ui.addChatMessage) {
-      const typeLabel = targetWorldType === 'designed' ? 'Designed World' : 'World';
+      const typeLabel = targetWorldType === 'designed' ? 'Mod' : 'World';
       game.ui.addChatMessage(`Loaded ${typeLabel}: "${mapData.name}"`, 'system');
     }
   }
@@ -799,7 +799,7 @@ export async function loadDesignedWorld(game, filename, options = {}) {
   }
 
   if (!mapData) {
-    throw new Error(`Failed to load designed world "${filename}"`);
+    throw new Error(`Failed to load mod "${filename}"`);
   }
 
   const report = typeof options.progress === 'function' ? options.progress : null;

@@ -62,6 +62,7 @@ export const BLOCK_MODEL_SHAPES = {
   'Soul Campfire': { boxes: campfire() },
   'Decorated Pot': { boxes: [[1, 0, 1, 15, 16, 15]] },
   'End Portal Frame': { boxes: [[0, 0, 0, 16, 13, 16]] },
+  'End Portal': { boxes: [[0, 12, 0, 16, 12.01, 16]] },
 };
 
 /**

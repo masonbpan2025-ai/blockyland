@@ -14,3 +14,7 @@ test('the global mode controls every vendor without changing vendor credentials'
 test('an async model-list completion cannot unlock offline configuration',()=>{const ui=fixture();syncAgentTerminalControls(ui,{offlineMode:false},{refreshing:true});assert.equal(ui.geminiRefreshModelsBtn.disabled,true);syncAgentTerminalControls(ui,{offlineMode:true});assert.equal(ui.geminiRefreshModelsBtn.disabled,true);assert.equal(ui.geminiKeyDrawer.disabled,true);});
 test('drawer accessibility state reflects the visible panel when online',()=>{const ui=fixture();syncAgentTerminalControls(ui,{offlineMode:false});assert.equal(ui.geminiToggleKeyBtn.attributes['aria-expanded'],'true');ui.geminiKeyDrawer.classList.add('hidden');syncAgentTerminalControls(ui,{offlineMode:false});assert.equal(ui.geminiToggleKeyBtn.attributes['aria-expanded'],'false');});
 test('partial UI construction is safe',()=>{assert.equal(syncAgentTerminalControls({},null),true);assert.equal(syncAgentTerminalControls({}, {offlineMode:true}),false);});
+test('closing settings through Offline Mode clears draft keys and passphrases',()=>{
+  const ui=fixture();ui.geminiKeyInput={value:'draft-key'};ui.geminiVaultPassphrase={value:'draft-passphrase'};
+  syncAgentTerminalControls(ui,{offlineMode:true});assert.equal(ui.geminiKeyInput.value,'');assert.equal(ui.geminiVaultPassphrase.value,'');
+});

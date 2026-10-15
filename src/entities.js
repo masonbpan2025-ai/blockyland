@@ -8,6 +8,9 @@ import { isDestroyedByExplosion, TNT_EXPLOSION_POWER } from './blockHarvestData.
 import { addPlayerExperience } from './experience.js';
 import { isFireproof } from './smithing.js';
 
+/** Item (entity): 6000 game ticks. */
+export const ITEM_DESPAWN_SECONDS = 300;
+
 export class EntityManager {
   constructor(scene, world, sounds, textures = null) {
     this.scene = scene;
@@ -356,6 +359,10 @@ export class EntityManager {
       const contact=this.world.getVoxel(Math.floor(item.group.position.x),Math.floor(item.group.position.y),Math.floor(item.group.position.z));
       // Netherite survives lava and fire, as the wiki's netherite upgrade describes; everything else burns up.
       if((contact===BLOCKS.LAVA||contact===BLOCKS.FIRE)&&!isFireproof(item.itemType)){this.itemVisuals.release(item.group);this.droppedItems.splice(i,1);continue;}
+      // Item (entity): "an item despawns after existing for 6000 game ticks (5 minutes)". Only XP orbs had the timer,
+      // so every dropped item -- a death's whole inventory included -- stayed forever, and "collect your items within
+      // 5 minutes" (The second day) was not a thing to hurry for. `age` counts only while the item's chunk updates.
+      if(item.age>=ITEM_DESPAWN_SECONDS&&!item.noDespawn){this.itemVisuals.release(item.group);this.droppedItems.splice(i,1);continue;}
 
       // Small steps keep loot from tunneling through the ground or a wall.
       const steps = Math.max(1, Math.ceil(dt / 0.016));
@@ -400,7 +407,9 @@ export class EntityManager {
       const playerPos = player.position.clone().add(new THREE.Vector3(0, 0.8, 0));
       const dist = item.group.position.distanceTo(playerPos);
 
-      if (dist < 1.6 && item.age > item.pickupDelay) {
+      // A dead player picks nothing up: the death drop used to fly straight back into the corpse's inventory a second
+      // later, so "return to where you died" had nothing to find (Beginner's guide play-test).
+      if (dist < 1.6 && item.age > item.pickupDelay && !player.isDead && !(player.health <= 0)) {
         // Collect into inventory
         let added = 0;
         // Single-item transactions avoid duplicating a partially accepted stack.
@@ -436,7 +445,7 @@ export class EntityManager {
         const dist = orb.mesh.position.distanceTo(playerTarget);
 
         // Pickup detection (< 1.25 blocks)
-        if (dist < 1.25 && orb.age > orb.pickupDelay) {
+        if (dist < 1.25 && orb.age > orb.pickupDelay && !player.isDead && !(player.health <= 0)) {
           addPlayerExperience(player, orb.value, this.sounds, this.ui || player.ui);
           if (this.sounds?.playXpPickup) {
             this.sounds.playXpPickup(0.8 + Math.random() * 0.5);

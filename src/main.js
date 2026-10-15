@@ -4,6 +4,7 @@ import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { rollStructureLoot } from './structureLoot.js';
 import { runFunction, allRecipeIds, recipeIdOf } from './advancedCommands.js';
 import { modeRules, playerAsSeenByWorld } from './gameModeRules.js';
+import { attackCharge, scaleBaseDamage, scaleEnchantDamage } from './attackCooldown.js';
 import { packsModal } from './packsModal.js';
 import { resourcePackManager } from './resourcePackManager.js';
 import { placeBonusChest } from './bonusChest.js';
@@ -15,7 +16,8 @@ import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
 import { canSmash, smashBonus, windBurstVelocity, enchantLevel, SMASH_KNOCKBACK_RADIUS } from './maceSmash.js';
 import { spendDurability } from './durability.js';
-import { EXHAUSTION } from './hunger.js';
+import { EXHAUSTION, canEat } from './hunger.js';
+import { blockBreakWear, attackWear } from './toolWear.js';
 import { FOODS } from './foodData.js';
 import { igniteActor } from './heat.js';
 import { tieHorseLeads } from './horseLead.js';
@@ -39,7 +41,7 @@ import { isCreative, settingsWith } from './sessionSettings.js';
 import { installBundledPack, BUNDLED_PACK_NAME } from './dataPackBundle.js';
 import { applyStore, revertAll } from './dataPackApply.js';
 import { revertDataPack } from './dataPackRuntime.js';
-import { normaliseSettings, normaliseGameMode, DEFAULT_SETTINGS, DAY_LENGTH_SECONDS, startingTimeOfDay,
+import { normaliseSettings, normaliseGameMode, normaliseDifficulty, DEFAULT_SETTINGS, DAY_LENGTH_SECONDS, startingTimeOfDay,
   allowsShowcasePopulation, allowsAgentTerminal } from './sessionSettings.js';
 import { isFrame, insertEye, tryActivateAround, isEndPortal, portalDestination, portalArrival,
   isStandingInEndPortal, buildEndPlatform, buildEndPortalRoom, enderEyeThrowVelocity, bearingToPortal,
@@ -48,6 +50,11 @@ import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
+import { attuneCompass } from './compass.js';
+import { applyFoodEffects, chorusTeleport } from './foodEffects.js';
+import { brushArmadillo } from './armadilloBehavior.js';
+import { skyDarkenForDimension } from './spawning/spawnClock.js';
+import { EatingController } from './eating.js';
 import { FishingController } from './fishingRod.js';
 import { useBoat } from './boatPlacement.js';
 import { buildRedstoneDemo } from './redstoneDemos.js';
@@ -91,6 +98,7 @@ import {
   yieldToBrowser
 } from './progressOverlay.js';
 import { placePlayerOnSurface } from './worldSpawn.js';
+import { shouldPauseOnLockLoss } from './pointerLock.js';
 import { waterHeight } from './waterGeometry.js';
 import { isBucket, traceBucket, useBucket } from './buckets.js';
 import { catchFish, releaseFish } from './fishBuckets.js';
@@ -452,6 +460,7 @@ class Game {
     // 5. Initialize Held Item 3D Renderer
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
     this.bow = new BowController(this);
+    this.eating = new EatingController(this);
     // The fishing rod: another use-item feature with a state machine, so it sits with the bow.
     this.fishing = new FishingController(this);
     // Rails, minecarts and boats: real physics for carts and floating props.
@@ -1167,9 +1176,8 @@ class Game {
       this.ambientLight.intensity = 0.8;
       this.sunLight.intensity = 0;
       this.moonLight.intensity = 0;
-      // Built ONCE per session. `initEndArena` spawns a dragon and six end crystals, so leaving the End and
-      // coming back would otherwise spawn a second of each -- two dragons, one boss bar, and a fight that
-      // never ends because defeating one leaves the other.
+      // Reconstruct this dimension's saved encounter once per entry. The encounter
+      // removes duplicate snapshots and preserves defeated dragons and broken crystals.
       if (!this.endArenaBuilt) {
         this.endArenaBuilt = true;
         this.bossManager?.initEndArena();
@@ -1231,6 +1239,8 @@ class Game {
     }
 
     const { opaqueGeo, transparentGeo, waterGeo, lightGeo } = geometry;
+    // Its terrain is drawn from now on, so the mobs standing in it are too (entityVisibility.js).
+    chunk.meshedOnce = true;
     // Chunk meshes sit at the origin and never move, so their matrices are computed once rather than recomposed
     // on every frame's scene walk -- over a thousand of them in a normal view distance.
     const settle = (mesh) => { mesh.matrixAutoUpdate = false; mesh.updateMatrix(); mesh.updateMatrixWorld(true); return mesh; };
@@ -2001,6 +2011,7 @@ class Game {
 
     window.addEventListener('blur', () => {
       this.bow?.cancel();
+      this.eating?.cancel();
       this.fishing?.cancel();
       this.player.isBlocking = false;
       // F3+P: vanilla pauses singleplayer when the window loses focus. This build never did, so the world
@@ -2013,17 +2024,18 @@ class Game {
     document.addEventListener('pointerlockchange', () => {
       if (document.pointerLockElement !== this.renderer.domElement) {
         this.bow?.cancel();
+        this.eating?.cancel();
         // Losing pointer lock reels the line in, which is the same as the player looking away: no durability
         // and no catch, matching the wiki's rule that abandoning the rod costs nothing.
         this.fishing?.cancel();
         this.player.isBlocking = false;
-        // Escape releases the lock without a keydown reaching the page. That first Escape only detaches the
-        // mouse; a second Escape (handled in ui.js) opens the pause menu, and a click re-attaches the mouse.
+        this.handlePointerLockLoss();
       }
     });
     window.addEventListener('mouseup', (e) => {
       if (e.button === 2) {
         this.bow.release();
+        this.eating?.release();
         this.player.isBlocking = false;
       }
       if (e.button === 0) {
@@ -2042,6 +2054,20 @@ class Game {
 
     // Window Resize
     window.addEventListener('resize', () => this.syncViewportSize());
+  }
+
+  handlePointerLockLoss() {
+    if (shouldPauseOnLockLoss({
+      worldReady: this.worldReady,
+      phase: this.phase,
+      dead: this.player?.isDead,
+      sleeping: this.bedManager?.isSleeping,
+      modalOpen: this.ui?.isModalOpen?.(),
+      chatOpen: this.ui?.isChatOpen,
+      geminiOpen: this.ui?.isGeminiOpen?.()
+    })) {
+      this.ui?.togglePauseMenu?.();
+    }
   }
 
   /**
@@ -2146,7 +2172,7 @@ class Game {
   handleLeftClick() {
     // A spectator "observe[s] the world without interacting with it in any way".
     if (!modeRules(this.player.gamemode).attack) return;
-    const lookDir = this.camera?.getWorldDirection(new THREE.Vector3()) || new THREE.Vector3(0, 0, -1);
+    const { origin: eyePos, direction: lookDir } = this.getInteractionRay();
 
     // 1. Deflect hostile projectiles (e.g. Ghast fireballs)
     if (this.mobs?.hostileBehaviors?.handlePlayerAttackProjectile(this.player.position, lookDir)) {
@@ -2155,13 +2181,13 @@ class Game {
     }
 
     // 2. Check End Crystal hit
-    if (this.bossManager?.checkCrystalHit(this.camera.position, lookDir)) {
+    if (this.bossManager?.checkCrystalHit(eyePos, lookDir)) {
       return;
     }
 
     // A painting breaks with one hit (the wiki: attack it), and is nearer than the wall it hangs on. Stop the
     // press there, or holding the button would go on to mine the wall behind it.
-    const paintingHit = this.paintings?.raycast(this.camera.position, lookDir, 5.2);
+    const paintingHit = this.paintings?.raycast(eyePos, lookDir, 5.2);
     if (paintingHit && (!this.targetMob || paintingHit.distance < this.camera.position.distanceTo(this.targetMob.mesh.position))) {
       this.paintings.breakByPlayer(paintingHit.painting, this.player);
       this.isMouseDown = false;
@@ -2175,19 +2201,26 @@ class Game {
       // which made every non-weapon hit twice as hard; found by the wiki parity audit's I-ATTACK case.
       // A fist deals the attack_damage attribute, 1 unless /attribute changed it.
       let damage = this.player.attackAttribute ?? 1;
+      let enchantDamage = 0;
       if (activeItem && !activeItem.isBlock) {
         const it = ITEMS[activeItem.id];
         if (it && it.attack) damage = it.attack;
         // The enchantment bonuses used to be inline here, with the undead list spelled out as a literal
         // array. They live in enchantmentEffects.js now so bane of arthropods and the durability effects
         // have somewhere to go, and so the numbers can be asserted directly.
-        damage += attackBonus(activeItem.enchantments, this.targetMob.type);
+        enchantDamage = attackBonus(activeItem.enchantments, this.targetMob.type);
       }
       // Strength and weakness change what this hit deals by a flat amount per level, as vanilla does --
       // "+3 HP x level" -- so a hit is adjusted rather than scaled. Asked of the player rather than
       // computed here, so the effect rules stay in one module and this call site needs no import.
       const effectBonus = this.player?.attackDamageBonus?.() ?? 0;
       if (effectBonus !== 0) damage = Math.max(0, damage + effectBonus);
+      // The attack cooldown (attackCooldown.js): the attribute damage scales with the square of the charge,
+      // enchantment damage with the charge itself. Every click used to deal full damage.
+      const charge = attackCharge(this.player.secondsSinceSwing ?? Infinity, activeItem && !activeItem.isBlock ? activeItem.id : null);
+      damage = scaleBaseDamage(damage, charge) + scaleEnchantDamage(enchantDamage, charge);
+      this.player.lastAttackCharge = charge;
+      this.player.secondsSinceSwing = 0;
       // The mace's smash attack (maceSmash.js): after a fall of 1.5 blocks or more, the fall adds damage (more with
       // Density), the fall height resets, everything within 2.5 blocks is knocked back, and Wind Burst launches the
       // wielder back up. Breach is read by damageMob, where a mob's armour is applied.
@@ -2197,6 +2230,18 @@ class Game {
       if (smash) damage += smashBonus(this.player.fallDistance, enchantLevel(activeItem.enchantments, 'density'));
       const smashTarget = this.targetMob;
       this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
+      // Food: "Attacking an enemy" costs 0.1 exhaustion. The line that charged it had been dropped into the Player
+      // constructor, where it ran once at start-up, so fighting cost nothing.
+      this.player.addExhaustion?.(EXHAUSTION.attack);
+      // The weapon wears: 1 for a sword, mace, trident or hoe, 2 for an axe, pickaxe or shovel (toolWear.js).
+      // Nothing was charged, so a sword never wore out in a fight.
+      const hitCost = activeItem && !activeItem.isBlock && this.player.gamemode === 'survival' ? attackWear(activeItem.id) : 0;
+      if (hitCost > 0 && spendDurability(activeItem, hitCost).broke) {
+        this.inventory.consumeActiveItem?.(1);
+        this.ui?.addChatMessage?.(`<span style="color:#ef4444;">Your ${ITEMS[activeItem.id]?.name || activeItem.id} broke.</span>`);
+        this.sounds?.playBreak?.('wood');
+        this.ui?.updateHotbar?.();
+      }
       if (smash) {
         this.player.fallDistance = 0;
         for (const other of this.mobs.mobs ?? []) {
@@ -2230,8 +2275,63 @@ class Game {
     }
   }
 
+  /** The end of eating (eating.js): the held food is consumed. Re-checked, since hunger may have changed meanwhile. */
+  finishEating(activeItem) {
+    const it = ITEMS[activeItem?.id];
+    if (!it || it.type !== 'food' || this.inventory.getActiveItem() !== activeItem) return false;
+    if (!canEat(activeItem.id, this.player.hunger, { creative: this.player.gamemode === 'creative', maxHunger: this.player.maxHunger })) return false;
+    if (isGoldenApple(activeItem.id)) applyGoldenApple(this.player, activeItem.id);
+    this.sounds.playEat();
+    // `Player.eatFood` owns this: it calls the model in `hunger.js` and keeps the player's own fields in
+    // sync with it, which is the arrangement the rest of the player already uses for exhaustion and the
+    // per-tick model. Doing the arithmetic here instead -- which this path did originally, adding hunger
+    // and two health and never touching saturation -- left the hunger system spending something eating
+    // never granted.
+    //
+    // The item's own saturation is preferred and `foodData.js` answers for the items that do not declare
+    // one; that table is generated from vanilla's data and is the same source the Inspector checks.
+    const saturation = it.saturation ?? FOODS[activeItem.id]?.saturation ?? 0;
+    this.player.eatFood?.(it.food || 4, saturation);
+    // Vanilla grants no instant health for eating: health comes back from the saturation boost, which
+    // `hunger.js` regenerates at 1.5 saturation per point, the wiki's own figure.
+    // Some foods carry effects. `golden_apple` and `enchanted_golden_apple` are the two in vanilla,
+    // and without this their Absorption, Regeneration, Resistance and Fire Resistance did nothing:
+    // an enchanted apple was a slightly worse cooked porkchop.
+    if (Array.isArray(it.effects)) {
+      for (const [effect, duration, level] of it.effects) {
+        this.player.applyStatusEffect?.(effect, duration, level ?? 1);
+      }
+    }
+    // Side effects (foodEffects.js): pufferfish, spider eyes, poisonous potatoes, rotten flesh and raw chicken;
+    // a honey bottle clears Poison; chorus fruit teleports.
+    applyFoodEffects(this.player, activeItem.id);
+    if (activeItem.id === 'chorus_fruit') {
+      const to = chorusTeleport(this.world, this.player.position);
+      if (to) { this.player.position.set(to.x, to.y, to.z); this.player.velocity?.set?.(0, 0, 0); this.player.fallDistance = 0; this.sounds.playEndermanTeleport?.(); }
+    }
+    if (this.player.gamemode !== 'creative') {
+      this.inventory.consumeActiveItem();
+      returnFoodContainer(this,activeItem.id);
+      this.ui.updateHotbar();
+    }
+    return true;
+  }
+
   handleRightClick() {
     if (!modeRules(this.player.gamemode).interact) return;
+    // Brushing an armadillo: "drops 1 armadillo scute and costs the brush 16 durability" (armadilloBehavior.js). The
+    // rule was written and nothing called it, so a brush did nothing to one. Found by the Durability management play-test.
+    {
+      const held = this.inventory.getActiveItem();
+      if (this.targetMob && held?.id === 'brush' && brushArmadillo(this.targetMob, held.id, {
+        consumeDurability: (n) => { if (this.player.gamemode !== 'creative' && spendDurability(held, n).broke) this.inventory.consumeActiveItem?.(1); },
+      })) {
+        this.entities.spawnDroppedItem(this.targetMob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 'armadillo_scute', false, 1);
+        this.sounds.playBrush?.();
+        this.ui.updateHotbar();
+        return;
+      }
+    }
     const interaction = this.mobs?.getMobProvider(this.targetMob)?.interact;
     if (interaction) { interaction(this.targetMob); return; }
 
@@ -2248,9 +2348,7 @@ class Game {
 
     if (!interactMob && this.mobs?.mobs) {
       // Proximity & look cone fallback for interactable animals within reach
-      const camPos = this.camera.position;
-      const camDir = new THREE.Vector3();
-      this.camera.getWorldDirection(camDir);
+      const { origin: camPos, direction: camDir } = this.getInteractionRay();
       let closestDist = 3.8;
       for (const m of this.mobs.mobs) {
         if (m.health <= 0 || m.dying) continue;
@@ -2379,16 +2477,15 @@ class Game {
     const bucketItem = this.inventory.getActiveItem();
     // Milk bucket drinking (clears status effects)
     if (bucketItem && bucketItem.id === 'milk_bucket') {
+      // Wiki (Milk Bucket): "Drinking it immediately removes all status effects from the player and returns an empty
+      // bucket." It cleared six named effects (Hunger, Nausea, Blindness, Weakness, Levitation... stayed), and the
+      // bucket was added as `addItem('bucket', 1, false)` -- isBlock 1, count false -- so no bucket came back.
       if (this.player.gamemode !== 'creative') {
         this.inventory.consumeActiveItem(1);
-        this.inventory.addItem('bucket', 1, false);
+        this.inventory.addItem('bucket', false, 1);
       }
-      this.player.clearStatusEffect?.('poison');
-      this.player.clearStatusEffect?.('wither');
-      this.player.clearStatusEffect?.('mining_fatigue');
-      this.player.clearStatusEffect?.('bad_omen');
-      this.player.clearStatusEffect?.('darkness');
-      this.player.clearStatusEffect?.('slowness');
+      for (const effect of [...(this.player.statusEffects?.keys?.() ?? [])]) this.player.clearStatusEffect?.(effect);
+      this.player.absorption = 0;
       if (this.sounds?.playMilk) this.sounds.playMilk();
       this.ui?.updateHotbar?.();
       this.ui?.updateStats?.();
@@ -2691,6 +2788,19 @@ class Game {
       return;
     }
 
+    // A compass used on a lodestone links to it (compass.js). One is split off a stack, as in Java.
+    if (clickedBlock === BLOCKS.LODESTONE && activeItem?.id === 'compass' && !activeItem.lodestone) {
+      const dimension = this.currentDimension ?? this.world?.dimension ?? 'overworld';
+      if (activeItem.count > 1) {
+        activeItem.count--;
+        const linked = { id: 'compass', isBlock: false, count: 1 };
+        attuneCompass(linked, bX, bY, bZ, dimension);
+        if (!this.inventory.addItem(linked)) this.entities.spawnDroppedItem(this.player.position.clone(), 'compass', false, 1, { itemData: linked });
+      } else attuneCompass(activeItem, bX, bY, bZ, dimension);
+      this.sounds.playClick();
+      this.ui.updateHotbar();
+      return;
+    }
     // Campfire cooking: raw food goes on the fire, one at a time, up to four (campfireCooking.js).
     if (isCampfire(clickedBlock) && activeItem && this.campfireCooking?.add(bX, bY, bZ, activeItem)) {
       if (this.player.gamemode !== 'creative') { this.inventory.consumeActiveItem(); this.ui.updateHotbar(); }
@@ -2715,7 +2825,7 @@ class Game {
 
     // Chest interaction (Open Single or Double Chest GUI)
     // Sneaking while holding a placeable block places against the chest instead of opening it
-    if (clickedBlock === BLOCKS.CHEST) {
+    if (clickedBlock === BLOCKS.CHEST || clickedBlock===BLOCKS.TRAPPED_CHEST) {
       const isSneaking = Boolean(this.player.isSneaking || this.player.keys?.['ShiftLeft'] || this.player.keys?.['ShiftRight']);
       const isHoldingPlaceable = Boolean(
         activeItem && (
@@ -2926,34 +3036,11 @@ class Game {
       if (it && it.type === 'food') {
         // A golden apple is the classic emergency item, and its effects were missing entirely: eating one
         // gave nothing but food. Applied before the hunger restore so the two cannot diverge.
-        if (isGoldenApple(activeItem.id)) applyGoldenApple(this.player, activeItem.id);
-        if (this.player.hunger < this.player.maxHunger || this.player.health < this.player.maxHealth || this.player.gamemode === 'creative') {
-          this.sounds.playEat();
-          // `Player.eatFood` owns this: it calls the model in `hunger.js` and keeps the player's own fields in
-          // sync with it, which is the arrangement the rest of the player already uses for exhaustion and the
-          // per-tick model. Doing the arithmetic here instead -- which this path did originally, adding hunger
-          // and two health and never touching saturation -- left the hunger system spending something eating
-          // never granted.
-          //
-          // The item's own saturation is preferred and `foodData.js` answers for the items that do not declare
-          // one; that table is generated from vanilla's data and is the same source the Inspector checks.
-          const saturation = it.saturation ?? FOODS[activeItem.id]?.saturation ?? 0;
-          this.player.eatFood?.(it.food || 4, saturation);
-          // Vanilla grants no instant health for eating: health comes back from the saturation boost, which
-          // `hunger.js` regenerates at 1.5 saturation per point, the wiki's own figure.
-          // Some foods carry effects. `golden_apple` and `enchanted_golden_apple` are the two in vanilla,
-          // and without this their Absorption, Regeneration, Resistance and Fire Resistance did nothing:
-          // an enchanted apple was a slightly worse cooked porkchop.
-          if (Array.isArray(it.effects)) {
-            for (const [effect, duration, level] of it.effects) {
-              this.player.applyStatusEffect?.(effect, duration, level ?? 1);
-            }
-          }
-          if (this.player.gamemode !== 'creative') {
-            this.inventory.consumeActiveItem();
-            returnFoodContainer(this,activeItem.id);
-            this.ui.updateHotbar();
-          }
+        // Hunger alone decides whether food can be eaten (canEat, hunger.js): eating at full hunger used to be allowed
+        // whenever health was below full, and the golden apple's effects applied even when the apple was not eaten.
+        // Eating takes 1.6 s of holding use (eating.js); `finishEating` below does the eating when it completes.
+        if (canEat(activeItem.id, this.player.hunger, { creative: this.player.gamemode === 'creative', maxHunger: this.player.maxHunger })) {
+          this.eating.start(activeItem);
           return;
         }
       }
@@ -3200,11 +3287,13 @@ class Game {
         this.farmingManager?.chorus?.register(placeX,placeY,placeZ,0);
         if (attachment) rememberAttachment(this.world, placeX, placeY, placeZ, blockIdToPlace, attachment);
         this.worldSync?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
+        this.world.leafDecay?.onPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.beaconManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.hiveManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         const look=this.camera.getWorldDirection(new THREE.Vector3());
         const dir=Math.abs(look.y)>.65?(look.y>0?2:3):Math.abs(look.x)>Math.abs(look.z)?(look.x>0?0:1):(look.z>0?4:5);
         this.world.redstone.configure([placeX,placeY,placeZ],dir);
+        this.world.redstone.attach([placeX,placeY,placeZ],this.targetBlock.normal);
 
         this.sounds.playPlace(def ? def.sound : 'wood');
 
@@ -3288,6 +3377,18 @@ class Game {
     this.ui?.refreshPauseMenuLabels?.();
     if (next === 'creative' && this.ui?.openCreativeInventory) this.ui.openCreativeInventory();
     return result;
+  }
+
+  /**
+   * Change world and player difficulty level.
+   */
+  setDifficulty(difficulty) {
+    const next = normaliseDifficulty(difficulty);
+    this.difficulty = next;
+    this.settings = settingsWith(this.settings, { difficulty: next });
+    if (this.player) this.player.difficulty = next;
+    this.ui?.refreshPauseMenuLabels?.();
+    return next;
   }
 
   /** May the Agent Terminal be opened, and may the item-granting commands run? */
@@ -3464,8 +3565,11 @@ class Game {
     // Charged in creative too would be wrong, so it is gated on survival along with the drops. The
     // durability module handles unbreaking and reports whether the tool broke; clearing the slot is this
     // layer's job, because breaking a stack is an inventory event.
-    if (heldAtBreak && !heldAtBreak.isBlock && this.player.gamemode === 'survival') {
-      const wear = spendDurability(heldAtBreak, 1);
+    // How much depends on the tool and the block (toolWear.js): nothing for a block that breaks instantly, 2 for a
+    // sword, 1 for a digging tool. This charged 1 for everything.
+    const breakCost = heldAtBreak && !heldAtBreak.isBlock ? blockBreakWear(heldAtBreak.id, def?.hardness ?? 0, { fire: blockId === BLOCKS.FIRE || blockId === BLOCKS.SOUL_FIRE }) : 0;
+    if (breakCost > 0 && this.player.gamemode === 'survival') {
+      const wear = spendDurability(heldAtBreak, breakCost);
       if (wear.broke) {
         const name = heldDefAtBreak?.name || heldIdAtBreak || 'Tool';
         this.inventory.consumeActiveItem?.(1);
@@ -3599,10 +3703,18 @@ class Game {
     if (this.ui?.brewingStand === stand) this.ui.closeBrewingModal?.();
   }
 
+  getInteractionRay() {
+    const origin = (this.player && typeof this.player.getEyePosition === 'function')
+      ? this.player.getEyePosition()
+      : (this.camera ? this.camera.position.clone() : new THREE.Vector3());
+    const direction = (this.player && typeof this.player.getViewVector === 'function')
+      ? this.player.getViewVector()
+      : (this.camera?.getWorldDirection ? this.camera.getWorldDirection(new THREE.Vector3()) : new THREE.Vector3(0, 0, -1));
+    return { origin, direction };
+  }
+
   updateRaycast() {
-    const camPos = this.camera.position;
-    const camDir = new THREE.Vector3();
-    this.camera.getWorldDirection(camDir);
+    const { origin: camPos, direction: camDir } = this.getInteractionRay();
 
     // 1. Raycast against Mobs first
     this.targetMob = null;
@@ -3770,6 +3882,13 @@ class Game {
   }
 
   updateDayNightCycle(dt) {
+    // The light engine's sky darkening follows the clock and the weather. It was set once, to 11 (the night value),
+    // and never updated, so every light check read open ground at noon as light 4: undead never burnt in the sun
+    // ("lead them into the sun ... until they burn to death", The second day).
+    if (this.world?.light) {
+      const weather = this.weather?.weatherType;
+      this.world.light.skyDarken = skyDarkenForDimension(this.currentDimension ?? this.world.dimension, this.worldTime ?? 6000, { rain: weather === 'rain' || weather === 'thunder', thunder: weather === 'thunder' });
+    }
     // The brighter overworld fill must not replace the End's purple atmosphere.
     if (this.currentDimension === 'the_end' || this.world?.dimension === 'the_end') {
       this.textures?.setSnowDaylight(0);
@@ -4412,6 +4531,7 @@ class Game {
     this.railSystem?.update(worldDt);
     if (this.riding) this.updateRiding();
     this.bow.update(dt);
+    this.eating.update(dt);
     this.fishing.update(dt);
     this.playerBot?.tick(dt);
     this.player.update(dt);
@@ -4483,6 +4603,8 @@ class Game {
     // Contained in its own try/catch like the mob update: a fault in the spawner must not stop the
     // world from rendering, and a fault in the world must not leave the spawner half-run.
     if (this.worldGenerated) this.world.structures?.flushSpawns?.();
+    // Peaceful clears monsters everywhere, with or without the spawner (despawnManager.removePeaceful).
+    if (this.difficulty === 'peaceful') { try { this.spawnManager?.despawnManager?.removePeaceful?.(); } catch (err) { console.error(err); } }
     if (this.spawnManager && this.worldGenerated && this.world.generationMode !== 'authored') {
       try {
         this.spawnManager.update(worldDt);
@@ -4598,6 +4720,8 @@ class Game {
     this.modRuntime?.update?.(dt);
 
     this.world.water.update(dt);
+    this.world.fallingBlocks?.update(worldDt);
+    this.world.leafDecay?.update(worldDt);
 
     // Chunk streaming: generate what the player is walking toward, mesh what is ready, and unload
     // what is now far away -- all bounded by a time budget so this cannot itself cause a spike.
@@ -4613,6 +4737,7 @@ class Game {
 
     // 6. Day/Night Cycle, Weather, Underwater & Dynamic Water Shader
     this.updateDayNightCycle(dt);
+    this.ui?.updateCompassNeedles?.(this);
     this.updateUnderwaterState();
     this.weather.update(dt, this.player.position, this.ambientLight, this.sunLight, this.scene.fog, this.scene.background);
     this.sky.update(dt, this.camera, this.weather, this.isUnderwater);

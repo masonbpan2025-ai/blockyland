@@ -31,6 +31,15 @@ test('ResourcePackManager: registers built-in presets (Stay True, Faithful 64x, 
   assert.ok(ashen.blockTextures['cobblestone.png'], 'Ashen overrides cobblestone.png');
 });
 
+test('ResourcePackManager: defaults to Faithful 64x resource pack with 64x resolution', () => {
+  const manager = new ResourcePackManager();
+  assert.deepEqual(manager.activePackIds, ['faithful_64x'], 'Faithful 64x is active by default');
+  assert.equal(manager.getActiveTileSize(), 64, 'Active tile size is 64 by default');
+  const stoneUrl = manager.resolveBlockTexture('stone.png');
+  assert.ok(stoneUrl, 'Faithful 64x resolves stone texture by default');
+  assert.match(stoneUrl, /\/assets\/packs\/faithful_64x\/stone\.png/);
+});
+
 test('ResourcePackManager: activates packs and resolves textures by priority', () => {
   const manager = new ResourcePackManager();
 
@@ -129,6 +138,7 @@ test('ResourcePackManager: Faithful 64x activates 64x tile resolution and resolv
 
 test('ResourcePackManager: custom HD pack automatically detects resolution from PNG header', async () => {
   const manager = new ResourcePackManager();
+  manager.reorderPacks([]); // Start with clean vanilla state
 
   // Construct a minimal valid PNG with 64x64 header
   // Byte 0..7: PNG signature

@@ -297,7 +297,7 @@ test('the killer bunny hunts the player and bites for the reference damage', () 
   const before = player.health;
   killer.mesh.position.set(0, 1, 0.5);
   player.position.set(0, 1, 0);
-  killer.hitCooldown = 0;
+  killer.attackCooldown = 0;
   updateKillerBunnyHunt(manager, killer, 1 / 60, player);
   assert.equal(player.health, before - 8, 'wiki: 8 damage on Normal');
 });
@@ -333,7 +333,7 @@ test('a killer bunny on Peaceful does not damage the player', () => {
   const killer = manager.spawnRabbit(0, 1, 0, { killer: true });
   killer.mesh.position.set(0, 1, 0.5);
   player.position.set(0, 1, 0);
-  killer.hitCooldown = 0;
+  killer.attackCooldown = 0;
   updateKillerBunnyHunt(manager, killer, 1 / 60, player);
   assert.equal(player.damageEvents, 0, 'wiki: no player damage on Peaceful');
 });

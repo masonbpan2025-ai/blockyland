@@ -36,7 +36,8 @@ test('saturation is spent before hunger', () => {
   const state = createHungerState({ hunger: 20, saturation: 3, exhaustion: 0 });
   addExhaustion(state, EXHAUSTION_THRESHOLD);
   assert.equal(state.hunger, 20, 'hunger must not fall while saturation remains');
-  assert.equal(state.saturation, 1.5, 'one payout costs 1.5 saturation');
+  // Wiki (Food, Exhaustion): at 4.0 it "reduces the saturation by 1 if there is any saturation remaining".
+  assert.equal(state.saturation, 2, 'one payout costs 1 saturation');
 });
 
 test('hunger only falls once saturation is gone', () => {
@@ -64,7 +65,7 @@ test('a large exhaustion event pays out more than once', () => {
 
 test('mining from full with ordinary saturation empties the bar in the low tens of thousands of blocks', () => {
   // An order-of-magnitude check on the whole model at once. The exact figure is
-  // (20 hunger + 5/1.5 saturation) * 4 / 0.005 == 18667, and reaching it within a couple of hundred
+  // (20 hunger + 5 saturation) * 4 / 0.005 == 20000, and reaching it within a couple of hundred
   // means the constants, the threshold and the payout order are all behaving together.
   const state = createHungerState({ hunger: 20, saturation: 5, exhaustion: 0 });
   let blocks = 0;
@@ -72,11 +73,10 @@ test('mining from full with ordinary saturation empties the bar in the low tens 
     addExhaustion(state, EXHAUSTION.dig);
     blocks++;
   }
-  // The idealised formula ignores that saturation is spent in 1.5-point payouts and that hunger only
-  // starts falling on the payout that finds saturation empty, so the measured count runs a few hundred
-  // above it. The point of the test is the order of magnitude and the mechanism, not the last digit.
-  const ideal = ((MAX_HUNGER + 5 / 1.5) * EXHAUSTION_THRESHOLD) / EXHAUSTION.dig;
-  assert.ok(blocks > ideal && blocks < ideal + 1500,
+  // One payout per point of saturation, then one per point of hunger; floating-point accumulation of 0.005
+  // steps can land a payout a block late, so allow a little either side.
+  const ideal = ((MAX_HUNGER + 5) * EXHAUSTION_THRESHOLD) / EXHAUSTION.dig;
+  assert.ok(blocks > ideal - 50 && blocks < ideal + 1500,
     `mining emptied hunger after ${blocks} blocks, expected between ${Math.round(ideal)} and ${Math.round(ideal) + 1500}`);
   // And it must be a figure that makes the point: food is not optional, but nor is it punishing.
   assert.ok(blocks > 15000 && blocks < 22000, `implausible figure: ${blocks}`);
@@ -105,16 +105,18 @@ test('eating adds hunger and caps saturation at the hunger level', () => {
 test('the three regeneration branches are distinct and correctly gated', () => {
   const withHealth = (hunger, saturation) => createHungerState({ hunger, saturation, exhaustion: 0 });
 
-  // Fast: full hunger with saturation to spend.
-  const fast = withHealth(20, 5);
+  // Java's FoodData ticks: fast is min(saturation, 6) / 6 HP every 10 ticks -- 2 HP a second with 6 or more
+  // saturation; slow is 1 HP every 80 ticks at food 18 or more. Discrete, as in Java (see hunger.js).
+  const fast = withHealth(20, 20);
   const fastResult = tickHunger(fast, 1, { health: 10, maxHealth: 20 });
   assert.equal(fastResult.heal, REGEN.fastPerSecond, 'full hunger regenerates fast');
   assert.ok(fastResult.heal > 0);
 
-  // Slow: food 18 or more regenerates, but at a quarter the rate.
+  // Slow: food 18 or more regenerates one whole HP after 4 s, not a sliver every tick.
   const slow = withHealth(18, 0);
-  const slowResult = tickHunger(slow, 1, { health: 10, maxHealth: 20 });
-  assert.equal(slowResult.heal, REGEN.slowPerSecond, 'food 18 regenerates slowly');
+  assert.equal(tickHunger(slow, 3.9, { health: 10, maxHealth: 20 }).heal, 0, 'nothing before 80 ticks');
+  const slowResult = tickHunger(slow, 0.1, { health: 10, maxHealth: 20 });
+  assert.equal(slowResult.heal, 1, 'food 18 regenerates 1 HP every 4 s');
 
   // None: below 18 with no saturation, nothing happens.
   const none = withHealth(17, 0);
@@ -130,9 +132,9 @@ test('the three regeneration branches are distinct and correctly gated', () => {
 
 test('regeneration costs exhaustion, which is what makes it finite', () => {
   // Without this, a player at full hunger would regenerate forever for free.
-  const state = createHungerState({ hunger: 20, saturation: 1, exhaustion: 0 });
+  const state = createHungerState({ hunger: 20, saturation: 3, exhaustion: 0 });
   const before = state.saturation;
-  tickHunger(state, 1, { health: 10, maxHealth: 20 });
+  tickHunger(state, 0.5, { health: 10, maxHealth: 20 });
   assert.ok(state.exhaustion > 0, 'regenerating must accrue exhaustion');
   assert.ok(state.saturation < before || state.exhaustion > 0,
     'regeneration must consume saturation or build exhaustion toward doing so');
@@ -174,4 +176,24 @@ test('a zero or negative exhaustion amount is ignored', () => {
   addExhaustion(state, -5);
   assert.equal(state.hunger, 20);
   assert.equal(state.saturation, 5);
+});
+
+// Wiki (Food): natural regeneration costs 6.0 exhaustion per HP healed -- 1.5 saturation, the "saturation boost
+// heals 1 HP by consuming 1.5 saturation". It was charged per second instead: half price at full hunger, four
+// times the price at 18-19.
+test('every healed HP costs 6.0 exhaustion, fast or slow', () => {
+  for (const [hunger, saturation, seconds] of [[20, 20, 0.5], [19, 0, 4], [18, 0, 4]]) {
+    const state = createHungerState({ hunger, saturation, exhaustion: 0 });
+    const { heal } = tickHunger(state, seconds, { health: 10, maxHealth: 20 });
+    const spent = (saturation - state.saturation) * 4 + (hunger - state.hunger) * 4 + state.exhaustion;
+    assert.equal(heal, 1, `hunger ${hunger} heals 1 HP`);
+    assert.ok(Math.abs(spent / heal - EXHAUSTION.regen) < 1e-9, `hunger ${hunger}: ${spent / heal} per HP`);
+  }
+  // A whole HP of saturation boost, from 5 saturation: 1.5 spent.
+  const state = createHungerState({ hunger: 20, saturation: 5, exhaustion: 0 });
+  let healed = 0;
+  for (let i = 0; i < 50 && healed < 1 - 1e-9; i++) healed += tickHunger(state, 0.01, { health: 10, maxHealth: 20 }).heal;
+  // Heals come in min(saturation, 6) / 6 HP pieces, so compare the rate: 1.5 saturation for every HP healed.
+  const spentSaturation = 5 - state.saturation + state.exhaustion / EXHAUSTION_THRESHOLD;
+  assert.ok(Math.abs(spentSaturation / healed - 1.5) < 1e-6, `one HP costs 1.5 saturation (${spentSaturation} for ${healed})`);
 });

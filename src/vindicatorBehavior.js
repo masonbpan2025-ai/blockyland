@@ -122,6 +122,9 @@ export function updateVindicatorAI(manager, mob, dt, player) {
   }
 
   mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+  // Attacks run on their own timer: `hitCooldown` is the hurt-immunity window, and sharing it made the mob immune
+  // to the player for as long as it kept biting.
+  mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
 
   // Acquire target if none or current dead
   if (!mob.target || mob.target.health <= 0) {
@@ -191,9 +194,9 @@ export function updateVindicatorAI(manager, mob, dt, player) {
     }
 
     // Attack when within reach
-    if (dist <= VINDICATOR_ATTACK_REACH && mob.hitCooldown <= 0) {
+    if (dist <= VINDICATOR_ATTACK_REACH && mob.attackCooldown <= 0) {
       const dmg = vindicatorDamageFor(difficulty);
-      mob.hitCooldown = VINDICATOR_ATTACK_COOLDOWN;
+      mob.attackCooldown = VINDICATOR_ATTACK_COOLDOWN;
 
       if (mob.target.type === 'player' || mob.target === player) {
         // If player is blocking with shield, disable shield for 5s!

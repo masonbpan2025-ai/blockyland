@@ -210,18 +210,18 @@ test('silverfish chase the player and bite at the reference damage', () => {
   const healthBefore = player.health;
   const eventsBefore = player.damageEvents;
   fish.mesh.position.set(0, 1, SILVERFISH_ATTACK_REACH - 0.1);
-  fish.hitCooldown = 0;
+  fish.attackCooldown = 0;
   assert.equal(updateSilverfishHunt(manager, fish, 1 / 60, player), true, 'it acted');
   assert.equal(player.damageEvents, eventsBefore + 1, 'it bit the player once');
   assert.equal(player.health, healthBefore - 1, 'wiki: 1 damage on Normal');
-  assert.ok(fish.hitCooldown > 0, 'the bite went on cooldown');
+  assert.ok(fish.attackCooldown > 0, 'the bite went on cooldown');
 });
 
 test('a hard-difficulty silverfish bites for 1.5', () => {
   const { manager, player } = fixture({ difficulty: 'hard' });
   const fish = manager.spawnMob('silverfish', 0, 1, 0);
   fish.mesh.position.set(0, 1, SILVERFISH_ATTACK_REACH - 0.1);
-  fish.hitCooldown = 0;
+  fish.attackCooldown = 0;
   updateSilverfishHunt(manager, fish, 1 / 60, player);
   assert.equal(player.health, 18.5, 'wiki: 1.5 damage on Hard');
 });
@@ -230,7 +230,7 @@ test('a silverfish on Peaceful deals no damage', () => {
   const { manager, player } = fixture({ difficulty: 'peaceful' });
   const fish = manager.spawnMob('silverfish', 0, 1, 0);
   fish.mesh.position.set(0, 1, SILVERFISH_ATTACK_REACH - 0.1);
-  fish.hitCooldown = 0;
+  fish.attackCooldown = 0;
   updateSilverfishHunt(manager, fish, 1 / 60, player);
   assert.equal(player.damageEvents, 0, 'no damage on Peaceful');
 });

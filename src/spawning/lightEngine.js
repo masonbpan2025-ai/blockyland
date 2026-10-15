@@ -95,9 +95,12 @@ export function isTransparent(blockId) {
 /** How much light a block emits, 0 when it emits none. */
 export function blockEmission(blockId,world=null,x=0,y=0,z=0) {
   if (blockId === BLOCKS.AIR) return 0;
+  if(world&&blockId===BLOCKS.REDSTONE_LAMP)return world.redstone?.state([x,y,z])?.on?15:0;
+  if(world&&[BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(blockId))return world.redstone?.state([x,y,z])?.output===0?0:7;
   if(blockId===BLOCKS.RESPAWN_ANCHOR)return Math.min(15,4*(world?.structureOrientations?.get(`${x},${y},${z}`)?.anchorCharges??0));
   const def = BLOCK_DEFS[blockId];
   if (!def) return 0;
+  if(world&&def.redstoneBulb)return world.redstone?.state([x,y,z])?.on?def.light:0;
   const level = def.light;
   return Number.isFinite(level) ? Math.max(0, Math.min(MAX_LIGHT, level)) : 0;
 }
@@ -110,13 +113,14 @@ let idTables = null;
 function lightIdTables() {
   const size = Object.keys(BLOCK_DEFS).length;
   if (idTables && idTables.size === size) return idTables;
-  const opacity = new Uint8Array(65536), emission = new Uint8Array(65536);
+  const opacity = new Uint8Array(65536), emission = new Uint8Array(65536),dynamic=new Uint8Array(65536);
   for (const k in BLOCK_DEFS) {
     const id = Number(k); if (!(id >= 0 && id < 65536)) continue;
     opacity[id] = blockOpacity(id); emission[id] = blockEmission(id);
+    dynamic[id]=BLOCK_DEFS[id].redstoneBulb||[BLOCKS.RESPAWN_ANCHOR,BLOCKS.REDSTONE_LAMP,BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(id)?1:0;
   }
   opacity[BLOCKS.AIR] = 0; emission[BLOCKS.AIR] = 0;
-  idTables = { size, opacity, emission };
+  idTables = { size, opacity, emission,dynamic };
   return idTables;
 }
 
@@ -393,7 +397,7 @@ export class LightEngine {
             const index = (y * strideZ + dz) * strideX + dx;
             const id = voxels ? voxels[y * CHUNK_SIZE_Z * CHUNK_SIZE_X + column] : chunk ? world.getVoxel(wx, y, wz) : BLOCKS.AIR;
             opacity[index] = T.opacity[id];
-            emission[index] = id === anchor ? blockEmission(id, world, wx, y, wz) : T.emission[id];
+            emission[index] = T.dynamic[id] ? blockEmission(id, world, wx, y, wz) : T.emission[id];
           }
         }
       }

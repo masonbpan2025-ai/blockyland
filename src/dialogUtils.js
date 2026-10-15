@@ -89,3 +89,89 @@ export function showConfirmDialog({
     onConfirm?.();
   }
 }
+
+/**
+ * In-game difficulty selection dialog when switching to Survival mode.
+ */
+export function showDifficultyDialog({
+  title = '⚔️ Switch to Survival Mode',
+  currentDifficulty = 'normal',
+  onSelect,
+  onCancel,
+} = {}) {
+  if (typeof document !== 'undefined') {
+    if (document.exitPointerLock) {
+      try { document.exitPointerLock(); } catch (_) {}
+    }
+    const modal = document.getElementById('modal-select-difficulty');
+    const titleEl = document.getElementById('difficulty-dialog-title');
+    const btnCancel = document.getElementById('btn-cancel-difficulty-dialog');
+    const btnClose = document.getElementById('btn-close-difficulty-dialog');
+    const choiceButtons = modal?.querySelectorAll ? Array.from(modal.querySelectorAll('.difficulty-choice-btn')) : [];
+
+    if (modal && choiceButtons.length) {
+      if (titleEl) titleEl.textContent = title;
+      modal.classList.remove('hidden');
+
+      let onKeyDown = null;
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        choiceButtons.forEach((btn) => { btn.onclick = null; });
+        if (btnCancel) btnCancel.onclick = null;
+        if (btnClose) btnClose.onclick = null;
+        modal.onclick = null;
+        if (onKeyDown && typeof window !== 'undefined') {
+          window.removeEventListener('keydown', onKeyDown);
+        }
+      };
+
+      onKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          cleanup();
+          onCancel?.();
+        }
+      };
+      if (typeof window !== 'undefined') {
+        window.addEventListener('keydown', onKeyDown);
+      }
+
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          e.stopPropagation();
+          cleanup();
+          onCancel?.();
+        }
+      };
+
+      choiceButtons.forEach((btn) => {
+        const diff = btn.getAttribute?.('data-difficulty') || 'normal';
+        btn.onclick = (e) => {
+          e?.stopPropagation?.();
+          cleanup();
+          onSelect?.(diff);
+        };
+      });
+
+      if (btnCancel) {
+        btnCancel.onclick = (e) => {
+          e?.stopPropagation?.();
+          cleanup();
+          onCancel?.();
+        };
+      }
+      if (btnClose) {
+        btnClose.onclick = (e) => {
+          e?.stopPropagation?.();
+          cleanup();
+          onCancel?.();
+        };
+      }
+      return;
+    }
+  }
+
+  // Fallback for headless environments and tests
+  onSelect?.(currentDifficulty || 'normal');
+}
+

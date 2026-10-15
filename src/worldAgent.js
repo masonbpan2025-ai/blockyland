@@ -390,6 +390,17 @@ export class WorldAgent {
     return this.settings.keyFor(vendorId);
   }
 
+  keyStatus(vendorId = this.settings.vendor) { return this.settings.vault.status(vendorId); }
+  async rememberApiKey(key, passphrase, vendorId = this.settings.vendor) {
+    await this.settings.vault.remember(vendorId, key, passphrase);
+    this.lastError = null;
+  }
+  async unlockApiKey(passphrase, vendorId = this.settings.vendor) {
+    await this.settings.vault.unlock(vendorId, passphrase);
+    this.lastError = null;
+  }
+  lockApiKey(vendorId = this.settings.vendor) { this.settings.vault.lock(vendorId); }
+
   log(message, type = 'info') {
     if (this.onLog) this.onLog(message, type);
     if (this.game.ui) {

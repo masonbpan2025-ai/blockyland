@@ -153,7 +153,7 @@ function buildAshen16xTextures() {
 export class ResourcePackManager {
   constructor() {
     this.availablePacks = new Map();
-    this.activePackIds = []; // Highest priority is at index 0
+    this.activePackIds = ['faithful_64x']; // Default to Faithful 64x
     this.listeners = new Set();
 
     // Register default built-in presets
@@ -416,6 +416,12 @@ export class ResourcePackManager {
     }
   }
 
+  resetToDefault() {
+    this.activePackIds = ['faithful_64x'];
+    this.saveSettings();
+    return this.notifyChange();
+  }
+
   saveSettings() {
     if (typeof localStorage === 'undefined') return;
     try {
@@ -426,6 +432,14 @@ export class ResourcePackManager {
   loadSettings() {
     if (typeof localStorage === 'undefined') return;
     try {
+      const defaultMigrated = localStorage.getItem('blockyland_default_faithful64x_applied');
+      if (!defaultMigrated) {
+        this.activePackIds = ['faithful_64x'];
+        localStorage.setItem('blockyland_default_faithful64x_applied', 'true');
+        this.saveSettings();
+        return;
+      }
+
       const saved = localStorage.getItem('blockyland_active_resource_packs');
       if (saved) {
         const ids = JSON.parse(saved);

@@ -1210,7 +1210,7 @@ export const BLOCK_DEFS = {
   },
   [BLOCKS.WALL_TORCH]: { name: 'Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 14, lightColor: 0xffb958, drop: BLOCKS.TORCH, textures: { all: 'torch.png' } },
   [BLOCKS.SOUL_WALL_TORCH]: { name: 'Soul Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 10, lightColor: 0x5cc9d6, drop: BLOCKS.SOUL_TORCH, textures: { all: 'soul_torch.svg' } },
-  [BLOCKS.REDSTONE_WALL_TORCH]: { name: 'Redstone Wall Torch', hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 7, lightColor: 0xff3b30, drop: BLOCKS.REDSTONE_TORCH, textures: { all: 'redstone_torch.png' } },
+  [BLOCKS.REDSTONE_WALL_TORCH]: { name: 'Redstone Wall Torch', redstone: true, hardness: 0.0, sound: 'wood', wallTorch: true, transparent: true, solid: false, shape: 'torch', light: 7, lightColor: 0xff3b30, drop: BLOCKS.REDSTONE_TORCH, textures: { all: 'redstone_torch.png' } },
 
   // --- Crops, soul fire, suspicious blocks and scaffolding, twenty-second batch -------------------
   //
@@ -2189,7 +2189,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.SCULK_SENSOR]: { name: 'Sculk Sensor', hardness: 1.5, sound: 'stone', transparent: true, solid: true, sculkSensor: true, light: 1, drop: BLOCKS.SCULK_SENSOR, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
   [BLOCKS.SCULK_SHRIEKER]: { name: 'Sculk Shrieker', hardness: 3.0, sound: 'stone', transparent: true, solid: true, sculkShrieker: true, drop: BLOCKS.SCULK_SHRIEKER, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
   [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, light: 1, dropItem: 'dragon_egg', textures: { all: 'obsidian.png' } },
-  [BLOCKS.END_PORTAL]: { name: 'End Portal', hardness: -1, sound: 'glass', transparent: true, solid: false, portal: true, endPortal: true, textures: { all: 'nether_portal.png' } },
+  [BLOCKS.END_PORTAL]: { name: 'End Portal', hardness: -1, sound: 'glass', light: 15, transparent: true, solid: false, portal: true, endPortal: true, textures: { all: 'end_gateway.png' } },
   // This entry had `textures: { all: 'coal_block.png' }` and a `skull: true` flag that nothing in the
   // codebase reads, so it rendered as a coal cube. It now carries `head`, which is what routes a block to
   // the head geometry, and the real extracted faces. `solid` is dropped because a head is an 8/16 prop.

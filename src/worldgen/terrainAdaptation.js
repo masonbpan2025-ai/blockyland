@@ -37,6 +37,9 @@ export const TERRAIN_ADAPTATION_INFLATE = 12;
  * @param {number} options.foundationBlock       block id used for foundation columns
  * @param {number} [options.terrainBlock]        block id used for bury/encapsulate
  * @param {number} [options.airBlock]            block id used to shave; omit to leave shaved blocks alone
+ * @param {number|function} [options.surfaceBlock] block id, or `(x, z) => id`, that re-tops a shaved column
+ * @param {number} [options.floorY]              the structure's ground level when its box reaches below it (a buried
+ *                                               room); defaults to the box bottom
  * @param {function} [options.isStructureBlock]  `(x, y, z) => bool`, so nothing the structure wrote is
  *                                               overwritten
  */
@@ -47,6 +50,8 @@ export function adaptToTerrain({
   foundationBlock,
   terrainBlock = foundationBlock,
   airBlock = null,
+  surfaceBlock = null,
+  floorY = null,
   isStructureBlock = () => false
 } = {}) {
   if (!TERRAIN_ADAPTATIONS.includes(adaptation)) {
@@ -67,20 +72,23 @@ export function adaptToTerrain({
     // a foundation column that ate a wall would turn a village into a pit.
     if (isStructureBlock(x, y, z)) return;
     writes.push({ x, y, z, block, kind });
+    if (kind === 'cap') return; // re-topping the ground is cosmetic, not one of vanilla's counted adaptations
     counts[kind === 'shave' ? 'shaved' : kind === 'foundation' ? 'foundation' : kind === 'bury' ? 'buried' : 'encapsulated']++;
   };
 
   if (adaptation === 'beard_thin' || adaptation === 'beard_box') {
-    const floor = box.minY;
+    const floor = Number.isFinite(floorY) ? floorY : box.minY;
     for (let x = target.minX; x <= target.maxX; x++) {
       for (let z = target.minZ; z <= target.maxZ; z++) {
         const height = surfaceY(x, z);
         if (height > floor) {
-          // Shave: terrain standing above the structure's floor is removed so the structure is not buried.
-          for (let y = floor; y <= height; y++) {
-            if (airBlock === null) continue;
-            push(x, y, z, airBlock, 'shave');
-          }
+          // Shave: terrain standing above the structure's floor is removed so the structure is not buried. The
+          // floor layer itself is kept -- it is the ground the structure stands on, and shaving it dug an air moat
+          // round every building on a slope -- and re-topped with the surface block, so it is grass, not dirt.
+          if (airBlock === null) continue;
+          for (let y = floor + 1; y <= height; y++) push(x, y, z, airBlock, 'shave');
+          const cap = typeof surfaceBlock === 'function' ? surfaceBlock(x, z) : surfaceBlock;
+          if (cap !== null && cap !== undefined) push(x, floor, z, cap, 'cap');
         } else if (height < floor) {
           // Foundation: the gap between the terrain and the structure's floor is filled, so a structure on a
           // slope rests on something rather than hovering.

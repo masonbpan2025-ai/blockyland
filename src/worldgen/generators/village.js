@@ -19,6 +19,7 @@
 import { StructureStart } from '../start.js';
 import { LegacyRandom, legacyFromLargeFeatureSeed } from '../random.js';
 import { TemplatePool, TemplatePoolRegistry, PoolElement, addPieces } from '../jigsaw.js';
+import { BlockBox } from '../geometry.js';
 import { StructureTemplate } from '../template.js';
 import { placeTemplate } from '../templatePlacement.js';
 import { createBlockIdResolver } from '../blockIds.js';
@@ -178,6 +179,52 @@ function buildPiece(type, element, rotation, mirror, at) {
   return { box, connectors };
 }
 
+const TERRAIN_MATCHING_ROLES = new Set(['street', 'terminus']);
+
+/**
+ * Give every piece its own height from the terrain, as vanilla's jigsaw placement does.
+ *
+ * The jigsaw pass lays the whole village out at ONE height -- the surface at its origin -- so on a hillside the
+ * uphill houses were buried and the downhill ones floated, and a village whose origin fell in a river was planned
+ * entirely under water. Vanilla avoids both: streets are `terrain_matching` (each column follows the ground) and a
+ * rigid building takes its height from the ground where it joins its street. The ground here is the water surface
+ * where there is water, like vanilla's `WORLD_SURFACE_WG` heightmap.
+ *
+ * Shifting pieces vertically after layout cannot create a collision: every piece was placed at the same base height,
+ * so two pieces that did not intersect were already disjoint horizontally.
+ */
+function seatOnTerrain(type, pieces, { surfaceY, seaLevel = null }) {
+  const ground = (x, z) => {
+    const h = surfaceY(x, z, 'world_surface_wg');
+    return Number.isFinite(seaLevel) ? Math.max(h, seaLevel) : h;
+  };
+  for (const piece of pieces) {
+    const box = piece.box;
+    const role = villageElement(type, piece.meta.element)?.role;
+    const at = piece.meta.junction ?? { x: Math.floor((box.minX + box.maxX) / 2), z: Math.floor((box.minZ + box.maxZ) / 2) };
+    const baseY = ground(at.x, at.z);
+    if (TERRAIN_MATCHING_ROLES.has(role)) {
+      // Per column: realization lifts each column of the street by its offset from the piece's base.
+      const width = box.maxX - box.minX + 1;
+      const offsets = [];
+      let low = Infinity; let high = -Infinity;
+      for (let z = box.minZ; z <= box.maxZ; z++) {
+        for (let x = box.minX; x <= box.maxX; x++) {
+          const y = ground(x, z);
+          offsets[(z - box.minZ) * width + (x - box.minX)] = y - baseY;
+          low = Math.min(low, y); high = Math.max(high, y);
+        }
+      }
+      piece.meta.baseY = baseY;
+      piece.meta.columnOffsets = offsets;
+      piece.projection = 'terrain_matching';
+      piece.box = new BlockBox(box.minX, low, box.minZ, box.maxX, high + (box.maxY - box.minY), box.maxZ);
+    } else {
+      piece.box = box.translate(0, baseY - box.minY, 0);
+    }
+  }
+}
+
 export function generateVillage({ seed, chunkX, chunkZ, structureId, context }) {
   const type = VILLAGE_TYPE_OF[structureId];
   if (!type) throw new Error(structureId + ' is not a village id');
@@ -196,6 +243,8 @@ export function generateVillage({ seed, chunkX, chunkZ, structureId, context }) 
     origin: { x: originX, y: surface, z: originZ },
     maxDistanceFromCentre: VILLAGE_MAX_DISTANCE
   });
+
+  if (context.surfaceY) seatOnTerrain(type, result.pieces, context);
 
   const meeting = result.pieces[0];
   const centre = meeting ? { x: Math.floor((meeting.box.minX + meeting.box.maxX) / 2), z: Math.floor((meeting.box.minZ + meeting.box.maxZ) / 2) } : { x: originX, z: originZ };
@@ -276,7 +325,9 @@ export function realizeVillage(start, setBlock, blockIds, { spawnMob = null, cli
     const name = piece.meta.element;
     if (clip && !piece.box.intersects(clip)) continue;
     const template = templateFor(type, name);
-    const origin = { x: piece.box.minX, y: piece.box.minY, z: piece.box.minZ };
+    const origin = { x: piece.box.minX, y: piece.meta.baseY ?? piece.box.minY, z: piece.box.minZ };
+    const offsets = piece.meta.columnOffsets ?? null;
+    const width = piece.box.maxX - piece.box.minX + 1;
     const random = new LegacyRandom(BigInt(start.seed ?? 0) + BigInt(piece.index) * 2654435761n);
     const placement = placeTemplate({
       template, origin, rotation: piece.rotation, mirror: piece.mirror,
@@ -296,7 +347,9 @@ export function realizeVillage(start, setBlock, blockIds, { spawnMob = null, cli
       // A path tile laid over water becomes the village's planks (the wiki: "Dirt paths that generate over water are
       // replaced by the village style's plank type").
       const overWater = /dirt_path$/.test(state.name) ? resolver.resolveState({ name: 'minecraft:' + style.planks, properties: {} }) : null;
-      if (setBlock(block.x, block.y, block.z, id, {
+      // A terrain-matching street: each column follows the ground it was planned on.
+      const lift = offsets ? (offsets[(block.z - piece.box.minZ) * width + (block.x - piece.box.minX)] ?? 0) : 0;
+      if (setBlock(block.x, block.y + lift, block.z, id, {
         state,
         ...(block.nbt?.LootTable ? { lootTable: block.nbt.LootTable } : {}),
         ...(overWater !== null ? { ifWater: overWater } : {})

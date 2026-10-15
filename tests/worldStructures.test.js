@@ -192,11 +192,11 @@ test('the search radius covers every enabled structure', () => {
   const reach = STRUCTURE_SEARCH_RADIUS_CHUNKS * CHUNK_SIZE_X;
   for (const id of WORLD_STRUCTURE_IDS) {
     // Find it somewhere, then check a start's own extent cannot exceed the scan.
-    const biomes={igloo:'snowy_plains',village_plains:'plains',desert_pyramid:'desert',fortress:'nether_wastes',bastion_remnant:'nether_wastes',nether_fossil:'soul_sand_valley',ruined_portal_nether:'nether_wastes'};
-    const dimension=['fortress','bastion_remnant','nether_fossil','ruined_portal_nether'].includes(id)?'nether':'overworld';
+    const biomes={igloo:'snowy_plains',village_plains:'plains',desert_pyramid:'desert',fortress:'nether_wastes',bastion_remnant:'nether_wastes',nether_fossil:'soul_sand_valley',ruined_portal_nether:'nether_wastes',end_spike:'the_end',end_podium:'the_end',end_platform:'the_end',end_city:'end_highlands'};
+    const dimension=id.startsWith('end_')?'the_end':['fortress','bastion_remnant','nether_fossil','ruined_portal_nether'].includes(id)?'nether':'overworld';
     const engine=createStructureEngine({seed:20250401,dimension,blockIds:BLOCKS,biomeAt:()=>biomes[id],surfaceY:()=>dimension==='nether'?20:40});
     const found = engine.locate(id, 0, 0, { maxRadiusChunks: 128 });
-    if (!found) continue; // not in this world's biomes: nothing to measure
+    assert.ok(found,`${id} must be reachable in its own dimension and biome`);
     const box = found.start.box;
     const centreX=found.chunk[0]*16+8,centreZ=found.chunk[1]*16+8;
     const extent = Math.max(Math.abs(box.minX-centreX),Math.abs(box.maxX-centreX),Math.abs(box.minZ-centreZ),Math.abs(box.maxZ-centreZ));

@@ -375,7 +375,7 @@ export function findNearbyPortal(world, targetX, targetY, targetZ, maxRadius = 6
           if (distSq > maxRadius ** 2) continue;
 
           for (let wy = 5; wy < 60; wy++) {
-            if (chunk.getVoxel(lx, wy, lz) === BLOCKS.NETHER_PORTAL) {
+            if (chunk && typeof chunk.getVoxel === 'function' && chunk.getVoxel(lx, wy, lz) === BLOCKS.NETHER_PORTAL) {
               const totalDist = distSq + (wy - targetY) ** 2;
               if (totalDist < closestDist) {
                 closestDist = totalDist;

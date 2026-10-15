@@ -33,7 +33,8 @@ test('mesher registers every emitting block and removal clears its light', () =>
   const mesher = new ChunkMesher(textures), scene = new THREE.Scene(), lights = new BlockLighting(scene, 2);
   for (const [id, def] of Object.entries(BLOCK_DEFS).filter(([, def]) => def.light)) {
     world.setVoxel(4, 4, 4, Number(id));
-    if(Number(id)===BLOCKS.REDSTONE_LAMP)world.redstone.state([4,4,4]).on=true;
+    // Lamps and copper bulbs emit only while lit, so they are lit for the check.
+    if(Number(id)===BLOCKS.REDSTONE_LAMP||def.redstoneBulb)world.redstone.state([4,4,4]).on=true;
     const geometries = mesher.meshChunk(chunk, world), geo = geometries.lightGeo;
     assert.equal(geo.userData.sources[0].level, def.light);
     lights.setChunk(0, 0, geo.userData.sources); lights.update(.2, new THREE.Vector3(5, 5, 5));

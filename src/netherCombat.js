@@ -185,7 +185,11 @@ export function updateSnowballs(manager, dt) {
     for(let i=0;i<steps&&!hit;i++) {
       p.velocity.y -= 10*dt/steps; p.mesh.position.addScaledVector(p.velocity,dt/steps);
       const pos = p.mesh.position;
-      hit = manager.isBlockSolid(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z));
+      if(manager.world?.getVoxel?.(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z))===BLOCKS.CHORUS_FLOWER){
+        manager.world.setVoxel(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z),BLOCKS.AIR);
+        manager.entities?.spawnDroppedItem?.(pos.clone(),BLOCKS.CHORUS_FLOWER,true,1);hit=true;
+      }
+      hit ||= manager.isBlockSolid(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z));
       if (!hit) for(const mob of manager.mobs) {
         if(mob.health<=0)continue;
         const dims=manager.getMobDimensions(mob.type), w=(mob.width || dims.width)/2+.09, h=mob.height || dims.height;

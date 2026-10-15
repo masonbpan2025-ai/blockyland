@@ -56,6 +56,7 @@
         <div id="health-bar" class="stat-row"></div>
       </div>
       <div class="status-right">
+        <div id="air-bar" class="stat-row" style="display: none;"></div>
         <div id="hunger-bar" class="stat-row"></div>
       </div>
     </div>
@@ -586,6 +587,7 @@
       <button class="mc-btn mc-btn-designed" id="btn-host-world">🌐 Share This World</button>
       <button class="mc-btn mc-btn-designed" id="btn-pause-packs" title="Load Minecraft Resource/Texture Packs and Player Skins">🎨 Resource & Skin Packs</button>
       <button class="mc-btn" id="btn-gamemode">Game Mode: Creative</button>
+      <button class="mc-btn" id="btn-difficulty">Difficulty: Normal</button>
       <button class="mc-btn" id="btn-shader" aria-pressed="false" title="Lightweight lighting, bloom, water and atmosphere">Lightweight Shader: OFF</button>
       <button class="mc-btn" id="btn-mob-debug" aria-pressed="false" title="Show each mob's name and current health above its head">Mob Debug Labels: OFF</button>
       <button class="mc-btn" id="btn-distance">Render Distance: 4 Chunks</button>
@@ -821,18 +823,18 @@
     </div>
   </div>
 
-  <!-- Dedicated Designed Worlds Modal Window -->
+  <!-- Dedicated Mods Modal Window -->
   <div id="designed-worlds-modal" class="game-modal hidden">
     <div class="map-modal-card">
-      <div class="mc-title">Designed Worlds</div>
+      <div class="mc-title">Mods</div>
 
       <div class="map-saves-header">
-        <span>Available Designed Worlds:</span>
-        <span id="map-designed-count">1 world</span>
+        <span>Available Mods:</span>
+        <span id="map-designed-count">1 mod</span>
       </div>
 
       <div id="map-designed-list" class="map-saves-list" style="height: 280px;">
-        <div class="map-saves-loading">Loading designed worlds...</div>
+        <div class="map-saves-loading">Loading mods...</div>
       </div>
 
       <div id="map-designed-feedback" class="map-feedback hidden"></div>
@@ -1024,8 +1026,18 @@
           </div>
           <div class="gemini-key-row">
             <input type="password" id="gemini-key-input" placeholder="sk-..." autocomplete="off">
-            <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Save Settings</button>
-            <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Clear Key</button>
+            <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Use for session</button>
+            <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Delete key</button>
+          </div>
+          <div class="gemini-key-vault">
+            <label class="gemini-check"><input type="checkbox" id="gemini-remember-key">Remember key (encrypted)</label>
+            <div class="gemini-key-row">
+              <input type="password" id="gemini-vault-passphrase" placeholder="Vault passphrase (at least 12 characters to save)" aria-label="Vault passphrase" autocomplete="off">
+              <button type="button" class="gemini-btn-sm" id="gemini-unlock-key-btn">Unlock</button>
+              <button type="button" class="gemini-btn-sm" id="gemini-lock-key-btn">Lock / forget session</button>
+            </div>
+            <div id="gemini-key-storage-status" class="gemini-vendor-hint" role="status" aria-live="polite"></div>
+            <div class="gemini-vendor-hint">Default: key stays in this page only and is lost on reload. Remember requires HTTPS or localhost. Keep your passphrase safe; it cannot be recovered. Use an expiring key with a small spending limit or prepaid balance where supported. Encryption protects a locked key, not an unlocked key from malicious page scripts.</div>
           </div>
           <div class="gemini-view-row">
             <label class="gemini-check" for="gemini-view-toggle">
@@ -1136,6 +1148,36 @@
     </div>
   </div>
 
+  <!-- Switch to Survival Difficulty Selection Modal -->
+  <div id="modal-select-difficulty" class="game-modal hidden" style="z-index: 10006;">
+    <div class="mc-dialog-card" style="max-width: 440px; text-align: center;">
+      <div class="mc-dialog-header">
+        <span class="mc-dialog-title" id="difficulty-dialog-title">⚔️ Switch to Survival Mode</span>
+        <button class="gemini-close-btn" id="btn-close-difficulty-dialog">✕</button>
+      </div>
+      <div class="mc-dialog-body" style="padding: 16px 20px;">
+        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 16px;">Choose your game difficulty:</p>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+          <button type="button" class="mc-btn difficulty-choice-btn" data-difficulty="peaceful" style="text-align: left; padding: 8px 14px;">
+            🕊️ <strong>Peaceful</strong> <span style="font-size: 11px; opacity: 0.8; display: block;">No hostile mobs, passive health regen, no starvation</span>
+          </button>
+          <button type="button" class="mc-btn difficulty-choice-btn" data-difficulty="easy" style="text-align: left; padding: 8px 14px;">
+            🌱 <strong>Easy</strong> <span style="font-size: 11px; opacity: 0.8; display: block;">Milder damage, starvation stops at 10 HP (5 hearts)</span>
+          </button>
+          <button type="button" class="mc-btn difficulty-choice-btn" data-difficulty="normal" style="text-align: left; padding: 8px 14px;">
+            ⚔️ <strong>Normal</strong> <span style="font-size: 11px; opacity: 0.8; display: block;">Standard difficulty, starvation stops at 1 HP (half heart)</span>
+          </button>
+          <button type="button" class="mc-btn difficulty-choice-btn" data-difficulty="hard" style="text-align: left; padding: 8px 14px;">
+            💀 <strong>Hard</strong> <span style="font-size: 11px; opacity: 0.8; display: block;">Tough hostiles, starvation can be fatal</span>
+          </button>
+        </div>
+        <div style="display: flex; justify-content: center;">
+          <button type="button" id="btn-cancel-difficulty-dialog" class="mc-btn mc-btn-secondary" style="min-width: 100px; padding: 6px 14px;">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Floating cursor item for inventory dragging -->
   <div id="floating-cursor-item" class="hidden">
     <img class="slot-icon" src="" alt="">
@@ -1164,7 +1206,7 @@
     <div class="mc-logo">BLOCKYLAND</div>
     <div class="start-actions-row">
       <button class="mc-btn mc-btn-large" id="btn-start-new-world">Generate New World</button>
-      <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-designed-world">Load Designed World</button>
+      <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-designed-world">Load Mod</button>
       <button class="mc-btn mc-btn-large" id="btn-start-load-world">Load Saved World</button>
       <button class="mc-btn mc-btn-large mc-btn-studio" id="btn-start-building-studio">Building Studio</button>
       <button class="mc-btn mc-btn-large mc-btn-inspector" id="btn-start-inspector">Inspector</button>

@@ -173,8 +173,9 @@ test('Hopper collects floating dropped items directly above it', () => {
   ticks(w, 1);
   assert.equal(hopper.inventory.length, 1);
   assert.equal(hopper.inventory[0].id, 'emerald');
-  assert.equal(hopper.inventory[0].count, 1);
-  assert.equal(droppedItems[0].count, 3);
+  // Item entities are collected as a stack, unlike one-at-a-time container transfers.
+  assert.equal(hopper.inventory[0].count, 4);
+  assert.equal(droppedItems.length, 0);
 });
 
 test('Comparator accurately computes container fullness and reads through solid blocks', () => {
@@ -241,7 +242,7 @@ test('Dropper inserts into adjacent containers without dropping, or drops if in 
   assert.equal(targetHopper.inventory[0].count, 1);
 });
 
-test('Dispenser contextual actions: water bucket, empty bucket, sheep shearing, and seed planting', () => {
+test('Dispenser contextual actions: buckets, sheep shearing and ejecting seeds', () => {
   const w = createTestWorld();
   let shearedSheep = false;
   let boneMealParticles = 0;
@@ -297,14 +298,14 @@ test('Dispenser contextual actions: water bucket, empty bucket, sheep shearing, 
   ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
   assert.equal(mockSheep.isSheared, true);
 
-  // 4. Planting seeds on farmland
+  // Dispensers eject seeds; they do not plant crops on farmland in Java.
   put(w, [4, 1, 0], B.FARMLAND); // farmland below front
   const dPlant = put(w, [3, 2, 0], B.DISPENSER, 0); // facing [4,2,0]
   dPlant.inventory = [{ id: 'wheat_seeds', isBlock: false, count: 3 }];
   const l4 = put(w, [3, 3, 0], B.LEVER);
   l4.on = true;
   ticks(w, 4); // a dropper or dispenser fires 4 game ticks after it is powered
-  assert.equal(w.getVoxel(4, 2, 0), B.WHEAT_STAGE_0);
+  assert.equal(w.getVoxel(4, 2, 0), B.AIR);
   assert.equal(dPlant.inventory[0].count, 2);
 });
 

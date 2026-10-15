@@ -51,7 +51,7 @@ export class WaterSimulation {
     this.routes = new Map();
   }
 
-  reset() { if(this===this.world.water)this.world.redstone?.reset(); if(this!==this.world.lava)this.world.lava?.reset(); this.pending.clear(); this.routes.clear(); this.time = 0; }
+  reset() { if(this===this.world.water){this.world.redstone?.reset();this.world.fallingBlocks?.reset();this.world.leafDecay?.reset();} if(this!==this.world.lava)this.world.lava?.reset(); this.pending.clear(); this.routes.clear(); this.time = 0; }
 
   loaded(x,y,z) { return y >= 0 && y < 64 && !!this.world.getChunk(Math.floor(x / 16), Math.floor(z / 16)); }
   level(x,y,z) { return this.world.getWaterLevel(x,y,z); }

@@ -373,6 +373,7 @@ export class MobSpawnManager {
   /** The biome at a position. Cached per (x, z) chunk key for the current tick. */
   biomeAt(x, y, z) {
     const world = this.world;
+    if(world?.getBiomeAt)return world.getBiomeAt(x,y,z);
     if (!world?.getBiome) return 'plains';
     return world.getBiome(Math.floor(x), Math.floor(z));
   }

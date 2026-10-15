@@ -11,7 +11,8 @@ export function chorusTeleport(world,position,random=Math.random) {
     if(world.getChunk&&!world.getChunk(Math.floor(x/16),Math.floor(z/16)))continue;
     while(y>1&&!solid(world.getVoxel(x,y-1,z)))y--;
     const feet=world.getVoxel(x,y,z),head=world.getVoxel(x,y+1,z),ground=world.getVoxel(x,y-1,z);
-    if(!solid(feet)&&!solid(head)&&solid(ground)&&![B.WATER,B.LAVA,B.FIRE,B.SOUL_FIRE].includes(feet)&&ground!==B.MAGMA_BLOCK)return new THREE.Vector3(x+.5,y,z+.5);
+    const unsafe=id=>[B.WATER,B.LAVA,B.FIRE,B.SOUL_FIRE].includes(id);
+    if(!solid(feet)&&!solid(head)&&solid(ground)&&!unsafe(feet)&&!unsafe(head)&&ground!==B.MAGMA_BLOCK)return new THREE.Vector3(x+.5,y,z+.5);
   }
   return null;
 }

@@ -1,8 +1,11 @@
 import { mountainHeight, mountainColumn } from './worldgen/mountainTerrain.js';
+import { CaveTerrain, decorateCaves, carveNetherCaves } from './worldgen/caveTerrain.js';
 import { plantFireflyBushes } from './worldgen/fireflyBushes.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { Redstone } from './redstone.js';
 import { LavaSimulation } from './lavaSimulation.js';
+import { FallingBlocks } from './fallingBlocks.js';
+import { LeafDecay } from './leafDecay.js';
 import { WaterSimulation } from './waterSimulation.js';
 import { BIOMES, getBiomeDef } from './biomes.js';
 import { LightEngine } from './spawning/lightEngine.js';
@@ -449,6 +452,8 @@ export class World {
     this.water = new WaterSimulation(this);
     this.lava = new LavaSimulation(this);
     this.redstone = new Redstone(this);
+    this.fallingBlocks = new FallingBlocks(this);
+    this.leafDecay = new LeafDecay(this);
     /**
      * Sky and block light, propagated per chunk and kept per dimension.
      *
@@ -637,6 +642,7 @@ export class World {
     this.biomeNoise = new FastNoise(seed + 202);
     this.detailNoise = new FastNoise(seed + 303);
     this.featureNoise = new FastNoise(seed + 404);
+    this.caves = new CaveTerrain(this);
     /**
      * Structure generation for this seed.
      *
@@ -877,6 +883,7 @@ export class World {
    * needs solid floor and ceiling and a cave beside it) without generating a chunk.
    */
   solidAtGen(wx, wy, wz) {
+    if(this.isFlatWorld)return wy>=0&&wy<=4;
     if(this.dimension==='the_end'){const c=endColumn(this,wx,wz);return c.top>0&&wy>=c.bottom&&wy<=c.top;}
     if (wy <= 0) return true;
     // The column's biome and height, kept for the last few thousand columns: a structure asks about many blocks of
@@ -892,9 +899,11 @@ export class World {
     }
     const { def, height } = column;
     if (wy > height) return false;
-    const isCave = !def.isCavern && wy < height - 6 && wy > 3 && this.caveNoise.noise3D(wx * 0.05, wy * 0.07, wz * 0.05) > 0.58;
-    return !isCave;
+    return this.caves.cellAt(wx,wy,wz,this.caves.column(wx,wz,height,this.getBiome(wx,wz)))===null;
   }
+
+  /** Underground biomes are three-dimensional; surface weather still uses getBiome. */
+  getBiomeAt(wx,wy,wz){return this.caves.biomeAt(Math.floor(wx),Math.floor(wy),Math.floor(wz));}
 
   surfaceHeightAt(wx, wz, biomeId = this.getBiome(wx, wz)) {
     if (this.dimension === 'the_end' || getBiomeDef(biomeId)?.isEnd) return endColumn(this,wx,wz).top;
@@ -932,7 +941,9 @@ export class World {
     }
 
     if (def.isCavern) {
-      return Math.floor(def.baseHeight + base * 6 + detail * 3);
+      // A cave preset has terrain above its cavern, not a moss/sculk plain open
+      // to the sky. The interior floor/ceiling come from CaveTerrain.
+      return Math.floor(49 + base * 5 + detail * 2);
     }
 
     if (def.isJagged) {
@@ -1109,6 +1120,7 @@ export class World {
           }
         }
       }
+      carveNetherCaves(this,chunk);
       decorateNetherChunk(this,chunk);
       // Nether structures (fortresses, bastions, Nether fossils, ruined portals), clipped to this chunk.
       this.structures?.applyToChunk(chunk);
@@ -1125,22 +1137,22 @@ export class World {
         const def = getBiomeDef(bId);
         const height = this.surfaceHeightAt(wx, wz, bId);
         const mountain = mountainColumn(this,wx,wz,def,height);
+        const caveColumn=this.caves.column(wx,wz,height,bId);
 
         // Bedrock layer
         chunk.setVoxel(lx, 0, lz, BLOCKS.BEDROCK);
 
         // Stone & underground strata
         for (let y = 1; y <= height; y++) {
-          // 3D Cave carving: preserve solid surface crust
-          const isCave = !def.isCavern && y < height - 6 && y > 3 && this.caveNoise.noise3D(wx * 0.05, y * 0.07, wz * 0.05) > 0.58;
-          if (isCave) continue;
+          const caveBlock=this.caves.cellAt(wx,y,wz,caveColumn);
+          if(caveBlock!==null){if(caveBlock!==BLOCKS.AIR)chunk.setVoxel(lx,y,lz,caveBlock);continue;}
 
           const mountainBlock=mountain?.blockAt(y);
           if(mountainBlock!==null && mountainBlock!==undefined){
             chunk.setVoxel(lx,y,lz,mountainBlock);
           } else if (y === height) {
             // Surface block
-            let surf = def.surfaceBlock || BLOCKS.GRASS;
+            let surf = def.isCavern?BLOCKS.GRASS:(def.surfaceBlock || BLOCKS.GRASS);
             if (height <= this.seaLevel + 1 && def.category === 'offshore') surf = BLOCKS.SAND;
             chunk.setVoxel(lx, y, lz, surf);
           } else if (y > height - 4) {
@@ -1153,11 +1165,11 @@ export class World {
               else if (band < 8) chunk.setVoxel(lx, y, lz, BLOCKS.WHITE_TERRACOTTA);
               else chunk.setVoxel(lx, y, lz, BLOCKS.TERRACOTTA);
             } else {
-              chunk.setVoxel(lx, y, lz, def.subsurfaceBlock || BLOCKS.DIRT);
+              chunk.setVoxel(lx, y, lz, def.isCavern?BLOCKS.DIRT:(def.subsurfaceBlock || BLOCKS.DIRT));
             }
           } else {
             // Deep underground stone / ores
-            let block = def.deepBlock || BLOCKS.STONE;
+            let block = y<9?BLOCKS.DEEPSLATE:(def.deepBlock || BLOCKS.STONE);
             const oreHash = Math.sin(wx * 12.9898 + y * 78.233 + wz * 43.1415) * 43758.5453;
             const oreVal = oreHash - Math.floor(oreHash);
 
@@ -1171,7 +1183,7 @@ export class World {
           }
         }
 
-        if(mountain?.layer)chunk.setVoxel(lx,height+1,lz,BLOCKS.SNOW_LAYER);
+        if(mountain?.layer&&chunk.getVoxel(lx,height,lz)!==BLOCKS.AIR)chunk.setVoxel(lx,height+1,lz,BLOCKS.SNOW_LAYER);
 
         // Water in oceans / rivers below seaLevel
         if (height < this.seaLevel) {
@@ -1189,7 +1201,7 @@ export class World {
         }
 
         // Surface flora and decorations
-        if (height >= this.seaLevel && height < CHUNK_HEIGHT - 10) {
+        if (height >= this.seaLevel && height < CHUNK_HEIGHT - 10 && chunk.getVoxel(lx,height,lz)!==BLOCKS.AIR) {
           const plantHash = Math.abs(Math.sin(wx * 54.123 + wz * 31.987));
           if (def.floraType === 'sunflowers' && plantHash < 0.3) {
             chunk.setVoxel(lx, height + 1, lz, BLOCKS.SUNFLOWER);
@@ -1211,6 +1223,7 @@ export class World {
       }
     }
 
+    decorateCaves(this,chunk);
     // --- 5. BIOME TREES & GIANT VEGETATION ---
     this.plantTreesForChunk(chunk, cx, cz);
     plantFireflyBushes(this,chunk);
@@ -1281,6 +1294,15 @@ export class World {
     // reach into the cell, the answer changed depending on which chunk had been generated first.
     const trees = [];
     const claimed = new Set();
+    // Room for structures. Trees are planted before structures are written, so a tree whose canopy would reach a
+    // planned structure piece is not planted at all: clearing it afterwards would leave half a tree floating beside
+    // the wall. Structure plans are a pure function of the seed, so this keeps generation order-independent.
+    const STRUCTURE_GAP = CANOPY_REACH + 1;
+    const TREE_TALL = 14;
+    const structureBoxes = this.structures?.pieceBoxesNear?.(cx, cz, CANOPY_REACH + STRUCTURE_GAP) ?? [];
+    const crowdsStructure = (wx, wz, height) => structureBoxes.some((b) =>
+      wx + STRUCTURE_GAP >= b.minX && wx - STRUCTURE_GAP <= b.maxX && wz + STRUCTURE_GAP >= b.minZ && wz - STRUCTURE_GAP <= b.maxZ
+      && height + TREE_TALL >= b.minY && height < b.maxY + 1);
     for (let gx = firstGX; gx <= lastGX; gx++) {
       for (let gz = firstGZ; gz <= lastGZ; gz++) {
         const bId = this.getBiome(gx * SPACING, gz * SPACING);
@@ -1297,6 +1319,9 @@ export class World {
         // above the surface and floated.
         const height = this.surfaceHeightAt(wx, wz, this.getBiome(wx, wz));
         if (height < this.seaLevel || height >= CHUNK_HEIGHT - 12) continue;
+        if(!this.solidAtGen(wx,height,wz))continue;
+        if(['dripstone_pillar','ice_stalactite'].includes(def.treeType))continue;
+        if (structureBoxes.length && crowdsStructure(wx, wz, height)) continue;
 
         // Claim the trunk cell, so two trees cannot fight over it and a later canopy cannot bury an
         // earlier trunk. Deterministic because the claim order is the grid order.
@@ -1828,6 +1853,8 @@ export class World {
     this.water.notify(wx, wy, wz, !fluidUpdate);
     this.lava.notify(wx, wy, wz, !fluidUpdate);
     this.redstone.notify(wx, wy, wz);
+    this.fallingBlocks?.notify(wx, wy, wz);
+    this.leafDecay?.notify(wx, wy, wz, previous, blockId);
 
     // If voxel is at border of chunk, mark neighbor chunks dirty too
     if (lx === 0) {

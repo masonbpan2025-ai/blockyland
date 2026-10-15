@@ -101,7 +101,9 @@ export function generateDesertPyramid({ seed, chunkX, chunkZ, context }) {
   const piece = new StructurePiece({
     id: 'minecraft:desert_pyramid', type: 'template', family: 'hardcoded', template: template.name, rotation,
     box: template.boundingBox({ x: originX, y, z: originZ }, rotation),
-    meta: { origin: { x: originX, y, z: originZ }, params }
+    // groundY: the box reaches down to the buried treasure room, so terrain adaptation must take the ground floor,
+    // not the box bottom, as the floor -- or it would hollow out the sand round the tomb.
+    meta: { origin: { x: originX, y, z: originZ }, params, groundY: surface }
   });
   const start = new StructureStart({
     structureId: 'desert_pyramid', chunkX, chunkZ, pieces: [piece],

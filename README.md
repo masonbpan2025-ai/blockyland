@@ -77,7 +77,18 @@ Luanti and Minecraft Web Client facts above come from their public documentation
 
 ## AI world agent
 
-Press **C** to open the agent terminal. In **⚙️ Settings**, pick a vendor, model and API key. Keys and choices live in your browser's `localStorage`; requests go directly from the browser to the vendor, with no proxy.
+Press **C** to open the agent terminal. In **⚙️ Settings**, pick a vendor, model and API key. Model choices persist in browser `localStorage`; **API keys are session-only by default**, held in this page's memory (not `sessionStorage` or `localStorage`). Requests go directly from the browser to the selected vendor over HTTPS, with no proxy. Using or unlocking a key also refreshes that vendor's model list.
+
+### API key storage and security
+
+- **Use for session** keeps a key only in the current page. Reloading, closing the page, or choosing **Lock / forget session** removes the active copy. Choosing session-only also deletes any previously remembered key for that vendor.
+- **Remember key (encrypted)** is optional. Enter an API key, select the checkbox, enter a unique passphrase of at least 12 characters, then choose **Remember encrypted**. Web Crypto uses AES-256-GCM with a fresh random salt/IV and PBKDF2-SHA-256 (600,000 iterations). Only the ciphertext and its public encryption metadata are stored locally; the passphrase and derived encryption key are not retained. This requires HTTPS or localhost. It works independently for each vendor and website origin.
+- After reopening or reloading the game, remembered keys start **locked**. Enter the passphrase and choose **Unlock** to use the key in this page. **Lock / forget session** keeps the encrypted copy but discards the active key; **Delete key** removes both. Locking/deleting in one tab does not clear another tab's already unlocked key or cancel requests already in progress. Forgotten passphrases cannot be recovered: delete the vault and enter the API key again.
+- Existing unencrypted `mc_agent_key_*` / `gemini_api_key` entries are removed when the agent initializes. A recovered key remains available for that page only (unless an encrypted vault already exists, in which case that vault stays locked). The terminal announces the migration. Select Remember to opt into encryption; otherwise reload discards the recovered key. Deleting browser storage is not guaranteed forensic erasure of previous disk copies/backups; revoke an old key at the provider if it may have been exposed.
+- Encryption protects the saved copy **while locked**. Scripts running on the page, trusted executable mods, compromised dependencies, browser extensions with sufficient permissions or malware can still capture an unlocked key or passphrase. This is not equivalent to server-side secret storage. Keep your passphrase separate from the API key and use trusted builds/mods.
+- **Best practice:** use a dedicated, least-privilege API key with an **expiration date** where supported. Set a **small hard spending limit** or **limited prepaid balance**, with auto top-up disabled if available, and enable usage alerts. Provider support varies; an alert or soft budget is not a hard cap. Rotate keys regularly and revoke them in the provider console when no longer needed. Deleting a local key does not revoke it at the provider.
+
+Run `npm run test:agent:vault` for storage/cryptography regression tests, and `npm run test:agent:vault:browser` for the real terminal controls in Microsoft Edge. The browser test uses fake credentials and blocks provider requests.
 
 | Vendor | Default model | Default effort | Key |
 | --- | --- | --- | --- |

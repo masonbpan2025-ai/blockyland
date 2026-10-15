@@ -60,6 +60,10 @@ export function updateArrows(manager,dt,player){
         removeArrow(manager,arrow);removed=true;break;
       }
       arrow.mesh.quaternion.setFromUnitVectors(forward,arrow.velocity.clone().normalize());
+      if(manager.world.getVoxel(Math.floor(next.x),Math.floor(next.y),Math.floor(next.z))===BLOCKS.CHORUS_FLOWER) {
+        manager.world.setVoxel(Math.floor(next.x),Math.floor(next.y),Math.floor(next.z),BLOCKS.AIR);
+        manager.entities?.spawnDroppedItem?.(next.clone(),BLOCKS.CHORUS_FLOWER,true,1);
+      }
       if(solid(manager.world,next)){
         const targetPos=[Math.floor(next.x),Math.floor(next.y),Math.floor(next.z)];
         const targetState=manager.world.redstone?.state(targetPos);

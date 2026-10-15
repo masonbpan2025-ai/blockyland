@@ -24,7 +24,9 @@ const CHARGES = [
   ['dig', 0.005, 'src/main.js', /addExhaustion\?\.\(0\.005\)/, 'per block broken'],
   ['jump', 0.05, 'src/player.js', /EXHAUSTION\.jump\b/, 'per standing jump'],
   ['sprintJump', 0.2, 'src/player.js', /EXHAUSTION\.sprintJump/, 'per jump while sprinting'],
-  ['attack', 0.1, 'src/player.js', /EXHAUSTION\.attack/, 'per landed hit'],
+  // Charged where the hit lands. This row used to look for `EXHAUSTION.attack` anywhere in player.js, which a stray
+  // copy in the Player constructor satisfied while attacking cost nothing at all (found by the tutorial play-test).
+  ['attack', 0.1, 'src/main.js', /this\.player\.addExhaustion\?\.\(EXHAUSTION\.attack\)/, 'per landed hit'],
   ['swim', 0.01, 'src/player.js', /EXHAUSTION\.swim/, 'per metre swum'],
   ['sprint', 0.1, 'src/player.js', /EXHAUSTION\.sprint\b/, 'per metre sprinted'],
   ['damage', 0.1, 'src/player.js', /EXHAUSTION\.damage/, 'per hit taken'],

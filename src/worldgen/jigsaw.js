@@ -210,9 +210,12 @@ export function addPieces({
   const occupied = [];
   const diagnostics = { rejectedByCollision: 0, rejectedByDepth: 0, rejectedByDistance: 0, exhaustedPools: 0, placements: 0 };
 
-  const place = (element, rotation, mirror, at, depth, parentPiece, connectorName = null) => {
+  const place = (element, rotation, mirror, at, depth, parentPiece, connectorName = null, junction = null) => {
     const built = buildPiece(element, rotation, mirror, at, { depth, parent: parentPiece, connectorName });
     if (!built || !built.box) return null;
+    const meta = { connectors: built.connectors, depth, element: element.name ?? element.type, projection: element.projection };
+    // The parent's connector cell this piece joined through: vanilla takes a child's height from the terrain there.
+    if (junction) meta.junction = { x: junction.x, y: junction.y, z: junction.z };
     const piece = new StructurePiece({
       id: element.name ?? element.type,
       index: pieces.length,
@@ -223,7 +226,7 @@ export function addPieces({
       rotation, mirror,
       box: built.box,
       isJigsaw: true,
-      meta: { connectors: built.connectors, depth, element: element.name ?? element.type, projection: element.projection }
+      meta
     });
     pieces.push(piece);
     occupied.push(built.box);
@@ -317,7 +320,7 @@ export function addPieces({
         if (!probe || !probe.box) continue;
         if (occupied.some((box) => box.intersects(probe.box))) { diagnostics.rejectedByCollision++; continue; }
 
-        const child = place(element, turns, Mirror.NONE, finalAt, depth + 1, piece, match?.name ?? null);
+        const child = place(element, turns, Mirror.NONE, finalAt, depth + 1, piece, match?.name ?? null, at);
         // The connector we just joined through must not be expanded again: it is now buried inside the
         // parent, so expanding from it would place a piece overlapping the parent and be rejected.
         if (match && built.connectors) {

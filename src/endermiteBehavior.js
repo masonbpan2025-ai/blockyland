@@ -174,14 +174,17 @@ function hasLineOfSight(manager, a, b) {
 export function updateEndermiteHunt(manager, mob, dt, player) {
   if (!isEndermite(mob) || mob.health <= 0) return false;
   mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+  // Attacks run on their own timer: `hitCooldown` is the hurt-immunity window, and sharing it made the mob immune
+  // to the player for as long as it kept biting.
+  mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
 
   // Wiki: endermites attack endermen. Prefer a live enderman target.
   if (mob.endermanTarget && mob.endermanTarget.health > 0) {
     const target = mob.endermanTarget.mesh.position;
     const dist = mob.mesh.position.distanceTo(target);
-    if (dist < ENDERMITE_ATTACK_REACH && mob.hitCooldown <= 0) {
+    if (dist < ENDERMITE_ATTACK_REACH && mob.attackCooldown <= 0) {
       manager.damageMob?.(mob.endermanTarget, endermiteDamageFor(manager?.game?.difficulty), mob.mesh.position, false, mob);
-      mob.hitCooldown = ENDERMITE_ATTACK_COOLDOWN;
+      mob.attackCooldown = ENDERMITE_ATTACK_COOLDOWN;
     } else {
       steerToward(mob, target, 2.2, dt);
     }
@@ -201,10 +204,10 @@ export function updateEndermiteHunt(manager, mob, dt, player) {
   } else {
     mob.velocity.x *= 0.5;
     mob.velocity.z *= 0.5;
-    if (mob.hitCooldown <= 0) {
+    if (mob.attackCooldown <= 0) {
       const damage = endermiteDamageFor(manager?.game?.difficulty);
       if (damage > 0) player.takeDamage?.(damage, mob.mesh.position, mob.type);
-      mob.hitCooldown = ENDERMITE_ATTACK_COOLDOWN;
+      mob.attackCooldown = ENDERMITE_ATTACK_COOLDOWN;
     }
   }
   return true;

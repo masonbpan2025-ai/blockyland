@@ -223,9 +223,11 @@ test('the eating path refuses when the player is full, so food is not spent for 
   const i = source.indexOf("if (it && it.type === 'food')");
   assert.ok(i > 0, 'the food branch exists');
   const block = source.slice(i, i + 1400);
-  assert.match(block, /this\.player\.hunger < this\.player\.maxHunger/,
-    'it checks fullness before consuming');
-  assert.match(block, /this\.player\.eatFood\?\./, 'and the restore goes through the player, which owns it');
+  // Fullness is the wiki's rule in `canEat` (hunger.js); eating takes 1.6 s and completes in `finishEating`.
+  assert.match(block, /canEat\(activeItem\.id, this\.player\.hunger/, 'it checks fullness before eating');
+  const finish = source.slice(source.indexOf('  finishEating(activeItem) {'), source.indexOf('  finishEating(activeItem) {') + 2000);
+  assert.match(finish, /canEat\(activeItem\.id, this\.player\.hunger/, 'and again when the bite completes');
+  assert.match(finish, /this\.player\.eatFood\?\./, 'and the restore goes through the player, which owns it');
 });
 
 test('exhaustion comes from working, and is paid out of saturation first', () => {

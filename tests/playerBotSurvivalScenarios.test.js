@@ -734,8 +734,8 @@ test("Survival Scenario 8: Beginner's Guide Step 5 - Food and farming (breaking 
   f.inventory.addItem('cobblestone', true, 2);
   f.inventory.addItem('stick', false, 2);
 
-  // Also give 3 bone_meal for fertilizing crop to full maturity
-  f.inventory.addItem('bone_meal', false, 3);
+  // Also give 4 bone_meal for fertilizing crop to full maturity (min growth is 2 per meal; 2*4=8 >= 7)
+  f.inventory.addItem('bone_meal', false, 4);
 
   // Lower player hunger so eating bread can be asserted
   f.player.hunger = 12;
@@ -975,6 +975,11 @@ test('Survival Scenario 11: Nether Portal construction, ignition, and dimensiona
   // Platform at y = 1 so player standing at y = 2 has all portal frame blocks (y = 1..5) in reach
   f.world.setVoxel(1, 1, 1, BLOCKS.DIRT);
   f.world.setVoxel(2, 1, 1, BLOCKS.DIRT);
+  // A step to stand on, as a player uses a temporary block: the frame's upper pillar blocks can only be placed against
+  // the top face of the block below (y = 4 and 5), which no eye standing at y = 2 (3.62 high) can see. The bot walks
+  // up here by itself when it needs the view (BotSurvival.vantagePoint). Before, it wrote unreachable blocks directly.
+  // A two-step stair: stand on top of (2, 2, 2) at y = 3, then on (1, 3, 2) at y = 4 (eye 5.38) for the y = 5 tops.
+  for (const [x, h] of [[2, 2], [1, 3]]) for (let y = 1; y <= h; y++) f.world.setVoxel(x, y, 2, BLOCKS.DIRT);
 
   // Build standard 4x5 obsidian frame at z = 0, x = 0..3, y = 1..5
   // Bottom row: (0, 1, 0), (1, 1, 0), (2, 1, 0), (3, 1, 0)

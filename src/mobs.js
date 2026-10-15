@@ -7211,6 +7211,7 @@ export class MobManager {
     const mob = {
       type: 'shulker',
       name: 'Shulker',
+      persistenceRequired: true,
       mesh: group,
       head: lidPivot,
       shellMesh: body,
@@ -8511,6 +8512,8 @@ export class MobManager {
     const mob = {
       type: 'ender_dragon',
       name: 'Ender Dragon',
+      survivesPeaceful: true,
+      persistenceRequired: true,
       mesh: group,
       head: head,
       // The wings are now four meshes each (bone, skin, tip, tip skin), so the contract keeps the BONES under the two names
@@ -10816,7 +10819,7 @@ export class MobManager {
       // Wiki: land mobs that cannot breathe underwater drown after 15 s with their head submerged.
       updateDrowning(this, mob, dt);
       updateWaterSensitivity(this, mob, dt);
-      updateSheepGrazing(this, mob, dt);
+      // Sheep grazing runs once, in animalBehaviors.js (with the wiki's timing). Running this as well doubled it.
       // Distance to player
       const distToPlayer = player?.position ? mob.mesh.position.distanceTo(player.position) : 999;
 
@@ -10939,7 +10942,8 @@ export class MobManager {
     const burnsInSun = mob.burnsInDaylight ?? (SUN_BURNING_TYPES.has(mob.type) && this.game?.worldTime !== undefined);
     if (mob.isUndead || mob.burnsInDaylight !== undefined || burnsInSun) {
       const ux = Math.floor(mob.mesh.position.x);
-      const uy = Math.floor(mob.mesh.position.y);
+      // + 0.1: a mob's feet can rest a hair below the block top, and flooring that reads the ground's own light (0).
+      const uy = Math.floor(mob.mesh.position.y + 0.1);
       const uz = Math.floor(mob.mesh.position.z);
       const skyLight = this.world.getLightLevel?.(ux, uy, uz) ?? 15;
       const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
@@ -11110,6 +11114,7 @@ export class MobManager {
       // are the slowest land mob; worried ones shake in thunderstorms; playful ones roll; weak
       // ones have half health and sneeze far more; brown is only a colour.
       mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt); // its swing timer, apart from hurt immunity
       mob.isThundering = this.game?.weather?.weatherType === 'thunder';
       mob.stance = pandaStance(mob, {
         difficulty: this.game?.difficulty ?? 'normal',
@@ -11156,10 +11161,10 @@ export class MobManager {
         const speed = mob.speed ?? (mob.isLazy ? PANDA_SPEED.lazy : PANDA_SPEED.normal);
         mob.velocity.x = dir.x * speed * 8;
         mob.velocity.z = dir.z * speed * 8;
-        if (dist < 1.9 && mob.hitCooldown <= 0) {
+        if (dist < 1.9 && (mob.attackCooldown || 0) <= 0) {
           const damage = pandaDamageFor(mob, this.game?.difficulty ?? 'normal');
           if (damage > 0) target.takeDamage?.(damage, mob.mesh.position, 'panda');
-          mob.hitCooldown = 1.0;
+          mob.attackCooldown = 1.0;
           // Wiki: a non-aggressive panda attacks only once, so it calms after landing the blow.
           if (!aggressivePandaKeepsHunting(mob)) { mob.isHostile = false; mob.angryAt = null; }
         }
@@ -11195,6 +11200,7 @@ export class MobManager {
       // Wiki: a cub is passive, an adult is neutral, and an adult turns hostile to protect any cub
       // near it. Adults also attack foxes. Growth cannot be sped up, only stopped.
       mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt); // its swing timer, apart from hurt immunity
       mob.stance = polarBearStance(mob, {
         difficulty: this.game?.difficulty ?? 'normal',
         provoked: mob.isHostile,
@@ -11233,10 +11239,10 @@ export class MobManager {
         mob.velocity.x = dir.x * speed;
         mob.velocity.z = dir.z * speed;
         // Wiki: it attacks by rearing on its back legs and mauling down.
-        if (dist < 2.2 && mob.hitCooldown <= 0) {
+        if (dist < 2.2 && (mob.attackCooldown || 0) <= 0) {
           startPolarBearMaul(mob);
           mob.maulTarget = target;
-          mob.hitCooldown = 1.2;
+          mob.attackCooldown = 1.2;
         }
         mob.state = 'hostile';
       } else {
@@ -11675,6 +11681,7 @@ export class MobManager {
       // Wiki: it attacks by melee headbutt, but "cannot move at all while any players in Survival or
       // Adventure mode can see it". Its gaze logic is the whole mob, so it runs first and gates the rest.
       mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+      mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt); // its swing timer, apart from hurt immunity
       const watchers = this.getWatchers ? this.getWatchers() : (player ? [player] : []);
       // There is no shared line-of-sight helper in this codebase, so the creaking samples voxels along the
       // segment. Wiki: the "visual box block obstructs the view", so a solid block breaks the gaze.
@@ -11744,9 +11751,9 @@ export class MobManager {
         mob.state = 'frozen';
       } else {
         const attack = creakingAttack(mob, watchers, { hasLineOfSight });
-        if (attack && mob.hitCooldown <= 0) {
+        if (attack && (mob.attackCooldown || 0) <= 0) {
           player.takeDamage(attack.damage, mob.mesh.position, 'Creaking');
-          mob.hitCooldown = 1;
+          mob.attackCooldown = 1;
           mob.state = 'attacking';
         } else if (mob.alerted && mob.target?.position) {
           // Wiki: alerted it "moves quickly, faster than an attacking vindicator". It only moves while

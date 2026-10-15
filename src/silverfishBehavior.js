@@ -112,6 +112,9 @@ export function angerSilverfish(mob, attacker, seconds = SILVERFISH_ANGER_SECOND
 export function updateSilverfishHunt(manager, mob, dt, player) {
   if (!isSilverfish(mob) || !player?.position || mob.health <= 0) return false;
   mob.hitCooldown = Math.max(0, (mob.hitCooldown || 0) - dt);
+  // Attacks run on their own timer: `hitCooldown` is the hurt-immunity window, and sharing it made the mob immune
+  // to the player for as long as it kept biting.
+  mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
 
   const dir = player.position.clone().sub(mob.mesh.position);
   dir.y = 0;
@@ -130,10 +133,10 @@ export function updateSilverfishHunt(manager, mob, dt, player) {
   } else {
     mob.velocity.x *= 0.5;
     mob.velocity.z *= 0.5;
-    if (mob.hitCooldown <= 0) {
+    if (mob.attackCooldown <= 0) {
       const damage = silverfishDamageFor(manager?.game?.difficulty);
       if (damage > 0) player.takeDamage?.(damage, mob.mesh.position, mob.type);
-      mob.hitCooldown = SILVERFISH_ATTACK_COOLDOWN;
+      mob.attackCooldown = SILVERFISH_ATTACK_COOLDOWN;
     }
   }
   return true;

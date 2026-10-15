@@ -252,7 +252,7 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
     /** The same realization, plus what terrain adaptation did. */
     realizeWithReport(start, setBlock, {
       chunkX = null, chunkZ = null, spawnMob = null,
-      surfaceY = null, foundationBlock = null, airBlock = null, adaptation = null, adapt = true
+      surfaceY = null, foundationBlock = null, airBlock = null, surfaceBlock = null, adaptation = null, adapt = true
     } = {}) {
       const clip = chunkX === null ? null : BlockBox.columnOfChunk(chunkX, chunkZ, -64, 320);
       const implementation = registry[start.structureId]?.implementation;
@@ -275,17 +275,26 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
       // none of them can forget it. It needs the caller's terrain, so a caller that supplies none gets the
       // previous behaviour exactly -- which is what keeps the existing tests meaningful.
       const chosen = adaptation ?? adaptationFor(registry[start.structureId]);
+      // A generator may set one piece's adaptation (`meta.adaptation`); an explicit `adaptation` argument wins.
+      const adaptationOf = (piece) => adaptation ?? piece.meta?.adaptation ?? chosen;
       const report = { written: writtenCount, adaptation: { type: chosen, applied: false, counts: null } };
-      if (adapt && chosen !== 'none' && typeof surfaceY === 'function' && foundationBlock !== null) {
+      if (adapt && start.pieces.some((piece) => adaptationOf(piece) !== 'none') && typeof surfaceY === 'function' && foundationBlock !== null) {
         const totals = { shaved: 0, foundation: 0, buried: 0, encapsulated: 0 };
         for (const piece of start.pieces) {
+          const pieceAdaptation = adaptationOf(piece);
+          if (pieceAdaptation === 'none') continue;
+          // A terrain-matching piece (a village street) already follows the ground column by column; its box spans
+          // the lowest to the highest column, so adapting to its floor would shave the uphill ground away.
+          if (piece.projection === Projection.TERRAIN_MATCHING) continue;
           const adapted = adaptToTerrain({
-            adaptation: chosen,
+            adaptation: pieceAdaptation,
             box: piece.box,
             surfaceY,
             foundationBlock,
             terrainBlock: foundationBlock,
             airBlock,
+            surfaceBlock,
+            floorY: piece.meta?.groundY ?? null,
             isStructureBlock: (x, y, z) => written.has(`${x},${y},${z}`)
           });
           for (const key of Object.keys(totals)) totals[key] += adapted.counts[key];
@@ -293,7 +302,7 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
           // of `written`, so a later piece cannot mistake them for its own.
           for (const write of adapted.writes) {
             if (clip && !clip.contains(write.x, write.y, write.z)) continue;
-            setBlock(write.x, write.y, write.z, write.block, { terrainAdaptation: chosen });
+            setBlock(write.x, write.y, write.z, write.block, { terrainAdaptation: pieceAdaptation });
           }
         }
         report.adaptation = {

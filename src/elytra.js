@@ -16,7 +16,7 @@
 //
 // The branch this drives only runs while `isGliding`, so none of it can affect ordinary movement.
 import * as THREE from 'three';
-import { spendDurability } from './durability.js';
+import { spendDurability, maxDurabilityFor } from './durability.js';
 
 /** Gentle sink while gliding, against the 28.0 the player falls under normally. */
 export const ELYTRA_GRAVITY = 7.0;
@@ -64,14 +64,23 @@ export function tickElytraWear(player, dt, random = Math.random) {
   player.elytraFlight = Math.max(0, player.elytraFlight - whole * ELYTRA_SECONDS_PER_DURABILITY);
   const elytra = player.inventory?.armor?.chest;
   if (elytra?.id !== 'elytra') return none;
-  const wear = spendDurability(elytra, whole, random);
-  if (wear.broke) player.inventory.armor.chest = null;
-  return { spent: wear.spent, broke: wear.broke };
+  // Durability: "Flying for one second counts as 1 use. The durability cannot go below 1" -- at 1 the elytra is
+  // broken, "unusable until repaired", and stays in the chest slot. It used to wear to 0 and vanish.
+  const max = elytra.maxDurability ?? maxDurabilityFor('elytra');
+  const left = typeof elytra.durability === 'number' ? elytra.durability : max;
+  const wear = spendDurability(elytra, Math.min(whole, Math.max(0, left - 1)), random);
+  return { spent: wear.spent, broke: isElytraBroken(elytra) };
 }
 
-/** True when the chest slot holds an elytra. */
+/** A broken elytra: worn to its last point, kept, but no use for flying until repaired. */
+export function isElytraBroken(elytra) {
+  return typeof elytra?.durability === 'number' && elytra.durability <= 1;
+}
+
+/** True when the chest slot holds an elytra that can fly (one worn to 1 cannot). */
 export function hasElytraEquipped(player) {
-  return player?.inventory?.armor?.chest?.id === 'elytra';
+  const chest = player?.inventory?.armor?.chest;
+  return chest?.id === 'elytra' && !isElytraBroken(chest);
 }
 
 /**

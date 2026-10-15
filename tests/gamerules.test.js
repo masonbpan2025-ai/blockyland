@@ -40,8 +40,9 @@ test('both regeneration rates are gated, not only the fast one', () => {
   // Food 18 with no saturation takes the slow path. Gating only the fast branch would have left a rule that
   // appeared to work at full hunger and did nothing at 18.
   const slow = fed({ hunger: 18, saturation: 0 });
-  assert.ok(tickHunger(fed({ hunger: 18, saturation: 0 }), 1, options()).heal > 0, 'the slow path heals');
-  assert.equal(tickHunger(slow, 1, options({ naturalRegeneration: false })).heal, 0,
+  // 4 s: the slow path heals once every 80 ticks (Java's food timer).
+  assert.ok(tickHunger(fed({ hunger: 18, saturation: 0 }), 4, options()).heal > 0, 'the slow path heals');
+  assert.equal(tickHunger(slow, 4, options({ naturalRegeneration: false })).heal, 0,
     'and the rule switches it off');
 });
 
@@ -49,7 +50,7 @@ test('starvation still runs with the rule off', () => {
   // The gamerule switches off natural regeneration, not hunger itself: a player who never eats must still
   // starve. Gating the whole model would have made it a "no hunger" switch.
   const starving = fed({ hunger: 0, saturation: 0 });
-  const result = tickHunger(starving, 1, options({ naturalRegeneration: false }));
+  const result = tickHunger(starving, 4, options({ naturalRegeneration: false })); // one 80-tick starvation step
   assert.ok(result.starve > 0, 'starvation damage still accrues');
   assert.equal(result.heal, 0);
 });
@@ -119,7 +120,7 @@ test('the hunger model reads the option rather than hard-coding regeneration', (
   const source = readFileSync(new URL('../src/hunger.js', import.meta.url), 'utf8');
   const fn = source.slice(source.indexOf('export function tickHunger'));
   assert.match(fn, /naturalRegeneration = true/, 'the option is declared with its default');
-  assert.equal((fn.match(/if \(naturalRegeneration\)/g) || []).length, 2,
+  assert.equal((fn.match(/if \(naturalRegeneration && /g) || []).length, 2,
     'both regeneration branches are gated');
 });
 

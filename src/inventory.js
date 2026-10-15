@@ -1,6 +1,6 @@
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { addToBundle, isBundle } from './bundles.js';
-import { RECIPES_2X2, RECIPES_3X3, findMatchingRecipe } from './crafting.js';
+import { RECIPES_2X2, RECIPES_3X3, findMatchingRecipe, gridRepairResult } from './crafting.js';
 import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
@@ -578,8 +578,9 @@ export class Inventory {
   checkCrafting() {
     // The doLimitedCrafting game rule: "players can craft only unlocked recipes" (the game sets recipeGate).
     const allowed = (r) => (r && (!this.recipeGate || this.recipeGate(r)) ? { ...r } : null);
-    this.craft2x2Result = allowed(findMatchingRecipe(this.craft2x2, 2, 2, RECIPES_2X2));
-    this.craft3x3Result = allowed(findMatchingRecipe(this.craft3x3, 3, 3, RECIPES_3X3));
+    // A recipe first; otherwise two damaged tools of one kind repair into one (gridRepairResult).
+    this.craft2x2Result = allowed(findMatchingRecipe(this.craft2x2, 2, 2, RECIPES_2X2)) ?? gridRepairResult(this.craft2x2);
+    this.craft3x3Result = allowed(findMatchingRecipe(this.craft3x3, 3, 3, RECIPES_3X3)) ?? gridRepairResult(this.craft3x3);
   }
 
   takeCraftResult(is3x3 = false) {
@@ -591,6 +592,10 @@ export class Inventory {
     const resultLimit = stackLimitFor(res.id);
     if (!this.cursorItem) {
       this.cursorItem = { id: res.id, isBlock: res.isBlock, count: res.count };
+      // A repaired tool carries its combined durability and any curses.
+      if (res.repair) Object.assign(this.cursorItem, { durability: res.durability, maxDurability: res.maxDurability, enchantments: res.enchantments });
+    } else if (res.repair) {
+      return;
     } else if (this.cursorItem.id === res.id && this.cursorItem.count + res.count <= resultLimit) {
       this.cursorItem.count += res.count;
     } else {

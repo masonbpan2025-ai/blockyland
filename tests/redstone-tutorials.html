@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Redstone bot workshop</title>
+<style>body{margin:0;background:#152235;color:#e7f2ff;font:15px system-ui}header{padding:16px 24px;background:#0c1525}h1{font-size:21px;margin:0 0 10px}button,select,a{padding:8px;margin-right:8px}button,select{background:#334e70;color:white;border:1px solid #6783a5;border-radius:5px}a{color:#8bcaff}#status{white-space:pre-wrap;padding:12px 24px}#view{overflow:auto}canvas{display:block}small{display:block;margin-top:10px;color:#b7c6d9}</style>
+<header><h1>Redstone bot workshop</h1><select id="scenario" aria-label="Circuit"></select><button id="run">Build and test</button><button id="all">Run all scenarios</button><button id="crafter">Open test crafter</button><a id="wiki" target="_blank" rel="noopener">Wiki reference</a><small>Loaded flat fixture; real PlayerBot controls, inventories, redstone and world mesher. Comparator inventory readout does not test CUD update-order exploits.</small></header>
+<div id="view"></div><div id="status" role="status">Ready.</div>
+<script type="module">
+import {SHOWCASES,runShowcase,fixture} from './helpers/redstoneShowcase.js';
+import {BLOCKS as B} from '/src/blocks.js';
+const select=document.querySelector('#scenario'),status=document.querySelector('#status');for(const s of SHOWCASES){const option=document.createElement('option');option.value=s.id;option.textContent=s.title;select.append(option);}
+const reference=()=>{document.querySelector('#wiki').href=SHOWCASES.find(s=>s.id===select.value).url??'https://minecraft.wiki/w/Tutorial:Mechanisms';};select.onchange=reference;reference();
+async function run(id){select.value=id;reference();status.textContent='Running '+id+'…';try{const result=await runShowcase(id);status.textContent='PASS '+id+'\n'+result.checks.join('\n');return result;}catch(e){status.textContent='FAIL '+id+': '+e.message;throw e;}}
+document.querySelector('#run').onclick=()=>run(select.value).catch(console.error);
+document.querySelector('#all').onclick=async()=>{const results=[];try{for(const s of SHOWCASES)results.push(await run(s.id));status.textContent=results.map(r=>'PASS '+r.id+' ('+r.checks.length+' checks)').join('\n');}catch(e){console.error(e);}};
+document.querySelector('#crafter').onclick=()=>{const f=fixture();if(!f)return;f.world.setVoxel(4,1,4,B.CRAFTER);f.world.redstone.interact([4,1,4]);};
+window.redstoneWorkshop={run,fixture,scenarios:SHOWCASES};
+</script></html>

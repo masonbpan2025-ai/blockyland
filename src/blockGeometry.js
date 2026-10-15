@@ -153,7 +153,7 @@ export function createBlockGeometry(id, textures, state = {}) {
     const isIron = Boolean(def.isIron);
     return ensureFlameAttributes(createTrapdoorGeometry(facing, open, isIron, textures));
   }
-  if (def?.redstone && numericId !== BLOCKS.REDSTONE_TORCH) return ensureFlameAttributes(redstoneGeometry(numericId, textures, state));
+  if (def?.redstone && !def.redstoneNativeModel && ![BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(numericId)) return ensureFlameAttributes(redstoneGeometry(numericId, textures, state));
   if (def?.bed || numericId === BLOCKS.RED_BED_FOOT || numericId === BLOCKS.RED_BED_HEAD) {
     const isHead = (numericId === BLOCKS.RED_BED_HEAD) || Boolean(def?.isHead);
     const dir = state.dir !== undefined ? state.dir : 3;
@@ -267,7 +267,9 @@ export function createBlockGeometry(id, textures, state = {}) {
       uv.setXY(i, THREE.MathUtils.lerp(tile.u0, tile.u1, u), THREE.MathUtils.lerp(tile.v0, tile.v1, t));
       const torchGlow = face === 2 ? 1 : face === 3 ? 0 : t > 0.5 ? 1 : 0;
       const cubeGlow = numericId === BLOCKS.LIT_FURNACE ? (face === 4 ? 0.8 : 0) : numericId === BLOCKS.ENCHANTING_TABLE ? 0.2 : 0.8;
-      emission[i] = numericId === BLOCKS.REDSTONE_TORCH && state.output === 0 ? 0 : def?.light ? (torch ? torchGlow : cubeGlow) : 0;
+      const off=def?.redstoneBulb?!state.on:[BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(numericId)&&state.output===0;
+      emission[i] = off ? 0 : def?.light ? (torch ? torchGlow : cubeGlow) : 0;
+      if(off&&torchGlow)colors.set([.25,.15,.15],i*3);
       if (numericId === BLOCKS.OAK_LEAVES) colors.set([0.35, 0.65, 0.22], i * 3);
       if (numericId === BLOCKS.GRASS && face === 2) colors.set([0.48, 0.74, 0.31], i * 3);
     }

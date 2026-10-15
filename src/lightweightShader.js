@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WaterPass } from './waterPass.js';
+import { hideOutOfViewMobs, restoreHidden } from './entityVisibility.js';
 export const SHADER_STORAGE_KEY='minecraft-lite-shader';
 // Keep normal 1080p views sharp; only larger displays downsample the world.
 // Bloom remains quarter resolution and shadow budgets remain unchanged.
@@ -121,7 +122,12 @@ export class LightweightShader {
   * Falls back to one plain render if the water pass fails, so a driver that cannot copy a framebuffer still
   * shows the world -- the water then uses its translucent look.
   */
- renderWorld(){const g=this.game,r=g.renderer,c=g.camera;
+ renderWorld(){const g=this.game;
+  // Mobs only where their terrain is drawn and short of the fog's far edge; flags restored after the frame.
+  const hidden=hideOutOfViewMobs(g);
+  try{this.renderWorldPasses();}finally{restoreHidden(hidden);}
+ }
+ renderWorldPasses(){const g=this.game,r=g.renderer,c=g.camera;
   if(!this.waterPass)this.waterPass=new WaterPass();
   if(this.waterPassFailed){r.render(g.scene,c);return;}
   try{this.waterPass.render(r,g.scene,c,g.textures?.waterMaterial||null,{waterMeshes:this.waterMeshes()});}

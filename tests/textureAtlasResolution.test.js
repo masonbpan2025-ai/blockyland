@@ -180,7 +180,17 @@ test('ResourcePackManager & Game: onChange listener triggers immediate chunk re-
     assert.deepEqual(remeshedChunks, ['0,0', '1,0', '0,1'], 'All loaded chunks re-meshed on pack deactivation');
   } finally {
     unsubscribe();
-    resourcePackManager.reorderPacks([]);
+    await resourcePackManager.resetToDefault();
   }
+});
+
+test('TextureManager: boots with Faithful 64x 64x resolution and 2048x2048 atlas by default', async () => {
+  await resourcePackManager.resetToDefault();
+  assert.equal(resourcePackManager.getActiveTileSize(), 64, 'Default active tile size is 64');
+  const tm = new TextureManager();
+  await tm.init();
+  assert.equal(tm.tileSize, 64, 'TextureManager initialized with 64x tile size');
+  assert.equal(tm.atlasCanvas.width, 2048, 'Atlas canvas width is 2048');
+  assert.equal(tm.atlasCanvas.height, 2048, 'Atlas canvas height is 2048');
 });
 

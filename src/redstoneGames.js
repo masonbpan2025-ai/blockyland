@@ -53,6 +53,9 @@ export function buildVaultDoor(world, origin) {
   // The plugs sit one block in front of pistons that face +Z (direction 4).
   const pistonA = place([ox, oy, oz - 1], B.STICKY_PISTON, 4);
   const pistonB = place([ox + 1, oy, oz - 1], B.STICKY_PISTON, 4);
+  // The bus must point into each base, rather than run sideways past it.
+  for(const x of [0,1]){place([ox+x,oy,oz-3],B.REDSTONE_WIRE);place([ox+x,oy,oz-2],B.REPEATER,4);}
+  place([ox-1,oy,oz-3],B.REDSTONE_WIRE);
   const plugA = place([ox, oy, oz], B.OAK_PLANKS);
   const plugB = place([ox + 1, oy, oz], B.OAK_PLANKS);
   // Wire beside piston A, which the piston did not claim.
@@ -97,10 +100,13 @@ export function buildFloorTrap(world, origin) {
 
   // Plates on the platform beside the hole, each wired to the trapdoors. Every
   // wire step is an adjacent block, and no wire is placed on a trapdoor.
-  const plateNear = place([ox, oy, oz - 1], B.PRESSURE_PLATE);
-  place([ox + 1, oy, oz - 1], B.REDSTONE_WIRE);
-  const plateFar = place([ox + 1, oy, oz + 1], B.PRESSURE_PLATE);
-  place([ox, oy, oz + 1], B.REDSTONE_WIRE);
+  const plateNear = place([ox - 1, oy + 1, oz + 2], B.PRESSURE_PLATE);
+  const plateFar = place([ox + 2, oy + 1, oz + 2], B.PRESSURE_PLATE);
+  for(const x of [0,1]){
+    place([ox+x,oy+1,oz+2],B.REDSTONE_WIRE);
+    place([ox+x,oy+1,oz+1],B.REPEATER,5);
+    place([ox+x,oy+1,oz],B.STONE_BRICKS);
+  }
 
   return {
     name: 'Floor Trapdoor',
@@ -132,7 +138,9 @@ export function buildLampPuzzle(world, origin) {
     place([ox + 3, oy, oz], B.REDSTONE_WIRE)
   ];
   const leverB = place([ox + 4, oy, oz], B.LEVER);
-  const lamp = place([ox + 2, oy, oz + 1], B.REDSTONE_LAMP);
+  place([ox+2,oy,oz+1],B.REDSTONE_WIRE);
+  place([ox+2,oy-1,oz+1],B.STONE_BRICKS);
+  const lamp = place([ox + 2, oy, oz + 2], B.REDSTONE_LAMP);
 
   return {
     name: 'Two-Lever Lamp',
@@ -178,6 +186,8 @@ export function buildRailStation(world, origin) {
   // Lever and its wire on the far side of the track (z + 1), so no wire is ever
   // placed on a rail — that was overwriting the track and leaving the cart stuck.
   for (let x = 0; x <= 3; x++) place([ox + x, oy, oz + 1], B.REDSTONE_WIRE);
+  place([ox,oy,oz+2],B.REDSTONE_WIRE);
+  place([ox,oy,oz+1],B.REPEATER,5);
   const lever = place([ox + 1, oy, oz + 2], B.LEVER);
   place([ox + 1, oy, oz + 1], B.REDSTONE_WIRE);
 

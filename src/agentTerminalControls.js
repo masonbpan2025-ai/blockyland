@@ -9,7 +9,11 @@ export function syncAgentTerminalControls(ui,agent,{refreshing=false}={}) {
   }
   if(ui.geminiKeyDrawer){
     ui.geminiKeyDrawer.disabled=offline;
-    if(offline)ui.geminiKeyDrawer.classList.add('hidden');
+    if(offline){
+      ui.geminiKeyDrawer.classList.add('hidden');
+      if(ui.geminiKeyInput)ui.geminiKeyInput.value='';
+      if(ui.geminiVaultPassphrase)ui.geminiVaultPassphrase.value='';
+    }
     ui.geminiToggleKeyBtn?.setAttribute('aria-expanded',String(!ui.geminiKeyDrawer.classList.contains('hidden')));
   }
   if(ui.geminiRefreshModelsBtn)ui.geminiRefreshModelsBtn.disabled=offline||refreshing;

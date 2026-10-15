@@ -39,6 +39,9 @@ export const EXHAUSTION = {
 /** Exhaustion at which one point is paid out of saturation, then hunger. Vanilla's threshold. */
 export const EXHAUSTION_THRESHOLD = 4.0;
 
+/** Food: the Hunger effect adds 0.1 exhaustion per second per level (0.005 a tick). Not in EXHAUSTION: no action charges it. */
+export const HUNGER_EFFECT_EXHAUSTION_PER_SECOND = 0.1;
+
 /** Health regeneration rates, in HP per second, and the exhaustion each HP costs. */
 export const REGEN = {
   /** Food at or above this regenerates slowly. */
@@ -75,8 +78,17 @@ function clamp(v, lo, hi) {
  * Mineclonia clamps it to the threshold, which under-drains after one large event; this does not
  * copy that, and the difference is described in docs/survival-parity-rules.md.
  */
-/** Saturation spent per health point healed. Vanilla's figure, and the one the wiki gives. */
-export const SATURATION_PER_HEALTH = 1.5;
+/**
+ * Saturation spent per exhaustion payout. Wiki (Food, Exhaustion): "Once the exhaustion level reaches 4.0, it
+ * resets to 0.0 and reduces the saturation by 1 if there is any saturation remaining."
+ */
+export const SATURATION_PER_PAYOUT = 1;
+/**
+ * Saturation spent per health point healed -- derived, not charged directly. A healed HP adds 6.0 exhaustion
+ * (wiki: natural regeneration), which is 1.5 payouts of 1: hence the wiki's "heals 1 HP by consuming 1.5
+ * saturation". Charging 1.5 per payout as well, as this module did, made every HP cost 2.25 saturation.
+ */
+export const SATURATION_PER_HEALTH = (EXHAUSTION.regen / EXHAUSTION_THRESHOLD) * SATURATION_PER_PAYOUT;
 
 export function addExhaustion(state, amount) {
   if (!(amount > 0)) return state;
@@ -86,10 +98,7 @@ export function addExhaustion(state, amount) {
   while (state.exhaustion >= EXHAUSTION_THRESHOLD) {
     state.exhaustion -= EXHAUSTION_THRESHOLD;
     if (state.saturation > 0) {
-      // The wiki's figure, and the one that settles what units the food table is in: "saturation boost heals
-      // 1HP by consuming 1.5 saturation". A doubled unit system would need 3 here, so the halving that
-      // `foodData.js` used to do could not have been a unit convention.
-      state.saturation = Math.max(0, state.saturation - SATURATION_PER_HEALTH);
+      state.saturation = Math.max(0, state.saturation - SATURATION_PER_PAYOUT);
     } else if (state.hunger > 0) {
       state.hunger = Math.max(0, state.hunger - 1);
     } else {
@@ -147,31 +156,55 @@ export function tickHunger(state, dt, options = {}) {
     return { heal, starve, exhausted: false };
   }
 
-  if (state.hunger >= MAX_HUNGER && state.saturation > 0 && health < maxHealth) {
-    // Fast regeneration: only at full hunger and with saturation left to spend.
-    if (naturalRegeneration) {
-      const before = state.saturation;
-      heal = dt * REGEN.fastPerSecond;
-      addExhaustion(state, EXHAUSTION.regen * dt);
-      // Stop regenerating once saturation runs out mid-tick, so the rate cannot be outrun by a large dt.
-      if (state.saturation === 0 && before > 0) heal = Math.min(heal, 1);
+  // Java's FoodData ticks at 20 Hz with one timer: at full hunger with saturation, every 10 ticks it heals
+  // min(saturation, 6) / 6 HP for min(saturation, 6) exhaustion; at 18 or more, every 80 ticks it heals exactly 1 HP
+  // for 6.0; at 0 it starves 1 HP every 80 ticks; otherwise the timer resets. This was a continuous rate, so a player
+  // at 18 hunger healed two thirds of a heart and stopped (the first sliver of regeneration dropped hunger to 17),
+  // where Java heals one whole HP four seconds in. Found by the Hunger management play-test.
+  state.tickAcc = (state.tickAcc ?? 0) + dt * 20;
+  let hp = health;
+  while (state.tickAcc >= 1) {
+    state.tickAcc -= 1;
+    const hurt = hp < maxHealth;
+    if (naturalRegeneration && state.saturation > 0 && hurt && state.hunger >= MAX_HUNGER) {
+      state.foodTimer = (state.foodTimer ?? 0) + 1;
+      if (state.foodTimer >= 10) {
+        const spend = Math.min(state.saturation, 6);
+        const amount = Math.min(spend / 6, maxHealth - hp);
+        heal += amount; hp += amount;
+        addExhaustion(state, spend);
+        state.foodTimer = 0;
+      }
+    } else if (naturalRegeneration && state.hunger >= REGEN.slowFoodLevel && hurt) {
+      state.foodTimer = (state.foodTimer ?? 0) + 1;
+      if (state.foodTimer >= 80) {
+        const amount = Math.min(1, maxHealth - hp);
+        heal += amount; hp += amount;
+        addExhaustion(state, EXHAUSTION.regen);
+        state.foodTimer = 0;
+      }
+    } else if (state.hunger <= 0) {
+      // Starvation. Vanilla floors this by difficulty; the caller applies the floor, because only it knows the
+      // difficulty. Still runs with `naturalRegeneration` off: a player who never eats must still starve.
+      state.foodTimer = (state.foodTimer ?? 0) + 1;
+      if (state.foodTimer >= 80) { starve += 1; state.foodTimer = 0; }
+    } else {
+      state.foodTimer = 0;
     }
-  } else if (state.hunger >= REGEN.slowFoodLevel && health < maxHealth) {
-    // Slow regeneration from food 18 up.
-    if (naturalRegeneration) {
-      heal = dt * REGEN.slowPerSecond;
-      addExhaustion(state, EXHAUSTION.regen * dt);
-    }
-  } else if (state.hunger <= 0) {
-    // Starvation. Vanilla floors this by difficulty; the caller applies the floor, because only it
-    // knows the difficulty.
-    //
-    // Still runs with `naturalRegeneration` off. The gamerule switches off natural regeneration, not hunger
-    // itself: a player who never eats must still starve.
-    starve = dt * REGEN.starvePerSecond;
   }
 
   return { heal, starve, exhausted: false };
+}
+
+/**
+ * Foods that can be eaten at full hunger. Wiki (Food): "food cannot be eaten while already at full hunger, with the
+ * exception of chorus fruit, golden apples, enchanted golden apples, honey bottles, and suspicious stew."
+ */
+export const ALWAYS_EDIBLE = new Set(['chorus_fruit', 'golden_apple', 'enchanted_golden_apple', 'honey_bottle', 'suspicious_stew']);
+
+/** Can this food be eaten now? Hunger alone decides (health does not), except for the always-edible ones. */
+export function canEat(itemId, hunger, { creative = false, maxHunger = MAX_HUNGER } = {}) {
+  return creative || hunger < maxHunger || ALWAYS_EDIBLE.has(itemId);
 }
 
 /** Health floor for starvation damage at a given difficulty, so it cannot kill where vanilla forbids. */

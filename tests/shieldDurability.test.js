@@ -51,11 +51,16 @@ function blocker({ damage = 5, sourcePos = null, offhand = true, blocking = true
   return { p, shield };
 }
 
-test('a blocked hit costs the shield one point', () => {
+// Durability: "When the shield blocks an attack dealing more than 3 HP, it takes damage equal to the strength of the
+// attack (rounded down) plus 1." These tests first pinned a flat one point per hit, which was this file's own guess.
+test('a blocked 5-damage hit costs the shield floor(5) + 1 = 6 points; a hit of 3 or less costs none', () => {
   const { shield } = blocker();
   assert.equal(shield.maxDurability, maxDurabilityFor('shield'), 'the shield should be sized by the table');
   assert.equal(shield.maxDurability, 336);
-  assert.equal(shield.maxDurability - shield.durability, 1, 'blocking should cost exactly one point');
+  assert.equal(shield.maxDurability - shield.durability, 6);
+  const light = blocker({ damage: 3 });
+  assert.equal(light.shield.durability, undefined, 'a 3-damage hit is blocked for free');
+  assert.equal(light.p.health, 20, 'and still blocked');
 });
 
 test('a hit from behind is not blocked and costs nothing', () => {
@@ -69,10 +74,10 @@ test('a hit from behind is not blocked and costs nothing', () => {
   // And a source in front is blocked.
   const front = blocker({ sourcePos: new THREE.Vector3(0, 1, -5) });
   assert.equal(front.p.health, 20, 'a hit from the front should be fully deflected');
-  assert.equal(front.shield.durability, 335, 'and cost the shield a point');
+  assert.equal(front.shield.durability, 330, 'and cost the shield floor(5) + 1');
 });
 
-test('each blocked hit costs one point, and the shield lasts its full 336', () => {
+test('each blocked hit is charged, and the charges accumulate', () => {
   // Repeated blocking, to show the charge accumulates rather than resetting.
   const p = Object.create(Player.prototype);
   const shield = { id: 'shield' };
@@ -89,7 +94,7 @@ test('each blocked hit costs one point, and the shield lasts its full 336', () =
     p.invulnerableTimer = 0;
     p.takeDamage(5, new THREE.Vector3(0, 1, -3));
   }
-  assert.equal(shield.maxDurability - shield.durability, 10, 'ten blocked hits should be ten points');
+  assert.equal(shield.maxDurability - shield.durability, 60, 'ten blocked 5-damage hits should be 60 points');
 });
 
 test('unbreaking reduces shield wear', () => {
@@ -115,8 +120,8 @@ test('unbreaking reduces shield wear', () => {
   };
   const plain = build(null);
   const warded = build([{ id: 'unbreaking', level: 3 }]);
-  assert.equal(plain.maxDurability - plain.durability, 1,
-    'a plain shield spends its point even on a passing roll, because unbreaking level 0 keeps nothing');
+  assert.equal(plain.maxDurability - plain.durability, 6,
+    'a plain shield spends its points even on a passing roll, because unbreaking level 0 keeps nothing');
   // The stack is initialised to full BEFORE the keep loop, so spending nothing leaves it at max rather
   // than undefined. That is what the first version of this assertion got wrong.
   assert.equal(warded.maxDurability - warded.durability, 0,
@@ -154,7 +159,7 @@ test('a shield held in the main hand blocks too', () => {
         getTotalArmorPoints: () => 0, getTotalArmorToughness: () => 0, getArmorPoints: () => 0 },
   });
   p.takeDamage(5, new THREE.Vector3(0, 1, -3));
-  assert.equal(shield.durability, 335, 'a main-hand shield should wear the same way');
+  assert.equal(shield.durability, 330, 'a main-hand shield should wear the same way');
 });
 
 test('creative blocking does not consume the shield', () => {

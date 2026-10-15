@@ -55,7 +55,10 @@ export function generateIgloo({ seed, chunkX, chunkZ, context }) {
   const pieces = [new StructurePiece({
     id: 'minecraft:igloo/top', index: 0, type: 'template', family: 'template', template: 'minecraft:igloo/top', rotation,
     box: top.boundingBox(topOrigin, rotation),
-    meta: { processors: IGLOO_PROCESSORS, origin: topOrigin, hasBasement }
+    // DEVIATION: vanilla gives the igloo no terrain adaptation, which on a snowy slope leaves the uphill half of the
+    // dome full of snow and dirt. The dome alone is bedded in (shaved above its floor, propped up below it); the
+    // basement keeps none, since shaving above ITS floor would dig it out.
+    meta: { processors: IGLOO_PROCESSORS, origin: topOrigin, hasBasement, adaptation: 'beard_thin' }
   })];
   if (hasBasement) {
     const basementOrigin = { x: originX, y: surface - IGLOO_BASEMENT_DEPTH, z: originZ };
