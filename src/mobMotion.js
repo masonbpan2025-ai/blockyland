@@ -38,7 +38,9 @@ export function wanderMob(manager, mob, dt, speed, random = null) {
         const distance = attempt < 6 ? 3 + rng() * 5 : 1 + rng() * 2;
         const goal = mob.mesh.position.clone().add(new THREE.Vector3(Math.sin(angle) * distance, 0, Math.cos(angle) * distance));
         const baseY = Math.floor(goal.y);
-        for (let y = baseY + 1; y >= baseY - 2; y--) {
+        const yDown = mob.type === 'iron_golem' ? 4 : 2;
+        const yUp = mob.type === 'iron_golem' ? 2 : 1;
+        for (let y = baseY + yUp; y >= baseY - yDown; y--) {
           goal.y = y;
           if (manager.isBlockSolid(goal.x, y - 0.05, goal.z) && !manager.checkMobCollision(mob, goal)
             && manager.world.getVoxel(Math.floor(goal.x), y, Math.floor(goal.z)) !== BLOCKS.WATER) {
@@ -104,9 +106,16 @@ function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId
   if (inWater && !(isPackEquine(mob)&&mob.rider)) return true;
   // Deep drops were already avoided; keep that.
   // A step is supported if there is solid ground at floor level (cell.y - 1)
-  // or a single-block step down (cell.y - 2). A drop of 2+ blocks is refused.
-  const hasFloor = hazards.isSolid(cell.x, cell.y - 1, cell.z)
-    || hazards.isSolid(cell.x, cell.y - 2, cell.z);
+  // or a step down. Normal mobs refuse drops of 2+ blocks.
+  // Iron golems are 2.7 blocks tall and immune to fall damage, so they tolerate drops up to 3 blocks.
+  const maxDrop = mob.type === 'iron_golem' ? 3 : 2;
+  let hasFloor = false;
+  for (let dy = 1; dy <= maxDrop; dy++) {
+    if (hazards.isSolid(cell.x, cell.y - dy, cell.z)) {
+      hasFloor = true;
+      break;
+    }
+  }
   return !hasFloor;
 }
 
@@ -224,14 +233,177 @@ export function updateHazardEscape(manager, mob, dt) {
   return true;
 }
 
+export function checkGroundSupport(manager, mob, pos) {
+  const hw = (mob.width || manager.getMobDimensions?.(mob.type)?.width || 0.6) / 2;
+  const checkY = Math.floor(pos.y - 0.05);
+
+  const solidAt = (x, y, z) => {
+    if (typeof manager?.isBlockSolid === 'function') return manager.isBlockSolid(Math.floor(x), Math.floor(y), Math.floor(z), mob?.type);
+    const voxel = manager?.world?.getVoxel?.(Math.floor(x), Math.floor(y), Math.floor(z));
+    return Boolean(voxel && voxel !== BLOCKS.AIR && voxel !== BLOCKS.WATER && voxel !== BLOCKS.LAVA && voxel !== BLOCKS.FIRE);
+  };
+
+  // 1. Center of mass support: if center is directly over solid ground, the mob is supported
+  if (solidAt(pos.x, checkY, pos.z)) return true;
+
+  // 2. Bridging support: if center is over a small gap/hole, but BOTH opposite sides have support
+  const r = Math.min(0.35, hw * 0.6);
+  if (r > 0.08) {
+    if (solidAt(pos.x - r, checkY, pos.z) && solidAt(pos.x + r, checkY, pos.z)) return true;
+    if (solidAt(pos.x, checkY, pos.z - r) && solidAt(pos.x, checkY, pos.z + r)) return true;
+  }
+  return false;
+}
+
+export function nudgeOffLedge(manager, mob, pos) {
+  const dirs = [
+    [1, 0], [-1, 0], [0, 1], [0, -1],
+    [0.707, 0.707], [-0.707, 0.707], [0.707, -0.707], [-0.707, -0.707]
+  ];
+  const hw = (mob.width || manager.getMobDimensions?.(mob.type)?.width || 0.6) / 2;
+  const distances = [0.15, 0.35, 0.6, Math.max(0.7, hw + 0.15)];
+  for (const dist of distances) {
+    for (const [dx, dz] of dirs) {
+      const probe = pos.clone();
+      probe.x += dx * dist;
+      probe.z += dz * dist;
+      probe.y -= 0.08;
+      if (!manager.checkMobCollision(mob, probe)) {
+        pos.x += dx * dist;
+        pos.z += dz * dist;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function findSafeMobSpawnPosition(world, mobs, type, x, y, z) {
+  if (!world) return { x, y, z };
+  const dims = mobs?.getMobDimensions ? mobs.getMobDimensions(type) : (type === 'iron_golem' ? { width: 1.4, height: 2.7 } : { width: 0.6, height: 1.8 });
+
+  const isSolid = (bx, by, bz) => {
+    if (mobs?.isBlockSolid) return mobs.isBlockSolid(bx, by, bz, type);
+    if (world?.isBlockSolid) return world.isBlockSolid(bx, by, bz, type);
+    const voxel = world.getVoxel?.(bx, by, bz);
+    return Boolean(voxel && voxel !== BLOCKS.AIR && voxel !== BLOCKS.WATER && voxel !== BLOCKS.LAVA && voxel !== BLOCKS.FIRE);
+  };
+
+  const checkCol = (pos) => {
+    if (mobs?.checkMobCollision) return mobs.checkMobCollision({ type, width: dims.width, height: dims.height }, pos);
+    return false;
+  };
+
+  const hasSupport = (pos) => {
+    return checkGroundSupport({ isBlockSolid: isSolid, getMobDimensions: () => dims }, { type, width: dims.width, height: dims.height }, pos);
+  };
+
+  const OFFSETS = [
+    [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1],
+    [1, 1], [-1, 1], [1, -1], [-1, -1],
+    [2, 0], [-2, 0], [0, 2], [0, -2],
+    [2, 1], [-2, 1], [2, -1], [-2, -1],
+    [1, 2], [-1, 2], [1, -2], [-1, -2],
+    [2, 2], [-2, 2], [2, -2], [-2, -2]
+  ];
+
+  const baseY = Math.floor(y);
+  const searchMaxY = Math.min(60, baseY + 10);
+  const searchMinY = Math.max(1, baseY - 12);
+  const targetFloor = baseY - 1;
+
+  let bestCandidate = null;
+  let bestCost = Infinity;
+
+  for (const [dx, dz] of OFFSETS) {
+    const candX = Math.floor(x) + dx + 0.5;
+    const candZ = Math.floor(z) + dz + 0.5;
+
+    for (let floorY = searchMinY; floorY <= searchMaxY; floorY++) {
+      if (!isSolid(Math.floor(candX), floorY, Math.floor(candZ))) continue;
+
+      const spawnY = floorY + 1 + 0.01;
+      const candPos = { x: candX, y: spawnY, z: candZ };
+
+      if (checkCol(candPos)) continue;
+      if (!hasSupport(candPos)) continue;
+
+      const voxelAtFeet = world.getVoxel?.(Math.floor(candX), floorY + 1, Math.floor(candZ));
+      if (voxelAtFeet === BLOCKS.WATER || voxelAtFeet === BLOCKS.LAVA) continue;
+
+      const cost = Math.abs(floorY - targetFloor) * 3 + Math.hypot(dx, dz);
+      if (cost < bestCost) {
+        bestCost = cost;
+        bestCandidate = candPos;
+        if (cost === 0) return candPos;
+      }
+    }
+  }
+
+  if (bestCandidate) return bestCandidate;
+
+  // Fallback: If no offset was found via voxels, check surfaceHeightAt
+  if (typeof world.surfaceHeightAt === 'function') {
+    const surfY = world.surfaceHeightAt(Math.floor(x), Math.floor(z));
+    if (Number.isFinite(surfY) && surfY > 0) {
+      const candPos = { x, y: surfY + 1.01, z };
+      if (!checkCol(candPos)) return candPos;
+    }
+  }
+
+  return { x, y, z };
+}
+
 export function moveGroundMob(manager, mob, dt) {
   if(mob.health>0)applyHeat(manager.world,mob,mob.mesh.position,dt,n=>manager.damageMob(mob,n));
   const start = mob.mesh.position.clone(), pos = mob.mesh.position;
   const collision = p => manager.checkMobCollision(mob, p);
   if (collision(pos)) {
-    for (let lift = 0.25; lift <= 4; lift += 0.25) {
-      const candidate = pos.clone(); candidate.y += lift;
-      if (!collision(candidate)) { pos.copy(candidate); break; }
+    let resolved = false;
+    // 1. Try horizontal nudges first so a mob near a wall/pillar frees itself on the same ground
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.707, 0.707], [-0.707, 0.707], [0.707, -0.707], [-0.707, -0.707]];
+    for (const dist of [0.15, 0.3, 0.5, 0.8, 1.2, 1.6]) {
+      for (const [dx, dz] of dirs) {
+        const candidate = pos.clone();
+        candidate.x += dx * dist;
+        candidate.z += dz * dist;
+        if (!collision(candidate) && checkGroundSupport(manager, mob, candidate)) {
+          pos.copy(candidate);
+          resolved = true;
+          break;
+        }
+      }
+      if (resolved) break;
+    }
+    // 2. If horizontal nudges didn't free it (e.g. buried inside a hill/stone/dirt), scan upward to surface
+    if (!resolved) {
+      for (let lift = 0.25; lift <= 16; lift += 0.25) {
+        const candidate = pos.clone(); candidate.y += lift;
+        if (!collision(candidate)) {
+          if (checkGroundSupport(manager, mob, candidate) || lift >= 1.0) {
+            pos.copy(candidate);
+            resolved = true;
+            break;
+          }
+        }
+      }
+    }
+    // 3. Fallback: if still colliding, try horizontal nudges with upward lifts
+    if (!resolved) {
+      for (let lift = 0.5; lift <= 8; lift += 0.5) {
+        for (const [dx, dz] of dirs) {
+          const candidate = pos.clone();
+          candidate.x += dx * 1.0;
+          candidate.z += dz * 1.0;
+          candidate.y += lift;
+          if (!collision(candidate)) {
+            pos.copy(candidate);
+            resolved = true;
+            break;
+          }
+        }
+        if (resolved) break;
+      }
     }
   }
   const hazards = hazardCtx(manager, mob);
@@ -340,8 +512,20 @@ export function moveGroundMob(manager, mob, dt) {
         if (collision(probe)) solid = middle; else free = middle;
       }
       pos.y = free;
-      mob.onGround = mob.velocity.y < 0;
-      mob.velocity.y = 0;
+      if (mob.velocity.y < 0) {
+        if (mob.type === 'iron_golem' ? checkGroundSupport(manager, mob, pos) : true) {
+          mob.onGround = true;
+          mob.velocity.y = 0;
+        } else {
+          const nudged = nudgeOffLedge(manager, mob, pos);
+          if (nudged) {
+            pos.y = candidate.y;
+          }
+          mob.onGround = false;
+        }
+      } else {
+        mob.velocity.y = 0;
+      }
     } else pos.y = candidate.y;
   }
   if (mob.knockback) mob.knockback.multiplyScalar(Math.exp(-8 * dt));

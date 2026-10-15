@@ -271,3 +271,33 @@ test('Peaceful removes monsters even where the natural spawner is off', async ()
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.match(main, /if \(this\.difficulty === 'peaceful'\) \{ try \{ this\.spawnManager\?\.despawnManager\?\.removePeaceful\?\.\(\);/);
 });
+
+// Navigation: "Each player can change their individual spawn point by sleeping in a bed". The bed binding kept only the
+// stand spot beside the bed, and respawn looked for a bed AT that spot -- air -- so every bed counted as missing.
+test('respawn checks the bed block, not the stand spot beside it', () => {
+  const bed = readFileSync(new URL('../src/bed.js', import.meta.url), 'utf8');
+  assert.match(bed, /player\.bedBlockPosition = \{ x: bed\.footPos\[0\], y: bed\.footPos\[1\], z: bed\.footPos\[2\] \};/);
+  const player = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
+  assert.match(player, /this\.bedBlockPosition \? this\.isBedStillThere\(this\.bedBlockPosition\)/);
+});
+
+// Shelters: a fall is "blocks fallen less 3". The landing step's overshoot below the block top was counted too, so a
+// 22-block fall (19 damage) measured nearly 23 and killed.
+test('a landing does not count the step that went below the ground', () => {
+  const player = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
+  assert.match(player, /const overshoot = Math\.ceil\(newPos\.y\) - newPos\.y;\n\s*this\.fallDistance = Math\.max\(0, this\.fallDistance - overshoot\);/);
+});
+
+// Shelter types: "digging 3 blocks straight down and then capping off the hole" is the fastest shelter -- and a spider
+// bit through it, because its bite measured only horizontal distance.
+test('a melee mob cannot reach through the ground or across a wall', async () => {
+  const { meleeCanReach } = await import('../src/mobEnvironment.js');
+  const { BLOCKS } = await import('../src/blocks.js');
+  const solid = new Set(['0,4,0', '0,3,0']);
+  const world = { getVoxel: (x, y, z) => (solid.has(`${x},${y},${z}`) || y < 2 ? BLOCKS.DIRT : BLOCKS.AIR) };
+  const mob = (x, y, z) => ({ mesh: { position: { x, y, z } } });
+  assert.equal(meleeCanReach(world, mob(0.9, 5, 0.5), { position: { x: 0.5, y: 2, z: 0.5 } }), false, 'three blocks down, under a cap');
+  assert.equal(meleeCanReach(world, mob(1.5, 2, 0.5), { position: { x: 2.5, y: 2, z: 0.5 } }), true, 'beside it in the open');
+  const spider = readFileSync(new URL('../src/spiderBehavior.js', import.meta.url), 'utf8');
+  assert.match(spider, /mob\.attackCooldown <= 0 && meleeCanReach\(manager\?\.world, mob, player\)/);
+});

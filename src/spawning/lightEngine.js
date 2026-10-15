@@ -101,6 +101,7 @@ export function blockEmission(blockId,world=null,x=0,y=0,z=0) {
   const def = BLOCK_DEFS[blockId];
   if (!def) return 0;
   if(world&&def.redstoneBulb)return world.redstone?.state([x,y,z])?.on?def.light:0;
+  if(def.caveVines)return world?.structureOrientations?.get(`${x},${y},${z}`)?.berries?14:0;
   const level = def.light;
   return Number.isFinite(level) ? Math.max(0, Math.min(MAX_LIGHT, level)) : 0;
 }
@@ -117,7 +118,7 @@ function lightIdTables() {
   for (const k in BLOCK_DEFS) {
     const id = Number(k); if (!(id >= 0 && id < 65536)) continue;
     opacity[id] = blockOpacity(id); emission[id] = blockEmission(id);
-    dynamic[id]=BLOCK_DEFS[id].redstoneBulb||[BLOCKS.RESPAWN_ANCHOR,BLOCKS.REDSTONE_LAMP,BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(id)?1:0;
+    dynamic[id]=BLOCK_DEFS[id].redstoneBulb||BLOCK_DEFS[id].caveVines||[BLOCKS.RESPAWN_ANCHOR,BLOCKS.REDSTONE_LAMP,BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(id)?1:0;
   }
   opacity[BLOCKS.AIR] = 0; emission[BLOCKS.AIR] = 0;
   idTables = { size, opacity, emission,dynamic };

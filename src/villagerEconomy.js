@@ -1,3 +1,4 @@
+import { advancementEvent } from './advancements.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { baseBlockDrop } from './blockDrops.js';
 import { addPlayerExperience } from './experience.js';
@@ -955,6 +956,7 @@ export function executeTrade(trade, villager, playerInventory, sounds = null, op
     const playerXpGained = tradePlayerXp(random, false);
     if (options.player) addPlayerExperience(options.player, playerXpGained, sounds, options.ui ?? null);
     sounds?.playVillager?.();
+    advancementEvent('trade');
     return {
       success: true,
       leveledUp: false,

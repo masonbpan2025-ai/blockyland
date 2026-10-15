@@ -436,7 +436,9 @@ export function fallDamage(fallDistance, effects) {
   if (slowFalling) return 0;
   const distance = fallDistance - jumpBoost;
   if (!(distance > FALL_DAMAGE.freeBlocks)) return 0;
-  return Math.floor(distance - FALL_DAMAGE.freeBlocks);
+  // A measured fall lands a hair under the whole number (19.99999 for a 20-block drop); without the epsilon `floor`
+  // took a whole point off.
+  return Math.floor(distance - FALL_DAMAGE.freeBlocks + 1e-4);
 }
 
 /**

@@ -12,6 +12,7 @@
 // `content` names a box drawn with the block's `inner` texture (a cauldron's water, lava or powder snow).
 
 export const BLOCK_MODEL_SHAPES = {
+  'Moss Carpet': { boxes: [[0,0,0,16,1,16]] },
   Cactus: { boxes: [[1, 0, 1, 15, 16, 15]] },
   'Enchanting Table': { boxes: [[0, 0, 0, 16, 12, 16]] },
   'Dirt Path': { boxes: [[0, 0, 0, 16, 15, 16]] },

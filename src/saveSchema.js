@@ -94,6 +94,7 @@ export function capturePlayerState(player) {
     isDead: player.isDead === true,
     deathDropsDone: player.deathDropsDone === true,
     // The bed binding, which v1 forgot entirely.
+    bedBlockPosition: player.bedBlockPosition ? { ...player.bedBlockPosition } : null,
     bedSpawnPosition: player.bedSpawnPosition
       ? { x: player.bedSpawnPosition.x, y: player.bedSpawnPosition.y, z: player.bedSpawnPosition.z }
       : null,
@@ -147,6 +148,7 @@ export function applyPlayerState(player, saved, helpers = {}) {
   player.deathDropsDone = s.deathDropsDone === true;
   if (player.isDead) player.health = 0;
 
+  player.bedBlockPosition = s.bedBlockPosition && Number.isFinite(s.bedBlockPosition.x) ? { x: s.bedBlockPosition.x, y: s.bedBlockPosition.y, z: s.bedBlockPosition.z } : null;
   player.bedSpawnPosition = s.bedSpawnPosition
     ? makeVector(num(s.bedSpawnPosition.x, 0), num(s.bedSpawnPosition.y, 0), num(s.bedSpawnPosition.z, 0))
     : null;

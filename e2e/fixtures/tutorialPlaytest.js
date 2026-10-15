@@ -51,6 +51,13 @@ export function createPlaytest(game, {
   game.player.statusEffects?.clear?.(); game.player.activeEffects?.clear?.(); game.player.fireTicks = 0; game.player.fallDistance = 0;
   game.worldTime = time;
   game.ui.closeGeminiTerminal?.();
+  // A clean slate between scenarios: a death in the last one leaves the death screen up (the game hides it from the
+  // Respawn button), and an open screen cancels eating, drawing a bow, and more.
+  if (game.player.isDead) game.player.respawn?.();
+  try { game.ui.closeAllModals?.(); } catch {}
+  for (const id of ['death-overlay', 'defeat-overlay']) document.getElementById(id)?.classList.add('hidden');
+  game.eating?.cancel?.(); game.bow?.cancel?.();
+  game.player.usingItem = false; game.player.isSleeping = false; if (game.bedManager) game.bedManager.isSleeping = false;
   game.lifecycle.phase = 'ready'; game.worldReady = true; game.worldGenerated = true;
 
   // Every hit the player takes, so a death in the middle of a tutorial can be explained.

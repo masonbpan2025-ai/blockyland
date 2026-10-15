@@ -134,7 +134,7 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
 
       const startX = chunkX * 16 + 9;
       const startZ = chunkZ * 16 + 9;
-      const biome = biomeAt ? biomeAt(startX, startZ) : null;
+      const biome = biomeAt ? biomeAt(startX, startZ, info) : null;
       if (info.biomes && info.biomes.length > 0) {
         if (!biome || !info.biomes.includes(biome)) return null;
       }
@@ -145,7 +145,7 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
         chunkX,
         chunkZ,
         structureId,
-        context: { biomeAt, surfaceY, solidAt, seaLevel, info, set: context.set }
+        context: { biomeAt:biomeAt?((x,z)=>biomeAt(x,z,info)):null, surfaceY, solidAt, seaLevel, info, set: context.set }
       });
       if (!start) return null;
       // Vanilla checks the biome at the structure's own start point; for a village that is its meeting point, and
@@ -179,7 +179,7 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
       const implementation = info.implementation && GENERATORS[info.implementation];
       if (!implementation) return { reason: `This game has no generator for ${structureId}` };
       const startX = chunkX * 16 + 9; const startZ = chunkZ * 16 + 9;
-      const biome = biomeAt ? biomeAt(startX, startZ) : null;
+      const biome = biomeAt ? biomeAt(startX, startZ, info) : null;
       if (info.biomes?.length && (!biome || !info.biomes.includes(biome))) return { reason: 'There is no valid biome in this chunk to place the specified structure' };
       const set = getSetForStructure(structureId);
       const start = implementation.generate({ seed, chunkX, chunkZ, structureId, context: { biomeAt, surfaceY, solidAt, seaLevel, info, set } });

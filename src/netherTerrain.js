@@ -34,7 +34,7 @@ export function decorateNetherChunk(world,chunk) {
     const biome=world.getBiome(x,z),crimson=biome==='crimson_forest';
     if(!crimson&&biome!=='warped_forest')continue;
     if(netherRandom(world.seed,gx,0,gz,107)>0.65)continue;
-    const floor=floorAt(x,z);if(floor<=world.seaLevel+1)continue;
+    const floor=floorAt(x,z);if(floor<=world.seaLevel+1||(world.caves&&world.caves.cellAt(x,floor,z)!==null))continue;
     const height=4+Math.floor(netherRandom(world.seed,x,0,z,109)*5),cap=floor+height;
     const stem=crimson?B.CRIMSON_STEM:B.WARPED_STEM,wart=crimson?B.NETHER_WART_BLOCK:B.WARPED_WART_BLOCK;
     for(let y=floor+1;y<=cap;y++)put(x,y,z,stem);
@@ -52,7 +52,7 @@ export function decorateNetherChunk(world,chunk) {
   // are separate plants used for breeding, repellents and renewable timber.
   for(let x=ox;x<ox+16;x++)for(let z=oz;z<oz+16;z++) {
     const biome=world.getBiome(x,z),floor=floorAt(x,z),y=floor+1;
-    if(floor<=world.seaLevel||chunk.getVoxel(x-ox,y,z-oz)!==B.AIR)continue;
+    if(floor<=world.seaLevel||chunk.getVoxel(x-ox,y,z-oz)!==B.AIR||![B.CRIMSON_NYLIUM,B.WARPED_NYLIUM,B.NETHERRACK,B.SOUL_SAND,B.SOUL_SOIL,B.BASALT,B.BLACKSTONE,B.GRAVEL].includes(chunk.getVoxel(x-ox,floor,z-oz)))continue;
     const r=netherRandom(world.seed,x,y,z,131);
     if(r<0.035)put(x,y,z,B.BROWN_MUSHROOM);
     else if(r<0.07)put(x,y,z,B.RED_MUSHROOM);

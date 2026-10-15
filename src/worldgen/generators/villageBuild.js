@@ -694,7 +694,7 @@ function buildTerminus(type) {
 
 // The meeting point (town centre): 11 x 11, a street leaving each side, a bell, and the design the wiki describes.
 export const MEETING_SIZE = 11;
-export const MEETING_GOLEM = [8, 1, 2];
+export const MEETING_GOLEM = [9, 1, 1];
 export const MEETING_CAMEL = [8, 1, 8];
 export const MEETING_CAT_SPOTS = [[1, 1], [1, 9], [9, 9], [2, 1], [1, 2]];
 

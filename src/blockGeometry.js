@@ -26,6 +26,13 @@ function ensureFlameAttributes(geo) {
 export function createBlockGeometry(id, textures, state = {}) {
   const numericId = typeof id === 'string' ? (BLOCKS[id.toUpperCase()] ?? (id === 'chest' ? BLOCKS.CHEST : (id === 'oak_door' ? BLOCKS.OAK_DOOR : (id === 'iron_door' ? BLOCKS.IRON_DOOR : (id === 'oak_trapdoor' ? BLOCKS.OAK_TRAPDOOR : (id === 'iron_trapdoor' ? BLOCKS.IRON_TRAPDOOR : id)))))) : id;
   const def = BLOCK_DEFS[numericId] || BLOCK_DEFS[id];
+  if(def?.pointedDripstone){
+    const tip=!state.thickness||state.thickness==='tip',geo=new THREE.CylinderGeometry(tip?0:.17,.26,1,4,1,false);
+    if(state.verticalDirection==='down')geo.rotateZ(Math.PI);geo.translate(.5,.5,.5);
+    const uv=geo.attributes.uv,tile=textures.getFaceUVs(numericId,'all'),count=geo.attributes.position.count;
+    for(let i=0;i<uv.count;i++)uv.setXY(i,THREE.MathUtils.lerp(tile.u0,tile.u1,uv.getX(i)),THREE.MathUtils.lerp(tile.v0,tile.v1,uv.getY(i)));
+    geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(count*3).fill(1),3));geo.setAttribute('emission',new THREE.Float32BufferAttribute(new Float32Array(count),1));return ensureFlameAttributes(geo);
+  }
   // Partial-cube shapes. All are placed before the cube fallback so none is ever drawn full size;
   // the mesher's dispatch routes them here for the same reason.
   // A block with a box model (blockModelShapes.js): a cactus, a cauldron, an anvil, a cake...
@@ -212,7 +219,7 @@ export function createBlockGeometry(id, textures, state = {}) {
     return geo;
   }
   if (def?.plant) {
-    const tile = textures.getFaceUVs(numericId, 'all');
+    const tile = textures.getFaceUVs(numericId, def.caveVines&&state.berries?'lit':'all');
     const hanging = Boolean(def.hang);
     const plantHeight=numericId===BLOCKS.NETHER_WART?netherWartHeight(state.plantAge):1;
     const p1 = new THREE.PlaneGeometry(1.4142, plantHeight);
@@ -234,7 +241,7 @@ export function createBlockGeometry(id, textures, state = {}) {
       uv.setXY(i, THREE.MathUtils.lerp(tile.u0, tile.u1, origU), THREE.MathUtils.lerp(tile.v0, tile.v1, v));
     }
     const colors = new Float32Array(count * 3).fill(1);
-    const emission = new Float32Array(count).fill(def?.light ? 0.8 : 0);
+    const emission = new Float32Array(count).fill((def.caveVines ? state.berries : def.light) ? 0.8 : 0);
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     geo.setAttribute('emission', new THREE.Float32BufferAttribute(emission, 1));
     return ensureFlameAttributes(geo);

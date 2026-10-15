@@ -7,6 +7,7 @@
 //
 // Shaped after `BowController`, which is the same kind of thing -- a use-item feature with a state machine
 // driven from the frame loop.
+import { advancementEvent } from './advancements.js';
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { maxDurabilityFor, spendDurability } from './durability.js';
@@ -490,6 +491,7 @@ export class FishingController {
 
     let caught = null;
     if (biting) caught = this.awardCatch();
+    if (caught) advancementEvent('fish', { item: caught?.id ?? caught });
 
     if (rod && cost > 0) {
       spendDurability(rod, cost, Math.random);

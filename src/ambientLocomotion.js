@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { meleeDamage } from './mobEnvironment.js';
+import { meleeDamage, meleeCanReach } from './mobEnvironment.js';
 
 /**
  * Ambient locomotion for mobs that have no dedicated AI branch.
@@ -204,7 +204,7 @@ export function updateAmbientLocomotion(manager, mob, dt, player, { wander = nul
     // The mob's own attack timer. It used to be `hitCooldown` -- the hurt-immunity window `damageMob` checks -- so a
     // zombie biting every second was immune to the player's sword for that second, and won every melee fight.
     mob.attackCooldown = Math.max(0, (mob.attackCooldown ?? 0) - dt);
-    if (spec.damage > 0 && dist < spec.attackReach && mob.attackCooldown <= 0) {
+    if (spec.damage > 0 && dist < spec.attackReach && mob.attackCooldown <= 0 && meleeCanReach(manager?.world, mob, player, { vertical: spec.attackReach })) {
       // Wiki: melee damage is stated per difficulty; the table's flat figure is only the fallback.
       player.takeDamage?.(meleeDamage(mob.type, manager?.game?.difficulty, spec.damage), mob.mesh.position, mob.type);
       mob.attackCooldown = 1.0;

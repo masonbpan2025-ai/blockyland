@@ -32,6 +32,7 @@ const testsDir = join(root, 'tests');
  * areas aligned with the source modules so "I changed X" maps to an obvious area.
  */
 export const AREAS = {
+  caves: ['caveCommands', 'teleport', 'caveGeneration', 'mountainTerrain', 'worldSpawn', 'treePlacement', 'worldStructures', 'structureMonsterRoom', 'structureGeode', 'structureMineshaft', 'structureAncientCity', 'spawnEligibilityRegression', 'spawnPlacementRegression', 'mapManager', 'survivalSaveLoad'],
   end: ['endSurvival', 'endPortal', 'enderDragonParity', 'endermanParity', 'endermiteParity', 'shulkerBullet', 'structureEndFeatures', 'structureEndCity', 'dragonEgg', 'survivalSaveLoad', 'mapManager', 'worldChunkCache', 'bed', 'waterRules'],
   nether: ['netherSurvival', 'nether', 'netherParity', 'netherPortal', 'netherCombat', 'netherLavaEscape', 'piglin', 'piglinBruteParity', 'blazeParity', 'striderParity', 'cubeHopParity', 'zombifiedPiglinParity', 'witherSkeletonParity', 'monsterSpawner', 'farming', 'worldStructures', 'worldSpawn', 'playerDeathRespawn', 'survivalSaveLoad'],
   fishing: ['fishingParity', 'fishingExperience', 'rails', 'vehicles_transport', 'waterFlow'],

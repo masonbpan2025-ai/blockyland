@@ -1,3 +1,4 @@
+import { AdvancementTracker, advancementEvent } from './advancements.js';
 import { TrialSpawners, Vaults } from './trialSpawner.js';
 import { getCommandState, tickCommandState } from './commandState.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
@@ -50,6 +51,7 @@ import { WaterSplashes } from './waterSplashes.js';
 import * as THREE from 'three';
 import { LightweightShader } from './lightweightShader.js';
 import { BowController } from './bow.js';
+import { toolUseOn, applyToolUse } from './toolUse.js';
 import { attuneCompass } from './compass.js';
 import { applyFoodEffects, chorusTeleport } from './foodEffects.js';
 import { brushArmadillo } from './armadilloBehavior.js';
@@ -69,6 +71,7 @@ import { World, CHUNK_SIZE_X, CHUNK_SIZE_Z } from './world.js';
 import { locateNearestStructure, countStructures } from './worldStructures.js';
 import { useOnArmorStand, armorStandPlacement } from './armorStand.js';
 import { parseTeleport, structureArrival } from './teleport.js';
+import { caveLocateLines, nearestCaveArrival } from './caveLocator.js';
 import { ChunkStreamer } from './chunkStreamer.js';
 import { installHotkeys } from './hotkeys.js';
 import { MobSpawnManager } from './spawning/mobSpawnManager.js';
@@ -461,6 +464,7 @@ class Game {
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
     this.bow = new BowController(this);
     this.eating = new EatingController(this);
+    this.advancements = new AdvancementTracker(this);
     // The fishing rod: another use-item feature with a state machine, so it sits with the bow.
     this.fishing = new FishingController(this);
     // Rails, minecarts and boats: real physics for carts and floating props.
@@ -2305,6 +2309,7 @@ class Game {
     // Side effects (foodEffects.js): pufferfish, spider eyes, poisonous potatoes, rotten flesh and raw chicken;
     // a honey bottle clears Poison; chorus fruit teleports.
     applyFoodEffects(this.player, activeItem.id);
+    advancementEvent('eat', { item: activeItem.id });
     if (activeItem.id === 'chorus_fruit') {
       const to = chorusTeleport(this.world, this.player.position);
       if (to) { this.player.position.set(to.x, to.y, to.z); this.player.velocity?.set?.(0, 0, 0); this.player.fallDistance = 0; this.sounds.playEndermanTeleport?.(); }
@@ -2327,6 +2332,7 @@ class Game {
         consumeDurability: (n) => { if (this.player.gamemode !== 'creative' && spendDurability(held, n).broke) this.inventory.consumeActiveItem?.(1); },
       })) {
         this.entities.spawnDroppedItem(this.targetMob.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 'armadillo_scute', false, 1);
+        advancementEvent('brush_armadillo');
         this.sounds.playBrush?.();
         this.ui.updateHotbar();
         return;
@@ -2788,6 +2794,18 @@ class Game {
       return;
     }
 
+    // A shovel makes a dirt path; an axe strips a log (toolUse.js). One durability each.
+    {
+      const use = activeItem && !activeItem.isBlock ? toolUseOn(this.world, activeItem.id, bX, bY, bZ) : null;
+      if (use) {
+        applyToolUse(this.world, bX, bY, bZ, use);
+        if (this.player.gamemode === 'survival' && spendDurability(activeItem, 1).broke) this.inventory.consumeActiveItem?.(1);
+        this.sounds.playPlace?.(use.sound);
+        this.ui.updateHotbar();
+        this.refreshDirtyChunks();
+        return;
+      }
+    }
     // A compass used on a lodestone links to it (compass.js). One is split off a stack, as in Java.
     if (clickedBlock === BLOCKS.LODESTONE && activeItem?.id === 'compass' && !activeItem.lodestone) {
       const dimension = this.currentDimension ?? this.world?.dimension ?? 'overworld';
@@ -2797,6 +2815,7 @@ class Game {
         attuneCompass(linked, bX, bY, bZ, dimension);
         if (!this.inventory.addItem(linked)) this.entities.spawnDroppedItem(this.player.position.clone(), 'compass', false, 1, { itemData: linked });
       } else attuneCompass(activeItem, bX, bY, bZ, dimension);
+      advancementEvent('lodestone');
       this.sounds.playClick();
       this.ui.updateHotbar();
       return;
@@ -2909,8 +2928,14 @@ class Game {
       return;
     }
 
-    // TNT ignition on right click
-    if (clickedBlock === BLOCKS.TNT) {
+    // TNT is lit by flint and steel or a fire charge (TNT: "Using flint and steel or a fire charge on TNT ignites it").
+    // Any right-click used to light it, an empty hand included. Found by the Best building materials play-test.
+    if (clickedBlock === BLOCKS.TNT && (activeItem?.id === 'flint_and_steel' || activeItem?.id === 'fire_charge')) {
+      if (this.player.gamemode === 'survival') {
+        if (activeItem.id === 'fire_charge') this.inventory.consumeActiveItem?.(1);
+        else if (spendDurability(activeItem, 1).broke) this.inventory.consumeActiveItem?.(1);
+        this.ui.updateHotbar();
+      }
       this.world.setVoxel(bX, bY, bZ, BLOCKS.AIR);
       this.entities.spawnPrimedTNT(new THREE.Vector3(bX, bY, bZ), () => {
         this.loadChunksAroundPlayer();
@@ -4270,6 +4295,11 @@ class Game {
    */
   runLocateCommand(parts) {
     try {
+      if (parts[1]?.toLowerCase() === 'cave') {
+        const origin = this.commandOrigin || this.player.position;
+        for (const line of caveLocateLines(this.world, origin, parts.slice(2))) this.ui.addChatMessage(line, 'system');
+        return;
+      }
       const wanted = parts[1] === 'structure' ? parts[2] : parts[1];
       const p = this.player.position;
       const ids = wanted ? [wanted] : (this.world.structures?.enabledIds || []);
@@ -4313,6 +4343,8 @@ class Game {
       let target;
       if (parsed.kind === 'coords') {
         target = { x: parsed.x, y: parsed.y, z: parsed.z, say: 'Teleported to ' + parsed.x.toFixed(1) + ', ' + parsed.y.toFixed(1) + ', ' + parsed.z.toFixed(1) };
+      } else if (parsed.kind === 'cave') {
+        target = nearestCaveArrival(this.world, p, { radius: parsed.radius });
       } else {
         const found = locateNearestStructure(this.world, parsed.id, p.x, p.z, { maxRadiusChunks: 4096 });
         const arrival = structureArrival(this.world, found);
@@ -4322,6 +4354,8 @@ class Game {
             + ' (' + found.distance + ' blocks away, ' + arrival.note + ')'
         };
       }
+      if (this.riding) this.dismount();
+      if (this.player.ridingMob) this.mobs?.animalBehaviors?.dismount(this.player);
       this.player.position.set(target.x, target.y, target.z);
       if (this.player.velocity) this.player.velocity.set(0, 0, 0);
       if (this.player.fallDistance !== undefined) this.player.fallDistance = 0;
@@ -4532,6 +4566,7 @@ class Game {
     if (this.riding) this.updateRiding();
     this.bow.update(dt);
     this.eating.update(dt);
+    this.advancements?.update(dt);
     this.fishing.update(dt);
     this.playerBot?.tick(dt);
     this.player.update(dt);

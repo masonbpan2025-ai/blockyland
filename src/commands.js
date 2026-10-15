@@ -105,8 +105,8 @@ export const COMMANDS = [
   { name: 'time', args: 'set (<time>|day|noon|night|midnight) | add <time> | query (daytime|gametime|day)', level: 2, gate: true, help: 'Change or query the world time' },
   { name: 'weather', args: '<clear|rain|thunder> [seconds]', level: 2, gate: true, help: 'Change weather (rain becomes snow in cold biomes)' },
   { name: 'gamemode', args: '<survival|creative|adventure|spectator>', level: 2, gate: true, help: 'Switch game mode' },
-  { name: 'locate', args: '[structure] [id]', level: 2, gate: true, help: 'Find the nearest generated structure' },
-  { name: 'teleport', args: '<x> <y> <z> | <structure>', level: 2, gate: true, aliases: ['tp'], help: 'Teleport to coordinates, or to the nearest structure (e.g. swamp_hut)' },
+  { name: 'locate', args: '[structure] [id] | cave [radius]', level: 2, gate: true, help: 'Find structures or list all cave entrances within a radius (default 256 blocks)' },
+  { name: 'teleport', args: '<x> <y> <z> | <structure> | cave [radius]', level: 2, gate: true, aliases: ['tp'], help: 'Teleport to coordinates, a structure, or the nearest safe cave entrance' },
   { name: 'show_mobs', args: '', level: 2, gate: true, help: 'Why you may see no mobs (Creative)' },
   // NOT gated, though vanilla calls them level 2. These manage SAVE FILES rather than the world, and `/maps`
   // is now the only route to the map loader -- the pause-menu button that used to open it was replaced by the

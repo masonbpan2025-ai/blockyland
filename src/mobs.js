@@ -1,3 +1,4 @@
+import { advancementEvent } from './advancements.js';
 import { createArmorStand, armorStandDrops } from './armorStand.js';
 import { createWitherSkeletonModel } from './witherSkeletonModel.js';
 import { exposedToRain } from './weatherRules.js';
@@ -33,7 +34,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
  */
 const BLOCK_NAMES_BY_ID = new Map();
 import { steerGround } from './netherMobAI.js';
-import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape } from './mobMotion.js';
+import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape, findSafeMobSpawnPosition } from './mobMotion.js';
 import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { shulkerBulletData, steerShulkerBullet } from './shulkerBullet.js';
 import { createWildEndermanState, isProvoked, provoke, tickAnger, gazeProvokes,
@@ -3644,6 +3645,14 @@ export class MobManager {
     return mob;
   }
   spawnIronGolem(x, y, z) {
+    if (this.world && typeof this.isBlockSolid === 'function') {
+      const safe = findSafeMobSpawnPosition(this.world, this, 'iron_golem', x, y, z);
+      if (safe) {
+        x = safe.x;
+        y = safe.y;
+        z = safe.z;
+      }
+    }
     const group = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ map: this.textures.iron_golem, transparent: true, alphaTest: 0.1 });
 
@@ -10274,6 +10283,11 @@ export class MobManager {
         if (['hoglin', 'piglin', 'zoglin'].includes(mob.type)) this.entities?.spawnXpOrbs?.(pos, 5);
       }
       const loot = this.getMobDeathDrops(mob);
+      // A kill the player made (it hit the mob), for the advancements (advancements.js).
+      if (mob.playerDamaged || mob.lastAttacker === this.game?.player) {
+        const pp = this.game?.player?.position;
+        advancementEvent('kill', { type: mob.type, distance: pp ? pos.distanceTo(pp) : 0, projectile: !!mob.lastHitByProjectile, fireball: !!mob.lastHitByFireball });
+      }
       if (mob.isRaidCaptain && this.game?.player?.applyStatusEffect) {
         this.game.player.applyStatusEffect('bad_omen', 100);
       }

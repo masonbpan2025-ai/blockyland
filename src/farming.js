@@ -1,4 +1,5 @@
-﻿import * as THREE from 'three';
+﻿import { advancementEvent } from './advancements.js';
+import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { spendDurability } from './durability.js';
 import { exposedToRain } from './weatherRules.js';
@@ -294,6 +295,7 @@ export class FarmingManager {
       this.game?.inventory?.consumeActiveItem?.();
       this.game?.ui?.updateHotbar?.();
     }
+    advancementEvent('plant', { seed: seedItemId });
     return true;
   }
 

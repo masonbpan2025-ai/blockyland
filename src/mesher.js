@@ -142,7 +142,7 @@ function blockTables() {
     if (!(id >= 0 && id < 65536) || !def) continue;
     t.occludes[id] = occludesWholeFace(def) ? 1 : 0;
     t.solid[id] = id !== BLOCKS.AIR && id !== BLOCKS.WATER && def.solid !== false && !def.plant ? 1 : 0;
-    t.special[id] = (def.slab || def.pane || def.carpet || def.stair || def.candle || def.chain || def.fence || def.wall || def.pressurePlate || def.button || def.fenceGate || def.banner || def.hangingSign || def.wallSign || def.wallFan || def.head || def.wallHead || def.sign || def.rod || def.rail || def.flowerPot || def.model) ? SPECIAL.SHAPED
+    t.special[id] = (def.pointedDripstone || def.slab || def.pane || def.carpet || def.stair || def.candle || def.chain || def.fence || def.wall || def.pressurePlate || def.button || def.fenceGate || def.banner || def.hangingSign || def.wallSign || def.wallFan || def.head || def.wallHead || def.sign || def.rod || def.rail || def.flowerPot || def.model) ? SPECIAL.SHAPED
       : def.door ? SPECIAL.DOOR : def.trapdoor ? SPECIAL.TRAPDOOR : def.redstone && (!def.redstoneNativeModel || def.redstoneBulb) ? SPECIAL.REDSTONE : def.bed ? SPECIAL.BED
       : (def.chest || id === BLOCKS.CHEST) ? SPECIAL.CHEST : SPECIAL.NONE;
     t.plant[id] = def.plant ? 1 : 0;
@@ -385,7 +385,7 @@ export class ChunkMesher {
           // rather than a missing feature.
           if (special === SPECIAL.SHAPED) {
             // A structure's stair carries its facing in `structureOrientations`; everything else here reads redstone state.
-            const state = world.redstone?.state([wx, wy, wz]) || ((def.stair || def.slab || def.plant || blockId===BLOCKS.CHORUS_FLOWER || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
+            const state = world.redstone?.state([wx, wy, wz]) || ((def.pointedDripstone || def.stair || def.slab || def.plant || blockId===BLOCKS.CHORUS_FLOWER || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
               || (def.model?.connections ? { connect: chorusConnections(world, wx, wy, wz) } : null) || {};
             const geometry = createBlockGeometry(blockId, this.tm, state);
             if (def.snowLayer) {
@@ -463,14 +463,16 @@ export class ChunkMesher {
             const level=Math.min(15,4*(world.structureOrientations?.get(`${wx},${wy},${wz}`)?.anchorCharges??0));
             if(level)lightSources.push({position:new THREE.Vector3(wx+.5,wy+.8,wz+.5),level,color:0x995cff});
           }
-          if (def?.light) {
+          const caveState=def?.caveVines?world.structureOrientations?.get(`${wx},${wy},${wz}`):undefined;
+          const emittedLight=def?.caveVines?(caveState?.berries?14:0):def?.light;
+          if (emittedLight) {
             // Separate emitters so their distance-shadow material can suppress
             // self-shadowing while retaining shadows from the sun/other lamps.
             const exposed = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].some(([dx,dy,dz]) => {
               return !faceOcclusion[world.getVoxel(wx + dx, wy + dy, wz + dz)];
             });
             if (exposed) {
-              const geometry = createBlockGeometry(blockId, this.tm);
+              const geometry = createBlockGeometry(blockId, this.tm,caveState);
               if(blockId===BLOCKS.LAVA){
                 const pos=geometry.attributes.position;
 
@@ -481,7 +483,7 @@ export class ChunkMesher {
               for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5], i);
               geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
               lightGeometries.push(geometry);
-              lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5), level: def.light, color: def.lightColor || 0xffc477 });
+              lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5), level: emittedLight, color: def.lightColor || 0xffc477 });
             }
             continue;
           }
@@ -552,6 +554,8 @@ export class ChunkMesher {
             // Culling condition
             if (isWater) {
               if (neighborId === BLOCKS.WATER || T.waterPlant[neighborId]) continue; // cull water adjacent to water or water plants
+              const isGlassOrIce = neighborId === BLOCKS.GLASS || neighborId === BLOCKS.ICE || neighborId === BLOCKS.FROSTED_ICE;
+              if (T.solid[neighborId] && !isGlassOrIce) continue; // solid blocks (planks, stairs, slabs, fences, etc.) occlude water
               if (faceOcclusion[neighborId]) continue; // partial neighbours leave water visible
             } else if (isTransparent) {
               if (neighborId === blockId) continue;

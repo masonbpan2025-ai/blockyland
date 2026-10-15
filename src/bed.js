@@ -1,3 +1,4 @@
+import { advancementEvent } from './advancements.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
@@ -435,6 +436,9 @@ export class BedManager {
       return { success: false, reason: 'The bed is obstructed' };
     }
     player.bedSpawnPosition = safeSpawn.clone();
+    // The bed itself, which respawn checks is still there. Only the stand spot beside it was kept, and respawn looked
+    // for a bed AT that spot -- air -- so every bed was "missing" and sleeping never set a respawn point.
+    player.bedBlockPosition = { x: bed.footPos[0], y: bed.footPos[1], z: bed.footPos[2] };
     player.anchorSpawn = null;
     player.bedDimension = dimension;
     this.game.sounds?.playClick?.();
@@ -466,6 +470,7 @@ export class BedManager {
     // Phantom: they come to a player whose "time since rest" is three days or more, and lying in a bed resets it.
     // Nothing reset either insomnia timer, so sleeping every night still brought phantoms after the third day.
     resetInsomnia(this.game);
+    advancementEvent('sleep');
     this.sleepingBed = bed;
     this.sleepTimer = 0;
     player.isSleeping = true;

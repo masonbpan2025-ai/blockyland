@@ -20,6 +20,7 @@ import { lootSeedFor } from './villageLoot.js';
 import { rollStructureLoot } from './structureLoot.js';
 import { BED_DIRECTIONS } from './bed.js';
 import { isWallAttached, attachStateForStructure, rememberAttachment } from './wallAttached.js';
+import { findSafeMobSpawnPosition } from './mobMotion.js';
 
 // Gradient tables, built once. They were nested array literals inside noise2D/noise3D, so every sample (thousands
 // per chunk) allocated thirteen arrays; same values, so the same terrain.
@@ -520,6 +521,14 @@ export class World {
           if (cart && request.options?.lootTable) cart.items = rollStructureLoot(request.options.lootTable, lootSeedFor(Math.floor(request.x), Math.floor(request.y), Math.floor(request.z), this.seed));
           return true;
         }
+        if (request.type === 'iron_golem' || request.type === 'villager' || request.type === 'camel') {
+          const safe = findSafeMobSpawnPosition(this, mobs, request.type, request.x, request.y, request.z);
+          if (safe) {
+            request.x = safe.x;
+            request.y = safe.y;
+            request.z = safe.z;
+          }
+        }
         const mob = mobs.spawnMob(request.type, request.x, request.y, request.z, request.options);
         if (!mob) return false;
         // Structure mobs do not despawn by distance (the wiki, for the hut's witch and cat, and the same rule
@@ -545,7 +554,7 @@ export class World {
   applyStructureOrientation(request) {
     const key0 = `${request.x},${request.y},${request.z}`;
     // A monster spawner: the mob it spawns lives with the block's other structure data (and is saved with it).
-    if (request.spawner || request.trialSpawner || request.vault || request.plantAge !== undefined || request.anchorCharges !== undefined) {
+    if (request.spawner || request.trialSpawner || request.vault || request.plantAge !== undefined || request.anchorCharges !== undefined || request.berries !== undefined || request.verticalDirection !== undefined) {
       this.structureOrientations.set(key0, { ...request });
       return true;
     }
@@ -621,6 +630,7 @@ export class World {
       x: o.x, y: o.y, z: o.z, id: o.id, name: o.name, facing: o.facing, half: o.half, hinge: o.hinge, lootTable: o.lootTable, slabType: o.slabType ?? null,
       ...(o.spawner ? { spawner: o.spawner } : {}), ...(o.trialSpawner ? { trialSpawner: o.trialSpawner } : {}), ...(o.vault ? { vault: o.vault } : {})
       ,...(o.plantAge!==undefined?{plantAge:o.plantAge}:{}),...(o.anchorCharges!==undefined?{anchorCharges:o.anchorCharges,anchorDimension:o.anchorDimension}:{})
+      ,...(o.berries!==undefined?{berries:o.berries}:{}),...(o.verticalDirection?{verticalDirection:o.verticalDirection,thickness:o.thickness}:{})
     }));
   }
 
@@ -885,6 +895,13 @@ export class World {
   solidAtGen(wx, wy, wz) {
     if(this.isFlatWorld)return wy>=0&&wy<=4;
     if(this.dimension==='the_end'){const c=endColumn(this,wx,wz);return c.top>0&&wy>=c.bottom&&wy<=c.top;}
+    if(this.dimension==='nether'){
+      if(wy<0||wy>63)return false;if(wy===0||wy===63)return true;
+      const h=this.surfaceHeightAt(wx,wz),floor=Math.min(36,Math.max(8,h)),c=this.caves.column(wx,wz);
+      if(wy<=floor)return wy<2||!this.caves.kindAt(wx,wy,wz,c);
+      if(wy>=54)return wy>=62||this.caveNoise.noise3D(wx*.06,wy*.12,wz*.06)<=.52;
+      return false;
+    }
     if (wy <= 0) return true;
     // The column's biome and height, kept for the last few thousand columns: a structure asks about many blocks of
     // the same few columns.
@@ -1769,6 +1786,13 @@ export class World {
     return chunk.voxels[(wy * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx];
   }
 
+  isBlockSolid(wx, wy, wz, mobType = null) {
+    const b = this.getVoxel(Math.floor(wx), Math.floor(wy), Math.floor(wz));
+    if (!b || b === BLOCKS.AIR || b === BLOCKS.WATER || b === BLOCKS.FIRE || b === BLOCKS.LAVA) return false;
+    const def = BLOCK_DEFS[b];
+    return def ? def.solid !== false && !def.plant : true;
+  }
+
   getHighestSolidY(wx, wz) {
     const cx = Math.floor(wx / CHUNK_SIZE_X);
     const cz = Math.floor(wz / CHUNK_SIZE_Z);
@@ -1778,11 +1802,25 @@ export class World {
     const lx = wx & (CHUNK_SIZE_X - 1);
     const lz = wz & (CHUNK_SIZE_Z - 1);
 
+    if(this.generationMode!=='authored'&&!this.isFlatWorld&&getBiomeDef(this.selectedBiome)?.isCavern){
+      // Skip the open sky, then the roof; choose a walkable floor INSIDE the
+      // cavern. A cave-biome world must not start the player on its roof.
+      let roof=false,inside=false;
+      for(let y=CHUNK_HEIGHT-2;y>=2;y--){const id=chunk.getVoxel(lx,y,lz),def=BLOCK_DEFS[id];
+        const solid=id!==BLOCKS.AIR&&id!==BLOCKS.WATER&&id!==BLOCKS.LAVA&&def?.solid!==false&&!def?.plant;
+        if(!roof){if(solid)roof=true;continue;}
+        if(!solid){if(id===BLOCKS.AIR)inside=true;continue;}
+        const clear=dy=>{const above=chunk.getVoxel(lx,y+dy,lz),d=BLOCK_DEFS[above];return above===BLOCKS.AIR||above!==BLOCKS.WATER&&above!==BLOCKS.LAVA&&(d?.plant||d?.solid===false);};
+        if(inside&&clear(1)&&clear(2)&&y<this.caves.column(wx,wz).ceiling)return y;
+      }
+      return 0; // a solid pillar is not permission to spawn on top of the roof
+    }
+
     const isNetherCavern = this.isNether || this.dimension === 'nether' || getBiomeDef(this.selectedBiome)?.isNether;
-    if (isNetherCavern) {
-      // Find cavern air space beneath bedrock ceiling (below y=62), then find solid floor under that air space
+    if (isNetherCavern&&this.generationMode!=='authored') {
+      // Prefer the main inhabited cavern, not a small tunnel in the roof.
       let foundAir = false;
-      for (let y = CHUNK_HEIGHT - 2; y >= 1; y--) {
+      for (let y = CHUNK_HEIGHT - 12; y >= 1; y--) {
         const id = chunk.getVoxel(lx, y, lz);
         if (id === BLOCKS.AIR) {
           foundAir = true;

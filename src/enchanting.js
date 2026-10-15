@@ -11,6 +11,7 @@
 //
 // `anvil.js` and `grindstone.js` read `maxLevel` and `targets` from here, so the fields they use are
 // unchanged and the additions are additive.
+import { advancementEvent } from './advancements.js';
 import { BLOCKS, ITEMS } from './blocks.js';
 import { consumePlayerLevels } from './experience.js';
 
@@ -616,6 +617,7 @@ export function applyEnchantment(item, offer, player, ui = null, sounds = null) 
   if (ui?.updateStats) {
     ui.updateStats();
   }
+  advancementEvent('enchant');
 
   return true;
 }

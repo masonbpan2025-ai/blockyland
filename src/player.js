@@ -1,3 +1,4 @@
+import { advancementEvent } from './advancements.js';
 import { soulSpeedMultiplier } from './barterItems.js';
 import { USING_ITEM_SPEED } from './eating.js';
 import { modeRules, isSurvivalLike, takesDamage } from './gameModeRules.js';
@@ -909,11 +910,18 @@ export class Player {
       }
     }
 
-    // 3. Move Y
-    if (this.velocity.y < 0) {
-      this.fallDistance += Math.abs(this.velocity.y * dt);
+    // 3. Move Y, swept in steps under half a block. At falling speed one frame moved more than a block, so a long
+    // fall ended inside the ground block, snapped to the wrong block top and counted a block too many: a 22-block
+    // drop (19 damage in Java) measured 23 and killed (Shelters play-test).
+    const startY = newPos.y, stepY = this.velocity.y * dt;
+    const parts = Math.max(1, Math.ceil(Math.abs(stepY) / 0.45));
+    for (let i = 0; i < parts; i++) {
+      newPos.y += stepY / parts;
+      if (i < parts - 1 && this.checkCollision(newPos)) break;
     }
-    newPos.y += this.velocity.y * dt;
+    if (this.velocity.y < 0) {
+      this.fallDistance += Math.max(0, startY - newPos.y);
+    }
     this.onGround = false;
     if (this.checkCollision(newPos)) {
       if (this.velocity.y < 0) {
@@ -930,7 +938,11 @@ export class Player {
           if (this.game?.farmingManager?.checkTrample) {
             this.game.farmingManager.checkTrample(this, belowX, belowY, belowZ, this.fallDistance);
           }
-          // Snap to top of block
+          // Snap to top of block. The fall counted this whole step, but the player stops at the block top: take the
+          // overshoot back off, or a fall gained up to a block at speed (a 22-block drop dealt 20 and killed, where
+          // Java deals 19; Shelters play-test).
+          const overshoot = Math.ceil(newPos.y) - newPos.y;
+          this.fallDistance = Math.max(0, this.fallDistance - overshoot);
           newPos.y = Math.ceil(newPos.y);
           const fell = this.fallDistance;
           this.velocity.y = 0;
@@ -1282,6 +1294,7 @@ export class Player {
 
       if (blocked) {
         this.sounds.playShieldBlock?.();
+        if (['arrow', 'projectile', 'trident', 'fireball', 'snowball', 'egg', 'wind_charge'].includes(damageType)) advancementEvent('deflect');
         this.invulnerableTimer = 0.2;
         // Blocking costs the shield a point of durability.
         //
@@ -1412,6 +1425,10 @@ export class Player {
       if (reflect.damage > 0) this.onThornsReflect?.(attacker || null, reflect.damage, reflect.procs, sourcePos);
     }
 
+    // Totem of Undying: held in either hand it "prevents the death of the holder", leaving 1 HP, clearing the
+    // effects and granting Regeneration II (45 s), Absorption II (5 s) and Fire Resistance (40 s); the void and /kill
+    // bypass it. It had no effect at all (found by the advancement guide play-test, "Postmortal").
+    if (this.health <= 0 && !['void', 'kill', 'outOfWorld'].includes(damageType) && this.useTotemOfUndying()) return;
     if (this.health <= 0) {
       this.die();
     }
@@ -1424,6 +1441,26 @@ export class Player {
         setTimeout(() => { canvas.style.filter = 'none'; }, 150);
       }
     }
+  }
+
+  /** Spend a Totem of Undying from the main hand or off hand to survive. True when one was used. */
+  useTotemOfUndying() {
+    const inv = this.inventory;
+    if (!inv) return false;
+    const off = inv.getOffhandItem?.() ?? inv.offhand;
+    const main = inv.getActiveItem?.();
+    let used = false;
+    if (main?.id === 'totem_of_undying') { inv.consumeActiveItem?.(1); used = true; }
+    else if (off?.id === 'totem_of_undying') { if (off.count > 1) off.count--; else if ('offhand' in inv) inv.offhand = null; used = true; }
+    if (!used) return false;
+    this.health = 1;
+    for (const effect of [...(this.statusEffects?.keys?.() ?? [])]) this.clearStatusEffect?.(effect);
+    this.applyStatusEffect?.('regeneration', 45, 2);
+    this.applyStatusEffect?.('absorption', 5, 2);
+    this.applyStatusEffect?.('fire_resistance', 40, 1);
+    this.game?.ui?.updateHotbar?.();
+    advancementEvent('totem');
+    return true;
   }
 
   /**
@@ -1536,7 +1573,9 @@ export class Player {
       anchorPosition: consumeAnchorRespawn(this),
       validAnchor: !!this.anchorSpawn,
       bedPosition: this.bedSpawnPosition ?? null,
-      isBedStillThere: (bed) => this.isBedStillThere(bed),
+      // The bed block itself; a save from before that was recorded has only the stand spot, which is next to the bed.
+      isBedStillThere: (bed) => this.bedBlockPosition ? this.isBedStillThere(this.bedBlockPosition)
+        : [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => this.isBedStillThere({ x: bed.x + dx, y: bed.y, z: bed.z + dz })),
       isSpaceSafe: (pos) => this.isRespawnSpaceSafe(pos),
       // /spawnpoint (vanillaCommands.js) sets the player's own respawn point; /setworldspawn the world's.
       worldSpawn: this.commandSpawnPosition || this.spawnPosition || new THREE.Vector3(1.5, 27.0, -1.5),
@@ -1545,6 +1584,7 @@ export class Player {
     if (decision.lostBed) {
       this.game?.ui?.addChatMessage?.('Your home bed was missing or obstructed', 'system');
       this.bedSpawnPosition = null;
+      this.bedBlockPosition = null;
     }
     if (decision.blocked) {
       // Reported rather than silently placing the player inside a block.

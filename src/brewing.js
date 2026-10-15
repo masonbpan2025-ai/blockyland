@@ -2,6 +2,7 @@
  * Minecraft Brewing & Alchemy Engine
  * Reference: https://minecraft.wiki/w/Brewing
  */
+import { advancementEvent } from './advancements.js';
 import { BLOCK_DEFS } from './blocks.js';
 
 // Canonical Potion Registry with Names, Types, and Effects
@@ -367,6 +368,9 @@ export class BrewingStand {
     }
 
     const ingId = this.ingredient.id;
+    // "Local Brewery" (advancements.js). Java awards it when the potion is taken out; a brew completing is the same moment
+    // for a player standing at the stand.
+    advancementEvent('brew');
 
     // Transform all eligible bottles
     for (let i = 0; i < 3; i++) {

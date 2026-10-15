@@ -192,7 +192,7 @@ test('the search radius covers every enabled structure', () => {
   const reach = STRUCTURE_SEARCH_RADIUS_CHUNKS * CHUNK_SIZE_X;
   for (const id of WORLD_STRUCTURE_IDS) {
     // Find it somewhere, then check a start's own extent cannot exceed the scan.
-    const biomes={igloo:'snowy_plains',village_plains:'plains',desert_pyramid:'desert',fortress:'nether_wastes',bastion_remnant:'nether_wastes',nether_fossil:'soul_sand_valley',ruined_portal_nether:'nether_wastes',end_spike:'the_end',end_podium:'the_end',end_platform:'the_end',end_city:'end_highlands'};
+    const biomes={igloo:'snowy_plains',village_plains:'plains',desert_pyramid:'desert',monster_room:'plains',amethyst_geode:'plains',mineshaft:'plains',mineshaft_mesa:'badlands',ancient_city:'deep_dark',fortress:'nether_wastes',bastion_remnant:'nether_wastes',nether_fossil:'soul_sand_valley',ruined_portal_nether:'nether_wastes',end_spike:'the_end',end_podium:'the_end',end_platform:'the_end',end_city:'end_highlands'};
     const dimension=id.startsWith('end_')?'the_end':['fortress','bastion_remnant','nether_fossil','ruined_portal_nether'].includes(id)?'nether':'overworld';
     const engine=createStructureEngine({seed:20250401,dimension,blockIds:BLOCKS,biomeAt:()=>biomes[id],surfaceY:()=>dimension==='nether'?20:40});
     const found = engine.locate(id, 0, 0, { maxRadiusChunks: 128 });
@@ -251,7 +251,7 @@ test('locate reports where the nearest structure is, and how far', () => {
 test('locate refuses a structure this world does not generate, and names the ones it does', () => {
   // An error that lists the alternatives is the difference between a dead end and an answer.
   const world = new World(4242, 'desert');
-  assert.throws(() => locateNearestStructure(world, 'ancient_city', 0, 0), /not generated in this world; try: .*desert_pyramid/);
+  assert.throws(() => locateNearestStructure(world, 'woodland_mansion', 0, 0), /not generated in this world; try: .*desert_pyramid/);
   assert.throws(() => createWorldStructures({ seed: 1, world, sizes: { x: 16, height: 64, z: 16 }, enabledIds: [] })
     && locateNearestStructure({ structures: { enabledIds: [], engine: null } }, '', 0, 0), /no structures are enabled/);
 });

@@ -1601,12 +1601,12 @@ export const BLOCK_DEFS = {
   // Drops per the harvest table: a weeping vine yields itself and the other two yield nothing.
   [BLOCKS.WEEPING_VINES]: { name: 'Weeping Vines', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: BLOCKS.WEEPING_VINES, textures: { all: 'weeping_vines.png' } },
   [BLOCKS.TWISTING_VINES]: { name: 'Twisting Vines', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'twisting_vines.png' } },
-  [BLOCKS.CAVE_VINES]: { name: 'Cave Vines', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'cave_vines.png' } },
+  [BLOCKS.CAVE_VINES]: { name: 'Cave Vines', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, caveVines: true, light: 14, drop: null, textures: { all: 'cave_vines.png', lit: 'cave_vines_lit.png' } },
   // The body segments. Same shape and the same ceiling anchor as the tips, but their own textures, and
   // all three drop nothing per the harvest table.
   [BLOCKS.WEEPING_VINES_PLANT]: { name: 'Weeping Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'weeping_vines_plant.png' } },
   [BLOCKS.TWISTING_VINES_PLANT]: { name: 'Twisting Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'twisting_vines_plant.png' } },
-  [BLOCKS.CAVE_VINES_PLANT]: { name: 'Cave Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, drop: null, textures: { all: 'cave_vines_plant.png' } },
+  [BLOCKS.CAVE_VINES_PLANT]: { name: 'Cave Vines Plant', hardness: 0.0, sound: 'grass', transparent: true, solid: false, plant: true, hang: true, caveVines: true, light: 14, drop: null, textures: { all: 'cave_vines_plant.png', lit: 'cave_vines_plant_lit.png' } },
 
   // --- Crop stems and water plants, thirteenth block-parity batch --------------------------------
   //
@@ -2118,7 +2118,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.MOSS_CARPET]: { name: 'Moss Carpet', hardness: 0.1, sound: 'grass', transparent: true, solid: false, drop: BLOCKS.MOSS_CARPET, textures: { all: 'moss_block.png' } },
   [BLOCKS.AZALEA_LEAVES]: { name: 'Azalea Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.AZALEA_LEAVES, textures: { all: 'azalea_leaves.png' } },
   [BLOCKS.DRIPSTONE_BLOCK]: { name: 'Dripstone Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.DRIPSTONE_BLOCK, textures: { all: 'dripstone_block.png' } },
-  [BLOCKS.POINTED_DRIPSTONE]: { name: 'Pointed Dripstone', hardness: 1.5, sound: 'stone', transparent: true, solid: false, drop: BLOCKS.POINTED_DRIPSTONE, textures: { all: 'pointed_dripstone.png' } },
+  [BLOCKS.POINTED_DRIPSTONE]: { name: 'Pointed Dripstone', hardness: 1.5, sound: 'stone', pointedDripstone: true, transparent: true, solid: false, drop: BLOCKS.POINTED_DRIPSTONE, textures: { all: 'pointed_dripstone.png' } },
   [BLOCKS.SULFUR_BLOCK]: { name: 'Sulfur Block', hardness: 1.5, sound: 'stone', drop: BLOCKS.SULFUR_BLOCK, textures: { all: 'sulfur_block.png' } },
   [BLOCKS.CALCITE]: { name: 'Calcite', hardness: 0.75, sound: 'stone', drop: BLOCKS.CALCITE, textures: { all: 'calcite.png' } },
   [BLOCKS.TUFF]: { name: 'Tuff', hardness: 1.5, sound: 'stone', drop: BLOCKS.TUFF, textures: { all: 'tuff.png' } },

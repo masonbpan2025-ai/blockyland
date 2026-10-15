@@ -115,7 +115,7 @@ export class BotSurvival {
    */
   /** What the player holds, stack by stack (id, count, durability), to notice any change a use makes. */
   inventorySignature() {
-    return JSON.stringify([...(this.inventory.hotbar || []), ...(this.inventory.storage || [])].map((i) => i ? `${i.id}x${i.count}d${i.durability ?? ''}` : ''));
+    return JSON.stringify([...(this.inventory.hotbar || []), ...(this.inventory.storage || [])].map((i) => i ? `${i.id}x${i.count}d${i.durability ?? ''}${i.lodestone ? 'L' : ''}` : '')); // a lodestone link is a change too
   }
   sameItem(stackId, wanted) {
     if (stackId === wanted) return true;
@@ -192,6 +192,21 @@ export class BotSurvival {
    * The nearest cell the player could stand in (solid, safe floor; two clear cells) from which a supporting face of
    * (x, y, z) is visible within reach.
    */
+  /** The nearest cell (to the player) a player can stand in with the block at x,y,z in arm's reach. */
+  standingSpotNear(x, y, z) {
+    const p = this.game.player.position, world = this.game.world, bot = this.bot;
+    let best = null;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) for (let dy = -4; dy <= 2; dy++) {
+      const sx = x + dx, sy = y + dy, sz = z + dz;
+      if (sx === x && sz === z) continue;
+      const floor = world.getVoxel(sx, sy - 1, sz);
+      if (bot.passable(floor) || bot.hazard(floor) || !bot.passable(world.getVoxel(sx, sy, sz)) || !bot.passable(world.getVoxel(sx, sy + 1, sz))) continue;
+      if (Math.hypot(x + 0.5 - (sx + 0.5), y + 0.5 - (sy + 1.62), z + 0.5 - (sz + 0.5)) > 4) continue;
+      const d = Math.hypot(sx + 0.5 - p.x, sy - p.y, sz + 0.5 - p.z);
+      if (!best || d < best.d) best = { x: sx, y: sy, z: sz, d };
+    }
+    return best;
+  }
   vantagePoint(x, y, z, faces) {
     const p = this.game.player.position, world = this.game.world, bot = this.bot;
     let best = null;
@@ -430,6 +445,17 @@ export class BotSurvival {
   }
   tick(t) {
     const c=t.command, p=this.game.player;
+    // Out of reach of the block an action is aimed at: walk to the nearest spot in reach first, once, as a player does.
+    // Every such action used to refuse with "Walk within reach of the station first." (Shelters play-test).
+    if (Array.isArray(c.position) && !t.approached && c.type !== 'build' && c.type !== 'wire') {
+      t.approached = true;
+      const [x, y, z] = c.position;
+      const eye = { x: p.position.x, y: p.position.y + 1.62, z: p.position.z };
+      if (Math.hypot(x + .5 - eye.x, y + .5 - eye.y, z + .5 - eye.z) > 4.3) {
+        const spot = this.standingSpotNear(x, y, z);
+        if (spot) { this.bot.walkForSurvival(spot); return; }
+      }
+    }
     if(c.type==='activate'){
       if(!this.game.world.redstone?.state(c.position))throw new Error('There is no redstone control at that position.');
       this.requireReach(c.position,[this.game.world.getVoxel(...c.position)]);

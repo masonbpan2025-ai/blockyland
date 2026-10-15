@@ -6,13 +6,15 @@
 //   /teleport <x> <y> <z>        absolute or ~relative coordinates
 //   /teleport <structure>        the nearest generated structure of that kind, e.g. /teleport swamp_hut
 //   /teleport structure <id>     the same, spelled as /locate spells it
+//   /teleport cave [radius]      the nearest safe cave entrance (default 256 blocks)
 //
 // A structure destination does not drop the player INTO the structure: the player lands on solid, dry ground a few
 // blocks outside its bounding box, looking at its centre, so the first thing they see is the building and they can
 // walk in through the door.
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { parseCaveRadius } from './caveLocator.js';
 
-export const TELEPORT_USAGE = '/teleport <x> <y> <z>  or  /teleport <structure>  (e.g. /teleport swamp_hut)';
+export const TELEPORT_USAGE = '/teleport <x> <y> <z>  or  /teleport <structure>  or  /teleport cave [radius]';
 
 /** "minecraft:Swamp Hut", "swamp-hut" and "swamp_hut" are all the same structure. */
 export function normaliseStructureName(token) {
@@ -33,10 +35,14 @@ function coordinate(token, current) {
  *
  * @param {string[]} args
  * @param {{x:number,y:number,z:number}} from where the player is now, for `~` coordinates
- * @returns {{ok:true,kind:'coords',x:number,y:number,z:number}|{ok:true,kind:'structure',id:string}|{ok:false,reason:string}}
+ * @returns {{ok:true,kind:'coords',x:number,y:number,z:number}|{ok:true,kind:'structure',id:string}|{ok:true,kind:'cave',radius:number}|{ok:false,reason:string}}
  */
 export function parseTeleport(args, from = { x: 0, y: 0, z: 0 }) {
   if (!args.length) return { ok: false, reason: `Usage: ${TELEPORT_USAGE}` };
+  if (args[0].toLowerCase() === 'cave') {
+    try { return { ok: true, kind: 'cave', radius: parseCaveRadius(args.slice(1)) }; }
+    catch (error) { return { ok: false, reason: error.message }; }
+  }
   if (args.length >= 3 && args.slice(0, 3).every((a) => /^~?-?\d*\.?\d*$/.test(a) && a !== '')) {
     const x = coordinate(args[0], from.x);
     const y = coordinate(args[1], from.y);

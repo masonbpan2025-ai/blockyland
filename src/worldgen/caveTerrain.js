@@ -4,7 +4,8 @@ import {getBiomeDef} from '../biomes.js';
 // Original terrain implementation of the wiki's cave families. Heights/densities
 // fit this engine's 0..63 world; these are not Mojang's seed-compatible equations.
 export const CAVE_KIND=Object.freeze({CHEESE:1,SPAGHETTI:2,NOODLE:4,CARVER:8,ENTRANCE:16});
-const REGION=64;
+export const CAVE_REGION_SIZE=64;
+const REGION=CAVE_REGION_SIZE;
 const rock=new Set([B.STONE,B.DEEPSLATE,B.TUFF,B.GRANITE,B.DIORITE,B.ANDESITE,B.DRIPSTONE_BLOCK,B.CLAY,B.MOSS_BLOCK]);
 const netherRock=new Set([B.NETHERRACK,B.NETHER_QUARTZ_ORE,B.NETHER_GOLD_ORE,B.BLACKSTONE,B.BASALT,B.SOUL_SAND,B.SOUL_SOIL,B.GRAVEL]);
 const mix=(seed,x,z,salt)=>{let h=Math.imul(x,374761393)^Math.imul(z,668265263)^(seed|0)^salt;h=Math.imul(h^(h>>>13),1274126177);return ((h^(h>>>16))>>>0)/4294967296;};
@@ -18,7 +19,7 @@ export class CaveTerrain {
     return [x,Math.max(6,Math.min(18,height-10))+(r(17)-.5)*2,z];
   }
   region(gx,gz){
-    const key=`${gx},${gz}`;if(this.regions.has(key))return this.regions.get(key);
+    const key=`${this.world.dimension}|${gx},${gz}`;if(this.regions.has(key))return this.regions.get(key);
     const w=this.world,r=s=>mix(w.seed,gx,gz,s),hub=this.hub(gx,gz),segments=[];
     const tube=(a,b,salt,entrance=false)=>{
       let last=a;const bend=(r(salt)-.5)*16;
@@ -37,7 +38,7 @@ export class CaveTerrain {
     if(this.regions.size>=256)this.regions.delete(this.regions.keys().next().value);this.regions.set(key,result);return result;
   }
   column(x,z,height=this.world.surfaceHeightAt(x,z),biome=this.world.getBiome(x,z)){
-    const key=`${x},${z}`;if(this.columns.has(key))return this.columns.get(key);
+    const key=`${this.world.dimension}|${x},${z}`;if(this.columns.has(key))return this.columns.get(key);
     const gx=Math.floor(x/REGION),gz=Math.floor(z/REGION),segments=[],rooms=[];
     for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
       const region=this.region(gx+dx,gz+dz),room=region.room;
@@ -46,7 +47,8 @@ export class CaveTerrain {
     }
     const w=this.world,def=getBiomeDef(biome),n=w.caveNoise;
     const moisture=w.biomeNoise.noise2D((x+713)*.009,(z-311)*.009),inland=def.category!=='offshore'&&!/river|beach/.test(biome);
-    const caveBiome=def.isCavern?biome:inland&&w.noise.noise2D(x*.004,z*.004)>.35?'dripstone_caves':moisture>.25?'lush_caves':null;
+    const humidSurface=/dark_forest|jungle|old_growth/.test(biome);
+    const caveBiome=def.isCavern?biome:inland&&w.noise.noise2D(x*.004,z*.004)>.35?'dripstone_caves':moisture>(humidSurface?-.35:.25)?'lush_caves':null;
     const aquiferX=Math.floor(x/24),aquiferZ=Math.floor(z/24),wet=mix(w.seed,aquiferX,aquiferZ,401)<.28;
     const c={x,z,height,biome,def,segments,rooms,caveBiome,wet,waterTable:7+Math.floor(mix(w.seed,aquiferX,aquiferZ,409)*6),
       pillar:n.noise2D((x+181)*.11,(z-79)*.11)>.53,
@@ -54,7 +56,7 @@ export class CaveTerrain {
     if(this.columns.size>=8192)this.columns.delete(this.columns.keys().next().value);this.columns.set(key,c);return c;
   }
   biomeAt(x,y,z,column=null){
-    const w=this.world,b=w.getBiome(x,z);if(w.dimension!=='overworld'||w.isFlatWorld||getBiomeDef(b).isVoid)return b;
+    const w=this.world,b=w.getBiome(x,z);if(w.dimension!=='overworld'||w.isFlatWorld||w.generationMode==='authored'||getBiomeDef(b).isVoid)return b;
     const c=column??this.column(x,z);
     if(y>c.height-4)return c.def.isCavern?'plains':b;
     if(c.def.isCavern)return b;
@@ -77,7 +79,7 @@ export class CaveTerrain {
     for(const r of c.rooms)if(((x+.5-r.x)/r.rx)**2+((y+.5-r.y)/r.ry)**2+((z+.5-r.z)/r.rz)**2<1)kind|=CAVE_KIND.CARVER;
     if(c.def.isCavern&&y>c.floor&&y<c.ceiling&&!c.pillar)kind|=CAVE_KIND.CHEESE;
     const cheese=n.noise3D(x*.035,y*.065,z*.035);
-    if(cheese>.49+(y>c.height-6?.13:0)&&!c.pillar)kind|=CAVE_KIND.CHEESE;
+    if(cheese > .49 + (y > c.height-6 ? .13 : 0) && !c.pillar)kind|=CAVE_KIND.CHEESE;
     // Intersecting two near-zero 3D fields makes tubes, not flat sheets.
     if(Math.abs(n.noise3D(x*.044+31,y*.07,z*.044-17))<.12&&Math.abs(n.noise3D(x*.044-53,y*.07+91,z*.044+29))<.16)kind|=CAVE_KIND.SPAGHETTI;
     if(Math.abs(n.noise3D(x*.095+213,y*.11,z*.095-101))<.09&&Math.abs(n.noise3D(x*.095-71,y*.11+127,z*.095+171))<.11)kind|=CAVE_KIND.NOODLE;
@@ -100,7 +102,7 @@ export class CaveTerrain {
 
 export function decorateCaves(world,chunk){
   const ox=chunk.cx*16,oz=chunk.cz*16,caves=world.caves;
-  const put=(x,y,z,id,state)=>{chunk.setVoxel(x,y,z,id);if(state)world.structureOrientations.set(`${ox+x},${y},${oz+z}`,{id,...state});};
+  const put=(x,y,z,id,state)=>{chunk.setVoxel(x,y,z,id);if(state)world.structureOrientations.set(`${ox+x},${y},${oz+z}`,{x:ox+x,y,z:oz+z,id,...state});};
   for(let x=0;x<16;x++)for(let z=0;z<16;z++){
     const wx=ox+x,wz=oz+z,c=caves.column(wx,wz),r=(y,s)=>mix(world.seed,wx+y*71,wz,s);
     for(let y=3;y<c.height-3;y++){

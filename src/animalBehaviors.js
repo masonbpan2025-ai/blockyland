@@ -1,3 +1,4 @@
+import { advancementEvent } from './advancements.js';
 import { makeFrogPregnant } from './frogspawn.js';
 import { IRON_INGOT_REPAIR } from './mobEnvironment.js';
 import { isSquid, canInteractSquid, interactSquid, updateSquidAge } from './squidBehavior.js';
@@ -1515,6 +1516,7 @@ export class AnimalBehaviors {
             other.matingTimer = 0;
             mob.breedingCooldown = 300.0;
             other.breedingCooldown = 300.0;
+            advancementEvent('breed', { type: mob.type });
 
             // Spawn baby
             const babyPos = mob.mesh.position.clone().lerp(other.mesh.position, 0.5);

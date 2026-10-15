@@ -3,7 +3,7 @@
 // These were missing from most mobs. A pig, zombie or villager took no fall damage, no mob drowned, and zombies
 // and skeletons did not burn in daylight, even though each is stated on the mob's wiki page and on
 // https://minecraft.wiki/w/Mob. The numbers come from src/mobWikiData.js (generated from the wiki), not from here.
-import { BLOCKS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { exposedToRain } from './weatherRules.js';
 import { MOB_FALL_RULES, MOB_BREATHES_UNDERWATER, MOB_KILL_XP, MOB_KNOCKBACK_RESISTANCE, MOB_MELEE_DAMAGE } from './mobWikiData.js';
 
@@ -208,5 +208,25 @@ export function updateDrowning(manager, mob, dt) {
   if (mob.drownTimer < DROWN_INTERVAL) return false;
   mob.drownTimer -= DROWN_INTERVAL;
   manager.damageMob(mob, DROWN_DAMAGE, null, true, null, true);
+  return true;
+}
+
+/**
+ * Can a mob's melee attack reach the player? Within `vertical` blocks up or down, and with nothing solid between the
+ * mob's eyes and the player's body. The spider's bite measured only horizontal distance, so it bit a player through
+ * the three blocks of earth over a dug-in shelter (Shelter types play-test); Java's melee needs the target in reach
+ * of the attacker's box and in line of sight.
+ */
+export function meleeCanReach(world, mob, player, { vertical = 1.5, eyeHeight = 0.6 } = {}) {
+  const from = mob?.mesh?.position, to = player?.position;
+  if (!from || !to) return false;
+  if (Math.abs(to.y - from.y) > vertical) return false;
+  if (!world?.getVoxel) return true;
+  const ax = from.x, ay = from.y + eyeHeight, az = from.z, bx = to.x, by = to.y + 0.9, bz = to.z;
+  const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) / 0.2));
+  for (let i = 1; i < steps; i++) {
+    const f = i / steps, id = world.getVoxel(Math.floor(ax + (bx - ax) * f), Math.floor(ay + (by - ay) * f), Math.floor(az + (bz - az) * f));
+    if (id && BLOCK_DEFS[id] && BLOCK_DEFS[id].solid !== false && !BLOCK_DEFS[id].liquid) return false;
+  }
   return true;
 }

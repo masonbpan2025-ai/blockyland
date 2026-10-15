@@ -21,8 +21,8 @@
 //
 //   * The world is 64 blocks tall (`CHUNK_HEIGHT`), while the engine targets a 384-block world. Structures
 //     whose Y band falls outside 0..63 are trimmed by the writer and COUNTED in `stats.outOfWorld`, so
-//     enabling `ancient_city` (Y -63..-31) or `trial_chambers` would write nothing and say so. Those need
-//     either a taller world or a world-specific Y remap, and neither is guessed at here.
+//     generators must explicitly map their Y band before being enabled by default. Ancient cities,
+//     monster rooms, geodes and mineshafts now have that remap in their own generators.
 //   * Loot tables and block entities are collected during realization; the world preserves their state
 //     and the live game initializes the corresponding containers and spawners.
 
@@ -34,18 +34,19 @@ import { PACK_STRUCTURES, packSuppressesStructures, winningStructureIds } from '
 /**
  * The structures enabled in generated worlds.
  *
- * Surface starters plus the Nether and End structures whose generators fit the 64-block world.
+ * Surface starters, cave features, and Nether/End structures that fit the 64-block world.
  * Dimension and biome gates still apply to every enabled structure.
  */
 export const WORLD_STRUCTURE_IDS = ['village_plains', 'igloo', 'desert_pyramid',
+  'monster_room', 'amethyst_geode', 'mineshaft', 'mineshaft_mesa', 'ancient_city',
   'fortress', 'bastion_remnant', 'nether_fossil', 'ruined_portal_nether',
   'end_spike', 'end_podium', 'end_platform', 'end_city'];
 
 /**
  * Every structure id the engine can actually generate.
  *
- * `generatorCoverage` splits the registry into the structures with a generator and the four without one
- * (mineshaft, mineshaft_mesa, stronghold, fortress). A pack that names a structure this engine cannot build
+ * `generatorCoverage` splits the registry into structures with and without a generator.
+ * A pack that names a structure this engine cannot build
  * must not enable it: it would plan nothing while the world reported it as on.
  */
 export function generatableStructureIds() {
@@ -186,7 +187,13 @@ export function createWorldStructures({
         seed,
         dimension,
         blockIds,
-        biomeAt: (x, z) => world.getBiome(x, z),
+        biomeAt: (x, z, info) => {
+          if(world.getBiomeAt&&(info?.implementation==='ancientCity'||info?.implementation==='mineshaft')){
+            const underground=world.getBiomeAt(x,7,z);
+            if(info.implementation==='ancientCity'||underground==='deep_dark')return underground;
+          }
+          return world.getBiome(x,z);
+        },
         surfaceY: (x, z) => world.surfaceHeightAt(x, z),
         solidAt: typeof world.solidAtGen === 'function' ? (x, y, z) => world.solidAtGen(x, y, z) : null,
         seaLevel: world.seaLevel ?? null,

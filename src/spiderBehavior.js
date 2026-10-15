@@ -7,7 +7,7 @@
  * light level immediately around it is 11 or less, and returns to neutral when it moves into
  * brighter light — but it keeps pursuing anything that attacked it, regardless of light.
  */
-import { meleeDamage } from './mobEnvironment.js';
+import { meleeDamage, meleeCanReach } from './mobEnvironment.js';
 import { moveGroundMob } from './mobMotion.js';
 
 /** Wiki: spiders have 16 HP (reduced from 20 in Beta 1.9-pre2). */
@@ -304,7 +304,7 @@ export function updateSpiderHunt(manager, mob, dt, player) {
     mob.velocity.x *= 0.5;
     mob.velocity.z *= 0.5;
     mob.isPouncing = false;
-    if (mob.attackCooldown <= 0) {
+    if (mob.attackCooldown <= 0 && meleeCanReach(manager?.world, mob, player)) {
       const difficulty = manager?.game?.difficulty ?? 'normal';
       const damage = isCaveSpider(mob)
         ? caveSpiderMeleeFor(difficulty)

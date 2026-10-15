@@ -154,6 +154,7 @@ export const SCENARIOS = [
       t.check('two cows give 2-6 raw beef', t.count('beef') >= 2 && t.count('beef') <= 6, { beef: t.count('beef'), leather: t.count('leather') }, 'beef 2-6, leather 0-4', 'Cow: 1-3 raw beef, 0-2 leather');
       // What each kill leaves on the ground, read the moment the corpse drops its loot (before the bot collects it).
       const dropsOf = async (type) => {
+        await t.run('goto 2 5 6'); // back to the middle: chases drift toward the edge of the test world
         const p = player.position;
         const mob = t.spawn(type, Math.floor(p.x) + 3.5, 5, Math.floor(p.z) + 0.5);
         const fresh = [];
@@ -170,6 +171,7 @@ export const SCENARIOS = [
       const cat = await dropsOf('cat');
       t.check('a cat drops only string', cat.killed && cat.fresh.every((id) => id === 'string'), cat, 'killed; string only', '"their only drop is string"');
       // "rather dangerous if you attack them": a wolf that is hit and survives turns on the attacker.
+      await t.run('goto 2 5 6');
       const angry = t.spawn('wolf', Math.floor(player.position.x) + 3.5, 5, Math.floor(player.position.z) + 0.5);
       const attack = game.playerBot.run('attack wolf');
       for (let i = 0; i < 300 && angry.health >= angry.maxHealth; i++) { t.step(); await Promise.resolve(); }
@@ -275,7 +277,8 @@ export const SCENARIOS = [
       await t.run('equip stone sword');
       await t.run('attack zombie'); await t.wait(1.5);
       t.check('a zombie drops rotten flesh (0-2)', t.count('rotten_flesh') <= 2, t.count('rotten_flesh'), '0-2');
-      if (t.count('rotten_flesh') === 0) t.give('rotten_flesh', 3);
+      // 80% a bite: three bites make a missing effect a 1-in-125 event.
+      if (t.count('rotten_flesh') < 3) t.give('rotten_flesh', 3 - t.count('rotten_flesh'));
       player.hunger = 8; player.saturation = 0; player.ensureHungerState?.(); if (player._hungerState) Object.assign(player._hungerState, { hunger: 8, saturation: 0 });
       let hungerSeen = 0;
       for (let tries = 0; t.count('rotten_flesh') > 0 && hungerSeen < 2 && tries < 6; tries++) {
