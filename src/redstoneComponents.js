@@ -60,3 +60,37 @@ export function containerSignal(items, slots, stackLimit) {
   const fullness = stacks.reduce((sum, i) => sum + i.count / stackLimit(i.id), 0);
   return Math.floor(1 + (fullness / slots) * 14);
 }
+
+
+/**
+ * Daylight detector power (Java). Wiki (Daylight Detector): the output "depends on the time of day, the weather, the
+ * detector's exposure to the sky, and the internal sky light level", and "is updated once every second (specifically,
+ * whenever gametime is perfectly divisible by 20)". Java's rule: the internal sky light (sky light minus the sky's
+ * darkening); inverted, 15 minus that; otherwise scaled by the cosine of the sun angle, pulled 20% toward noon or
+ * midnight. Clear weather gives 0 from 13,670 to 22,330. The detector was 15 x sin(time) before, so an inverted one
+ * gave 15 at midnight where Java's gives 11.
+ */
+export function sunAngle(dayTime) {
+  const d0 = (((dayTime / 24000 - 0.25) % 1) + 1) % 1;
+  const d1 = 0.5 - Math.cos(d0 * Math.PI) / 2;
+  return ((d0 * 2 + d1) / 3) * Math.PI * 2;
+}
+/** Java's sky darkening: (int)(11 x the night fraction from the sun angle, lessened by rain and thunder by 5/16 each). */
+export function javaSkyDarken(dayTime, rain = 0, thunder = 0) {
+  const f = sunAngle(dayTime);
+  let f1 = 1 - (Math.cos(f) * 2 + 0.5);
+  f1 = 1 - Math.max(0, Math.min(1, f1));
+  f1 *= 1 - (rain * 5) / 16; f1 *= 1 - (thunder * 5) / 16;
+  return Math.floor((1 - f1) * 11);
+}
+export function daylightDetectorPower({ skyLight = 15, skyDarken = null, dayTime = 6000, inverted = false, rain = 0, thunder = 0 } = {}) {
+  let i = skyLight - (skyDarken ?? javaSkyDarken(dayTime, rain, thunder));
+  if (inverted) i = 15 - i;
+  else if (i > 0) {
+    let f = sunAngle(dayTime);
+    const toward = f < Math.PI ? 0 : Math.PI * 2;
+    f += (toward - f) * 0.2;
+    i = Math.round(i * Math.cos(f));
+  }
+  return Math.max(0, Math.min(15, i));
+}

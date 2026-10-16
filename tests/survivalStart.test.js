@@ -249,10 +249,11 @@ test('the setup screen asks for mode, and for difficulty only in Survival', () =
   assert.match(html, /id="world-mode-creative"/);
   assert.match(html, /id="world-difficulty-section"/);
   for (const d of DIFFICULTIES) assert.match(html, new RegExp(`id="world-difficulty-${d}"`));
-  // And the handlers hide the difficulty row for Creative.
+  assert.match(html, /id="world-mode-hardcore"/);
+  // And the handlers hide the difficulty row for Creative, and for Hardcore, which is locked to Hard.
   const ui = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
   assert.match(ui, /bindWorldModeControls\(\)/);
-  assert.match(ui, /diffSection\.style\.display = this\.selectedWorldMode === 'creative' \? 'none' : ''/);
+  assert.match(ui, /diffSection\.style\.display = this\.selectedWorldMode === 'survival' \? '' : 'none'/);
   // Bound in the constructor, so it is live before the modal is ever opened.
   assert.match(ui, /this\.bindWorldModeControls\(\);/);
 });

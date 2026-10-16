@@ -78,5 +78,6 @@ test('using an empty map gives a filled one, and the wiring is there', () => {
   // A wiring check for the gesture, since driving `handleRightClick` needs a whole game.
   const main = readFileSync('src/main.js', 'utf8');
   assert.match(main, /bucketItem\.id === 'map'/, 'the map should be handled when it is used');
-  assert.match(main, /this\.inventory\.addItem\('filled_map', false, 1\)/, 'and give a filled map');
+  // The filled map carries its own map data (maps.js), so the stack is built and then added.
+  assert.match(main, /id: 'filled_map', isBlock: false, count: 1, mapData: createMapData\([\s\S]{0,300}this\.inventory\.addItem\(filled\)/, 'and give a filled map');
 });

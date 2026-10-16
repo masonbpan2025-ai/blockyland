@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { World, Chunk } from '../src/world.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
 import { BedManager, createBedGeometry } from '../src/bed.js';
-import { RECIPES_3X3 } from '../src/crafting.js';
+import { RECIPES_3X3, findMatchingRecipe } from '../src/crafting.js';
 
 function setupWorld() {
   const world = new World();
@@ -296,4 +296,84 @@ test('createBedGeometry produces valid 3D BufferGeometry', () => {
   assert.ok(headGeo.attributes.position);
   assert.ok(footGeo.attributes.uv);
   assert.ok(headGeo.attributes.color);
+});
+
+test('Bed Crafting with mixed planks and colors matches Minecraft Wiki rules', () => {
+  // 3 white wool over mixed planks (oak, birch, spruce) -> white_bed
+  const whiteGrid = [
+    { id: BLOCKS.WHITE_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.WHITE_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.WHITE_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.OAK_PLANKS, isBlock: true, count: 1 },
+    { id: BLOCKS.BIRCH_PLANKS, isBlock: true, count: 1 },
+    { id: BLOCKS.SPRUCE_PLANKS, isBlock: true, count: 1 },
+    null, null, null
+  ];
+  const whiteResult = findMatchingRecipe(whiteGrid, 3, 3, RECIPES_3X3);
+  assert.ok(whiteResult, 'Recipe should match');
+  assert.equal(whiteResult.id, 'white_bed');
+
+  // 3 blue wool over acacia planks -> blue_bed
+  const blueGrid = [
+    null, null, null,
+    { id: BLOCKS.BLUE_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.BLUE_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.BLUE_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.ACACIA_PLANKS, isBlock: true, count: 1 },
+    { id: BLOCKS.ACACIA_PLANKS, isBlock: true, count: 1 },
+    { id: BLOCKS.ACACIA_PLANKS, isBlock: true, count: 1 }
+  ];
+  const blueResult = findMatchingRecipe(blueGrid, 3, 3, RECIPES_3X3);
+  assert.ok(blueResult, 'Recipe should match');
+  assert.equal(blueResult.id, 'blue_bed');
+
+  // Mismatched wool colors must NOT craft a bed
+  const mismatchedGrid = [
+    { id: BLOCKS.RED_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.WHITE_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.BLUE_WOOL, isBlock: true, count: 1 },
+    { id: BLOCKS.OAK_PLANKS, isBlock: true, count: 1 },
+    { id: BLOCKS.OAK_PLANKS, isBlock: true, count: 1 },
+    { id: BLOCKS.OAK_PLANKS, isBlock: true, count: 1 },
+    null, null, null
+  ];
+  const mismatchedResult = findMatchingRecipe(mismatchedGrid, 3, 3, RECIPES_3X3);
+  assert.equal(mismatchedResult, null, 'Mismatched wool colors cannot craft a bed');
+});
+
+test('Colored bed: placement, sleeping, breaking, and bounce', () => {
+  const { world, fakeGame, bedManager, droppedItems, soundCalls } = setupWorld();
+
+  // 1. Place a white bed
+  const placeRes = bedManager.placeBed(world, [2, 11, 2], 3, 'white_bed');
+  assert.equal(placeRes.success, true);
+  assert.equal(world.getVoxel(2, 11, 2), BLOCKS.WHITE_BED, 'Placed white bed foot');
+  assert.equal(world.getVoxel(2, 11, 1), BLOCKS.WHITE_BED_HEAD, 'Placed white bed head');
+
+  // 2. Sleep in the white bed at night
+  fakeGame.worldTime = 18000;
+  fakeGame.player.position.set(2.5, 11, 3.0);
+  const sleepRes = bedManager.interact(2, 11, 2, fakeGame.player);
+  assert.equal(sleepRes.success, true, 'Can sleep in white bed');
+  assert.equal(bedManager.isSleeping, true);
+
+  // Advance time
+  bedManager.update(4.0);
+  assert.equal(bedManager.isSleeping, false);
+  assert.equal(fakeGame.worldTime, 0, 'Dawn arrived');
+
+  // 3. Bounce on white bed
+  fakeGame.player.velocity.y = -8.0;
+  fakeGame.player.fallDistance = 6.0;
+  const bounced = bedManager.handleBedBounce(fakeGame.player, BLOCKS.WHITE_BED);
+  assert.equal(bounced, true);
+  assert.equal(fakeGame.player.fallDistance, 0);
+  assert.ok(fakeGame.player.velocity.y > 0);
+
+  // 4. Break head of white bed
+  bedManager.onBlockBroken(2, 11, 1);
+  assert.equal(world.getVoxel(2, 11, 1), BLOCKS.AIR);
+  assert.equal(world.getVoxel(2, 11, 2), BLOCKS.AIR);
+  assert.equal(droppedItems.length, 1);
+  assert.equal(droppedItems[0].id, 'white_bed');
 });

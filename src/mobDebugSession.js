@@ -23,7 +23,7 @@ export function createDebugWorld() {
 export function createMobDebugSession(scene, onEvent=()=>{}) {
   const world=createDebugWorld();
   const sounds=new Proxy({}, {get:()=>()=>{}});
-  const entities={items:[],drops:[],xp:0,spawnDroppedItem(pos,id,isBlock,count=1){this.drops.push({id,isBlock,count});onEvent(`Drop: ${count} × ${id}`);},spawnXpOrbs(pos,n){this.xp+=n;onEvent(`XP: ${n}`);},spawnDeathParticles(){},spawnEndermanParticles(){},spawnBlockBreakParticles(){}};
+  const entities={items:[],drops:[],xp:0,spawnDroppedItem(pos,id,isBlock,count=1,options={}){if(options?.explosionDebris)return; /* blocks a blast broke are not the mob's drops */this.drops.push({id,isBlock,count});onEvent(`Drop: ${count} × ${id}`);},spawnXpOrbs(pos,n){this.xp+=n;onEvent(`XP: ${n}`);},spawnDeathParticles(){},spawnEndermanParticles(){},spawnBlockBreakParticles(){}};
   const inventory={armor:{},hotbar:[],storage:[],active:null,
     getActiveItem(){return this.active;},getOffhandItem:()=>null,
     consumeActiveItem(n=1){if(this.active)this.active.count-=n;},

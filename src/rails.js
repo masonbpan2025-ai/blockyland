@@ -12,12 +12,34 @@ const DIRECTIONS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0,
 
 /** One redstone tick, matching the simulator. */
 const TICK = 0.1;
-/** How fast a cart may travel along a rail, in blocks per second. */
-const MAX_CART_SPEED = 10;
+/**
+ * Minecart speed (Java). Wiki (Minecart): "a predefined speed limit of exactly 8 blocks per second per axis of travel".
+ * Tutorial:Minecarts: "A minecart with a player inside travels 309m from full speed, staying at full speed for 176m";
+ * "A minecart with a player inside goes from stationary to full speed after about 13m of powered rail". So a cart keeps
+ * momentum above what it can move: its speed decays by a factor each tick (0.997 with a rider, which with momentum of up
+ * to 30 blocks/s gives the 176 m and 309 m) while it moves at most 8 blocks a second. An empty cart decays by 0.96 a tick,
+ * a chest or hopper cart by 0.98 plus 0.001 for every comparator level it is short of full. Before, a cart moved at up to
+ * 10 blocks/s and slowed by a fixed 2 blocks/s each second, so a ridden cart stopped after about 25 m.
+ * Wiki (Minecart with Furnace): it moves at 4 blocks per second ("their 4 m/s velocity", Tutorial:Furnace minecarts).
+ */
+const MAX_CART_SPEED = 8;
+const MAX_CART_MOMENTUM = 30;
+const FURNACE_CART_SPEED = 4;
 const CART_ACCEL = 6;
-/** Constant deceleration on plain rail, in blocks/s², so carts coast authentically. */
-const ROLLING_FRICTION = 2.0;
-const POWERED_ACCEL = 16;
+/** A powered rail's push, 18 blocks/s² (0.045 blocks/tick each tick): with a rider, full momentum from a standstill
+ * after ~13 m of powered rail, as Tutorial:Minecarts gives. */
+const POWERED_ACCEL = 18;
+/** Drag factor per game tick. */
+export function cartDragPerTick(cart) {
+  if (cart.rider) return 0.997;
+  if (Array.isArray(cart.items)) {
+    const slots = cart.items.length || 27, stack = (it) => stackLimitFor(it.id) || 64;
+    const fullness = cart.items.reduce((n, it) => n + (it ? it.count / stack(it) : 0), 0);
+    const signal = cart.items.some(Boolean) ? Math.floor(1 + (fullness / slots) * 14) : 0;
+    return 0.98 + (15 - signal) * 0.001;
+  }
+  return 0.96;
+}
 
 /** Boat speed and friction parameters across surfaces */
 const BOAT_WATER_MAX_SPEED = 8.0;
@@ -361,7 +383,7 @@ export class RailSystem {
       if (cart.subType === 'furnace_minecart' && (cart.fuelTime || 0) > 0) {
         cart.fuelTime -= dt * 20;
         const thrust = 7.5;
-        cart.speed = Math.min(MAX_CART_SPEED, (cart.speed || 0) + thrust * dt);
+        cart.speed = Math.max(cart.speed || 0, Math.min(FURNACE_CART_SPEED, (cart.speed || 0) + thrust * dt));
         if (!forward) forward = this.#dirVector(dir) || [1, 0, 0];
         if (this.game?.entities?.spawnSmoke && Math.random() < 0.15) {
           this.game.entities.spawnSmoke(cart.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0.15, 0.6);
@@ -415,19 +437,22 @@ export class RailSystem {
           if (!forward) forward = push;
           cart.atEnd = false;
         } else {
-          cart.speed *= 0.65;
+          // An unpowered powered rail halves the speed every tick, and stops a cart under 0.03 blocks/tick.
+          cart.speed *= Math.pow(0.5, dt * 20);
+          if (Math.abs(cart.speed) < 0.6) cart.speed = 0;
         }
       }
 
-      // Rolling friction
-      if (cart.speed > 0) cart.speed = Math.max(0, cart.speed - ROLLING_FRICTION * dt);
-      else if (cart.speed < 0) cart.speed = Math.min(0, cart.speed + ROLLING_FRICTION * dt);
+      // Drag, per game tick (cartDragPerTick).
+      cart.speed *= Math.pow(cartDragPerTick(cart), dt * 20);
 
-      cart.speed = Math.max(-MAX_CART_SPEED, Math.min(MAX_CART_SPEED, cart.speed));
+      cart.speed = Math.max(-MAX_CART_MOMENTUM, Math.min(MAX_CART_MOMENTUM, cart.speed));
       if (Math.abs(cart.speed) < 0.02) cart.speed = 0;
       if (!forward) cart.speed *= 0.8;
 
-      cart.progress = (cart.progress || 0) + Math.abs(cart.speed) * dt;
+      // It moves at most 8 blocks a second (4 for a furnace minecart), whatever momentum it carries.
+      const moveCap = cart.subType === 'furnace_minecart' ? FURNACE_CART_SPEED : MAX_CART_SPEED;
+      cart.progress = (cart.progress || 0) + Math.min(Math.abs(cart.speed), moveCap) * dt;
       while (cart.progress >= 1) {
         cart.progress -= 1;
         const next = forward ? this.nextRail(cart.rail, cart.previousRail, forward) : null;

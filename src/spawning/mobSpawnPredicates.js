@@ -324,6 +324,17 @@ export function magmaCubePredicate(context) {
  * per-chunk slime-chunk flags, so the slime-chunk branch uses a deterministic hash of the chunk
  * coordinates at the vanilla 1-in-10 density -- recorded as a deviation.
  */
+/**
+ * Slime chunks: "Every chunk that is generated in a world has a 10% chance of being a slime chunk" (Tutorial:Slime
+ * farming), fixed per world. The hash takes the world seed, as Java's does; it ignored it before, so every world had
+ * the same slime chunks.
+ */
+export function isSlimeChunk(cx, cz, seed = 0) {
+  let h = (Math.imul(cx | 0, 0x9E3779B1) ^ Math.imul(cz | 0, 0x85EBCA77) ^ Math.imul((Number(seed) | 0) ^ 0x3AD8025F, 0x27D4EB2F)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x2C1B3C6D) >>> 0; h = (h ^ (h >>> 12)) >>> 0;
+  return h % 10 === 0;
+}
+
 export function slimePredicate(context) {
   const { world, x, y, z, biomeId, random } = context;
   if (!commonHostileRules(context)) return false;
@@ -338,8 +349,7 @@ export function slimePredicate(context) {
   // Slime chunk: deterministic per chunk, 1 in 10.
   const cx = Math.floor(x / 16);
   const cz = Math.floor(z / 16);
-  const hash = (Math.imul(cx | 0, 0x9E3779B1) ^ Math.imul(cz | 0, 0x85EBCA77)) >>> 0;
-  if (hash % 10 !== 0) return false;
+  if (!isSlimeChunk(cx, cz, world?.seed ?? 0)) return false;
   return random.nextInt(10) === 0;
 }
 

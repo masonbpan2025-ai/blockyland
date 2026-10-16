@@ -14,11 +14,17 @@ function validateStagedPlan(plan) {
   if (typeof plan.name !== 'string' || !plan.name.trim() || plan.name.length > 80) throw new Error('A staged build needs a short name.');
   const site = plan.site;
   if (!site || !int(site.width, 1, 128) || !int(site.depth, 1, 128) || !int(site.height, 1, 64)) throw new Error('A staged build needs a site of at most 128 x 64 x 128.');
-  if (plan.theme !== undefined && (typeof plan.theme !== 'string' || plan.theme.length > 600)) throw new Error('The theme must be a short description.');
+  if (plan.theme !== undefined) {
+    if (typeof plan.theme !== 'string') throw new Error('The theme must be a short description.');
+    if (plan.theme.length > 3000) plan.theme = plan.theme.slice(0, 3000);
+  }
   if (!Array.isArray(plan.stages) || !plan.stages.length || plan.stages.length > 24) throw new Error('A staged build needs 1-24 stages.');
   for (const stage of plan.stages) {
     if (!stage || typeof stage.name !== 'string' || !stage.name.trim() || stage.name.length > 80) throw new Error('Every stage needs a short name.');
-    if (stage.description !== undefined && (typeof stage.description !== 'string' || stage.description.length > 800)) throw new Error(`The description of "${stage.name}" is too long.`);
+    if (stage.description !== undefined) {
+      if (typeof stage.description !== 'string') throw new Error(`The description of "${stage.name}" is too long.`);
+      if (stage.description.length > 3000) stage.description = stage.description.slice(0, 3000);
+    }
     const s = stage.size, o = stage.offset;
     if (!s || !int(s.width, 1, 64) || !int(s.height, 1, 64) || !int(s.depth, 1, 64)) throw new Error(`"${stage.name}" needs a size of at most 64 per side.`);
     if (!Array.isArray(o) || o.length !== 3 || !o.every(n => int(n, 0, 127))) throw new Error(`"${stage.name}" needs an offset [x, y, z] inside the site.`);
@@ -41,6 +47,73 @@ function validatePaintingPlan(plan) {
     }
   }
   return plan;
+}
+
+export const BLOCK_ALIASES = {
+  WOOD: 'OAK_PLANKS',
+  PLANK: 'OAK_PLANKS',
+  PLANKS: 'OAK_PLANKS',
+  WOODEN_PLANKS: 'OAK_PLANKS',
+  OAK_PLANK: 'OAK_PLANKS',
+  SPRUCE_PLANK: 'SPRUCE_PLANKS',
+  BIRCH_PLANK: 'BIRCH_PLANKS',
+  JUNGLE_PLANK: 'JUNGLE_PLANKS',
+  ACACIA_PLANK: 'ACACIA_PLANKS',
+  DARK_OAK_PLANK: 'DARK_OAK_PLANKS',
+  MANGROVE_PLANK: 'MANGROVE_PLANKS',
+  CHERRY_PLANK: 'CHERRY_PLANKS',
+  PALE_OAK_PLANK: 'PALE_OAK_PLANKS',
+  BAMBOO_PLANK: 'BAMBOO_PLANKS',
+  CRIMSON_PLANK: 'CRIMSON_PLANKS',
+  WARPED_PLANK: 'WARPED_PLANKS',
+  OAK_LEAF: 'OAK_LEAVES',
+  SPRUCE_LEAF: 'SPRUCE_LEAVES',
+  BIRCH_LEAF: 'BIRCH_LEAVES',
+  JUNGLE_LEAF: 'JUNGLE_LEAVES',
+  ACACIA_LEAF: 'ACACIA_LEAVES',
+  DARK_OAK_LEAF: 'DARK_OAK_LEAVES',
+  MANGROVE_LEAF: 'MANGROVE_LEAVES',
+  CHERRY_LEAF: 'CHERRY_LEAVES',
+  PALE_OAK_LEAF: 'PALE_OAK_LEAVES',
+  LEAF: 'OAK_LEAVES',
+  LEAVES: 'OAK_LEAVES',
+  LOG: 'OAK_LOG',
+  COBBLE: 'COBBLESTONE',
+  BRICK: 'BRICKS',
+  BRICK_BLOCK: 'BRICKS',
+  STONE_BRICK: 'STONE_BRICKS',
+  MOSSY_STONE_BRICK: 'MOSSY_STONE_BRICKS',
+  CRACKED_STONE_BRICK: 'CRACKED_STONE_BRICKS',
+  CHISELED_STONE_BRICK: 'CHISELED_STONE_BRICKS',
+  DEEPSLATE_BRICK: 'DEEPSLATE_BRICKS',
+  DEEPSLATE_TILE: 'DEEPSLATE_TILES',
+  NETHER_BRICK: 'NETHER_BRICKS',
+  RED_NETHER_BRICK: 'RED_NETHER_BRICKS',
+  MUD_BRICK: 'MUD_BRICKS',
+  END_STONE_BRICK: 'END_STONE_BRICKS',
+  PRISMARINE_BRICK: 'PRISMARINE_BRICKS',
+  QUARTZ_BRICK: 'QUARTZ_BRICKS',
+  TUFF_BRICK: 'TUFF_BRICKS',
+  RESIN_BRICK: 'RESIN_BRICKS',
+  POLISHED_BLACKSTONE_BRICK: 'POLISHED_BLACKSTONE_BRICKS',
+  LANTERNS: 'LANTERN',
+  TORCHES: 'TORCH',
+  IRON_BAR: 'IRON_BARS',
+  GLASS_PANES: 'GLASS_PANE',
+  BOOK_SHELF: 'BOOKSHELF',
+  GLOW_STONE: 'GLOWSTONE',
+  SEA_LANTERNS: 'SEA_LANTERN',
+  REDSTONE_LAMP_ON: 'REDSTONE_LAMP',
+  REDSTONE_LAMP_LIT: 'REDSTONE_LAMP',
+  DIRT_PATH_BLOCK: 'DIRT_PATH'
+};
+
+export function resolveBlockName(name) {
+  if (typeof name !== 'string') return null;
+  const clean = name.replace(/^minecraft:/i, '').toUpperCase().trim().replace(/[-\s]+/g, '_');
+  if (Object.hasOwn(BLOCKS, clean)) return clean;
+  if (Object.hasOwn(BLOCK_ALIASES, clean)) return BLOCK_ALIASES[clean];
+  return null;
 }
 
 // Validate model output before executing any part of a plan.
@@ -88,15 +161,35 @@ export function validatePlan(plan, depth = 0, budget = { steps: 0, operations: 0
     for (const op of plan.operations) {
       if (++budget.operations > 256) throw new Error('Plan has too many operations.');
       if (!op || !['fill_box', 'hollow_box', 'frame', 'cylinder', 'sphere', 'dome', 'set_voxels', 'replace_blocks'].includes(op.type)) throw new Error(`Unsupported voxel operation: ${op?.type}`);
-      const block = name => typeof name === 'string' && Object.hasOwn(BLOCKS, name.toUpperCase().trim().replace(/\s+/g, '_'));
-      for (const key of ['block', 'fill', 'from']) if (op[key] !== undefined && !block(op[key])) throw new Error(`Unknown block: ${op[key]}`);
+      const block = name => resolveBlockName(name) !== null;
+      for (const key of ['block', 'fill', 'from']) {
+        if (op[key] !== undefined) {
+          const canonical = resolveBlockName(op[key]);
+          if (!canonical) throw new Error(`Unknown block: ${op[key]}`);
+          op[key] = canonical;
+        }
+      }
       if (op.type === 'replace_blocks' && !block(op.from)) throw new Error('replace_blocks needs a source block.');
       for (const key of ['min', 'max']) if (op[key] && !vector(op[key])) throw new Error(`Invalid ${key} coordinates.`);
       if (op.center && !vector(op.center, op.type === 'sphere' ? 3 : 2)) throw new Error('Invalid center.');
       for (const key of ['minY', 'maxY', 'baseY']) if (op[key] !== undefined && !integer(op[key], -64, 64)) throw new Error(`Invalid ${key}.`);
       if (op.radius !== undefined && (!Number.isFinite(op.radius) || op.radius <= 0 || op.radius > 64)) throw new Error('Invalid radius.');
-      if (op.type === 'set_voxels' && (!Array.isArray(op.voxels) || op.voxels.length > 32768 || !op.voxels.every(v => vector([v.x, v.y, v.z])))) throw new Error('Invalid voxel list.');
-      if (op.voxels?.some(v => v.block !== undefined && !block(v.block))) throw new Error('Unknown voxel block.');
+      if (op.type === 'set_voxels') {
+        if (!Array.isArray(op.voxels) || op.voxels.length > 32768 || !op.voxels.every(v => vector([v.x, v.y, v.z]))) {
+          throw new Error('Invalid voxel list.');
+        }
+        // Normalize voxel block aliases and prune non-block items (e.g. ARROW) so
+        // an otherwise valid plan is not discarded over decorative item hallucinations.
+        op.voxels = op.voxels.filter(v => {
+          if (v.block === undefined) return true;
+          const canonical = resolveBlockName(v.block);
+          if (canonical) {
+            v.block = canonical;
+            return true;
+          }
+          return false;
+        });
+      }
     }
   }
   const enums = {

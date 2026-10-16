@@ -1,4 +1,7 @@
 import { updateVillagerBreeding } from './villagerBreeding.js';
+import { rollCanBreakDoors, updateDoorBreaking } from './zombieDoors.js';
+import { updateGolemSummoning } from './golemSummoning.js';
+import { villagerTarget, zombieDamage, convertsOnDeath } from './zombieVillagers.js';
 import { advancementEvent } from './advancements.js';
 import { createArmorStand, armorStandDrops } from './armorStand.js';
 import { createWitherSkeletonModel } from './witherSkeletonModel.js';
@@ -3391,6 +3394,12 @@ export class MobManager {
           }
         }
       }
+    }
+    // Fences, fence gates and walls: 1.5 blocks tall, so animals in a pen cannot jump out (Tutorial:Ranching).
+    const below = minY - 1;
+    if (pos.y + 0.02 < below + 1.5) for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
+      const d = BLOCK_DEFS[this.world.getVoxel(x, below, z)];
+      if (d && (d.fence || d.wall || (d.fenceGate && d.solid !== false))) return true;
     }
     return false;
   }
@@ -9820,9 +9829,12 @@ export class MobManager {
       amount = armadilloDamageReduction(amount, { rolled: true });
     }
     mob.health -= amount;
+    // Vibration: entity_damage (7).
+    if (amount > 0 && mob.health > 0 && mob.mesh?.position) this.game?.vibration?.(mob.mesh.position.x, mob.mesh.position.y, mob.mesh.position.z, 'entity_damage');
     // Wiki: "Attacking the villager" is a `minor_negative` gossip worth 25, which is what makes the prices
     // an abusive player is quoted rise. Only the player's own hits count; a zombie's do not.
     if (mob.type === 'villager' && attacker === this.game?.player) recordAttack(mob);
+    if (mob.type === 'villager') mob.lastHurtByType = attacker?.type ?? (attacker === this.game?.player ? 'player' : null);
     if(isPackEquine(mob))hurtPackEquine(this,mob,attacker);
     if(mob.type==='wither_skeleton')hurtWitherSkeleton(this,mob,attacker);
     if (mob.type === 'hoglin') retaliateHoglins(this, mob, attacker || (knockbackOrigin ? (this.game?.player || { position: knockbackOrigin }) : null));
@@ -10119,7 +10131,7 @@ export class MobManager {
       slime: mob.playerDamaged && mob.slimeSize === 1 ? [['slime_ball', false, 0, 2]] : [],
       magma_cube: mob.playerDamaged && mob.slimeSize > 1 ? [['magma_cream', false, 0, 1]] : [],
       wither_skeleton: [['bone', false, 1, 2], ['coal', false, 1, 2], ['wither_skeleton_skull', false, 0, 1]],
-      witch: [['glass_bottle', false, 1, 2], ['glowstone_dust', false, 1, 2], ['redstone', false, 1, 2], ['sugar', false, 1, 2]],
+      witch: [], // witchDrops (below): 4-8 redstone always, plus a weighted pool rolled 1-3 times
       guardian: [['prismarine_shard', false, 1, 2], ['prismarine_crystals', false, 0, 1]],
       elder_guardian: [[BLOCKS.WET_SPONGE, true, 1, 1], ['prismarine_shard', false, 2, 4], ['prismarine_crystals', false, 1, 2]],
       // Wiki: "0-2 rotten flesh", up to 0-5 with Looting III (+1 per level); copper ingots 11%, 17% at
@@ -10170,6 +10182,20 @@ export class MobManager {
       ? llamaDrops(mob, { random, looting: mob.lootingLevel || 0 })
       : [];
     const turtleRows = isTurtle(mob) ? turtleDrops(mob) : [];
+    // Wiki (Witch, since 1.21): "always drop 4-8 redstone dust"; the rest "share the same pool ... The pool rolls 1 to 3
+    // times, and each entry yields 0 to 2 items, with each loot level adding one item per entry. Stick has a weight of 2."
+    const witchRows = [];
+    if (mob.type === 'witch') {
+      const looting = mob.lootingLevel || 0, roll = (lo, hi) => lo + Math.floor(random() * (hi - lo + 1));
+      witchRows.push(['redstone', false, ...[roll(4, 8) + roll(0, looting)].flatMap((n) => [n, n])]);
+      const pool = [['glass_bottle', 1], ['glowstone_dust', 1], ['gunpowder', 1], ['spider_eye', 1], ['sugar', 1], ['stick', 2]];
+      for (let r = roll(1, 3); r > 0; r--) {
+        let pick = random() * 7, id = 'stick';
+        for (const [name, w] of pool) { if ((pick -= w) < 0) { id = name; break; } }
+        const n = roll(0, 2) + roll(0, looting);
+        if (n > 0) witchRows.push([id, false, n, n]);
+      }
+    }
     // Wiki: a frog drops no items; its loot is what it leaves when it eats something.
     const frogRows = isFrog(mob) ? frogDrops(mob) : [];
     // Wiki: a tadpole drops nothing at all, and awards no experience.
@@ -10226,7 +10252,7 @@ export class MobManager {
     const illusionerRows = isIllusioner(mob) ? illusionerDrops(mob, random) : [];
     // Wiki: a snow golem drops 0-15 snowballs. That row ALREADY EXISTS in the base table below, so it is
     // deliberately not recomputed here: adding a second roll produced two snowball drops instead of one.
-    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows, ...creeperRows, ...discRows];
+    return [...base, ...salmonBonusDrops(mob, random), ...carried, ...spiderDrops(mob, random), ...silverfishDrops(mob), ...endermiteDrops(mob), ...rabbitDrops(mob, random), ...batDrops(mob), ...foxRows, ...beeRows, ...goatRows, ...llamaRows, ...turtleRows, ...witchRows, ...frogRows, ...tadpoleRows, ...parrotRows, ...phantomRows, ...polarRows, ...pandaRows, ...armadilloRows, ...variantRows, ...breezeRows, ...snifferRows, ...allayRows, ...traderRows, ...camelRows, ...creakingRows, ...illusionerRows, ...piglinBruteRows, ...camelHuskRows, ...copperGolemRows, ...creeperRows, ...discRows];
   }
 
   /**
@@ -10250,8 +10276,18 @@ export class MobManager {
     return BLOCK_NAMES_BY_ID.get(id) ?? null;
   }
   updateDeath(mob, dt) {
+    // Killed by a zombie: by difficulty, it rises as a zombie villager keeping its profession (zombieVillagers.js).
+    if (!mob.dying && mob.type === 'villager' && !mob.converted && convertsOnDeath(mob.lastHurtByType, this.game?.difficulty)) {
+      mob.converted = true;
+      const p = mob.mesh.position, zv = this.spawnMob('zombie_villager', p.x, p.y, p.z);
+      if (zv) { zv.savedProfession = mob.profession; zv.isBaby = !!mob.isBaby; zv.persistent = true; if (mob.isBaby) zv.mesh?.scale?.setScalar?.(0.5); }
+      this.removeMob(mob, 'converted');
+      return;
+    }
     if (!mob.dying) {
       mob.dying = true;
+      // Vibration: entity_die (15), for sculk sensors in range.
+      { const p = mob.mesh?.position; if (p) this.game?.vibration?.(p.x, p.y, p.z, 'entity_die'); }
       // Wiki: killing a villager stores a `major_negative` of 25 "for all villagers whom it has a line of
       // sight inside a box extending 16 blocks from the villager in all coordinate directions".
       if (mob.type === 'villager') {
@@ -10391,7 +10427,7 @@ export class MobManager {
           : mob.type === 'rabbit' ? (mob.playerDamaged || mob.wolfKilled ? (mob.isBaby ? 0 : RABBIT_XP) : 0)
           : mob.type === 'endermite' ? (mob.playerDamaged || mob.wolfKilled ? ENDERMITE_XP : 0)
           : mob.type === 'silverfish' ? (mob.playerDamaged || mob.wolfKilled ? SILVERFISH_XP : 0)
-          : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? 5 : (mob.type === 'iron_golem' ? 0 : (mob.playerDamaged || mob.wolfKilled ? rollKillXp(mob.type) : 0));
+          : mob.type === 'spider' || mob.type === 'cave_spider' ? (mob.playerDamaged || mob.wolfKilled ? SPIDER_XP : 0) : mob.type === 'magma_cube' ? (mob.playerDamaged ? mob.slimeSize : 0) : hostile ? (mob.playerDamaged || mob.wolfKilled ? 5 : 0) /* Mob grinder: "the mobs drop experience only if killed by the player" */ : (mob.type === 'iron_golem' ? 0 : (mob.playerDamaged || mob.wolfKilled ? rollKillXp(mob.type) : 0));
           // The baby zombie family's 12 XP is awarded by the baby block below; this block's flat 5 on top of
           // it would pay a gurgle 17 now that babies of this family reach the loot gate.
           const babyZombieKin = mob.isBaby && ['drowned', 'husk', 'zombie', 'zombie_villager'].includes(mob.type);
@@ -11010,6 +11046,25 @@ export class MobManager {
       const phase = updateSubmergedConversion(mob, dt, { submerged, manager: this });
       if (phase === 'converted') return true;
       if (phase === 'converting') mob.state = 'converting';
+    }
+    // Zombies chasing the player hack at a closed wooden door on Hard (zombieDoors.js).
+    if (mob.type === 'zombie' || mob.type === 'husk' || mob.type === 'zombie_villager') {
+      mob.canBreakDoors ??= rollCanBreakDoors(Math.random, this.game?.clampedRegionalDifficulty ?? 0.5);
+      if (mob.canBreakDoors) {
+        const door = updateDoorBreaking(this.game, mob, dt);
+        if (door === 'approaching' && mob.doorStand) { steerGround(this, mob, mob.doorStand, dt, 2.3); moveGroundMob(this, mob, dt); this.updateMobAnimation(mob, dt, mob.velocity.x, mob.velocity.z); return true; }
+        if (door === 'breaking') { mob.velocity?.set?.(0, mob.velocity.y, 0); moveGroundMob(this, mob, dt); this.updateMobAnimation(mob, dt, mob.velocity.x, mob.velocity.z); return true; }
+      }
+      // Villagers are prey when nearer than the player (zombieVillagers.js).
+      const prey = String(this.game?.difficulty) !== 'peaceful' ? villagerTarget(mob, this.mobs, this.game?.player) : null;
+      if (prey) {
+        mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
+        if (prey.mesh.position.distanceTo(mob.mesh.position) < 1.6) {
+          mob.velocity?.set?.(0, mob.velocity.y, 0);
+          if (mob.attackCooldown <= 0) { mob.attackCooldown = 1; this.damageMob(prey, zombieDamage(this.game?.difficulty), mob.mesh.position, false, mob); }
+        } else steerGround(this, mob, prey.mesh.position, dt, 2.3);
+        moveGroundMob(this, mob, dt); this.updateMobAnimation(mob, dt, mob.velocity.x, mob.velocity.z); return true;
+      }
     }
 
     if(isPackEquine(mob)&&mob.panicSeconds>0&&!mob.rider){
@@ -13022,6 +13077,7 @@ export class MobManager {
       decayGossip(mob, dt);
       // Breeding: food, willingness, a partner and a free bed (villagerBreeding.js).
       updateVillagerBreeding(this, mob, dt);
+      if (this.game) updateGolemSummoning(this.game, mob, dt, this.game.simSeconds ?? 0);
 
       // Wiki: a level-up grants the villager ten seconds of Regeneration I, worth four hit points.
       const regenerated = updateVillagerRegeneration(mob, dt);
@@ -13616,6 +13672,7 @@ export class MobManager {
         }
       }
     } else if (mob.type === 'creeper') {
+      if (mob._pauseAI) return false;
       // Wiki: a creeper chases within 16 blocks, swells for a 1.5 s fuse once inside 3 (cancelled beyond 7), then explodes.
       if (updateCreeper(this, mob, dt, player, distToPlayer)) return true;
       if (!(distToPlayer < CREEPER_FOLLOW_RANGE && player?.gamemode !== 'creative' && player?.gamemode !== 'spectator')) wanderMob(this, mob, dt, 0.8);

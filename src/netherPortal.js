@@ -602,8 +602,37 @@ export class NetherPortalManager {
     return false;
   }
 
+  /**
+   * Zombified piglins from portals. Wiki (Nether portal): they "spawn on the bottom frame of the portal in the Overworld if
+   * any Nether portal block above receives a block tick", "twice as often on Normal difficulty as on Easy, and three
+   * times as often on Hard", with "a full 15-second portal cooldown". A block gets a random tick with chance 3/4096 a
+   * game tick; a portal block's tick spawns with chance difficulty/2000 (Easy 1, Normal 2, Hard 3). Tutorial:Zombified
+   * piglin farming: "Portal-based farms ... can be used in the Overworld". Nothing spawned from portals before.
+   */
+  spawnFromPortals(dt, game, random = Math.random) {
+    const world = game.world;
+    if ((world.dimension || 'overworld') !== 'overworld' || !game.mobs?.spawnMob) return 0;
+    const diff = { easy: 1, normal: 2, hard: 3 }[String(game.difficulty)] ?? 0;
+    if (!diff || game.gamerules?.doMobSpawning === false) return 0;
+    const blocks = world.portalBlocks?.overworld; if (!blocks?.size) return 0;
+    const chance = dt * 20 * (3 / 4096) * (diff / 2000);
+    let spawned = 0;
+    for (const k of blocks) {
+      if (random() >= chance) continue;
+      let [x, y, z] = k.split(',').map(Number);
+      if (world.getVoxel(x, y, z) !== BLOCKS.NETHER_PORTAL) { blocks.delete(k); continue; }
+      while (world.getVoxel(x, y - 1, z) === BLOCKS.NETHER_PORTAL) y--;
+      const below = world.getVoxel(x, y - 1, z);
+      if (below === BLOCKS.AIR || BLOCK_DEFS[below]?.solid === false) continue;
+      const mob = game.mobs.spawnMob('zombified_piglin', x + 0.5, y, z + 0.5);
+      if (mob) { mob.portalCooldown = 15; spawned++; }
+    }
+    return spawned;
+  }
+
   update(dt, player, game) {
     if (!player || !game || !game.world) return;
+    this.spawnFromPortals(dt, game);
 
     if (this.portalCooldown > 0) {
       this.portalCooldown -= dt;

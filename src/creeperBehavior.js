@@ -10,7 +10,8 @@
 //   - A creeper that explodes drops nothing.
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
-import { isDestroyedByExplosion } from './blockHarvestData.js';
+import { isDestroyedByExplosion, explosionBlocks } from './blockHarvestData.js';
+import { getBlockDrop } from './itemVisuals.js';
 
 export const CREEPER_FUSE_SECONDS = 1.5;
 export const CREEPER_IGNITE_RANGE = 3;
@@ -48,6 +49,57 @@ function targetable(player) {
   return !!player?.position && player.gamemode !== 'creative' && player.gamemode !== 'spectator';
 }
 
+/** Updates creeper mesh scale and glowing white emissive flash according to fuse progress. */
+export function setCreeperVisuals(mob, p, isFlashing) {
+  if (!mob?.mesh) return;
+  if (p <= 0) {
+    mob.mesh.scale.set(1, 1, 1);
+    if (!mob.hurtTime || mob.hurtTime <= 0) {
+      if (mob.mat?.color?.setRGB) mob.mat.color.setRGB(1, 1, 1);
+      if (mob.mat?.emissive?.setRGB) {
+        mob.mat.emissive.setRGB(0, 0, 0);
+        mob.mat.emissiveIntensity = 1.0;
+      }
+      mob.mesh.traverse(child => {
+        if (child.isMesh && child.material && child.material !== mob.mat) {
+          if (child.material.color?.setRGB) child.material.color.setRGB(1, 1, 1);
+          if (child.material.emissive?.setRGB) {
+            child.material.emissive.setRGB(0, 0, 0);
+            child.material.emissiveIntensity = 1.0;
+          }
+        }
+      });
+    }
+    return;
+  }
+
+  // Minecraft swelling animation: model inflates horizontally and vertically with breathing pulse
+  const pulse = Math.sin(p * Math.PI * 10) * 0.04 * p;
+  const scaleXZ = 1 + 0.38 * p + pulse;
+  const scaleY = 1 + 0.18 * p - pulse * 0.5;
+  mob.mesh.scale.set(scaleXZ, scaleY, scaleXZ);
+
+  // Minecraft flashing: skin flashes bright glowing white with increasing frequency as it nears detonation
+  if (!mob.hurtTime || mob.hurtTime <= 0) {
+    const flashCol = isFlashing ? 1.45 : 1.0;
+    const emissiveVal = isFlashing ? 0.72 : (p * 0.22);
+    if (mob.mat?.color?.setRGB) mob.mat.color.setRGB(flashCol, flashCol, flashCol);
+    if (mob.mat?.emissive?.setRGB) {
+      mob.mat.emissive.setRGB(emissiveVal, emissiveVal, emissiveVal);
+      mob.mat.emissiveIntensity = 1.0;
+    }
+    mob.mesh.traverse(child => {
+      if (child.isMesh && child.material && child.material !== mob.mat) {
+        if (child.material.color?.setRGB) child.material.color.setRGB(flashCol, flashCol, flashCol);
+        if (child.material.emissive?.setRGB) {
+          child.material.emissive.setRGB(emissiveVal, emissiveVal, emissiveVal);
+          child.material.emissiveIntensity = 1.0;
+        }
+      }
+    });
+  }
+}
+
 /** Blow the creeper up now. Damages the player and nearby mobs, and breaks blocks. */
 export function detonateCreeper(manager, mob, player) {
   const power = creeperPower(mob);
@@ -55,7 +107,7 @@ export function detonateCreeper(manager, mob, player) {
   const center = mob.mesh.position.clone().add(new THREE.Vector3(0, (mob.height ?? 1.7) / 2, 0));
 
   manager.sounds?.playExplosion?.();
-  manager.entities?.spawnExplosion?.(center);
+  manager.entities?.spawnExplosion?.(center, power);
 
   if (targetable(player)) {
     const d = center.distanceTo(player.position.clone().add(new THREE.Vector3(0, 0.9, 0)));
@@ -72,19 +124,18 @@ export function detonateCreeper(manager, mob, player) {
   // Blocks: everything within reach of the blast whose resistance it can beat.
   const world = manager.world;
   if (world?.setVoxel && difficulty !== 'peaceful') {
-    const reach = Math.ceil(power * 1.3);
-    const cx = Math.floor(center.x), cy = Math.floor(center.y), cz = Math.floor(center.z);
-    for (let x = cx - reach; x <= cx + reach; x++) {
-      for (let y = cy - reach; y <= cy + reach; y++) {
-        for (let z = cz - reach; z <= cz + reach; z++) {
-          if (Math.hypot(x + 0.5 - center.x, y + 0.5 - center.y, z + 0.5 - center.z) > power * 1.1) continue;
-          const voxel = world.getVoxel(x, y, z);
-          if (voxel !== BLOCKS.AIR && isDestroyedByExplosion(voxel, power)) world.setVoxel(x, y, z, BLOCKS.AIR);
-        }
-      }
+    // The wiki's ray method (explosionBlocks); a creeper's blast drops each block it breaks with chance 1/power (Explosion).
+    let debris = 0;
+    for (const b of explosionBlocks(world, center, power)) {
+      world.setVoxel(b.x, b.y, b.z, BLOCKS.AIR);
+      const pos = new THREE.Vector3(b.x + 0.5, b.y + 0.5, b.z + 0.5);
+      if (debris++ < 24) manager.entities?.spawnBlastDebris?.(pos, b.id, center);
+      const drop = getBlockDrop?.(b.id);
+      if (drop && Math.random() < 1 / power) manager.entities?.spawnDroppedItem?.(pos, drop.id, drop.isBlock, 1, { explosionDebris: true });
     }
   }
 
+  setCreeperVisuals(mob, 0, false);
   mob.exploded = true;
   mob.health = 0;
   mob.noLoot = true; // a creeper that explodes drops nothing
@@ -102,12 +153,19 @@ export function updateCreeper(manager, mob, dt, player, distToPlayer) {
     mob.fuseTime = Math.max(0, mob.fuseTime - dt);
     mob.swelling = false;
     mob.isFlashing = false;
+    setCreeperVisuals(mob, fuseProgress(mob), false);
     return false;
   }
 
   // Start inside 3 blocks, keep swelling out to 7, wind down beyond that.
-  if (distToPlayer < CREEPER_IGNITE_RANGE) mob.swelling = true;
-  else if (distToPlayer > CREEPER_CANCEL_RANGE) mob.swelling = false;
+  if (distToPlayer < CREEPER_IGNITE_RANGE) {
+    if (!mob.swelling) {
+      mob.swelling = true;
+      manager.sounds?.playFuse?.();
+    }
+  } else if (distToPlayer > CREEPER_CANCEL_RANGE) {
+    mob.swelling = false;
+  }
 
   if (mob.swelling) {
     mob.fuseTime = Math.min(CREEPER_FUSE_SECONDS, mob.fuseTime + dt);
@@ -131,9 +189,9 @@ export function updateCreeper(manager, mob, dt, player, distToPlayer) {
 
   // The swell: the body grows and flashes white as the fuse burns.
   const p = fuseProgress(mob);
-  mob.isFlashing = p > 0 && Math.floor(p * 20) % 2 === 0;
-  const grow = 1 + 0.25 * p;
-  mob.mesh.scale.set(grow, 1 + 0.1 * p, grow);
+  const flashFreq = 8 + 14 * p;
+  mob.isFlashing = p > 0 && (Math.sin(mob.fuseTime * flashFreq * Math.PI) > 0);
+  setCreeperVisuals(mob, p, mob.isFlashing);
 
   if (mob.fuseTime >= CREEPER_FUSE_SECONDS) {
     detonateCreeper(manager, mob, player);

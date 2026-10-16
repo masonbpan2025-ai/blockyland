@@ -2,6 +2,8 @@
 node_modules/
 .npm-cache/
 test-results/
+outputs/stump-claude/
+outputs/well-see-claude/
 playwright-report/
 .pnp
 .pnp.js
@@ -88,3 +90,9 @@ scripts/parity-audit/report.json
 agent_history.json
 agent_history_latest.json
 agent_history/
+
+# Movie media: rendered films, posters and voice clips are large and regenerable.
+# Rebuild with scripts/narrate-claude.mjs and scripts/render-film.mjs; host the films outside git.
+public/movies/
+public/cinema-claude/
+public/cinema-stump/

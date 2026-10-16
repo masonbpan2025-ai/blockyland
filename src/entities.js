@@ -4,7 +4,7 @@ import { waterHeight, waterCurrent } from './waterGeometry.js';
 import { ItemVisuals, getBlockDrop } from './itemVisuals.js';
 import { createBlockGeometry } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
-import { isDestroyedByExplosion, TNT_EXPLOSION_POWER } from './blockHarvestData.js';
+import { isDestroyedByExplosion, explosionBlocks, TNT_EXPLOSION_POWER } from './blockHarvestData.js';
 import { addPlayerExperience } from './experience.js';
 import { isFireproof } from './smithing.js';
 
@@ -18,7 +18,7 @@ export class EntityManager {
     this.sounds = sounds;
     this.textures = textures;
     this.itemVisuals = new ItemVisuals(textures);
-    if(world.lava)world.lava.onIgniteTNT=(x,y,z)=>this.spawnPrimedTNT(new THREE.Vector3(x,y,z));
+    if (world?.lava) world.lava.onIgniteTNT = (x, y, z) => this.spawnPrimedTNT(new THREE.Vector3(x, y, z));
     this.blastLight = new THREE.PointLight(0xffb351, 0, 16, 1);
     // Out of the scene's light list until something explodes: an idle light still costs every lit pixel.
     this.blastLight.visible = false;
@@ -130,7 +130,7 @@ export class EntityManager {
       itemType: itemType,
       isBlock: isBlock,
       count: count,
-      velocity: new THREE.Vector3(
+      velocity: options.velocity ? options.velocity.clone() : new THREE.Vector3(
         (Math.random() - 0.5) * 2,
         3.5,
         (Math.random() - 0.5) * 2
@@ -139,7 +139,9 @@ export class EntityManager {
         enchantments: options.enchantments ? structuredClone(options.enchantments) : null,
         ...(options.itemData?{itemData:structuredClone(options.itemData)}:{}),
       ...(options.durability!==undefined?{durability:options.durability}:{}),
-      pickupDelay: options.pickupDelay ?? 1.0,
+      // Wiki (Item (entity)): "a delay of 10 ticks (half a second) between appearing and being able to be picked up,
+      // or 40 ticks (2 seconds) if thrown by a player".
+      pickupDelay: options.pickupDelay ?? (options.thrownByPlayer ? 2.0 : 0.5),
       ...(options.thrownByPlayer ? { thrownByPlayer: true } : {})
     });
     return this.droppedItems[this.droppedItems.length - 1];
@@ -317,34 +319,104 @@ export class EntityManager {
     this.particles.push({ mesh, velocity, life: 0.7 + Math.random() * 0.4, sharedMaterial: true });
   }
 
-  spawnExplosion(center) {
+  spawnExplosion(center, power = 3) {
+    const scale = Math.max(0.5, power / 3);
     this.blastLight.position.copy(center);
-    this.blastLife = 0.3;
-    this.blastLight.intensity = 12;
+    this.blastLife = 0.35;
+    this.blastLight.intensity = 16 * scale;
     this.blastLight.visible = true;
-    // A brief hot core, expanding pressure ring, then rising billows and sparks.
+
+    // A brief hot core and expanding shockwave ring
     for (const ring of [false, true]) {
-      const mesh = new THREE.Mesh(ring ? new THREE.RingGeometry(0.85, 1, 48) : new THREE.IcosahedronGeometry(0.7, 2),
-        new THREE.MeshBasicMaterial({ color: ring ? 0xffd59a : 0xffedbd, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+      const mesh = new THREE.Mesh(
+        ring ? new THREE.RingGeometry(0.85 * scale, 1.1 * scale, 48) : new THREE.IcosahedronGeometry(0.8 * scale, 2),
+        new THREE.MeshBasicMaterial({
+          color: ring ? 0xffdfaa : 0xfffae0,
+          transparent: true,
+          opacity: 0.95,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide
+        })
+      );
       mesh.position.copy(center);
       if (ring) mesh.rotation.x = -Math.PI / 2;
       this.scene.add(mesh);
-      const life = ring ? 0.45 : 0.22;
-      this.particles.push({ mesh, velocity: new THREE.Vector3(), life, maxLife: life, blast: true, growth: ring ? 14 : 9 });
+      const life = ring ? 0.45 : 0.25;
+      this.particles.push({ mesh, velocity: new THREE.Vector3(), life, maxLife: life, blast: true, growth: (ring ? 15 : 10) * scale });
     }
-    for (let i = 0; i < 18; i++) {
-      const offset = new THREE.Vector3().randomDirection().multiplyScalar(Math.random() * 2);
-      this.spawnSmoke(center.clone().add(offset), 0.35 + Math.random() * 0.4, 1.3 + Math.random() * 1.2);
-      this.particles.at(-1).velocity.addScaledVector(offset, 2);
+
+    // Iconic Minecraft billowing white and light-gray explosion cloud sphere (huge_explosion / poof)
+    const cloudColors = [0xffffff, 0xf8fafc, 0xf1f5f9, 0xe2e8f0, 0xd1d5db, 0x94a3b8];
+    const cloudCount = Math.floor(45 * scale);
+    for (let i = 0; i < cloudCount; i++) {
+      const radius = (0.35 + Math.random() * 0.5) * scale;
+      const color = cloudColors[Math.floor(Math.random() * cloudColors.length)];
+      const mesh = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(radius, 1),
+        new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.92, depthWrite: false })
+      );
+      const dir = new THREE.Vector3().randomDirection();
+      const dist = Math.random() * 1.2 * scale;
+      mesh.position.copy(center).addScaledVector(dir, dist);
+      this.scene.add(mesh);
+
+      const speed = (2.0 + Math.random() * 5.5) * scale;
+      const velocity = dir.clone().multiplyScalar(speed);
+      velocity.y += (0.8 + Math.random() * 1.6) * scale;
+      const life = 0.7 + Math.random() * 0.6;
+      this.particles.push({
+        mesh,
+        velocity,
+        life,
+        maxLife: life,
+        smoke: true,
+        baseOpacity: 0.92,
+        growth: (1.8 + Math.random() * 1.6) * scale
+      });
     }
-    for (let i = 0; i < 28; i++) {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.18),
-        new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffc14d : 0xff672d, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+
+    // Trailing dark smoke puffs on outer edges
+    const darkColors = [0x64748b, 0x475569, 0x334155];
+    const darkCount = Math.floor(16 * scale);
+    for (let i = 0; i < darkCount; i++) {
+      const color = darkColors[Math.floor(Math.random() * darkColors.length)];
+      const mesh = new THREE.Mesh(
+        new THREE.IcosahedronGeometry((0.3 + Math.random() * 0.35) * scale, 1),
+        new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.7, depthWrite: false })
+      );
+      const dir = new THREE.Vector3().randomDirection();
+      mesh.position.copy(center).addScaledVector(dir, (0.5 + Math.random() * 1.5) * scale);
+      this.scene.add(mesh);
+
+      const velocity = dir.clone().multiplyScalar((1.5 + Math.random() * 3.5) * scale);
+      velocity.y += (1.2 + Math.random() * 2.0) * scale;
+      const life = 0.9 + Math.random() * 0.7;
+      this.particles.push({
+        mesh,
+        velocity,
+        life,
+        maxLife: life,
+        smoke: true,
+        baseOpacity: 0.7,
+        growth: 1.2 * scale
+      });
+    }
+
+    // Fiery flying sparks
+    const sparkCount = Math.floor(32 * scale);
+    const sparkColors = [0xffd166, 0xf97316, 0xef4444, 0xfef08a, 0xffedd5];
+    for (let i = 0; i < sparkCount; i++) {
+      const col = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08 * scale, 0.08 * scale, 0.2 * scale),
+        new THREE.MeshBasicMaterial({ color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+      );
       mesh.position.copy(center);
       this.scene.add(mesh);
-      const velocity = new THREE.Vector3().randomDirection().multiplyScalar(5 + Math.random() * 8);
-      velocity.y += 2;
-      this.particles.push({ mesh, velocity, life: 0.6 + Math.random() * 0.5, maxLife: 1.1, spark: true });
+      const velocity = new THREE.Vector3().randomDirection().multiplyScalar((5 + Math.random() * 9) * scale);
+      velocity.y += (2 + Math.random() * 3) * scale;
+      this.particles.push({ mesh, velocity, life: 0.6 + Math.random() * 0.6, maxLife: 1.2, spark: true });
     }
   }
 
@@ -371,7 +443,8 @@ export class EntityManager {
       const step = dt / steps, radius = 0.18;
       const solid = (x, y, z) => {
         const def = BLOCK_DEFS[this.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z))];
-        return def && def.solid !== false && !def.plant;
+        // A pressure plate has no collision box: an item lies in it (and presses it), not on top of a full block.
+        return def && def.solid !== false && !def.plant && !def.pressurePlate;
       };
       for (let j = 0; j < steps; j++) {
         const pos = item.group.position;
@@ -551,18 +624,22 @@ export class EntityManager {
         const cz = Math.floor(center.z);
 
         let debris = 0;
-        for (let x = cx - 4; x <= cx + 4; x++) {
-          for (let y = cy - 4; y <= cy + 4; y++) {
-            for (let z = cz - 4; z <= cz + 4; z++) {
-              const d = Math.sqrt((x - center.x) ** 2 + (y - center.y) ** 2 + (z - center.z) ** 2);
-              if (d <= radius) {
-                const voxel = this.world.getVoxel(x, y, z);
-                if (isDestroyedByExplosion(voxel, TNT_EXPLOSION_POWER)) {
+        // TNT that explodes in water breaks no blocks (Tutorial:Igniting TNT underwater: it works only inside sand or
+        // gravel, where "the high blast resistance of water" no longer shields the blocks around it).
+        const inWater = [BLOCKS.WATER, BLOCKS.BUBBLE_COLUMN].includes(this.world.getVoxel(cx, cy, cz));
+        // The wiki's ray method: blocks in front shield the ones behind (explosionBlocks).
+        if (!inWater) for (const hitBlock of explosionBlocks(this.world, center, TNT_EXPLOSION_POWER)) {
+          {
+            {
+              const x = hitBlock.x, y = hitBlock.y, z = hitBlock.z, voxel = hitBlock.id;
+              {
+                {
                   this.world.setVoxel(x, y, z, BLOCKS.AIR);
                   const pos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
                   if (debris++ < 24) this.spawnBlastDebris(pos, voxel, center);
+                  // Blast chamber: "TNT blasts ... drop all blocks broken as items as of Java Edition 1.14" (it was 25%).
                   const drop = getBlockDrop(voxel);
-                  if (drop && Math.random() < 0.25) this.spawnDroppedItem(pos, drop.id, drop.isBlock, 1);
+                  if (drop) this.spawnDroppedItem(pos, drop.id, drop.isBlock, 1);
                 }
               }
             }
@@ -657,7 +734,7 @@ export class EntityManager {
       if (p.smoke) {
         p.velocity.multiplyScalar(Math.exp(-1.4 * dt)); p.velocity.y += dt * 0.8;
         p.mesh.scale.addScalar(dt * p.growth);
-        p.mesh.material.opacity = Math.max(0, p.life / p.maxLife) * 0.6;
+        p.mesh.material.opacity = Math.max(0, p.life / p.maxLife) * (p.baseOpacity ?? 0.6);
       } else if (p.blast) {
         p.mesh.scale.addScalar(dt * p.growth);
         p.mesh.material.opacity = Math.max(0, p.life / p.maxLife);

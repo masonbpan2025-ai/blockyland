@@ -930,7 +930,10 @@ export class AnimalBehaviors {
               for (let c = 0; c < count; c++) {
                 const ox = c > 0 ? (Math.random() - 0.5) * 0.4 : 0;
                 const oz = c > 0 ? (Math.random() - 0.5) * 0.4 : 0;
-                const baby = this.mobManager.spawnMob('chicken', p.position.x + ox, Math.max(1, p.position.y), p.position.z + oz);
+                // Where the egg was before it entered the block it hit: a chick hatched inside the wall suffocated.
+                const at = p.position.clone(), back = p.velocity.clone().normalize().multiplyScalar(-0.1);
+                for (let k = 0; k < 20 && this.world?.getVoxel?.(at.x, at.y, at.z) && this.world.getVoxel(at.x, at.y, at.z) !== BLOCKS.AIR && this.world.getVoxel(at.x, at.y, at.z) !== BLOCKS.WATER; k++) at.add(back);
+                const baby = this.mobManager.spawnMob('chicken', at.x + ox, Math.max(1, Math.floor(at.y)), at.z + oz);
                 if (baby) {
                   baby.isBaby = true;
                   // Wiki: a hatched chick gets the full 20-minute growth time.
@@ -1001,10 +1004,11 @@ export class AnimalBehaviors {
       }
 
       // 3. Chicken Egg Laying Timer
+      // An egg every 5-10 minutes (Chicken; "8 eggs per hour", Tutorial:Chicken farming). It re-armed at 3-6.
       if (mob.type === 'chicken' && !mob.isBaby && !mob.isJockey) {
-        mob.eggTimer = (mob.eggTimer || (180 + Math.random() * 180)) - dt;
+        mob.eggTimer = (mob.eggTimer || (300 + Math.random() * 300)) - dt;
         if (mob.eggTimer <= 0) {
-          mob.eggTimer = 180 + Math.random() * 180;
+          mob.eggTimer = 300 + Math.random() * 300;
           this.entities?.spawnDroppedItem(mob.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 'egg', false);
           if (this.sounds?.playPop) this.sounds.playPop();
         }

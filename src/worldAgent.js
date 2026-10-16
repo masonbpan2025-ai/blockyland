@@ -1641,7 +1641,7 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
         }
       }
 
-      // Not every Claude model takes every thinking or effort setting. A 400 that names them is retried once
+      // Not every model takes every thinking or effort setting. A 400 that names them is retried once
       // without them, rather than failing a prompt the model could answer plainly.
       if (!res.ok && res.status === 400 && request.vendor === 'claude' && (request.body.thinking || request.body.output_config)) {
         const detail = (await res.clone?.().text?.().catch(() => '')) || '';
@@ -1650,6 +1650,29 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
           delete plain.thinking;
           delete plain.output_config;
           request.body = plain;
+          request.effort = '';
+          this.log(`${this.vendorLabel} (${request.model}) did not accept the thinking settings; asking again without them.`, 'warning');
+          this.currentTurnRecord?.recordRequestAttempt({
+            url: request.url,
+            method: 'POST',
+            headers: request.headers,
+            body: request.body,
+            stream: request.stream,
+            label: `${this.vendorLabel} (thinking off retry)`
+          });
+          res = await fetch(request.url, {
+            method: 'POST',
+            headers: { ...request.headers, Accept: request.stream ? 'text/event-stream' : 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify(request.body)
+          });
+        }
+      } else if (!res.ok && res.status === 400 && request.vendor === 'gemini' && request.body?.generationConfig?.thinkingConfig) {
+        const detail = (await res.clone?.().text?.().catch(() => '')) || '';
+        if (!detail || /thinking|budget|level|config/i.test(detail)) {
+          const plainGen = { ...request.body.generationConfig };
+          delete plainGen.thinkingConfig;
+          request.body = { ...request.body, generationConfig: plainGen };
           request.effort = '';
           this.log(`${this.vendorLabel} (${request.model}) did not accept the thinking settings; asking again without them.`, 'warning');
           this.currentTurnRecord?.recordRequestAttempt({
@@ -1697,6 +1720,70 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
               signal: controller.signal,
               body: JSON.stringify(request.body)
             });
+          }
+        }
+      }
+
+      // A temporary demand spike or overload (HTTP 503/529): retry once with a brief backoff,
+      // and fail over to an alternate model if the primary model remains overloaded.
+      if (!res.ok && (res.status === 503 || res.status === 529)) {
+        const detail = (await res.clone?.().text?.().catch(() => '')) || '';
+        const isDemandSpike = res.status === 503 || res.status === 529 || /demand|temporary|overload|capacity|spikes/i.test(detail);
+        if (isDemandSpike) {
+          this.log(`${this.vendorLabel} (${request.model}) is experiencing a temporary capacity spike (HTTP ${res.status}); retrying in 2s...`, 'warning');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          if (!controller.signal.aborted) {
+            this.currentTurnRecord?.recordRequestAttempt({
+              url: request.url,
+              method: 'POST',
+              headers: request.headers,
+              body: request.body,
+              stream: request.stream,
+              label: `${this.vendorLabel} (503 high-demand retry)`
+            });
+            const retryRes = await fetch(request.url, {
+              method: 'POST',
+              headers: { ...request.headers, Accept: request.stream ? 'text/event-stream' : 'application/json' },
+              signal: controller.signal,
+              body: JSON.stringify(request.body)
+            }).catch(() => null);
+            if (retryRes) res = retryRes;
+          }
+        }
+
+        // If the model remains overloaded after retry and the vendor is Gemini, fail over to an alternate model
+        if (!res.ok && (res.status === 503 || res.status === 529) && request.vendor === 'gemini') {
+          const geminiFallbacks = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-lite'];
+          const candidate = geminiFallbacks.find(m => m !== request.model);
+          if (candidate) {
+            this.log(`${this.vendorLabel} (${request.model}) remains overloaded; failing over to ${candidate}...`, 'warning');
+            const oldModel = request.model;
+            request.model = candidate;
+            request.url = request.url.replace(encodeURIComponent(oldModel), encodeURIComponent(candidate));
+            if (request.body.model) request.body.model = candidate;
+            if (request.body?.generationConfig && !/thinking|gemini-3|gemini-2\.5/i.test(candidate)) {
+              delete request.body.generationConfig.thinkingConfig;
+            }
+            this.lastRequestInfo = { ...this.lastRequestInfo, model: candidate, url: request.url };
+            this.currentTurnRecord?.recordRequestAttempt({
+              url: request.url,
+              method: 'POST',
+              headers: request.headers,
+              body: request.body,
+              stream: request.stream,
+              label: `${this.vendorLabel} (failover: ${candidate})`
+            });
+            const altRes = await fetch(request.url, {
+              method: 'POST',
+              headers: { ...request.headers, Accept: request.stream ? 'text/event-stream' : 'application/json' },
+              signal: controller.signal,
+              body: JSON.stringify(request.body)
+            }).catch(() => null);
+            if (altRes && altRes.ok) {
+              res = altRes;
+              this.settings.setModel(request.vendor, candidate);
+              this.log(`Successfully connected via ${candidate}. Switched active model to ${candidate}.`, 'success');
+            }
           }
         }
       }
@@ -1988,8 +2075,8 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
       }
       return `${base}: the account is out of credit or has insufficient quota (${errorCode || 'insufficient_quota'}). Top up your OpenAI credit balance at https://platform.openai.com/account/billing or switch to Google Gemini in AI Settings (which has a free tier without a credit card). Nothing was executed.`;
     }
-    if (status === 529) {
-      return `${base}: ${this.vendorLabel} is overloaded right now. Wait a moment and try again. Nothing was executed.`;
+    if (status === 503 || status === 529 || /demand|overload|spikes/i.test(detail)) {
+      return `${base}: ${this.vendorLabel} servers are currently experiencing temporary high demand (${detail || 'capacity spike'}). Spikes usually clear within a few seconds. Try again shortly, switch model in ⚙️ AI Settings (e.g. Gemini 2.0 Flash or 1.5 Flash), or turn on "Offline Mode" at the top of the terminal to build immediately. Nothing was executed.`;
     }
     if (status === 401 || status === 403) {
       return `${base}: the API key was rejected${detail ? ` (${detail})` : ''}. Re-enter it in ⚙️ AI Settings. Nothing was executed.`;

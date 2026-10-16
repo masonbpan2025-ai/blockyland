@@ -360,3 +360,21 @@ test('Nether Portal - the search only counts the bottom block of each portal col
   assert.equal(found.y, 21, 'the bottom portal block, even though a higher one is nearer the target Y');
   assert.equal(findNearbyPortal(world, 28, 21, 10, 16), null, '17 blocks away along x is outside a 16-block search');
 });
+
+test('Nether Portal - Overworld portal blocks spawn zombified piglins on the frame, by difficulty (Tutorial:Zombified piglin farming)', () => {
+  const world = createTestWorld();
+  generateDestinationPortal(world, 10, 20, 10, 'x');
+  assert.equal(world.portalBlocks.overworld.size, 6, 'the six portal blocks are tracked');
+  const spawned = [];
+  const game = { world, difficulty: 'hard', mobs: { spawnMob: (type, x, y, z) => { spawned.push({ type, y }); return {}; } } };
+  const manager = new NetherPortalManager(game);
+  // Expected per portal block per game tick: 3/4096 x 3/2000.
+  let n = 0; for (let i = 0; i < 2000; i++) n += manager.spawnFromPortals(1, game, () => 0); // a certain roll: one each
+  assert.ok(n > 0 && spawned.every((s) => s.type === 'zombified_piglin' && s.y === 21), 'on the bottom frame (portal bottom at y 21)');
+  spawned.length = 0;
+  let rolls = 0; const rng = () => { rolls++; return 0.5; };
+  manager.spawnFromPortals(1, { ...game, difficulty: 'peaceful' }, rng);
+  assert.equal(rolls, 0, 'never on Peaceful');
+  world.setVoxel(10, 21, 10, BLOCKS.AIR); world.setVoxel(11, 21, 10, BLOCKS.AIR);
+  assert.equal(world.portalBlocks.overworld.size, 4, 'a broken portal block is forgotten');
+});

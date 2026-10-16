@@ -570,7 +570,12 @@ export class BotSurvival {
       // Eating is held for 1.6 s (2 s for a honey bottle; eating.js) before the game consumes the food.
       if(t.elapsed>3.5) throw new Error('Game did not consume the food.');
     } else if(c.type==='sleep') {
-      this.requireReach(c.position,[BLOCKS.RED_BED_FOOT,BLOCKS.RED_BED_HEAD]);
+      const targetVoxel = this.game.world?.getVoxel(...c.position);
+      if (BLOCK_DEFS[targetVoxel]?.bed) {
+        this.requireReach(c.position, [targetVoxel]);
+      } else {
+        this.requireReach(c.position, [BLOCKS.RED_BED_FOOT, BLOCKS.RED_BED_HEAD]);
+      }
       if (!t.started) {
         const result=this.game.bedManager ? this.game.bedManager.interact(...c.position,p) : { success: true, reason: 'Entered the bed.' };
         if (!result.success) {
@@ -947,9 +952,9 @@ export class BotSurvival {
       const before=this.count(itemId(c.item));
       if (matched && typeof this.game.handleRightClick === 'function') {
         this.game.handleRightClick();
-      } else if (String(c.item).endsWith('_bed') || c.item === 'bed' || c.item === BLOCKS.RED_BED_FOOT) {
+      } else if (String(c.item).endsWith('_bed') || c.item === 'bed' || c.item === BLOCKS.RED_BED_FOOT || BLOCK_DEFS[c.item]?.bed) {
         if (this.game.bedManager) {
-          const res = this.game.bedManager.placeBed(this.game.world, c.position, 3);
+          const res = this.game.bedManager.placeBed(this.game.world, c.position, 3, c.item);
           if (res.success && p.gamemode !== 'creative') this.remove(itemId(c.item), 1);
         } else {
           this.game.world.setVoxel(c.position[0], c.position[1], c.position[2], BLOCKS.RED_BED_FOOT);
@@ -973,6 +978,8 @@ export class BotSurvival {
         const blockId = typeof id === 'number' ? id : (ITEMS[id]?.blockId ?? BLOCKS[String(id).toUpperCase()]);
         if (typeof blockId === 'number') {
           this.game.world.setVoxel(c.position[0], c.position[1], c.position[2], blockId);
+          // The same vibration a player's placement makes (sculkSensor.js).
+          this.game.vibration?.(c.position[0], c.position[1], c.position[2], 'block_place', { fromWool: /WOOL|CARPET/.test(Object.keys(BLOCKS).find((k) => BLOCKS[k] === blockId) ?? '') });
           if (p.gamemode !== 'creative') this.remove(id, 1);
           if (blockId === BLOCKS.WITHER_SKELETON_SKULL_BLOCK || blockId === BLOCKS.WITHER_SKELETON_SKULL) {
             this.game.bossManager?.checkWitherSummon?.(c.position[0], c.position[1], c.position[2]);

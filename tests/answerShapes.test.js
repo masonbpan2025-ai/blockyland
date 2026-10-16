@@ -150,3 +150,56 @@ test('every conversational reply shape ends up valid', () => {
     assert.equal(outcome.plan.action, 'message', `should be a message: ${reply}`);
   }
 });
+
+test('operation block aliases and minecraft namespace prefixes are normalized', () => {
+  const plan = {
+    action: 'build',
+    name: 'Tower',
+    operations: [
+      { type: 'fill_box', block: 'STONE_BRICK', min: [0, 0, 0], max: [2, 2, 2] },
+      { type: 'fill_box', block: 'minecraft:stone_bricks', min: [0, 3, 0], max: [2, 3, 2] },
+      { type: 'fill_box', block: 'WOOD', min: [0, 4, 0], max: [2, 4, 2] }
+    ]
+  };
+  assert.doesNotThrow(() => validatePlan(plan));
+  assert.equal(plan.operations[0].block, 'STONE_BRICKS');
+  assert.equal(plan.operations[1].block, 'STONE_BRICKS');
+  assert.equal(plan.operations[2].block, 'OAK_PLANKS');
+});
+
+test('set_voxels prunes non-block items while preserving valid voxels and aliases', () => {
+  const plan = {
+    action: 'build',
+    name: 'Castle battlements',
+    operations: [
+      {
+        type: 'set_voxels',
+        voxels: [
+          { x: 1, y: 1, z: 1, block: 'LANTERN' },
+          { x: 2, y: 1, z: 1, block: 'STONE_BRICK' },
+          { x: 3, y: 1, z: 1, block: 'IRON_BARS' },
+          { x: 4, y: 1, z: 1, block: 'ARROW' },
+          { x: 5, y: 1, z: 1, block: 'DIAMOND_SWORD' }
+        ]
+      }
+    ]
+  };
+  assert.doesNotThrow(() => validatePlan(plan));
+  const voxels = plan.operations[0].voxels;
+  assert.equal(voxels.length, 3);
+  assert.equal(voxels[0].block, 'LANTERN');
+  assert.equal(voxels[1].block, 'STONE_BRICKS');
+  assert.equal(voxels[2].block, 'IRON_BARS');
+});
+
+test('completely imaginary block on volumetric operation still throws', () => {
+  const plan = {
+    action: 'build',
+    name: 'Impossible',
+    operations: [
+      { type: 'fill_box', block: 'NOT_A_REAL_BLOCK_12345', min: [0, 0, 0], max: [1, 1, 1] }
+    ]
+  };
+  assert.throws(() => validatePlan(plan), /Unknown block/);
+});
+

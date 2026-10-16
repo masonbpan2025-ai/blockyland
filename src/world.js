@@ -14,7 +14,7 @@ import { createWorldStructures, enabledStructureIds } from './worldStructures.js
 import { netherOreAt, decorateNetherChunk } from './netherTerrain.js';
 import { endColumn, decorateEndChunk } from './endTerrain.js';
 import { isChorus, collapseChorusSupport } from './chorus.js';
-import { decorateEndReturnGateway } from './endProgression.js';
+import { decorateEndReturnGateway, restoreEndGatewaysInChunk } from './endProgression.js';
 import { winningSpacingScale, winningSpacingOverrides } from './dataPackRuntime.js';
 import { lootSeedFor } from './villageLoot.js';
 import { rollStructureLoot } from './structureLoot.js';
@@ -765,7 +765,10 @@ export class World {
     // creating another copy of it.
     this.chunks.set(`${cx},${cz}`, chunk);
     this.chunkCache[((cx + CHUNK_HASH_OFFSET) * 31 + (cz + CHUNK_HASH_OFFSET)) & CHUNK_CACHE_MASK] = chunk;
-    if (this.generationMode !== 'authored') this.generateChunkTerrain(chunk);
+    if (this.generationMode !== 'authored') {
+      this.generatingChunks = (this.generatingChunks || 0) + 1;
+      try { this.generateChunkTerrain(chunk); } finally { this.generatingChunks--; }
+    }
     this.water.initChunk(chunk);
     // Allocate lighting; initChunk queues propagation and its arrays initially contain zeroes.
     this.light.initChunk(cx, cz);
@@ -919,6 +922,19 @@ export class World {
     return this.caves.cellAt(wx,wy,wz,this.caves.column(wx,wz,height,this.getBiome(wx,wz)))===null;
   }
 
+  /** Index the Nether portal blocks of every chunk held (after a load: setVoxel indexes the rest). */
+  rescanPortals() {
+    this.portalBlocks = {};
+    const maps = { ...(this.dimensionChunks ?? {}), [this.dimension || 'overworld']: this.chunks };
+    for (const [dim, chunks] of Object.entries(maps)) {
+      const set = (this.portalBlocks[dim] ??= new Set());
+      for (const c of chunks?.values?.() ?? []) {
+        const v = c.voxels; if (!v) continue;
+        for (let i = 0; i < v.length; i++) if (v[i] === BLOCKS.NETHER_PORTAL) set.add(`${c.cx * 16 + (i & 15)},${i >> 8},${c.cz * 16 + ((i >> 4) & 15)}`);
+      }
+    }
+  }
+
   /** Underground biomes are three-dimensional; surface weather still uses getBiome. */
   getBiomeAt(wx,wy,wz){return this.caves.biomeAt(Math.floor(wx),Math.floor(wy),Math.floor(wz));}
 
@@ -1026,6 +1042,7 @@ export class World {
       decorateEndChunk(this,chunk);
       this.structures?.applyToChunk(chunk);
       decorateEndReturnGateway(this,chunk);
+      restoreEndGatewaysInChunk(this,chunk);
       return;
     }
     // --- 3. SPECIAL DIMENSION: THE NETHER ---
@@ -1885,6 +1902,14 @@ export class World {
     if (chunk.voxels[index] === blockId && chunk.waterLevels[index] === level) return;
     const previous=chunk.voxels[index];
     chunk.setVoxel(lx, wy, lz, blockId);
+    // Nether portal blocks, per dimension, for the zombified piglins portals spawn (netherPortal.js).
+    if (blockId === BLOCKS.NETHER_PORTAL || previous === BLOCKS.NETHER_PORTAL) {
+      this.portalBlocks ??= {}; const set = (this.portalBlocks[this.dimension || 'overworld'] ??= new Set()); const k = `${wx},${wy},${wz}`;
+      if (blockId === BLOCKS.NETHER_PORTAL) set.add(k); else set.delete(k);
+    }
+    // A change after generation: the chunk now holds something its seed cannot regenerate, so the streamer keeps it
+    // when it unloads (chunkStreamer.js unloadChunk).
+    if (!this.generatingChunks) chunk.modified = true;
     this.cauldronLevels?.delete(`${wx},${wy},${wz}`);
     chunk.waterLevels[index] = level;
     if (this.structureOrientations.size > 0) this.structureOrientations.delete(`${wx},${wy},${wz}`);

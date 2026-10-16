@@ -457,6 +457,13 @@ export class Player {
         }
       }
     }
+    // Fences, fence gates and walls are 1.5 blocks tall (Tutorial:Ranching: too high to jump): the half block above
+    // one is solid too. They were plain 1-block cubes, so a player or an animal hopped straight over a fence.
+    const below = minY - 1;
+    if (pos.y < below + 1.5) for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
+      const d = BLOCK_DEFS[this.world.getVoxel(x, below, z)];
+      if (d && (d.fence || d.wall || (d.fenceGate && d.solid !== false))) return true;
+    }
     return false;
   }
 
@@ -751,14 +758,13 @@ export class Player {
     // This used to be a flat `health += dt * 0.3` at any hunger above 18, which is about six times
     // vanilla's fast rate and applied at hunger levels where vanilla regenerates slowly or not at all.
     if (isSurvivalLike(this.gamemode) && !this.isDead) {
-      if (this.position.y < -70) {
-        this.takeDamage(10);
-        if (!this.isDead) {
-          this.position.set(8.5, 35, 8.5);
-          this.velocity.set(0, 0, 0);
-        }
-        return;
-      }
+      // The void (wiki, Void): "Falling at least 64 blocks into the void ... causes the health of any mob ... to be
+      // depleted by about 4 every 10 ticks", whatever armour or effects say. This world's bottom is y 0. It took 10 and
+      // teleported the player back up to (8.5, 35, 8.5), which vanilla never does (Tutorial:Accessing the void).
+      if (this.position.y < -64) {
+        this.voidDamageTimer = (this.voidDamageTimer ?? 0) - dt;
+        if (this.voidDamageTimer <= 0) { this.voidDamageTimer = 0.5; this.takeDamage(4, null, 'void'); }
+      } else this.voidDamageTimer = 0;
       // Sprinting and swimming add exhaustion continuously, which is what makes sprinting cost
       // something. Vanilla charges per block travelled, so the rate is scaled by distance moved.
       const speed = Math.hypot(this.velocity.x, this.velocity.z);
@@ -1273,7 +1279,8 @@ export class Player {
     // to it, and this gate used to swallow the whole of it: Wither III ticks every 2 s / 2^2 = 0.5 s, which is
     // exactly the window a Wither hit opens, so a level III wither did no damage at all beyond its first
     // tick, and the Wither boss's 0.5 s skull cadence was eaten the same way.
-    const effectDamage = damageType === 'wither' || damageType === 'magic';
+    // Void damage too: it applies "irrespective of ... invulnerability" (Void).
+    const effectDamage = damageType === 'wither' || damageType === 'magic' || damageType === 'void';
     if (this.invulnerableTimer > 0 && !effectDamage) return;
 
     if (this.hasStatusEffect('fire_resistance') && ['fire', 'lava', 'burn'].includes(damageType)) return;
@@ -1567,6 +1574,15 @@ export class Player {
 
     if (this.game?.modRuntime?.respawn?.(this)) return;
 
+    // Hardcore: no respawn -- the player spectates from where they died (Tutorial:Hardcore mode: "the game will switch
+    // you to spectator mode and can never switch back").
+    if (this.game?.settings?.hardcore) {
+      this.setGameMode?.('spectator');
+      if (this.game.settings) this.game.settings = { ...this.game.settings, gameMode: 'spectator' };
+      this.game?.ui?.addChatMessage?.('Game over! You are now spectating this world.', 'system');
+      return;
+    }
+
     // Which anchor, revalidated now rather than trusted from when it was set: a spot that was safe before
     // death can be blocked afterwards.
     const decision = resolveRespawn({
@@ -1600,7 +1616,7 @@ export class Player {
     const by = Math.floor(bed.y);
     const bz = Math.floor(bed.z);
     const v = this.world?.getVoxel(bx, by, bz);
-    if (v === BLOCKS.RED_BED_FOOT || v === BLOCKS.RED_BED_HEAD) return true;
+    if (v === BLOCKS.RED_BED_FOOT || v === BLOCKS.RED_BED_HEAD || BLOCK_DEFS[v]?.bed) return true;
     return this.game?.bedManager?.getBed?.(bx, by, bz) != null;
   }
 

@@ -1,5 +1,6 @@
 // Item (entity): "an item despawns after existing for 6000 game ticks (5 minutes)". Found by the wiki-tutorial
 // play-test (The second day: "head back to your death location to collect your items within 5 minutes"): only XP
+import { readFileSync } from 'node:fs';
 // orbs had the timer, and dropped items stayed forever.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,4 +35,11 @@ test('a dead player does not pick up items', () => {
   player.isDead = false; player.health = 20;
   for (let i = 0; i < 5; i++) em.update(0.1, player, inventory);
   assert.equal(added.length, 1, 'and picked up once alive');
+});
+
+test('pickup delay: half a second for a dropped item, 2 seconds for one a player threw (wiki, Item (entity))', () => {
+  const src = readFileSync(new URL('../src/entities.js', import.meta.url), 'utf8');
+  assert.match(src, /pickupDelay: options\.pickupDelay \?\? \(options\.thrownByPlayer \? 2\.0 : 0\.5\)/);
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /dropHeldItem[\s\S]{0,1500}thrownByPlayer: true/);
 });

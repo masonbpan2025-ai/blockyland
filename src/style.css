@@ -1250,6 +1250,20 @@ html, body {
   margin-top: 8px;
 }
 
+.mc-btn-movies {
+  text-decoration: none;
+  background: linear-gradient(180deg, #987844, #67502e);
+  border-color: #e9d4a3 #493720 #493720 #e9d4a3;
+}
+
+@media (max-height: 760px) {
+  #start-overlay { padding: 16px 0; overflow-y: auto; }
+  #start-overlay .mc-logo { font-size: 40px; }
+  #start-overlay .start-actions-row { gap: 8px; }
+  #start-overlay .start-actions-row > .mc-btn-large { height: 44px; flex-shrink: 0; }
+}
+#start-overlay .start-actions-row > .mc-btn-large { max-width: calc(100vw - 32px); }
+
 /* Inspector picker: the four destinations behind the start screen's single Inspector button. Two columns so
    Structure/Item and Block/Mob pair up, matching the stacked start buttons above it. */
 .inspector-picker-options {

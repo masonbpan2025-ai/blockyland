@@ -88,7 +88,7 @@ export function normaliseSettings(raw = {}) {
   const preset = PRESETS.includes(source.preset) ? source.preset : DEFAULT_SETTINGS.preset;
   return Object.freeze({
     gameMode,
-    difficulty: normaliseDifficulty(source.difficulty),
+    difficulty: source.hardcore === true ? 'hard' : normaliseDifficulty(source.difficulty),
     cheats: typeof source.cheats === 'boolean' ? source.cheats : gameMode === 'creative',
     preset,
     biome: typeof source.biome === 'string' && source.biome ? source.biome : DEFAULT_SETTINGS.biome,
@@ -97,7 +97,10 @@ export function normaliseSettings(raw = {}) {
     dataPackPreset: typeof source.dataPackPreset === 'string' && source.dataPackPreset
       ? source.dataPackPreset
       : null,
-    bonusChest: source.bonusChest === true,
+    bonusChest: source.bonusChest === true && source.hardcore !== true,
+    // Hardcore (Tutorial:Hardcore mode): Survival locked to Hard; "if you die, you cannot respawn. Instead, the game will
+    // switch you to spectator mode". No bonus chest.
+    hardcore: source.hardcore === true,
   });
 }
 

@@ -63,8 +63,24 @@ export function addEndGateway(world, x, y, z, destination=null) {
   const state=endStateFor(world);
   let gateway=state.gateways.find(g=>g.x===x&&g.y===y&&g.z===z);
   if(!gateway) { gateway={x,y,z,destination}; state.gateways.push(gateway); }
+  // Its chunk may not be generated yet (a gateway opens 96 blocks out when the dragon dies): writing into a missing
+  // chunk did nothing, so the gateway was recorded but never there (Advancement guide, "Remote Getaway").
+  for(let cx=Math.floor((x-2)/16);cx<=Math.floor((x+2)/16);cx++)for(let cz=Math.floor((z-2)/16);cz<=Math.floor((z+2)/16);cz++)world.getOrCreateChunk?.(cx,cz);
   const canvas=new CellCanvas();buildGateway(canvas,x,y,z);writeEndCanvas(world,canvas);
   return gateway;
+}
+/** A freshly generated End chunk gets back any recorded gateway that stands in it. */
+export function restoreEndGatewaysInChunk(world,chunk) {
+  const state=world.endState;if(!state?.gateways?.length)return;
+  const x0=chunk.cx*16,z0=chunk.cz*16;
+  for(const g of state.gateways) {
+    if(g.x<x0-3||g.x>x0+18||g.z<z0-3||g.z>z0+18)continue;
+    const canvas=new CellCanvas();buildGateway(canvas,g.x,g.y,g.z);
+    for(const cell of canvas.cells.values()) {
+      const id=B[cell.name.toUpperCase()],lx=cell.x-x0,lz=cell.z-z0;
+      if(id!==undefined&&lx>=0&&lx<16&&lz>=0&&lz<16&&cell.y>=0&&cell.y<64)chunk.setVoxel(lx,cell.y,lz,id);
+    }
+  }
 }
 export function decorateEndReturnGateway(world,chunk) {
   const x=chunk.cx*16+8,z=chunk.cz*16+8;
@@ -97,8 +113,16 @@ export function useEndGateway(game,x,y,z) {
   if(!gate){gate={x,y,z,destination:null};state.gateways.push(gate);}
   if(!gate.destination) {
     if(Math.hypot(x,z)<END_OUTER_RADIUS) {
-      const length=Math.hypot(x,z)||1, landing=findOuterEndLanding(w,x/length*1280,z/length*1280);
-      if(!landing)return false;
+      const length=Math.hypot(x,z)||1, tx=Math.floor(x/length*1280), tz=Math.floor(z/length*1280);
+      let landing=findOuterEndLanding(w,tx,tz);
+      // Wiki (End Gateway): when no island is found the gateway generates a small one of end stone at the exit, so
+      // a gateway always works. Before, it silently refused to teleport (Advancement guide, "Remote Getaway").
+      if(!landing){
+        w.getOrCreateChunk?.(Math.floor(tx/16),Math.floor(tz/16));
+        const iy=40;
+        for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++)if(dx*dx+dz*dz<=10){w.setVoxel(tx+dx,iy,tz+dz,B.END_STONE);if(dx*dx+dz*dz<=4)w.setVoxel(tx+dx,iy-1,tz+dz,B.END_STONE);}
+        landing={x:tx,y:iy+1,z:tz};
+      }
       // A counterpart on the selected island; stand atop its bedrock cap so
       // teleportation cannot arrive inside chorus plants or the portal itself.
       const peer=addEndGateway(w,landing.x,landing.y+2,landing.z,{x:x+.5,y:y+3,z:z+.5});
@@ -118,8 +142,11 @@ export function updateEndGatewayTravel(game,dt) {
   game.endGatewayCooldown=Math.max(0,(game.endGatewayCooldown??0)-dt);
   if(game.world?.dimension!=='the_end'||!game.player?.position)return;
   const p=game.player.position;
-  for(const y of [Math.floor(p.y),Math.floor(p.y+(game.player.eyeHeight??1.62))]) {
-    if(useEndGateway(game,Math.floor(p.x),y,Math.floor(p.z)))break;
+  // Any block the player's hitbox (0.6 wide, 1.8 high) touches: the opening is one block high, so it is entered from
+  // the side or by an ender pearl, never by standing in it.
+  const w=game.player.width??0.6,h=game.player.height??1.8,e=0.001;
+  for(let x=Math.floor(p.x-w/2-e);x<=Math.floor(p.x+w/2+e);x++)for(let y=Math.floor(p.y);y<=Math.floor(p.y+h);y++)for(let z=Math.floor(p.z-w/2-e);z<=Math.floor(p.z+w/2+e);z++) {
+    if(game.world.getVoxel(x,y,z)===B.END_GATEWAY&&useEndGateway(game,x,y,z))return;
   }
 }
 export function endReturnArrival(game) {

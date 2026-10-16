@@ -24,7 +24,7 @@ export function createPlaytest(game, {
   for (const d of Object.keys(game.world.dimensionChunks ?? {})) if (d !== 'overworld') game.world.dimensionChunks[d] = new Map();
   if (game.world.endState) game.world.endState = null;
   game.endArenaBuilt = false;
-  game.applyWorldSettings?.({ gameMode, difficulty, cheats: false });
+  game.applyWorldSettings?.({ gameMode, difficulty, cheats: false, hardcore: false });
   game.difficulty = difficulty;
   game.mobs.clearMobs?.(); game.mobs.mobs.length = 0;
   game.inventory.clearAll?.();
@@ -54,6 +54,7 @@ export function createPlaytest(game, {
   game.player.health = game.player.maxHealth = 20; game.player.isDead = false;
   game.player.hunger = 20; game.player.saturation = 5; game.player.exhaustion = 0; game.player.ensureHungerState?.();
   if (game.player._hungerState) Object.assign(game.player._hungerState, { hunger: 20, saturation: 5, exhaustion: 0 });
+  game.player.absorption = 0; game.player.invulnerableTimer = 0;
   game.player.statusEffects?.clear?.(); game.player.activeEffects?.clear?.(); game.player.fireTicks = 0; game.player.fallDistance = 0;
   game.worldTime = time;
   game.ui.closeGeminiTerminal?.();

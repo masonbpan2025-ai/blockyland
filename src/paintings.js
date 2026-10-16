@@ -129,6 +129,9 @@ export function canSupportPainting(id) {
   if (id === undefined || id === null || id === BLOCKS.AIR) return false;
   const def = blockDef(id);
   if (!def) return true;
+  // Tutorial:Secret door: blocks "that can hold a painting but can also be walked through ... signs, fence gates, doors,
+  // and trapdoors" -- the painting door. Only solid blocks held one before.
+  if (def.door || def.fenceGate || def.trapdoor || /Sign$/.test(def.name ?? '')) return true;
   return def.solid !== false && !def.plant && !def.liquid;
 }
 

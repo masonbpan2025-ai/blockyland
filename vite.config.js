@@ -375,11 +375,18 @@ export default defineConfig({
         mobDebug: path.resolve('mob-debug.html'),
         itemDebug: path.resolve('item-debug.html'),
         fishingDebug: path.resolve('fishing-debug.html'),
+        stumpClaude: path.resolve('stump-claude.html'),
+        movies: path.resolve('movies.html'),
+        wellSeeClaude: path.resolve('well-see-claude.html'),
         blockDebug: path.resolve('block-debug.html'),
         structureInspector: path.resolve('structure-inspector.html')
       }
     },
     target: 'esnext'
+  },
+  server: {
+    port: 3000,
+    host: '0.0.0.0'
   }
 });
 

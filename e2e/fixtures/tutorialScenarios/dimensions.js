@@ -135,13 +135,17 @@ export const SCENARIOS = [
       if (ghast.health > 0) remove(game, ghast);
       player.health = 20;
       // This Boat Has Legs: saddle a strider on lava, ride it, boost it with a warped fungus on a stick.
-      t.fill(-8, y - 1, 24, -4, y - 1, 28, BLOCKS.LAVA);
-      const strider = t.spawn('strider', -5.5, y - 0.5, 25.5);
+      t.fill(-6, y - 1, 24, -4, y - 1, 26, BLOCKS.LAVA);
+      const strider = t.spawn('strider', -4.5, y - 0.5, 25.5);
+      /** Look at the strider until the game's crosshair is on it. */
+      const aim = async () => {
+        // Walk up to it on the lava's edge first; it wanders.
+        const sp = strider.mesh.position; await t.run(`goto -3 ${y} ${Math.min(26, Math.max(24, Math.floor(sp.z)))}`);
+        for (let i = 0; i < 30 && game.targetMob !== strider; i++) { game.playerBot.lookAt({ x: strider.mesh.position.x, y: strider.mesh.position.y + 0.8, z: strider.mesh.position.z }); t.step(); await Promise.resolve(); } return game.targetMob === strider; };
       t.give('saddle', 1); await t.run('equip saddle'); await t.run(`goto -3 ${y} 25`);
-      game.playerBot.lookAt({ x: strider.mesh.position.x, y: strider.mesh.position.y + 0.8, z: strider.mesh.position.z }); await t.wait(0.3); game.handleRightClick(); await t.wait(0.2);
+      await aim(); game.handleRightClick(); await t.wait(0.2);
       t.give('warped_fungus_on_a_stick', 1); await t.run('equip warped fungus on a stick');
-      game.playerBot.lookAt({ x: strider.mesh.position.x, y: strider.mesh.position.y + 0.8, z: strider.mesh.position.z }); await t.wait(0.3);
-      game.handleRightClick(); await t.wait(0.5); // mounts
+      await aim(); game.handleRightClick(); await t.wait(0.5); // mounts
       game.handleRightClick(); await t.wait(0.5); // boosts
       t.check('riding a strider and boosting it: "This Boat Has Legs"', !!strider.isSaddled && player.ridingMob === strider && has(game, 'nether/ride_strider'),
         { saddled: !!strider.isSaddled, riding: player.ridingMob === strider, advancement: has(game, 'nether/ride_strider') }, 'saddled, ridden, earned');
@@ -149,9 +153,10 @@ export const SCENARIOS = [
       // A Terrible Fortress: walk into a Nether fortress (found the way /locate would).
       const structures = game.world.structures;
       let fortress = null;
-      for (let r = 0; r <= 40 && !fortress; r++) for (let cx = -r; cx <= r && !fortress; cx++) for (const cz of [-r, r]) {
-        for (const s of structures?.plansAt?.(cx, cz, 'nether') ?? []) if (s.structureId === 'fortress' && s.pieces?.length) { fortress = s.pieces[0].box; break; }
-        if (fortress) break;
+      let best = Infinity;
+      for (let cx = -40; cx <= 40; cx++) for (let cz = -40; cz <= 40; cz++) {
+        if (cx * cx + cz * cz >= best) continue;
+        for (const s of structures?.plansAt?.(cx, cz, 'nether') ?? []) if (s.structureId === 'fortress' && s.pieces?.length) { fortress = s.pieces[0].box; best = cx * cx + cz * cz; }
       }
       if (fortress) {
         const fx = Math.floor((fortress.minX + fortress.maxX) / 2), fz = Math.floor((fortress.minZ + fortress.maxZ) / 2), fy = fortress.minY + 2;
@@ -160,9 +165,10 @@ export const SCENARIOS = [
       }
       t.check('stepping inside a Nether fortress earns "A Terrible Fortress"', !!fortress && has(game, 'nether/find_fortress'), { found: !!fortress, here: fortress ? game.structureIdAt?.(player.position.x, player.position.y, player.position.z) : null }, 'fortress');
       // Subspace Bubble: travel 875 blocks in the Nether, build a portal and go through.
+      for (const m of [...game.mobs.mobs]) remove(game, m);
+      room(t, 700, y, 700);
+      player.position.set(697.5, y, 700.5); player.velocity.set(0, 0, 0); player.fallDistance = 0; player.fireTicks = 0; player.health = 20;
       await t.wait(4.5);
-      player.position.set(700.5, y, 700.5); room(t, 700, y, 700);
-      player.position.set(697.5, y, 700.5); await t.wait(0.5);
       await buildPortal(t, 700, y, 702); await t.wait(0.5);
       await travel(t, 701, y + 1, 702);
       t.check('a Nether trip from (0, 0) to (700, 700) is "roughly 7,920" Overworld blocks: "Subspace Bubble"', dim(game) === 'overworld' && has(game, 'nether/fast_travel'),
@@ -194,9 +200,13 @@ export const SCENARIOS = [
       t.check('the dragon egg sits on top of the exit portal', eggAt !== null, eggAt, 'an egg at (0, ~top, 0)');
       // "Trying to mine the egg causes it to teleport to another location in a 15 block radius."
       if (eggAt !== null) {
-        player.position.set(1.5, eggAt, 2.5); t.give('diamond_pickaxe', 1); await t.run('equip diamond pickaxe');
-        game.playerBot.lookAt({ x: 0.5, y: eggAt + 0.5, z: 0.5 }); await t.wait(0.3);
-        game.handleLeftClick?.(); await t.breakBlock(0, eggAt, 0, { maxTicks: 60 }).catch(() => null); await t.wait(1);
+        // Standing on a block beside the pillar, clear of the exit portal below.
+        t.set(3, eggAt - 1, 0, BLOCKS.END_STONE);
+        player.position.set(3.5, eggAt, 0.5); player.velocity.set(0, 0, 0); t.give('diamond_pickaxe', 1); await t.run('equip diamond pickaxe');
+        // Endermen wander the island; one stepping into the line of the swing takes the hit instead.
+        for (const m of game.mobs.mobs.filter((m) => m.type === 'enderman')) remove(game, m);
+        for (let k = 0; k < 3 && t.world.getVoxel(0, eggAt, 0) === BLOCKS.DRAGON_EGG; k++) { player.position.set(3.5, eggAt, 0.5); player.velocity.set(0, 0, 0); await t.breakBlock(0, eggAt, 0, { maxTicks: 60 }); }
+        await t.wait(1);
       }
       t.check('hitting the egg makes it teleport, not drop', eggAt !== null && t.world.getVoxel(0, eggAt, 0) !== BLOCKS.DRAGON_EGG && t.count(BLOCKS.DRAGON_EGG) === 0, { left: t.world.getVoxel(0, eggAt ?? 0, 0), inInventory: t.count(BLOCKS.DRAGON_EGG) }, 'gone from the portal, not collected');
       // "The dragon egg will fall on the torch, then drop as an item": an egg over a torch, its support broken.
@@ -208,13 +218,27 @@ export const SCENARIOS = [
       t.check('the egg falls onto a torch and drops; holding it is "The Next Generation"', t.count(BLOCKS.DRAGON_EGG) === 1 && has(game, 'end/dragon_egg'), { eggs: t.count(BLOCKS.DRAGON_EGG), advancement: has(game, 'end/dragon_egg') }, { eggs: 1 });
       // Remote Getaway: an end gateway appears after the fight; entering it goes to the outer islands.
       const gate = (game.world.endState?.gateways ?? [])[0];
-      if (gate) { player.position.set(gate.x + 0.5, gate.y, gate.z + 0.5); for (let i = 0; i < 30; i++) { t.step(); await Promise.resolve(); } await t.wait(1); }
+      // "Because the gateway opening is only one block high, you cannot walk in directly": the bot stands on a
+      // pillar beside it and throws an ender pearl in.
+      if (gate) {
+        t.fill(gate.x - 3, gate.y - 1, gate.z, gate.x - 1, gate.y - 1, gate.z, BLOCKS.END_STONE);
+        player.position.set(gate.x - 2.5, gate.y, gate.z + 0.5); player.velocity.set(0, 0, 0); player.fallDistance = 0; await t.wait(0.5);
+        // An ender pearl thrown into the opening carries the player through.
+        t.give('ender_pearl', 1); await t.run('equip ender pearl');
+        game.playerBot.lookAt({ x: gate.x + 0.5, y: gate.y + 0.5, z: gate.z + 0.5 }); t.step(); game.handleRightClick();
+        for (let i = 0; i < 90 && Math.hypot(player.position.x, player.position.z) < 500; i++) { t.step(); if (i % 10 === 0) await Promise.resolve(); }
+        await t.wait(1);
+      }
       const far = Math.hypot(player.position.x, player.position.z);
       t.check('entering the gateway teleports to the outer islands: "Remote Getaway"', !!gate && far > 700 && has(game, 'end/enter_end_gateway'), { gateway: !!gate, distance: Math.round(far), advancement: has(game, 'end/enter_end_gateway') }, 'distance > 700, earned');
       // The End... Again...: four end crystals on the exit portal's sides.
-      player.position.set(0.5, boss.podiumY() + 1, 5.5); await t.wait(1);
+      // Stand on the island beside the portal (end stone under the bot, in case the island is short there).
+      t.fill(-1, boss.podiumY(), 5, 1, boss.podiumY(), 7, BLOCKS.END_STONE);
+      player.position.set(0.5, boss.podiumY() + 1, 5.5); player.velocity.set(0, 0, 0); player.fallDistance = 0; await t.wait(1);
       const py = boss.podiumY() + 1;
       t.give('end_crystal', 4);
+      // A spot the egg teleported onto is cleared first (hitting it sends it off again).
+      for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) for (let k = 0; k < 4 && t.world.getVoxel(dx, py, dz) === BLOCKS.DRAGON_EGG; k++) await t.breakBlock(dx, py, dz, { maxTicks: 30 });
       for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) boss.placeEndCrystal(dx, py, dz);
       await t.wait(5);
       const state = game.world.endState;

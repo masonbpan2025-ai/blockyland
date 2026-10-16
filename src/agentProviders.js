@@ -56,13 +56,15 @@ export const VENDORS = {
     keyHint: 'Create a key in Google AI Studio.',
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
     models: [
-      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', note: 'Default. Latest flagship, fast & strong on agentic tasks.' },
-      { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (preview)', note: 'Deepest reasoning, slower.' },
-      { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', note: 'Previous generation Flash.' }
+      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', note: 'Default. Official Google flagship: fast, multimodal, high rate limits.' },
+      { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', note: 'Proven workhorse model with maximum reliability.' },
+      { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', note: 'Deep reasoning for complex multi-room builds.' },
+      { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite', note: 'Ultra fast, lowest latency, resistant to demand spikes.' }
     ],
-    defaultModel: 'gemini-3.8-flash',
+    defaultModel: 'gemini-2.0-flash',
+    defaultEffort: 'medium',
     envVar: 'VITE_GEMINI_MODEL',
-    supportsEffort: false,
+    supportsEffort: true,
     supportsImages: true
   },
   deepseek: {
@@ -138,6 +140,21 @@ export const VENDORS = {
 export function claudeEffort(effort) {
   const value = normalizeEffort(effort, 'medium');
   return value === 'minimal' ? 'low' : value;
+}
+
+/** Gemini's thinking configuration: thinkingLevel on 3.x, thinkingBudget on 2.5. */
+export function geminiThinkingConfig(model, effort, thinkingEnabled = true) {
+  const norm = normalizeEffort(effort, 'medium');
+  const level = norm === 'max' ? 'high' : norm;
+  const isGemini25 = /gemini-2\.5/i.test(model);
+  if (isGemini25) {
+    if (!thinkingEnabled) return { thinkingBudget: 0 };
+    const budgets = { minimal: 1024, low: 2048, medium: 8192, high: 16384, max: 16384 };
+    return { thinkingBudget: budgets[norm] || 8192 };
+  }
+  return {
+    thinkingLevel: thinkingEnabled ? level : 'minimal'
+  };
 }
 
 export const VENDOR_IDS = Object.keys(VENDORS);
@@ -453,15 +470,24 @@ export function buildAgentRequest({
   if (vendorId === 'gemini') {
     const action = stream ? ':streamGenerateContent?alt=sse' : ':generateContent';
     const url = config.endpoint.replace(':generateContent', action).replace('{model}', encodeURIComponent(model));
+    const geminiThinking = typeof thinking === 'boolean' ? thinking : true;
+    const thinkingConfig = geminiThinkingConfig(model, activeEffort, geminiThinking);
+    const generationConfig = {
+      responseMimeType: 'application/json',
+      temperature: 0.2
+    };
+    if (thinkingConfig && !/gemini-(1\.5|2\.0)-(flash|pro)(?!-thinking)/i.test(model)) {
+      generationConfig.thinkingConfig = thinkingConfig;
+    }
     const body = {
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: buildGeminiContents(history, turn),
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+      generationConfig
     };
     return {
       vendor: vendorId,
       model,
-      effort: '',
+      effort: activeEffort ? (activeEffort === 'max' ? 'high' : activeEffort) : 'medium',
       stream,
       url,
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey || '' },

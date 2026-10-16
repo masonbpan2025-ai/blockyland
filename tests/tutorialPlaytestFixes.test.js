@@ -321,3 +321,31 @@ test('a golden pickaxe harvests like wood: no diamonds, iron or gold ore drops, 
   assert.equal(harvestsNothing(BLOCKS.COAL_ORE, ITEMS.golden_pickaxe, 'golden_pickaxe'), false);
   assert.equal(harvestsNothing(BLOCKS.DIAMOND_ORE, ITEMS.iron_pickaxe, 'iron_pickaxe'), false);
 });
+
+// Nether hub / Subspace Bubble: a base must still be there when the player comes back. Unloading deleted generated
+// chunks and regenerated them from the seed, erasing every change made in them.
+test('a generated chunk is only regenerated when nothing changed it since generation', async () => {
+  const { World } = await import('../src/world.js');
+  const { BLOCKS } = await import('../src/blocks.js');
+  const world = new World(4242);
+  const chunk = world.getOrCreateChunk(0, 0);
+  assert.equal(chunk.modified, undefined, 'generation itself does not count as a change');
+  world.setVoxel(3, 40, 3, BLOCKS.DIAMOND_BLOCK);
+  assert.equal(chunk.modified, true);
+  const streamer = readFileSync(new URL('../src/chunkStreamer.js', import.meta.url), 'utf8');
+  assert.match(streamer, /generationMode !== 'authored' && !chunk\.modified\) \{\s*[^}]*chunks\.delete/);
+  const save = readFileSync(new URL('../src/mapManager.js', import.meta.url), 'utf8');
+  assert.ok((save.match(/modified ?= ?true/g) ?? []).length >= 3, 'chunks loaded from a save are kept too');
+});
+
+test('The End tab: the dragon egg teleports when hit, the gateway works from the hitbox and makes an island, tower crystals regrow invulnerable', () => {
+  const src = (f) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
+  assert.match(src('main.js'), /blockIdOfTarget === BLOCKS\.DRAGON_EGG && this\.player\.gamemode !== 'creative'\) \{ this\.breakTargetBlock\(\)/);
+  const end = src('endProgression.js');
+  assert.match(end, /if\(!landing\)\{[\s\S]{0,200}END_STONE/, 'no island found: one is made');
+  assert.match(end, /game\.player\.width\?\?0\.6/, 'the hitbox, not one cell, enters a gateway');
+  assert.match(end, /world\.getOrCreateChunk\?\.\(cx,cz\);\s*const canvas=new CellCanvas\(\);buildGateway/, 'a gateway is written into a real chunk');
+  const boss = src('bossFights.js');
+  assert.match(boss, /spawnEndCrystal\(spike\.x\+\.5,spike\.top\+1\.5,spike\.z\+\.5,\{spikeIndex:state\.rebuiltSpikes,invulnerable:true\}\)/);
+  assert.match(boss, /if\(crystal\.invulnerable&&!creative\)return false;/);
+});

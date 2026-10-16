@@ -152,7 +152,9 @@ export class BossFightManager {
     state.rebuiltSpikes??=0;
     while(state.rebuiltSpikes<=index&&state.rebuiltSpikes<spikes.length){
       const spike=spikes[state.rebuiltSpikes],canvas=new CellCanvas();buildSpike(canvas,spike);writeEndCanvas(this.world,canvas);
-      if(!this.endCrystals.some(c=>c.alive&&c.spikeIndex===state.rebuiltSpikes))this.spawnEndCrystal(spike.x+.5,spike.top+1.5,spike.z+.5,{spikeIndex:state.rebuiltSpikes,invulnerable:true});
+      // The rebuilt spike's crystal replaces any one still standing on it.
+      for(const old of this.endCrystals)if(old.alive&&old.spikeIndex===state.rebuiltSpikes){old.alive=false;old.mesh?.removeFromParent();}
+      this.spawnEndCrystal(spike.x+.5,spike.top+1.5,spike.z+.5,{spikeIndex:state.rebuiltSpikes,invulnerable:true});
       state.crystals[state.rebuiltSpikes]=true;state.rebuiltSpikes++;
     }
     if(state.ritualElapsed<30)return;

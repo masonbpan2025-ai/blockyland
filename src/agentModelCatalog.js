@@ -199,6 +199,7 @@ export function clearCachedModels(store, vendorId) {
 /** True when an HTTP failure means "that model does not exist (any more)", as opposed to a key or quota problem. */
 export function isUnknownModelError(status, detail = '') {
   const text = String(detail || '');
+  if (/thinking|budget|thinkinglevel|generation_config|generationconfig/i.test(text)) return false;
   if (status === 404) return /model|not[_ ]found/i.test(text) || !text;
   if (status === 400) return /(model|models\/).{0,80}(not found|does not exist|not exist|is not supported|unknown|invalid|deprecated|retired|decommissioned)|unknown model|invalid model|model_not_found|not_found_error/i.test(text);
   return false;

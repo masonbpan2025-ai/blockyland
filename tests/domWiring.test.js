@@ -15,7 +15,7 @@ const root = process.cwd();
  * longer existed.
  */
 const RUNTIME_CREATED_IDS = new Set(['horse-equipment']);
-const RUNTIME_CREATED_CLASSES = new Set(['boss-bar-title', 'boss-bar-fill']); // updateBossBar creates these.
+const RUNTIME_CREATED_CLASSES = new Set(['boss-bar-title', 'boss-bar-fill', 'compass-needle']); // updateBossBar creates the first two, renderHotbar the compass needles.
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');

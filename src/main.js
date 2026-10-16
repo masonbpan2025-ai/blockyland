@@ -1,5 +1,7 @@
 import { AdvancementTracker, advancementEvent } from './advancements.js';
 import { tryBuildGolem } from './golemBuilding.js';
+import { isWool } from './sculkSensor.js';
+import { updateBubbleColumns } from './bubbleColumns.js';
 import { TrialSpawners, Vaults } from './trialSpawner.js';
 import { getCommandState, tickCommandState } from './commandState.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
@@ -140,6 +142,7 @@ import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
 import { BedManager } from './bed.js';
 import { PaintingManager, facingFromNormal } from './paintings.js';
+import { ItemFrameManager, FRAME_ITEMS } from './itemFrames.js';
 import { ChestManager } from './chest.js';
 import { angerPiglins } from './piglin.js';
 import { DoorManager } from './door.js';
@@ -498,6 +501,7 @@ class Game {
     this.bedManager = new BedManager(this);
     // Wall paintings: placed from the painting item or by the Agent Terminal, saved with the world.
     this.paintings = new PaintingManager(this);
+    this.itemFrames = new ItemFrameManager(this);
     this.chestManager = new ChestManager(this);
     this.world.chestManager = this.chestManager;
     this.doorManager = new DoorManager(this);
@@ -569,7 +573,7 @@ class Game {
     this.world.isFlatWorld = false;
     this.world.generationMode = 'procedural';
     this.buildingStudio?.exitStudio();
-    this.paintings?.clear();
+    this.paintings?.clear(); this.itemFrames?.clear();
     // Catch a missing UI method up front: previously such a call threw late in
     // this method and silently aborted the start flow.
     const missingUi = findMissingMethods(this.ui, REQUIRED_UI_METHODS);
@@ -855,7 +859,7 @@ class Game {
       // 'authored' is the mode in which a missing chunk is empty air rather than generated terrain, chunks keep
       // their blocks when streamed out, and natural spawning is off.
       this.world.generationMode = 'authored';
-      this.paintings?.clear();
+      this.paintings?.clear(); this.itemFrames?.clear();
 
       this.modLoader?.closeWorld();
       if (this.mechanisms) this.mechanisms.setMechanism('default', this);
@@ -1082,6 +1086,10 @@ class Game {
     for (const eye of this.enderEyes) {
       eye.life -= dt;
       if (eye.life <= 0) {
+        // Eye of Ender: it "has a 20% chance of shattering"; otherwise it drops as an item where it stopped
+        // (Tutorial:Locating a stronghold). It was always lost before.
+        if (Math.random() >= 0.2) this.entities?.spawnDroppedItem?.(eye.mesh.position.clone(), 'ender_eye', false, 1);
+        else this.sounds?.playGlassBreak?.() ?? this.sounds?.playBreak?.('glass');
         this.scene?.remove(eye.mesh);
         eye.mesh.geometry?.dispose();
         eye.mesh.material?.dispose();
@@ -1231,6 +1239,25 @@ class Game {
     console.log(`[World] End portal chamber at (${cx}, ${floorY}, ${cz}); ${result.placed} blocks placed, `
       + `${result.filled} eyes, shaft to y=${result.surfaceY}.`);
     return this.endPortalRoom;
+  }
+
+  /** A game event's vibration (sculkSensor.js): sculk sensors in range pick it up. */
+  vibration(x, y, z, event, options = {}) {
+    return this.world?.redstone?.vibrate?.(x, y, z, event, options) ?? 0;
+  }
+
+  /** The player's own vibrations: a step each block walked on the ground, and landing (Vibration: step, hit_ground). */
+  updatePlayerVibrations() {
+    const p = this.player; if (!p?.position || p.isDead || p.gamemode === 'spectator') return;
+    const pos = p.position, last = this._vibrationPos;
+    const below = this.world.getVoxel(Math.floor(pos.x), Math.floor(pos.y - 0.01), Math.floor(pos.z));
+    const opts = { sneaking: !!p.isSneaking, fromWool: isWool(below) };
+    if (p.onGround && last && !this._vibrationWasGround) this.vibration(pos.x, pos.y, pos.z, 'hit_ground', opts);
+    if (p.onGround && last) {
+      this._stepDistance = (this._stepDistance || 0) + Math.hypot(pos.x - last.x, pos.z - last.z);
+      if (this._stepDistance >= 1) { this._stepDistance = 0; this.vibration(pos.x, pos.y, pos.z, 'step', opts); }
+    }
+    this._vibrationPos = { x: pos.x, z: pos.z }; this._vibrationWasGround = !!p.onGround;
   }
 
   /** A carved pumpkin or jack o'lantern just placed may finish an iron or snow golem (golemBuilding.js). */
@@ -2324,6 +2351,13 @@ class Game {
 
     // A painting breaks with one hit (the wiki: attack it), and is nearer than the wall it hangs on. Stop the
     // press there, or holding the button would go on to mine the wall behind it.
+    // An item frame: a hit pops its item out, or breaks an empty frame (itemFrames.js).
+    const frameHit = this.itemFrames?.raycast(eyePos, lookDir, 5.2);
+    if (frameHit && (!this.targetMob || frameHit.distance < this.camera.position.distanceTo(this.targetMob.mesh.position))) {
+      this.itemFrames.hit(frameHit.frame, { creative: this.player.gamemode === 'creative' });
+      this.isMouseDown = false;
+      return;
+    }
     const paintingHit = this.paintings?.raycast(eyePos, lookDir, 5.2);
     if (paintingHit && (!this.targetMob || paintingHit.distance < this.camera.position.distanceTo(this.targetMob.mesh.position))) {
       this.paintings.breakByPlayer(paintingHit.painting, this.player);
@@ -2466,6 +2500,20 @@ class Game {
 
   handleRightClick() {
     if (!modeRules(this.player.gamemode).interact) return;
+    // An item frame in front of the block under the crosshair: put the held item in, or turn it (itemFrames.js).
+    if (this.itemFrames?.frames.length && !this.usingOffhand) {
+      const eye = this.camera.position.clone(), dir = new THREE.Vector3(); this.camera.getWorldDirection(dir);
+      const hit = this.itemFrames.raycast(eye, dir, 5.2);
+      const blockDistance = this.targetBlock ? eye.distanceTo(new THREE.Vector3(this.targetBlock.x + 0.5, this.targetBlock.y + 0.5, this.targetBlock.z + 0.5)) : Infinity;
+      if (hit && hit.distance <= blockDistance + 0.5 && (!this.targetMob || hit.distance < eye.distanceTo(this.targetMob.mesh.position))) {
+        const held = this.inventory.getActiveItem();
+        if (this.itemFrames.use(hit.frame, held, { creative: this.player.gamemode === 'creative' })) {
+          if (held && held.count <= 0) this.inventory.hotbar[this.inventory.activeSlot] = null;
+          this.ui.updateHotbar();
+        }
+        return;
+      }
+    }
     // Dual wielding: "The item in the off-hand will only be used if the item in the main hand lacks a use, or if it's
     // holding nothing" -- a torch in the off-hand is placed while a sword or pickaxe is held. Only the shield used the
     // off-hand before (Dual wielding play-test). The off-hand item is used through the same path, in the main hand's
@@ -2586,6 +2634,13 @@ class Game {
     // A painting goes on the side of the block under the crosshair, never on a floor or a ceiling, and picks the
     // largest canvas that fits there (paintings.js). One that cannot hang is not consumed.
     const paintingItem = this.inventory.getActiveItem();
+    // An item frame goes on any face of the block under the crosshair (itemFrames.js).
+    if (paintingItem && !paintingItem.isBlock && FRAME_ITEMS.has(paintingItem.id) && this.targetBlock) {
+      const n = this.targetBlock.normal;
+      const hung = this.itemFrames.place({ x: this.targetBlock.x + n.x, y: this.targetBlock.y + n.y, z: this.targetBlock.z + n.z }, n, { glow: paintingItem.id === 'glow_item_frame' });
+      if (hung && this.player.gamemode !== 'creative') { this.inventory.consumeActiveItem(1); this.ui.updateHotbar(); }
+      return;
+    }
     if (paintingItem && !paintingItem.isBlock && paintingItem.id === 'painting' && this.targetBlock) {
       const facing = facingFromNormal(this.targetBlock.normal);
       const n = this.targetBlock.normal;
@@ -2758,8 +2813,10 @@ class Game {
         // Vanilla leaves plain sand or gravel behind, never the suspicious block.
         this.world.setVoxel(hit.x, hit.y, hit.z,
           hit.blockId === BLOCKS.SUSPICIOUS_GRAVEL ? BLOCKS.GRAVEL : BLOCKS.SAND);
-        if (!this.inventory.addItem(found.sherd, false, 1)) {
-          this.entities.spawnDroppedItem(new THREE.Vector3(hit.x + 0.5, hit.y + 1, hit.z + 0.5), found.sherd, false);
+        // Suspicious Sand: the item "drops" out of the block face that was brushed (it went straight into the inventory).
+        {
+          const n = hit.normal ?? { x: 0, y: 1, z: 0 };
+          this.entities.spawnDroppedItem(new THREE.Vector3(hit.x + 0.5 + (n.x || 0) * 0.6, hit.y + 0.5 + (n.y || 0) * 0.6, hit.z + 0.5 + (n.z || 0) * 0.6), found.sherd, false, 1);
         }
         if (this.player.gamemode === 'survival') {
           const wear = spendDurability(bucketItem, found.durabilityUsed);
@@ -2875,6 +2932,9 @@ class Game {
     // Water is transparent to block selection: trace the liquid surface before
     // requiring a solid target, otherwise a boat is placed on the seabed.
     if (useBoat(this, activeItem)) return;
+    // An eye of ender is thrown unless it is going into an end portal frame (Eye of Ender). It used to be thrown only
+    // with no block targeted, after this very return, so it was never thrown at all (Tutorial:Locating a stronghold).
+    if (this.inventory.getActiveItem()?.id === 'ender_eye' && this.targetBlock?.blockId !== BLOCKS.END_PORTAL_FRAME) { this.throwEnderEye(); return; }
     if (!this.targetBlock) return;
 
     const bX = this.targetBlock.x;
@@ -2908,7 +2968,8 @@ class Game {
     }
 
     const control=this.world.redstone.interact([bX,bY,bZ],this.player.isSneaking,this.inventory.getActiveItem());
-    if(control){for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<slots.length;i++)if(slots[i]?.count<=0)slots[i]=null;this.sounds.playClick();this.ui.addChatMessage(control,'system');this.ui.updateHotbar();this.refreshDirtyChunks();return;}
+    if(control){const shaken={'Lever ON':'block_activate','Lever OFF':'block_deactivate','Activated':'block_activate','Door opened':'block_open','Door closed':'block_close'}[control]??(/^Note/.test(control)?'note_block_play':null);if(shaken)this.vibration(bX,bY,bZ,shaken); // a repeater's delay, a comparator's mode or a dust shape makes none (Sculk Sensor)
+for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<slots.length;i++)if(slots[i]?.count<=0)slots[i]=null;this.sounds.playClick();this.ui.addChatMessage(control,'system');this.ui.updateHotbar();this.refreshDirtyChunks();return;}
 
     // End Portal Frame: an Eye of Ender goes in, and the twelfth one lights the portal.
     //
@@ -3001,7 +3062,7 @@ class Game {
     }
 
     // Bed interaction (Sleep or explode in Nether)
-    if (clickedBlock === BLOCKS.RED_BED_FOOT || clickedBlock === BLOCKS.RED_BED_HEAD) {
+    if (clickedBlock === BLOCKS.RED_BED_FOOT || clickedBlock === BLOCKS.RED_BED_HEAD || BLOCK_DEFS[clickedBlock]?.bed) {
       if (this.bedManager) {
         this.bedManager.interact(bX, bY, bZ, this.player);
       }
@@ -3017,7 +3078,7 @@ class Game {
           activeItem.isBlock ||
           activeItem.id === BLOCKS.CHEST ||
           activeItem.id === 'chest' ||
-          activeItem.id === 'red_bed' ||
+          String(activeItem.id).endsWith('_bed') ||
           activeItem.id === 'bed' ||
           ITEMS[activeItem.id]?.isBlock ||
           BLOCK_DEFS[activeItem.id]
@@ -3307,7 +3368,17 @@ class Game {
     }
 
     // Place Bed (occupies 2 blocks: foot and head)
-    if (activeItem && (String(activeItem.id).endsWith('_bed') || activeItem.id === 'bed' || activeItem.id === BLOCKS.RED_BED_FOOT) && this.targetBlock.normal) {
+    const isBedItem = Boolean(
+      activeItem && (
+        String(activeItem.id).endsWith('_bed') ||
+        activeItem.id === 'bed' ||
+        activeItem.id === BLOCKS.RED_BED_FOOT ||
+        BLOCK_DEFS[activeItem.id]?.bed ||
+        BLOCK_DEFS[activeItem.blockId]?.bed ||
+        BLOCK_DEFS[ITEMS[activeItem.id]?.blockId]?.bed
+      )
+    );
+    if (isBedItem && this.targetBlock.normal) {
       const placeX = bX + this.targetBlock.normal.x;
       const placeY = bY + this.targetBlock.normal.y;
       const placeZ = bZ + this.targetBlock.normal.z;
@@ -3322,7 +3393,7 @@ class Game {
         dir = look.z > 0 ? 2 : 3;
       }
 
-      const res = this.bedManager.placeBed(this.world, [placeX, placeY, placeZ], dir);
+      const res = this.bedManager.placeBed(this.world, [placeX, placeY, placeZ], dir, activeItem);
       if (res.success) {
         this.sounds.playPlace('wood');
         if (this.player.gamemode !== 'creative') {
@@ -3477,8 +3548,24 @@ class Game {
         this.farmingManager?.netherPlants?.register(placeX,placeY,placeZ);
         this.farmingManager?.chorus?.register(placeX,placeY,placeZ,0);
         if (attachment) rememberAttachment(this.world, placeX, placeY, placeZ, blockIdToPlace, attachment);
+        // Slabs and stairs (Java): against the underside of a block, or the upper half of a side, a slab goes in the top
+        // half and stairs go upside down; stairs face the way the player looks. Both were always bottom-placed and
+        // unoriented, so roofs and shapes could not be built (Tutorial:Roof construction guidelines, Creating shapes).
+        {
+          const placedDef = BLOCK_DEFS[blockIdToPlace], n = this.targetBlock.normal, pt = this.targetBlock.point;
+          const upper = n.y < 0 || (n.y === 0 && pt && pt.y - Math.floor(pt.y) > 0.5);
+          if (placedDef?.slab && upper) this.world.applyStructureOrientation?.({ x: placeX, y: placeY, z: placeZ, id: blockIdToPlace, slabType: 'top' });
+          if (placedDef?.stair) {
+            const look = this.camera.getWorldDirection(new THREE.Vector3());
+            const facing = Math.abs(look.x) > Math.abs(look.z) ? (look.x > 0 ? 'east' : 'west') : (look.z > 0 ? 'south' : 'north');
+            this.world.applyStructureOrientation?.({ x: placeX, y: placeY, z: placeZ, id: blockIdToPlace, facing, half: upper ? 'top' : 'bottom' });
+          }
+        }
         this.worldSync?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.world.leafDecay?.onPlaced(placeX, placeY, placeZ, blockIdToPlace);
+        this.vibration(placeX, placeY, placeZ, 'block_place', { fromWool: isWool(blockIdToPlace) });
+        // A shrieker a player placed cannot summon a warden (deepDarkWarden.js).
+        if (blockIdToPlace === BLOCKS.SCULK_SHRIEKER) { this.world.structureOrientations ??= new Map(); this.world.structureOrientations.set(`${placeX},${placeY},${placeZ}`, { x: placeX, y: placeY, z: placeZ, id: blockIdToPlace, playerPlaced: true }); }
         this.beaconManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.hiveManager?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
         const look=this.camera.getWorldDirection(new THREE.Vector3());
@@ -3605,7 +3692,10 @@ class Game {
     this.camera.getWorldDirection(dir);
     const spawnPos = this.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(dir, 0.8);
 
-    this.entities.spawnDroppedItem(spawnPos, active.id, active.isBlock, requested, { thrownByPlayer: true, enchantments: active.enchantments, ...(active.durability !== undefined ? { durability: active.durability } : {}) });
+    // Thrown where the player looks: Java gives a dropped stack 0.3 blocks/tick along the look and 0.1 up (6 and 2 a
+    // second), so it lands a few blocks ahead rather than at the player's feet, where it was picked straight back up.
+    const throwVelocity = dir.clone().multiplyScalar(6).add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 2, (Math.random() - 0.5) * 0.4));
+    this.entities.spawnDroppedItem(spawnPos, active.id, active.isBlock, requested, { velocity: throwVelocity, thrownByPlayer: true, enchantments: active.enchantments, ...(active.durability !== undefined ? { durability: active.durability } : {}) });
     this.sounds.playClick();
 
     for (let i = 0; i < requested; i++) this.inventory.consumeActiveItem();
@@ -3692,6 +3782,7 @@ class Game {
     }
 
     this.sounds.playBreak(def ? def.sound : 'stone');
+    this.vibration(x, y, z, 'block_destroy', { fromWool: isWool(blockId) });
 
     // Recompute here rather than trusting a flag from updateMining: a block can also be
     // broken by paths that never went through the mining loop.
@@ -3813,7 +3904,7 @@ class Game {
       return;
     }
 
-    if (blockId === BLOCKS.RED_BED_FOOT || blockId === BLOCKS.RED_BED_HEAD) {
+    if (blockId === BLOCKS.RED_BED_FOOT || blockId === BLOCKS.RED_BED_HEAD || BLOCK_DEFS[blockId]?.bed) {
       if (this.bedManager) this.bedManager.onBlockBroken(x, y, z);
       this.world.setVoxel(x, y, z, BLOCKS.AIR);
       const cx = Math.floor(x / 16);
@@ -3828,7 +3919,9 @@ class Game {
 
     // Set air in world (or restore water if breaking a water plant underwater)
     const replacement = (def?.waterPlant && y < this.world.seaLevel) ? BLOCKS.WATER : BLOCKS.AIR;
-    this.world.setVoxel(x, y, z, replacement);
+    // String cut with shears is "disarmed" and does not trip its hooks (String).
+    if (blockId === BLOCKS.TRIPWIRE && this.inventory.getActiveItem()?.id === 'shears' && this.world.redstone) this.world.redstone.shearing = true;
+    try { this.world.setVoxel(x, y, z, replacement); } finally { if (this.world.redstone) this.world.redstone.shearing = false; }
     this.worldSync?.onBlockBroken(x, y, z);
 
     // Ladders and vines hanging on this block lose their support (wallAttached.js).
@@ -3995,7 +4088,7 @@ class Game {
 
     if (hit && !this.targetMob) {
       const bId = this.world.getVoxel(x, y, z);
-      this.targetBlock = { x, y, z, normal, blockId: bId };
+      this.targetBlock = { x, y, z, normal, blockId: bId, point: camPos.clone().addScaledVector(camDir, distTraveled) };
       const torchTarget = BLOCK_DEFS[this.world.getVoxel(x, y, z)]?.shape === 'torch';
       this.targetBoxMesh.scale.set(torchTarget ? 0.125 : 1, torchTarget ? 0.625 : 1, torchTarget ? 0.125 : 1);
       this.targetBoxMesh.position.set(x + 0.5, y + (torchTarget ? 0.3125 : 0.5), z + 0.5);
@@ -4016,6 +4109,9 @@ class Game {
     }
 
     const blockIdOfTarget = this.targetBlock.blockId;
+    // Dragon Egg: "Attempting to mine or using the dragon egg causes it to teleport" -- on the hit, not after a full
+    // break (Advancement guide/The End tab). breakTargetBlock does the egg's teleport.
+    if (blockIdOfTarget === BLOCKS.DRAGON_EGG && this.player.gamemode !== 'creative') { this.breakTargetBlock(); this.miningTime = 0; return; }
     const def = BLOCK_DEFS[this.targetBlock.blockId];
     if (!def || def.hardness >= 99999) return; // bedrock
 
@@ -4726,8 +4822,12 @@ class Game {
 
     // 1. Update Player Physics & Camera
     this.world.redstone.game=this;
+    this.simSeconds=(this.simSeconds||0)+worldDt; // a monotonic game clock for timed mob memories (golemSummoning.js)
     this.world.redstone.daylight=Math.max(0,Math.sin((this.worldTime/24000)*Math.PI*2));
-    this.world.redstone.update(worldDt,[this.player,...this.mobs.mobs.filter(m=>m.health>0)]);
+    this.world.redstone.worldTime=((this.worldTime%24000)+24000)%24000;
+    this.world.redstone.rain=this.weather?.isRaining?.()?1:0;this.world.redstone.thunder=this.weather?.clock?.thundering&&this.weather?.isRaining?.()?1:0;
+    // Dropped items press wooden and weighted plates and trip wires (redstoneComponents.js plateSignal reads isItem).
+    this.world.redstone.update(worldDt,[this.player,...this.mobs.mobs.filter(m=>m.health>0),...(this.entities?.droppedItems??[]).map(d=>({position:d.group.position,isItem:true}))]);
     // Carts and boats move on their own clock, after redstone so powered rails have
     // their signal for this frame.
     this.railSystem?.update(worldDt);
@@ -4739,6 +4839,7 @@ class Game {
     if (this.worldGenerated && this.gamerules?.doMobSpawning !== false) this.zombieSiege?.update(dt);
     this.fishing.update(dt);
     this.playerBot?.tick(dt);
+    updateBubbleColumns(this, dt); // soul sand lifts, magma drags down (bubbleColumns.js)
     this.player.update(dt);
     this.waterSplashes.update(dt, this.player.position);
     this.worldSync?.update(dt);
@@ -4763,6 +4864,7 @@ class Game {
     // in the world stopped moving and hitting them did nothing, with no indication why.
     // A painting whose wall is gone breaks a second later and drops.
     this.paintings?.update(dt);
+    this.itemFrames?.update(dt);
     // Building Studio's ground grid follows the player.
     this.buildingStudio?.update?.();
 
@@ -4915,6 +5017,7 @@ class Game {
     // floor pattern the player could stand on and nothing more.
     this.updateEndPortalTravel(dt);
     updateEndGatewayTravel(this,dt);
+    this.updatePlayerVibrations();
     this.endItems?.update(worldDt);
     this.updateEnderEyes(dt);
 

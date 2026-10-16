@@ -177,7 +177,7 @@ export function updatePiglin(behaviors, mob, dt, player) {
       canSee(manager, pos.clone().add(new THREE.Vector3(0, 1.4, 0)), item.group.position))
       .sort((a, b) => a.group.position.distanceToSquared(pos) - b.group.position.distanceToSquared(pos))[0];
     if (gold) {
-      if (gold.group.position.distanceTo(pos) < 1.5) {
+      if (gold.group.position.distanceTo(pos) < 1.5 && (gold.age ?? 0) >= (gold.pickupDelay ?? 0)) {
         if (--gold.count === 0) {
           behaviors.entities.itemVisuals?.release(gold.group);
           gold.group.parent?.remove(gold.group);

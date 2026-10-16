@@ -6,7 +6,7 @@ export function anchorCharges(world,x,y,z) {
   const state=world.structureOrientations?.get(`${x},${y},${z}`);
   return state?.anchorDimension && state.anchorDimension!==world.dimension?0:state?.anchorCharges??0;
 }
-function setCharges(world,x,y,z,n) {
+export function setCharges(world,x,y,z,n) {
   world.structureOrientations??=new Map();
   world.structureOrientations.set(`${x},${y},${z}`,{x,y,z,id:B.RESPAWN_ANCHOR,anchorCharges:n,anchorDimension:world.dimension});
   const chunk=world.getChunk?.(Math.floor(x/16),Math.floor(z/16));if(chunk)chunk.dirty=true;

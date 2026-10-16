@@ -349,44 +349,37 @@ test('blast resistance is read from the harvest data, which is what made it dead
   assert.equal(blastResistanceFor(BLOCKS.BEDROCK), null);
 });
 
-test('vanilla blast rules: TNT leaves dirt and sand, and does not touch stone or obsidian', () => {
-  const always = () => 0;   // the rim of the blast
-  const centre = () => 0.999; // the exact centre (the roll must still pass)
-
-  // Soft blocks break from any distance.
+test('vanilla blast rules (wiki, Explosion): TNT breaks dirt, wood and stone near it, never obsidian or bedrock', () => {
+  const weakest = () => 0;   // a ray at 0.7 x power
+  const strongest = () => 0.999; // a ray at 1.3 x power
+  // Soft blocks break even from the weakest ray.
   for (const key of ['DIRT', 'SAND', 'GRAVEL', 'GRASS', 'OAK_PLANKS']) {
-    const id = BLOCKS[key];
-    assert.equal(isDestroyedByExplosion(id, TNT_EXPLOSION_POWER, always), true,
-      `${key} should be destroyed even at the rim of a TNT blast`);
+    assert.equal(isDestroyedByExplosion(BLOCKS[key], TNT_EXPLOSION_POWER, weakest), true, `${key} breaks`);
   }
-
-  // Resistance 6 is above the strongest threshold (4 * 1.3 = 5.2), so these survive at any distance.
-  for (const key of ['STONE', 'COBBLESTONE', 'COBBLED_DEEPSLATE', 'IRON_BLOCK', 'DEEPSLATE']) {
-    assert.equal(isDestroyedByExplosion(BLOCKS[key], TNT_EXPLOSION_POWER, centre), false,
-      `${key} (resistance 6) must survive a TNT blast, which is what real TNT does`);
+  // Resistance 6: (6 + 0.3) x 0.3 = 1.89, well under a TNT ray's 2.8-5.2 at the centre, so stone and cobblestone break
+  // next to TNT (the old reading made them immune) -- but not 3 blocks out on a weak ray.
+  for (const key of ['STONE', 'COBBLESTONE', 'COBBLED_DEEPSLATE', 'DEEPSLATE']) {
+    assert.equal(isDestroyedByExplosion(BLOCKS[key], TNT_EXPLOSION_POWER, weakest, 1), true, `${key} beside TNT`);
+    assert.equal(isDestroyedByExplosion(BLOCKS[key], TNT_EXPLOSION_POWER, weakest, 3), false, `${key} three blocks out`);
   }
-
-  // Far above the threshold: immune to everything in this game.
   for (const key of ['OBSIDIAN', 'ANVIL', 'ENCHANTING_TABLE', 'RESPAWN_ANCHOR']) {
-    assert.equal(isDestroyedByExplosion(BLOCKS[key], TNT_EXPLOSION_POWER, centre), false,
-      `${key} must be explosion-proof`);
+    assert.equal(isDestroyedByExplosion(BLOCKS[key], TNT_EXPLOSION_POWER, strongest), false, `${key} must be explosion-proof`);
   }
-
-  // Bedrock has no resistance entry at all and must never break.
-  assert.equal(isDestroyedByExplosion(BLOCKS.BEDROCK, TNT_EXPLOSION_POWER, always), false,
-    'bedrock must be immune, which is what the null resistance means');
-  assert.equal(isDestroyedByExplosion(BLOCKS.AIR, TNT_EXPLOSION_POWER, always), false,
-    'air is not a block to destroy');
+  assert.equal(isDestroyedByExplosion(BLOCKS.BEDROCK, TNT_EXPLOSION_POWER, weakest), false);
+  assert.equal(isDestroyedByExplosion(BLOCKS.AIR, TNT_EXPLOSION_POWER, weakest), false);
 });
 
-test('the threshold is derived from the explosion power, not hardcoded', () => {
-  assert.equal(blastResistanceThreshold(4), 4 * 1.3);
-  // A stronger explosion reaches further: 6 is destroyed by power 10 (threshold 13) but not by power 4.
-  assert.equal(isDestroyedByExplosion(BLOCKS.STONE, 4, () => 0.999), false);
-  assert.equal(isDestroyedByExplosion(BLOCKS.STONE, 10, () => 0.999), true,
-    'a stronger blast should break stone');
-  // And obsidian survives even that.
+test('the threshold is the highest resistance the strongest ray can break', () => {
+  assert.ok(Math.abs(blastResistanceThreshold(4) - (4 * 1.3 / 0.3 - 0.3)) < 1e-9);
   assert.equal(isDestroyedByExplosion(BLOCKS.OBSIDIAN, 10, () => 0.999), false);
+});
+
+test('explosionBlocks: TNT buried in stone clears the 3x3x3 around it, and an obsidian wall shields what is behind', async () => {
+  const { explosionBlocks } = await import('../src/blockHarvestData.js');
+  const solid = { getVoxel: (x, y, z) => (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) <= 4 && (x || y || z) ? BLOCKS.STONE : BLOCKS.AIR) };
+  assert.equal(explosionBlocks(solid, { x: 0.5, y: 0.5, z: 0.5 }, 4).length, 26);
+  const walled = { getVoxel: (x, y, z) => (x === 2 && Math.abs(y) <= 3 && Math.abs(z) <= 3 ? BLOCKS.OBSIDIAN : x === 3 && y === 0 && z === 0 ? BLOCKS.DIRT : BLOCKS.AIR) };
+  assert.equal(explosionBlocks(walled, { x: 0.5, y: 0.5, z: 0.5 }, 4).some((b) => b.x === 3), false, 'the dirt behind the obsidian survives');
 });
 
 test('the resistance path degrades predictably for a block with no data', () => {

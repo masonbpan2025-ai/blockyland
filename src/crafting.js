@@ -462,6 +462,39 @@ function sameMultiset(a, b) {
   return true;
 }
 
+function woolColourOf(slot) {
+  if (!slot || !(slot.count > 0)) return null;
+  const id = slot.isBlock || typeof slot.id === 'number' ? slot.id : (ITEMS[slot.id]?.blockId ?? BLOCKS[String(slot.id).toUpperCase()]);
+  const def = BLOCK_DEFS[id];
+  if (def && def.name && def.name.endsWith(' Wool')) {
+    return def.name.slice(0, -5).toLowerCase().replace(/\s+/g, '_');
+  }
+  return null;
+}
+
+function isPlankSlot(slot) {
+  if (!slot || !(slot.count > 0)) return false;
+  const id = slot.isBlock || typeof slot.id === 'number' ? slot.id : (ITEMS[slot.id]?.blockId ?? BLOCKS[String(slot.id).toUpperCase()]);
+  const def = BLOCK_DEFS[id];
+  if (!def || !def.name) return false;
+  return def.name.endsWith(' Planks') || def.name.endsWith(' Bamboo Mosaic') || def.name === 'Bamboo Mosaic';
+}
+
+function matchBedCrafting(grid, width, height, minR, minC, shapeW, shapeH) {
+  if (shapeW !== 3 || shapeH !== 2) return null;
+  const w0 = woolColourOf(grid[minR * width + minC]);
+  const w1 = woolColourOf(grid[minR * width + minC + 1]);
+  const w2 = woolColourOf(grid[minR * width + minC + 2]);
+  if (!w0 || w0 !== w1 || w0 !== w2) return null;
+
+  const p0 = isPlankSlot(grid[(minR + 1) * width + minC]);
+  const p1 = isPlankSlot(grid[(minR + 1) * width + minC + 1]);
+  const p2 = isPlankSlot(grid[(minR + 1) * width + minC + 2]);
+  if (!p0 || !p1 || !p2) return null;
+
+  return { id: `${w0}_bed`, isBlock: false, count: 1 };
+}
+
 // Helper to check 2D grid matching against a recipe
 //
 // Two recipe shapes are supported:
@@ -493,6 +526,10 @@ export function findMatchingRecipe(grid, width, height, recipesList) {
 
   const shapeH = maxR - minR + 1;
   const shapeW = maxC - minC + 1;
+
+  // Bed Crafting: 3 matching wool of any color over 3 wooden planks (can be mixed) -> Bed of matching color
+  const bedCrafted = matchBedCrafting(grid, width, height, minR, minC, shapeW, shapeH);
+  if (bedCrafted) return bedCrafted;
 
   // Computed once, and only if a shapeless recipe is actually reached, so the shaped path -- which is
   // the overwhelmingly common case -- is not slowed down.

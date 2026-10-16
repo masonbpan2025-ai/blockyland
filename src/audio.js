@@ -252,6 +252,13 @@ export class SoundEngine {
     osc.stop(now + 0.18);
   }
 
+  playFuse() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    // Sizzling / hissing noise for creeper fuse (1.5 seconds)
+    this.noiseBurst(1.4, 3200, 2.5, 0.25);
+  }
+
   playExplosion() {
     this.ensureContext();
     if (!this.soundEnabled || !this.ctx) return;

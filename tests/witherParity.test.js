@@ -147,3 +147,12 @@ test('fireWitherSkull spawns projectile moving at 22 m/s', () => {
   const blueSkull = fireWitherSkull(manager, from, target, true);
   assert.equal(blueSkull.isBlue, true, 'blue skull created');
 });
+
+test('a newly summoned wither survives its birth charge (it starts at a third of its health)', async () => {
+  const { updateWitherAI } = await import('../src/witherBossBehavior.js');
+  const THREE = await import('three');
+  const wither = { type: 'wither', health: 300, maxHealth: 300, summonChargeTimer: 11, mesh: { position: new THREE.Vector3(), scale: new THREE.Vector3(1, 1, 1) }, velocity: new THREE.Vector3() };
+  const manager = { game: { difficulty: 'normal' }, mobs: [wither], ui: null };
+  updateWitherAI(manager, wither, 1 / 30, null);
+  assert.ok(wither.health >= 100, `health after the first frame: ${wither.health}`);
+});

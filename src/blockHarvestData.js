@@ -1230,7 +1230,8 @@ export const TNT_EXPLOSION_POWER = 4;
  * `power * 1.3` is the strongest a block can be and still be destroyed at the exact centre.
  */
 export function blastResistanceThreshold(power = TNT_EXPLOSION_POWER) {
-  return power * 1.3;
+  // The highest blast resistance the strongest ray can break at the centre: power x 1.3 > (r + 0.3) x 0.3.
+  return (power * 1.3) / 0.3 - 0.3;
 }
 
 /**
@@ -1361,14 +1362,42 @@ export function sharedHarvestRowFor(blockId, byId, byName) {
   }
   return null;
 }
-export function isDestroyedByExplosion(blockId, power = TNT_EXPLOSION_POWER, random = Math.random) {
+export function isDestroyedByExplosion(blockId, power = TNT_EXPLOSION_POWER, random = Math.random, distance = 0) {
   if (blockId === BLOCKS.AIR) return false;
   const resistance = blastResistanceFor(blockId);
   // No usable resistance: unbreakable, not soft.
   if (resistance === null) return false;
-  // Fully immune above the strongest threshold, at any distance from the centre.
-  if (resistance > blastResistanceThreshold(power)) return false;
-  // Otherwise the block survives the roll when resistance/5 reaches the distance-scaled power.
-  const distanceFactor = 0.3 + 0.7 * random();
-  return resistance / 5 < power * distanceFactor;
+  // Wiki (Explosion): a ray starts with "power x (random value from 0.7 to 1.3)", loses 0.225 for every 0.3 blocks it
+  // travels, and breaks a block when what is left after "(blast resistance + 0.3) x 0.3" is above 0. (This read
+  // resistance against power x 1.3 directly, so TNT could not break stone or cobblestone, which it does.)
+  const intensity = power * (0.7 + 0.6 * random()) - 0.75 * distance;
+  return intensity - (resistance + 0.3) * 0.3 > 0;
+}
+
+/**
+ * The blocks an explosion breaks, by the wiki's ray method (Explosion): rays to the 1352 points on the surface of a
+ * 16x16x16 grid; each walks 0.3 blocks at a time losing 0.225 plus (blast resistance + 0.3) x 0.3 for each block it is
+ * in, and breaks the blocks it passes while it still has intensity left. Blocks in front shield those behind.
+ */
+export function explosionBlocks(world, center, power = TNT_EXPLOSION_POWER, random = Math.random) {
+  const out = new Map();
+  for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) for (let k = 0; k < 16; k++) {
+    if (i !== 0 && i !== 15 && j !== 0 && j !== 15 && k !== 0 && k !== 15) continue;
+    let dx = i / 15 * 2 - 1, dy = j / 15 * 2 - 1, dz = k / 15 * 2 - 1;
+    const len = Math.hypot(dx, dy, dz); dx /= len; dy /= len; dz /= len;
+    let intensity = power * (0.7 + 0.6 * random());
+    let x = center.x, y = center.y, z = center.z;
+    while (intensity > 0) {
+      const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
+      const id = world.getVoxel(bx, by, bz);
+      if (id !== BLOCKS.AIR && id !== undefined) {
+        const r = blastResistanceFor(id);
+        intensity -= ((r === null ? 3600000 : r) + 0.3) * 0.3;
+        if (intensity > 0 && r !== null) out.set(`${bx},${by},${bz}`, { x: bx, y: by, z: bz, id });
+      }
+      x += dx * 0.3; y += dy * 0.3; z += dz * 0.3;
+      intensity -= 0.22500001;
+    }
+  }
+  return [...out.values()];
 }

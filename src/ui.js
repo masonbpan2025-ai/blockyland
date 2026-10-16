@@ -4020,7 +4020,7 @@ export class UIManager {
   }
 
   bindWorldModeControls() {
-    const modes = ['survival', 'creative'];
+    const modes = ['survival', 'creative', 'hardcore'];
     const difficulties = ['peaceful', 'easy', 'normal', 'hard'];
     const modeButtons = modes.map(m => document.getElementById(`world-mode-${m}`));
     const diffButtons = difficulties.map(d => document.getElementById(`world-difficulty-${d}`));
@@ -4040,11 +4040,14 @@ export class UIManager {
       modeButtons.forEach((b, i) => setActive(b, modes[i] === this.selectedWorldMode));
       diffButtons.forEach((b, i) => setActive(b, difficulties[i] === this.selectedWorldDifficulty));
       // Creative has no difficulty to choose.
-      if (diffSection?.style) diffSection.style.display = this.selectedWorldMode === 'creative' ? 'none' : '';
+      // Creative has no difficulty, and Hardcore's is locked to Hard.
+      if (diffSection?.style) diffSection.style.display = this.selectedWorldMode === 'survival' ? '' : 'none';
       if (hint) {
         hint.textContent = this.selectedWorldMode === 'creative'
           ? 'Fly, break anything instantly, and build from the full catalogue.'
-          : 'Start with nothing: gather, craft, eat, and survive the night.';
+          : this.selectedWorldMode === 'hardcore'
+            ? 'Survival on Hard, and one life: if you die, you can only spectate the world.'
+            : 'Start with nothing: gather, craft, eat, and survive the night.';
       }
     };
 
@@ -4154,8 +4157,9 @@ export class UIManager {
           //
           // This is the whole point of the setup screen: the plan requires settings to be selected before
           // terrain generation and ticking, rather than a Creative player being built and then toggled.
-          const chosenMode = this.selectedWorldMode ?? 'survival';
-          const chosenDifficulty = this.selectedWorldDifficulty ?? 'normal';
+          const hardcore = this.selectedWorldMode === 'hardcore';
+          const chosenMode = hardcore ? 'survival' : (this.selectedWorldMode ?? 'survival');
+          const chosenDifficulty = hardcore ? 'hard' : (this.selectedWorldDifficulty ?? 'normal');
           this.game.applyWorldSettings?.({
             gameMode: chosenMode,
             difficulty: chosenDifficulty,
@@ -4168,6 +4172,7 @@ export class UIManager {
             // spawners and structures are in place when the world reads them.
             dataPackPreset: this.selectedDataPackPreset ?? null,
             bonusChest: Boolean(this.worldBonusChest?.checked),
+            hardcore,
           });
           this.game.player?.setGameMode?.(chosenMode);
 

@@ -115,6 +115,45 @@ export function createBedGeometry(isHead, dir = 3, tm = null, colour = null) {
   return merged;
 }
 
+export function getBedBlocksFor(bedItemOrColour) {
+  let colour = 'red';
+  if (typeof bedItemOrColour === 'string') {
+    if (bedItemOrColour.endsWith('_bed')) {
+      colour = bedItemOrColour.slice(0, -4);
+    } else if (bedItemOrColour !== 'bed') {
+      colour = bedItemOrColour;
+    }
+  } else if (typeof bedItemOrColour === 'number') {
+    const def = BLOCK_DEFS[bedItemOrColour];
+    if (def?.bedColour) {
+      colour = def.bedColour;
+    }
+  } else if (bedItemOrColour && typeof bedItemOrColour === 'object') {
+    if (typeof bedItemOrColour.id === 'string') {
+      if (bedItemOrColour.id.endsWith('_bed')) {
+        colour = bedItemOrColour.id.slice(0, -4);
+      } else if (bedItemOrColour.id !== 'bed') {
+        colour = bedItemOrColour.id;
+      }
+    } else if (typeof bedItemOrColour.id === 'number') {
+      const def = BLOCK_DEFS[bedItemOrColour.id];
+      if (def?.bedColour) colour = def.bedColour;
+    } else if (bedItemOrColour.blockId) {
+      const def = BLOCK_DEFS[bedItemOrColour.blockId];
+      if (def?.bedColour) colour = def.bedColour;
+    }
+  }
+
+  colour = colour.toLowerCase().replace(/\s+/g, '_');
+  const footKey = colour === 'red' ? 'RED_BED_FOOT' : colour.toUpperCase() + '_BED';
+  const headKey = colour === 'red' ? 'RED_BED_HEAD' : colour.toUpperCase() + '_BED_HEAD';
+  const footBlock = BLOCKS[footKey] ?? BLOCKS.RED_BED_FOOT;
+  const headBlock = BLOCKS[headKey] ?? BLOCKS.RED_BED_HEAD;
+  const dropItem = `${colour}_bed`;
+
+  return { colour, footBlock, headBlock, dropItem };
+}
+
 export class BedManager {
   constructor(game) {
     this.game = game;
@@ -136,13 +175,14 @@ export class BedManager {
     return this.beds.get(this.getKey(x, y, z)) || null;
   }
 
-  registerBed(footPos, headPos, dir) {
+  registerBed(footPos, headPos, dir, colour = 'red') {
     const footKey = this.getKey(...footPos);
     const headKey = this.getKey(...headPos);
     const bed = {
       footPos: [Math.floor(footPos[0]), Math.floor(footPos[1]), Math.floor(footPos[2])],
       headPos: [Math.floor(headPos[0]), Math.floor(headPos[1]), Math.floor(headPos[2])],
-      dir: dir || 0
+      dir: dir || 0,
+      colour: colour || 'red'
     };
     this.beds.set(footKey, bed);
     this.beds.set(headKey, bed);
@@ -182,7 +222,7 @@ export class BedManager {
     return footSolid && headSolid;
   }
 
-  placeBed(world, footPos, dir) {
+  placeBed(world, footPos, dir, bedItemOrColour = null) {
     const offset = BED_DIRECTIONS[dir] || [0, 0, -1];
     const headPos = [footPos[0] + offset[0], footPos[1], footPos[2] + offset[2]];
 
@@ -190,11 +230,13 @@ export class BedManager {
       return { success: false, reason: 'Bed cannot be placed here' };
     }
 
-    // Set world voxels
-    world.setVoxel(footPos[0], footPos[1], footPos[2], BLOCKS.RED_BED_FOOT);
-    world.setVoxel(headPos[0], headPos[1], headPos[2], BLOCKS.RED_BED_HEAD);
+    const { colour, footBlock, headBlock } = getBedBlocksFor(bedItemOrColour);
 
-    const bed = this.registerBed(footPos, headPos, dir);
+    // Set world voxels
+    world.setVoxel(footPos[0], footPos[1], footPos[2], footBlock);
+    world.setVoxel(headPos[0], headPos[1], headPos[2], headBlock);
+
+    const bed = this.registerBed(footPos, headPos, dir, colour);
 
     // Rebuild chunk meshes
     this.rebuildBlockChunk(footPos[0], footPos[2]);
@@ -205,7 +247,23 @@ export class BedManager {
 
   onBlockBroken(x, y, z) {
     const key = this.getKey(x, y, z);
-    const bed = this.beds.get(key);
+    let bed = this.beds.get(key);
+
+    if (!bed && this.game.world) {
+      const voxel = this.game.world.getVoxel(x, y, z);
+      const def = BLOCK_DEFS[voxel];
+      if (def?.bed || voxel === BLOCKS.RED_BED_FOOT || voxel === BLOCKS.RED_BED_HEAD) {
+        const isHead = Boolean(def?.isHead || voxel === BLOCKS.RED_BED_HEAD);
+        const colour = def?.bedColour || 'red';
+        bed = {
+          footPos: [Math.floor(x), Math.floor(y), Math.floor(z)],
+          headPos: [Math.floor(x), Math.floor(y), Math.floor(z)],
+          dir: 0,
+          colour
+        };
+      }
+    }
+
     if (!bed) return false;
 
     // Identify companion position
@@ -220,7 +278,7 @@ export class BedManager {
     if (this.game.world) {
       this.game.world.setVoxel(x, y, z, BLOCKS.AIR);
       const compVoxel = this.game.world.getVoxel(...companion);
-      if (compVoxel === BLOCKS.RED_BED_FOOT || compVoxel === BLOCKS.RED_BED_HEAD) {
+      if (compVoxel === BLOCKS.RED_BED_FOOT || compVoxel === BLOCKS.RED_BED_HEAD || BLOCK_DEFS[compVoxel]?.bed) {
         this.game.world.setVoxel(...companion, BLOCKS.AIR);
         this.rebuildBlockChunk(companion[0], companion[2]);
       }
@@ -231,10 +289,11 @@ export class BedManager {
       this.leaveBed();
     }
 
-    // Spawn 1 red bed item drop
+    // Spawn 1 bed item drop of matching colour
     if (this.game.entities && typeof this.game.entities.spawnDroppedItem === 'function') {
       const dropPos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
-      this.game.entities.spawnDroppedItem(dropPos, 'red_bed', false, 1);
+      const dropItem = `${bed.colour || 'red'}_bed`;
+      this.game.entities.spawnDroppedItem(dropPos, dropItem, false, 1);
     }
 
     return true;
@@ -391,11 +450,14 @@ export class BedManager {
     // If bed was placed before manager registration, synthesize bed info
     if (!bed) {
       const voxel = this.game.world?.getVoxel(x, y, z);
-      const isHead = voxel === BLOCKS.RED_BED_HEAD;
+      const def = BLOCK_DEFS[voxel];
+      const isHead = Boolean(def?.isHead || voxel === BLOCKS.RED_BED_HEAD);
+      const colour = def?.bedColour || 'red';
       bed = {
         footPos: isHead ? [x, y, z] : [x, y, z],
         headPos: isHead ? [x, y, z] : [x, y, z],
-        dir: 0
+        dir: 0,
+        colour
       };
       this.beds.set(key, bed);
     }
@@ -602,7 +664,7 @@ export class BedManager {
   }
 
   handleBedBounce(player, blockBelow) {
-    if (blockBelow !== BLOCKS.RED_BED_FOOT && blockBelow !== BLOCKS.RED_BED_HEAD) return false;
+    if (blockBelow !== BLOCKS.RED_BED_FOOT && blockBelow !== BLOCKS.RED_BED_HEAD && !BLOCK_DEFS[blockBelow]?.bed) return false;
 
     // Bed bounce: 66% velocity reflection, negates fall damage
     if (player.velocity && player.velocity.y < -1.5) {

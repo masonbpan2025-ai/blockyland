@@ -129,8 +129,9 @@ export function updateWitherAI(manager, wither, dt, player) {
       wither.mesh.scale.set(s, s, s);
       wither.mesh.position.y += dt * 0.2;
     }
-    // Slowly gain health up to 300
-    wither.health = Math.min(WITHER_HEALTH, Math.floor(progress * WITHER_HEALTH));
+    // It starts at a third of its health and fills up while charging. This read floor(progress x 300), which is 0 on the
+    // first frame, so every wither the player summoned died the moment it appeared (Tutorial:Defeating the wither).
+    wither.health = Math.max(1, Math.min(WITHER_HEALTH, Math.floor(WITHER_HEALTH / 3 + progress * (WITHER_HEALTH * 2 / 3))));
 
     manager.ui?.setBossBar?.('wither', 'The Wither (Charging)', progress, '#06b6d4');
 

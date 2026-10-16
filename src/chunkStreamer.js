@@ -226,8 +226,10 @@ export class ChunkStreamer {
     this.game.blockLighting?.setChunk?.(chunk.cx, chunk.cz, []);
     // The chunk's propagated light goes with it, and the neighbours are marked for relighting
     // because their light was computed against terrain that is now gone.
-    // Authored data has no procedural source to regenerate it from. Release geometry only.
-    if (this.game.world.generationMode !== 'authored') {
+    // Authored data has no procedural source to regenerate it from. Release geometry only. The same holds for a
+    // generated chunk the player (or anything else) has changed since: regenerating it from the seed erased whatever
+    // was built there -- walk 600 blocks away and back, and a house was gone (wiki-tutorial play-test, Nether hub).
+    if (this.game.world.generationMode !== 'authored' && !chunk.modified) {
       this.game.world.light?.removeChunk?.(chunk.cx, chunk.cz);
       this.game.world.chunks.delete(this.key(chunk.cx, chunk.cz));
     }

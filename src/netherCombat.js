@@ -183,8 +183,12 @@ export function updateSnowballs(manager, dt) {
     const steps = Math.max(1, Math.ceil(p.velocity.length()*dt/.1));
     let hit = false;
     for(let i=0;i<steps&&!hit;i++) {
+      const from = p.mesh.position.clone();
       p.velocity.y -= 10*dt/steps; p.mesh.position.addScaledVector(p.velocity,dt/steps);
       const pos = p.mesh.position;
+      // End Crystal: any projectile destroys one -- Tutorial:Locating a stronghold: "use snowballs to destroy most or all
+      // of the End crystals". Snowballs passed through them.
+      if (manager.game?.bossManager?.hitCrystalSegment?.(from, pos)) { hit = true; break; }
       if(manager.world?.getVoxel?.(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z))===BLOCKS.CHORUS_FLOWER){
         manager.world.setVoxel(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z),BLOCKS.AIR);
         manager.entities?.spawnDroppedItem?.(pos.clone(),BLOCKS.CHORUS_FLOWER,true,1);hit=true;

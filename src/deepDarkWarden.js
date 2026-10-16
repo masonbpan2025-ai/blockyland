@@ -39,7 +39,10 @@ export class DeepDarkWardenManager {
           if (block === BLOCKS.SCULK_SENSOR) {
             foundSensor = true;
           }
-          if (block === BLOCKS.SCULK_SHRIEKER) {
+          // Wiki (Sculk Shrieker): only a shrieker that "can summon" -- one that generated in the world, not one a player
+          // placed -- gives warnings and calls a warden; a sculk sensor alone never does. A base with sculk sensors in
+          // its redstone summoned wardens (Sculk redstone play-test).
+          if (block === BLOCKS.SCULK_SHRIEKER && !this.world?.structureOrientations?.get?.(`${px + dx},${py + dy},${pz + dz}`)?.playerPlaced) {
             foundShrieker = true;
             shriekerPos = new THREE.Vector3(px + dx, py + dy, pz + dz);
           }
@@ -47,7 +50,7 @@ export class DeepDarkWardenManager {
       }
     }
 
-    if (foundSensor || foundShrieker) {
+    if (foundShrieker) {
       this.shriekCooldown = 10.0;
       this.warningLevel++;
       if (this.sounds?.playWardenShriek) this.sounds.playWardenShriek();

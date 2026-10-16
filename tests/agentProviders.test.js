@@ -116,7 +116,8 @@ test('the agent ships four vendors, defaults to DeepSeek V4.1 Flash at high effo
   assert.equal(WorldAgent.defaultModelFor('deepseek'), 'deepseek-flash');
   assert.equal(WorldAgent.defaultEffortFor('deepseek'), 'high');
   assert.equal(WorldAgent.supportsEffort('deepseek'), true);
-  assert.equal(WorldAgent.supportsEffort('gemini'), false);
+  assert.equal(WorldAgent.supportsEffort('gemini'), true);
+  assert.equal(WorldAgent.defaultEffortFor('gemini'), 'medium');
 });
 
 test('preferences persist but keys are session-only; legacy plaintext is retired', () => {
@@ -204,10 +205,17 @@ test('images use each vendor image block shape and keep history in order', () =>
   assert.deepEqual(gem.body.contents.at(-1).parts[0].inlineData, { mimeType: 'image/png', data: 'BBB' });
 });
 
-test('reasoning effort is omitted for vendors that do not support it', () => {
+test('reasoning effort is applied to Gemini with thinkingConfig', () => {
   const gemini = buildAgentRequest({ ...baseRequest, vendor: 'gemini', effort: 'high' });
-  assert.equal(gemini.effort, '');
-  assert.equal(JSON.stringify(gemini.body).includes('reasoning_effort'), false);
+  assert.equal(gemini.effort, 'high');
+  assert.equal(gemini.body.generationConfig.thinkingConfig.thinkingLevel, 'high');
+
+  const gemini25 = buildAgentRequest({ ...baseRequest, vendor: 'gemini', model: 'gemini-2.5-flash', effort: 'low' });
+  assert.equal(gemini25.effort, 'low');
+  assert.equal(gemini25.body.generationConfig.thinkingConfig.thinkingBudget, 2048);
+
+  const geminiOff = buildAgentRequest({ ...baseRequest, vendor: 'gemini', thinking: false });
+  assert.equal(geminiOff.body.generationConfig.thinkingConfig.thinkingLevel, 'minimal');
 });
 
 // --- response parsing ------------------------------------------------------

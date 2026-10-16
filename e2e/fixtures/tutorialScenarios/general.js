@@ -215,6 +215,8 @@ export const SCENARIOS = [
       farmer.profession = 'farmer';
       const { unlockTradesForLevel } = await import('/src/villagerEconomy.js');
       farmer.trades = []; unlockTradesForLevel(farmer, 1);
+      // The offer that pays emeralds (a novice farmer's offers are rolled; one of them can be bread for emeralds).
+      farmer.trades.sort((a, b) => (b.reward?.id === 'emerald') - (a.reward?.id === 'emerald'));
       const cost = farmer.trades[0]?.cost;
       if (cost) t.give(cost.id, cost.count * 6);
       for (let i = 0; i < 6; i++) await t.run('trade with villager');

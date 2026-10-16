@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="A storytelling demo: two short films written, voiced, staged and filmed inside Blockyland, each made from a single prompt."><title>Storytelling Demo · Blockyland</title><link rel="stylesheet" href="/src/cinema/movies.css"></head>
+<body><main>
+  <nav><a class="brand" href="./index.html">BLOCKYLAND<span>STORYTELLING DEMO</span></a><a class="back" href="./index.html">← Back to game</a></nav>
+  <header class="intro">
+    <p class="demo-badge"><b>DEMO</b> What can you tell with blocks?</p>
+    <h1>From one prompt<br><em>to a short film.</em></h1>
+    <p class="lede">These two films are a demonstration of storytelling in Blockyland. Each began as a single written request. An AI agent then wrote the screenplay, cast the voices, built the sets, directed the actors and cameras, and composed the music, all inside the game’s own engine with the same blocks and characters you play with.</p>
+    <p class="lede small">Watch a film, then open <strong>“See the prompt”</strong> to read exactly what was asked for.</p>
+  </header>
+
+  <section class="shows" aria-labelledby="shows-title">
+    <h2 id="shows-title">What the demo shows</h2>
+    <ul class="capabilities">
+      <li><b>Story</b><span>A screenplay with a clear arc, motivated characters and a moral, in Chinese and English.</span></li>
+      <li><b>Voices</b><span>A distinct neural voice for every character. Questions rise like questions, and no line is rushed.</span></li>
+      <li><b>Acting</b><span>Expressive pixel faces, lip-sync, blinking, and bodies that walk, kneel, sit and carry.</span></li>
+      <li><b>Sets</b><span>Farms, a workshop and a storybook frontier, built from the game’s own blocks and textures.</span></li>
+      <li><b>Cinematography</b><span>Shot lists, reaction close-ups, dissolves through time, seasons, sunsets and lighting moods.</span></li>
+      <li><b>Sound</b><span>An original pentatonic score that follows the story, plus footsteps, hooves, birds and crickets.</span></li>
+    </ul>
+  </section>
+
+  <section class="how" aria-labelledby="how-title">
+    <h2 id="how-title">How a prompt becomes a film</h2>
+    <ol class="steps">
+      <li><b>01</b>Prompt</li><li><b>02</b>Screenplay</li><li><b>03</b>Voice cast</li><li><b>04</b>Sets &amp; blocking</li><li><b>05</b>Cameras &amp; edit</li><li><b>06</b>Score &amp; sound</li><li><b>07</b>Render &amp; review</li>
+    </ol>
+    <p>Every frame is directed with code on a fixed 24 fps clock, so the interactive preview and the finished film always match. The agent reviews its own shots and fixes what looks wrong before the final render.</p>
+  </section>
+
+  <section class="collection" aria-labelledby="collection-title"><div class="section-heading"><div><p class="eyebrow">THE DEMO FILMS</p><h2 id="collection-title">Old tales, told in blocks.</h2></div><span>2 short films · 中英字幕</span></div><div id="movie-list" class="movie-grid"></div></section>
+  <footer>A Blockyland storytelling demo. These films illustrate what the engine can do; they are not part of the game.<span>Voiced in English · Chinese &amp; English subtitles</span></footer>
+</main>
+<dialog id="theater" aria-labelledby="watch-title"><div class="theater-heading"><div><p class="eyebrow">NOW SHOWING · DEMO</p><h2 id="watch-title"></h2></div><button id="close-theater" aria-label="Close movie">✕</button></div><video id="movie-player" controls playsinline preload="none"></video><p id="player-status" role="status" hidden></p><div class="theater-footer"><p id="watch-note"></p><a id="download-movie" download>Download film ↓</a></div><details><summary>Explore how this film was directed</summary><p>Pause, restart or scrub through the live 3D scene in the <a id="live-preview">interactive preview</a>.</p></details></dialog>
+<script type="module" src="/src/cinema/movies.js"></script></body></html>

@@ -175,6 +175,7 @@ export function serializeWorld(game, mapName = 'World 1') {
     dimensionMobs,
     // Wall paintings: canvas, facing and the air cell they hang from. Older saves have none.
     paintings: game.paintings?.serialize?.() ?? [],
+    itemFrames: game.itemFrames?.serialize?.() ?? [],
     gemini: {
       builtStructures: (game.geminiAgent?.builtStructures || []).map(s => ({
         id: s.id,
@@ -239,7 +240,7 @@ function restoreMapDimension(game,mapData,seed) {
     if(name===world.dimension||!['overworld','nether','the_end'].includes(name))continue;
     const chunks=new Map();
     for(const record of data.chunks??[]) {
-      const chunk=new Chunk(record.cx,record.cz);decodeVoxelsRLE(record.voxels,chunk.voxels);
+      const chunk=new Chunk(record.cx,record.cz);decodeVoxelsRLE(record.voxels,chunk.voxels);chunk.modified=true;
       if(record.waterLevels)decodeVoxelsRLE(record.waterLevels,chunk.waterLevels);
       chunk.dirty=true;chunks.set(world.chunkKey(chunk.cx,chunk.cz),chunk);
     }
@@ -326,6 +327,7 @@ async function restoreWorldAsync(game, mapData, options = {}) {
     const chunkData = mapData.chunks[i];
     const chunk = new Chunk(chunkData.cx, chunkData.cz);
     decodeVoxelsRLE(chunkData.voxels, chunk.voxels);
+    chunk.modified = true; // saved data: the streamer keeps it rather than regenerating it from the seed
     if (chunkData.waterLevels) decodeVoxelsRLE(chunkData.waterLevels, chunk.waterLevels);
     for (let j = 0; j < chunk.waterLevels.length; j++) if (chunk.waterLevels[j] > 8) chunk.waterLevels[j] = 0;
     chunk.dirty = true;
@@ -429,8 +431,10 @@ async function restoreWorldAsync(game, mapData, options = {}) {
   }
 
   restoreDimensionMobs(game, mapData);
+  game.world?.rescanPortals?.();
   // 9b. Paintings hang on blocks, so they go back after the chunks and before the meshes.
   game.paintings?.restore?.(mapData.paintings);
+  game.itemFrames?.restore?.(mapData.itemFrames);
 
   // 10. Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {
@@ -570,6 +574,7 @@ export function deserializeWorld(game, mapData, options = {}) {
   for (const chunkData of mapData.chunks) {
     const chunk = new Chunk(chunkData.cx, chunkData.cz);
     decodeVoxelsRLE(chunkData.voxels, chunk.voxels);
+    chunk.modified = true; // saved data: the streamer keeps it rather than regenerating it from the seed
     if (chunkData.waterLevels) decodeVoxelsRLE(chunkData.waterLevels, chunk.waterLevels);
     for (let i=0; i<chunk.waterLevels.length; i++) if (chunk.waterLevels[i]>8) chunk.waterLevels[i]=0;
     chunk.dirty = true;
@@ -680,8 +685,10 @@ export function deserializeWorld(game, mapData, options = {}) {
     if(Number.isInteger(vehicle)&&restoredMobs?.[vehicle]?.type==='strider'&&restoredMobs[i])attachStriderPassenger(restoredMobs[vehicle],restoredMobs[i]);
   }
   restoreDimensionMobs(game, mapData);
+  game.world?.rescanPortals?.();
   // 9b. Paintings hang on blocks, so they go back after the chunks.
   game.paintings?.restore?.(mapData.paintings);
+  game.itemFrames?.restore?.(mapData.itemFrames);
 
   // 10. Restore Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {
