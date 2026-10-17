@@ -37,10 +37,15 @@ export function decal(parent, x0, z0, x1, z1, mat, y = 3.012) {
 
 const TEXTURES = ['oak_planks.png', 'spruce_planks.png', 'dark_oak_planks.png', 'oak_log.png', 'spruce_log.png', 'hay_block_side.png', 'hay_block_top.png', 'dirt_path_top.png', 'cobblestone.png', 'stone_bricks.png', 'iron_block.png', 'smooth_stone.png', 'white_wool.png', 'red_wool.png', 'stripped_oak_log.png', 'gravel.png', 'coarse_dirt.png', 'podzol_top.png'];
 
+/** Output frame: the live preview draws 1280×720; an export (?export) draws 1920×1080 from a 2× supersampled picture,
+ *  which averages away the shimmer of thin texture lines on distant blocks. */
+const EXPORTING = new URLSearchParams(globalThis.location?.search ?? '').has('export');
+export const FRAME = EXPORTING ? { width: 1920, height: 1080, supersample: 2 } : { width: 1280, height: 720, supersample: 1 };
+
 /** Renderer, lights, textures, prop materials and an empty authored world of (2·chunks+1)² chunks. */
 export async function createStage({ seed = 1907, chunks = 4, extraTextures = [] } = {}) {
   const renderer = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-  renderer.setSize(1280, 720); renderer.setPixelRatio(1);
+  renderer.setPixelRatio(FRAME.supersample); renderer.setSize(FRAME.width, FRAME.height);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
   renderer.outputColorSpace = T.SRGBColorSpace; renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   const scene = new T.Scene(); scene.fog = new T.Fog(0xcfe0e6, 60, 230);
@@ -69,10 +74,19 @@ export async function createStage({ seed = 1907, chunks = 4, extraTextures = [] 
 export function meshWorld({ world, textures, scene }) {
   world.light.skyDarken = 0; world.light.update(40000);
   const mesher = new ChunkMesher(textures);
+  // The game's atlas has no mipmaps, so distant floors flicker as the camera drifts; films get a mipmapped copy.
+  // The chain stops at one pixel per tile, so a level never blends neighbouring tiles,
+  // and nearest-texel sampling within a level keeps near blocks crisp.
+  const src = textures.atlasTexture.image, mipmaps = [src];
+  for (let size = src.width / 2, tile = textures.tileSize / 2; tile >= 1; size /= 2, tile /= 2) {
+    const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true; g.drawImage(mipmaps.at(-1), 0, 0, size, size); mipmaps.push(c);
+  }
+  const atlas = new T.CanvasTexture(src); Object.assign(atlas, { mipmaps, generateMipmaps: false, magFilter: T.NearestFilter, minFilter: T.NearestMipmapLinearFilter, colorSpace: T.SRGBColorSpace });
   for (const c of world.chunks.values()) {
     const g = mesher.meshChunk(c, world);
     for (const [key, source] of [['opaqueGeo', textures.opaqueMaterial], ['transparentGeo', textures.transparentMaterial]]) if (g[key]) {
-      const mat = source.clone(); mat.transparent = false; mat.alphaTest = .4; const mesh = new T.Mesh(g[key], mat); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
+      const mat = source.clone(); mat.map = atlas; mat.transparent = false; mat.alphaTest = .4; const mesh = new T.Mesh(g[key], mat); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
     }
   }
 }

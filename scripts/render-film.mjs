@@ -34,7 +34,7 @@ try {
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   // Other work in this shared repo must not hot-reload a film midway through export.
   await page.route('**/@vite/client', r => r.fulfill({ contentType: 'application/javascript', body: 'export const injectQuery=(u,q)=>u+(u.includes("?")?"&":"?")+q;export const createHotContext=()=>({accept(){},prune(){},dispose(){},on(){}});export const updateStyle=()=>{};export const removeStyle=()=>{};' }));
-  await page.goto(`${baseURL.replace(/\/$/, '')}/${previewPage}`, { waitUntil: 'commit', timeout: 120000 });
+  await page.goto(`${baseURL.replace(/\/$/, '')}/${previewPage}?export`, { waitUntil: 'commit', timeout: 120000 });
   console.log('Loading the film set and game textures.');
   await page.waitForFunction(() => window.pilot?.ready, null, { timeout: 180000 });
   console.log(`Film ready. Reviewing ${reviewTimes.length} camera shots.`);
@@ -56,7 +56,7 @@ try {
   await writeFile(path.join(output, 'storyboard.jpg'), Buffer.from(contact, 'base64'));
   await writeFile(path.join(output, 'poster.png'), Buffer.from(await page.evaluate(t => window.pilot.poster(t), PILOT.posterTime ?? 2.5), 'base64'));
   if (errors.length) throw new Error(errors.join('\n'));
-  await writeFile(path.join(output, 'review.json'), JSON.stringify({ duration: PILOT.duration, size: [1280, 720], fps: PILOT.fps, shots: views, errors }, null, 2));
+  await writeFile(path.join(output, 'review.json'), JSON.stringify({ duration: PILOT.duration, size: [1920, 1080], fps: PILOT.fps, shots: views, errors }, null, 2));
   if (previewOnly) { console.log(`Previews written to ${output}`); }
   else {
     const wav = await page.evaluate(() => window.pilot.wavBase64());
@@ -65,7 +65,7 @@ try {
     await writeFile(path.join(output, 'audio-review.json'), JSON.stringify(voiceReport, null, 2));
     const frames = PILOT.duration * PILOT.fps;
     console.log(`Narration and original score mixed. Rendering ${frames} frames.`);
-    encoder = spawn(process.env.FFMPEG_PATH ?? 'ffmpeg', ['-hide_banner', '-loglevel', 'warning', '-y', '-f', 'image2pipe', '-framerate', String(PILOT.fps), '-vcodec', 'mjpeg', '-i', 'pipe:0', '-i', path.join(output, 'soundtrack.wav'), '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-maxrate', '5M', '-bufsize', '10M', '-vf', 'scale=in_range=pc:out_range=tv:out_color_matrix=bt709,format=yuv420p', '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-c:a', 'aac', '-ar', '48000', '-b:a', '160k', '-af', 'loudnorm=I=-18:TP=-1.5:LRA=11', '-t', String(PILOT.duration), '-movflags', '+faststart', path.join(output, movieId + '.mp4')], { stdio: ['pipe', 'ignore', 'pipe'], windowsHide: true });
+    encoder = spawn(process.env.FFMPEG_PATH ?? 'ffmpeg', ['-hide_banner', '-loglevel', 'warning', '-y', '-f', 'image2pipe', '-framerate', String(PILOT.fps), '-vcodec', 'mjpeg', '-i', 'pipe:0', '-i', path.join(output, 'soundtrack.wav'), '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-vf', 'scale=in_range=pc:out_range=tv:out_color_matrix=bt709,format=yuv420p', '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-c:a', 'aac', '-ar', '48000', '-b:a', '160k', '-af', 'loudnorm=I=-18:TP=-1.5:LRA=11', '-t', String(PILOT.duration), '-movflags', '+faststart', path.join(output, movieId + '.mp4')], { stdio: ['pipe', 'ignore', 'pipe'], windowsHide: true });
     let stderr = ''; encoder.stderr.on('data', data => { stderr += data; });
     const complete = new Promise((resolve, reject) => { encoder.on('error', reject); encoder.on('close', code => code === 0 ? resolve() : reject(new Error(`FFmpeg ${code}: ${stderr}`))); });
     for (let i = 0; i < frames; i++) {

@@ -4,6 +4,7 @@
 // Everything is a pure function of the film clock t, so preview, scrubbing and the
 // fixed-24fps export show the same frame for the same t.
 import * as T from 'three';
+import { FRAME } from './claudeStage.js';
 import { pose, blocking, expressionTrack, blink, clamp, ease, lerp, facing, wrap } from './claudeActors.js';
 
 export const v = (x, y, z) => new T.Vector3(x, y, z);
@@ -115,12 +116,14 @@ export async function createDirector({ story, stage, cast, audioDir, voiceScript
       renderer.render(scene, camera);
     }
 
-    const canvas = document.createElement('canvas'); canvas.width = 1280; canvas.height = 720;
+    // everything is laid out in 1280×720 units and scaled to the output frame, so an export is sharp, not stretched
+    const canvas = document.createElement('canvas'); canvas.width = FRAME.width; canvas.height = FRAME.height;
     const ink = canvas.getContext('2d', { alpha: false });
-    const prev = document.createElement('canvas'); prev.width = 1280; prev.height = 720; const prevInk = prev.getContext('2d', { alpha: false });
+    const prev = document.createElement('canvas'); prev.width = FRAME.width; prev.height = FRAME.height; const prevInk = prev.getContext('2d', { alpha: false });
+    for (const c of [ink, prevInk]) { c.setTransform(FRAME.width / 1280, 0, 0, FRAME.height / 720, 0, 0); c.imageSmoothingQuality = 'high'; }
     document.querySelector('#stage').replaceChildren(canvas);
     await document.fonts.load('25px "Microsoft YaHei"'); await document.fonts.ready;
-    function draw3d(target, t, shot) { stageFrame(t, shot); target.filter = grade(shot.scene); target.drawImage(renderer.domElement, 0, 0); target.filter = 'none'; }
+    function draw3d(target, t, shot) { stageFrame(t, shot); target.filter = grade(shot.scene); target.drawImage(renderer.domElement, 0, 0, 1280, 720); target.filter = 'none'; }
     function text(words, x, y, font, color = '#fbf3e1', align = 'center', blur = 10) {
       ink.font = font; ink.textAlign = align; ink.fillStyle = color; ink.shadowColor = 'rgba(5,8,6,.85)'; ink.shadowBlur = blur; ink.shadowOffsetY = 2; ink.fillText(words, x, y); ink.shadowBlur = 0; ink.shadowOffsetY = 0;
     }
@@ -135,7 +138,7 @@ export async function createDirector({ story, stage, cast, audioDir, voiceScript
       if (incoming || outgoingD) {
         const into = incoming ?? outgoingD, before = shots[shots.indexOf(into) - 1], mix = ease((t - (into.at - into.dissolve / 2)) / into.dissolve);
         draw3d(prevInk, t, before); draw3d(ink, t, into);
-        ink.globalAlpha = 1 - mix; ink.drawImage(prev, 0, 0); ink.globalAlpha = 1;
+        ink.globalAlpha = 1 - mix; ink.drawImage(prev, 0, 0, 1280, 720); ink.globalAlpha = 1;
         const flash = Math.sin(mix * Math.PI) * (into.scene === storybook || before.scene === storybook ? .28 : .1); if (flash) { ink.fillStyle = `rgba(255,236,200,${flash})`; ink.fillRect(0, 0, 1280, 720); }
       } else draw3d(ink, t, shot);
       // vignette, stronger in the storybook
@@ -189,7 +192,7 @@ export async function createDirector({ story, stage, cast, audioDir, voiceScript
     seekBar.oninput = e => { stop(); position = Number(e.target.value); renderFrame(position); };
     window.pilot = {
       ready: true, story, renderFrame, buildAudio, async wavBase64() { return wavBase64(await buildAudio()); },
-      capture(t) { renderFrame(t); return canvas.toDataURL('image/jpeg', .93).split(',')[1]; }, poster(t) { renderFrame(t); return canvas.toDataURL('image/png').split(',')[1]; },
+      capture(t) { renderFrame(t); return canvas.toDataURL('image/jpeg', .97).split(',')[1]; }, poster(t) { renderFrame(t); return canvas.toDataURL('image/png').split(',')[1]; },
     };
     renderFrame(story.posterTime); requestAnimationFrame(tick);
     return window.pilot;
