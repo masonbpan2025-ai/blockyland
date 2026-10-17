@@ -8,7 +8,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const FILMS = { 'well-see-claude': ['../src/cinema/claudeLines.js', 'public/cinema-claude/audio'], 'stump-claude': ['../src/cinema/stumpLines.js', 'public/cinema-stump/audio'] };
+const FILMS = { 'well-see-claude': ['../src/cinema/claudeLines.js', 'public/cinema-claude/audio'], 'stump-claude': ['../src/cinema/stumpLines.js', 'public/cinema-stump/audio'], 'volume-layers': ['../src/cinema/volumeLines.js', 'public/cinema-volume/audio'] };
 const [film, ...only] = process.argv.slice(2);
 if (!FILMS[film]) throw new Error(`Choose a film: ${Object.keys(FILMS).join(', ')}`);
 const { LINES, VOICES } = await import(FILMS[film][0]);

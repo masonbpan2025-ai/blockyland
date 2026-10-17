@@ -395,6 +395,7 @@ export default defineConfig({
         stumpClaude: path.resolve('stump-claude.html'),
         movies: path.resolve('movies.html'),
         wellSeeClaude: path.resolve('well-see-claude.html'),
+        volumeLayers: path.resolve('volume-layers.html'),
         blockDebug: path.resolve('block-debug.html'),
         structureInspector: path.resolve('structure-inspector.html')
       }

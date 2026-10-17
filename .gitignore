@@ -4,6 +4,7 @@ node_modules/
 test-results/
 outputs/stump-claude/
 outputs/well-see-claude/
+outputs/volume-layers/
 playwright-report/
 .pnp
 .pnp.js
@@ -96,3 +97,4 @@ agent_history/
 public/movies/
 public/cinema-claude/
 public/cinema-stump/
+public/cinema-volume/

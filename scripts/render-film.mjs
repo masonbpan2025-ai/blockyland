@@ -8,11 +8,13 @@ import path from 'node:path';
 import { createServer } from 'vite';
 import { CLAUDE_STORY, CLAUDE_REVIEW_TIMES } from '../src/cinema/claudeStory.js';
 import { STUMP_STORY, STUMP_REVIEW_TIMES } from '../src/cinema/stumpStory.js';
+import { VOLUME_STORY, VOLUME_REVIEW_TIMES } from '../src/cinema/volumeStory.js';
 
 const movieId = process.argv.find(a => a.startsWith('--movie='))?.slice(8);
 const FILMS = {
   'well-see-claude': { story: CLAUDE_STORY, page: 'well-see-claude.html', review: CLAUDE_REVIEW_TIMES, out: 'outputs/well-see-claude' },
   'stump-claude': { story: STUMP_STORY, page: 'stump-claude.html', review: STUMP_REVIEW_TIMES, out: 'outputs/stump-claude' },
+  'volume-layers': { story: VOLUME_STORY, page: 'volume-layers.html', review: VOLUME_REVIEW_TIMES, out: 'outputs/volume-layers' },
 };
 if (!FILMS[movieId]) throw new Error(`Choose a film with --movie=: ${Object.keys(FILMS).join(', ')}`);
 const film = FILMS[movieId], PILOT = film.story, previewPage = film.page;

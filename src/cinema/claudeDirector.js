@@ -97,8 +97,9 @@ export async function createDirector({ story, stage, cast, audioDir, voiceScript
   /**
    * shots: [{ at, scene, name, cam, dissolve? }]; directors: { [scene]: t => void }
    * reset(t): hide per-frame props; light(scene, t); grade(scene) → canvas filter; soundtrack() → Promise<{ buffer, report }>
+   * overlay(ink, t, shot): optional 2D layer drawn over the picture, under the letterbox and subtitles (labels, diagrams)
    */
-  async function mount({ shots, directors, reset = () => {}, light, grade = () => 'none', soundtrack, wavBase64 }) {
+  async function mount({ shots, directors, reset = () => {}, light, grade = () => 'none', soundtrack, wavBase64, overlay }) {
     shots.forEach((s, i) => { s.end = shots[i + 1]?.at ?? story.duration; });
     const shotAt = t => shots.findLast(s => t >= s.at) ?? shots[0];
     function stageFrame(t, shot) {
@@ -139,6 +140,7 @@ export async function createDirector({ story, stage, cast, audioDir, voiceScript
       } else draw3d(ink, t, shot);
       // vignette, stronger in the storybook
       const vg = ink.createRadialGradient(640, 380, 260, 640, 380, 820); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, shot.scene === storybook ? 'rgba(40,24,8,.55)' : 'rgba(0,0,0,.32)'); ink.fillStyle = vg; ink.fillRect(0, 0, 1280, 720);
+      overlay?.(ink, t, shot);
       // letterbox
       ink.fillStyle = '#0b0f0c'; ink.fillRect(0, 0, 1280, BAR); ink.fillRect(0, 720 - BAR, 1280, BAR);
       ink.font = '11px Arial'; ink.textAlign = 'left'; ink.fillStyle = '#cfc6b0'; ink.fillText(story.brand ?? 'BLOCKYLAND PICTURES  ·  CLAUDE’S CUT', 30, 24); ink.textAlign = 'right'; ink.fillText(`${story.title}  ·  ${story.englishTitle}`, 1250, 24);
