@@ -15,7 +15,7 @@ Follow src/cinema/CINEMA_GUIDELINES.md. Render at 1280×720 and 24 fps, review e
 export const MOVIES = Object.freeze([
   { id: 'stump-claude', title: '守株待兔', english: 'Waiting by the Stump', duration: 127,
     description: 'One lucky rabbit. One very bad plan. A farmer waits a whole season by a stump while his neighbour’s wheat turns gold.',
-    theme: 'Luck & effort', poster: movieAsset('stump-claude.jpg'), video: movieAsset('stump-claude.mp4'),
+    theme: 'Luck & effort', poster: movieAsset('stump-claude.jpg'), youtube: 'mk7O2zUk1_c',
     preview: `${base}stump-claude.html`, note: 'The traditional fable, fully voiced: a hard-working farmer, a neighbour and her grandson, and a season of waiting.',
     prompt: `Make a two-minute short film of the Chinese fable 守株待兔 (Waiting by the Stump) inside Blockyland, using the game's own blocks and character models.
 
@@ -28,7 +28,7 @@ At harvest, Hu asks if any more rabbits came. "Not one." Li kindly gives him see
 ${QUALITY}` },
   { id: 'well-see-claude', title: '塞翁失马', english: 'We’ll See', duration: 178,
     description: 'Moving day. Grandpa tells the story of the frontier horse, a wagon wheel breaks, and Mei has to decide what kind of big sister she is.',
-    theme: 'Change & possibility', poster: movieAsset('well-see-claude.jpg'), video: movieAsset('well-see-claude.mp4'),
+    theme: 'Change & possibility', poster: movieAsset('well-see-claude.jpg'), youtube: 'D7qG6BPl-jI',
     preview: `${base}well-see-claude.html`, note: 'An old parable inside a family story: a cast of distinct voices, expressive faces, and an ending at the village workshop.',
     prompt: `Make a three-minute short film of 塞翁失马 (We'll See) inside Blockyland, using the game's own blocks and character models.
 

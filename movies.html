@@ -6,8 +6,10 @@
     <p class="demo-badge"><b>DEMO</b> What can you tell with blocks?</p>
     <h1>From one prompt<br><em>to a short film.</em></h1>
     <p class="lede">These two films are a demonstration of storytelling in Blockyland. Each began as a single written request. <strong>Claude Opus 5.5</strong>, Anthropic’s AI model, then wrote the screenplay, cast the voices, built the sets, directed the actors and cameras, and composed the music, all inside the game’s own engine with the same blocks and characters you play with.</p>
-    <p class="lede small">Watch a film, then open <strong>“See the prompt”</strong> to read exactly what was asked for. All of the code Claude wrote is <a href="#source-title">open on GitHub</a>.</p>
+    <p class="lede small">Watch a film below, then open <strong>“See the prompt”</strong> to read exactly what was asked for. All of the code Claude wrote is <a href="#source-title">open on GitHub</a>.</p>
   </header>
+
+  <section class="collection" aria-labelledby="collection-title"><div class="section-heading"><div><p class="eyebrow">THE DEMO FILMS</p><h2 id="collection-title">Old tales, told in blocks.</h2></div><span>2 short films · 中英字幕</span></div><div id="movie-list" class="movie-grid"></div></section>
 
   <section class="shows" aria-labelledby="shows-title">
     <h2 id="shows-title">What the demo shows</h2>
@@ -29,7 +31,6 @@
     <p>Every frame is directed with code on a fixed 24 fps clock, so the interactive preview and the finished film always match. Claude reviews its own shots and fixes what looks wrong before the final render.</p>
   </section>
 
-  <section class="collection" aria-labelledby="collection-title"><div class="section-heading"><div><p class="eyebrow">THE DEMO FILMS</p><h2 id="collection-title">Old tales, told in blocks.</h2></div><span>2 short films · 中英字幕</span></div><div id="movie-list" class="movie-grid"></div></section>
   <section class="source" aria-labelledby="source-title">
     <h2 id="source-title">Behind the films</h2>
     <p>Written, directed and scored by Claude Opus 5.5. The guidelines, scripts and source for both films are on GitHub.</p>
@@ -43,5 +44,4 @@
   </section>
   <footer>A Blockyland storytelling demo, made with Claude Opus 5.5. These films illustrate what the engine can do; they are not part of the game.<span>Voiced in English · Chinese &amp; English subtitles</span></footer>
 </main>
-<dialog id="theater" aria-labelledby="watch-title"><div class="theater-heading"><div><p class="eyebrow">NOW SHOWING · DEMO</p><h2 id="watch-title"></h2></div><button id="close-theater" aria-label="Close movie">✕</button></div><video id="movie-player" controls playsinline preload="none"></video><p id="player-status" role="status" hidden></p><div class="theater-footer"><p id="watch-note"></p><a id="download-movie" download>Download film ↓</a></div><details><summary>Explore how this film was directed</summary><p>Pause, restart or scrub through the live 3D scene in the <a id="live-preview">interactive preview</a>.</p></details></dialog>
 <script type="module" src="/src/cinema/movies.js"></script></body></html>

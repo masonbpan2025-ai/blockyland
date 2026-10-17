@@ -31,7 +31,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy:cloudflare:share": "npx wrangler deploy --config cloudflare/share/wrangler.jsonc",
-    "deploy:cloudflare": "npm run deploy:cloudflare:share && npm run build && npx wrangler pages deploy dist --project-name blockyland",
+    "deploy:cloudflare": "npm run deploy:cloudflare:share && npm run build && npx wrangler pages deploy dist --project-name blockyland --branch main",
     "mods:generate": "node scripts/generate-mod-catalog.mjs",
     "predev": "npm run mods:generate",
     "prebuild": "npm run mods:generate",

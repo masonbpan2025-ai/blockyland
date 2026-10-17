@@ -60,6 +60,22 @@ function emitDesignedWorlds() {
   };
 }
 
+// The films are watched on YouTube (src/cinema/movieCatalog.js). Their rendered MP4s stay in public/movies for local
+// work, but are left out of the build: they are over Cloudflare Pages' 25 MiB file limit and nothing on the site uses them.
+function leaveOutMovieFiles() {
+  let outDir = 'dist';
+  return {
+    name: 'leave-out-movie-files',
+    apply: 'build',
+    configResolved(config) { outDir = path.resolve(config.root, config.build.outDir); },
+    closeBundle() {
+      const dir = path.join(outDir, 'movies');
+      if (!fs.existsSync(dir)) return;
+      for (const file of fs.readdirSync(dir)) if (file.endsWith('.mp4')) fs.rmSync(path.join(dir, file));
+    }
+  };
+}
+
 export default defineConfig({
   base,
   // Test servers set VITE_CACHE_DIR so they do not share one dependency cache with a developer's own dev server: two Vite
@@ -79,6 +95,7 @@ export default defineConfig({
     modGamesPlugin(),
     rebaseScriptAssetPaths(base),
     emitDesignedWorlds(),
+    leaveOutMovieFiles(),
     {
       name: 'map-storage-server',
       configureServer(server) {

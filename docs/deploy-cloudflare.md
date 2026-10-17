@@ -4,7 +4,7 @@ This setup deploys the Vite game to Cloudflare Pages and its world-sharing signa
 
 ## One-time setup
 
-1. Create or choose a Cloudflare account. The checkout currently has no Git remote, so this guide uses Pages Direct Upload from your local working tree.
+1. Create or choose a Cloudflare account. This guide uses Pages Direct Upload from your local working tree, so the deploy includes ignored local files such as the film posters in `public/movies/`.
 2. Install a supported Node.js version (22 or newer) and run `npm ci` in the repository root.
 3. Authenticate Wrangler and create the Pages project:
 
@@ -43,6 +43,7 @@ Let Cloudflare create the Pages DNS record through the Custom domains flow, then
 - Single-player worlds and local saves run in each player's browser.
 - “Share a World” uses the Pages Function at `/ws/share` and the `ShareRendezvous` Durable Object to exchange connection setup messages. World state and gameplay travel directly between browsers.
 - Server-side map-save APIs and LAN address discovery from the local Vite server are not part of the Pages deployment. Local saves continue to use browser storage; the public site does not advertise private LAN addresses.
+- The Movies page embeds the films from YouTube. The rendered MP4s are left out of the build because Pages rejects files over 25 MiB.
 - Debug and inspection pages included in the Vite build are also publicly reachable. Remove them from the Vite build inputs if they should stay private.
 
 ## Files added for this deployment

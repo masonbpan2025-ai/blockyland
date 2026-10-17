@@ -4,7 +4,7 @@ The initial page's **Movies** link opens `movies.html`. It is a normal link and
 works before the game engine finishes loading. The collection uses native HTML
 video with keyboard-accessible modal playback, fullscreen controls, downloads,
 deep links (`?watch=well-see-claude`) and a link to each live 3D preview.
-MP4 files and posters live in `public/movies/` and are included in static builds.
+The published films are hosted on YouTube and embedded on the Movies page; each film's YouTube id is in `movieCatalog.js`. Rendered MP4s and posters live in `public/movies/`, which git ignores. Builds leave the MP4s out (they exceed Cloudflare Pages' 25 MiB file limit), and the page falls back to YouTube's thumbnail when a poster is missing. After re-rendering a film, upload the new MP4 to YouTube and update its id.
 The catalogue uses Vite's base URL so project-site deployments work too.
 
 How the films are made, and the standards they meet, is in
