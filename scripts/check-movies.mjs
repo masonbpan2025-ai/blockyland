@@ -19,7 +19,7 @@ try {
   await page.route(/youtube(-nocookie)?\.com|ytimg\.com/, r => r.fulfill({ contentType: 'text/html', body: '' }));
   await page.route('**/@vite/client', r => r.fulfill({ contentType: 'application/javascript', body: 'export const injectQuery=(u,q)=>u+"?"+q;export const createHotContext=()=>({accept(){},prune(){},dispose(){},on(){}});export const updateStyle=()=>{};export const removeStyle=()=>{};' }));
   await page.goto(base, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: 'Movies', exact: true }).click(); await page.waitForURL('**/movies.html'); result.navigation = true;
+  await page.getByRole('link', { name: 'Movies', exact: true }).click(); await page.waitForURL(/\/movies(\.html)?(\?|$)/); result.navigation = true; // Cloudflare Pages serves it at /movies
   await page.locator('.movie-card').last().waitFor(); assert.equal(await page.locator('.movie-card').count(), 2);
   await page.locator('.poster img').evaluateAll(images => Promise.all(images.map(img => img.decode())));
   assert.match(await page.locator('.intro').innerText(), /demonstration of storytelling/);
