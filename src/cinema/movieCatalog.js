@@ -41,4 +41,21 @@ Back home, as Dad lifts the last trunk, a wagon wheel snaps. That's bad luck for
 That evening the family decides to stay, for now. Bo asks, "Is that good luck?" Mei glances at Grandpa: "We'll see." Grandpa winks. End on the moral: 塞翁失马，焉知非福 (the old man lost his horse; who could say it wasn't a blessing?).
 
 ${QUALITY}` },
+  { id: 'volume-layers', title: '一层一层数体积', english: 'Count Volume Layer by Layer', duration: 338,
+    description: 'How many buckets fill a giant glass fish ball? Mei shows Bo with blocks: count every shape layer by layer, from a staircase to a pyramid, a ball and even a heart.',
+    theme: 'Math & discovery', poster: movieAsset('volume-layers.jpg'), youtube: 'tuoBzEWgPTI',
+    preview: `${base}volume-layers.html`, note: 'A math lesson for ages 9 to 14: the triangle, pyramid, cone and sphere formulas, each found by counting layers of blocks.',
+    prompt: `Make a short film inside Blockyland, using the game's own blocks and character models, that teaches elementary and middle school students where the volume formulas come from by counting blocks layer by layer. Make it intuitive, fun and easy to follow. Title it 一层一层数体积 · Count Volume Layer by Layer.
+
+Story: Bo has built a giant glass fish ball and asks his big sister Mei how many buckets of water it will take to fill it. Mei says they can count it layer by layer, but should start with simpler shapes.
+
+Start flat. A staircase N blocks wide and N high has 1 + 2 + … + N blocks; a flipped copy slides in to make an N × (N+1) rectangle, so the sum is N(N+1)/2. As the blocks get smaller the staircase becomes a triangle and the extra ½N fades away, which is exactly A = ½·B·H.
+
+Then go 3D. Build a stepped pyramid N blocks high whose layers are 2N × 2N, 2(N−1) × 2(N−1), … down to 2 × 2. Six of these fill a 2N × 2N × 2N cube, so 6·Σ(2k)² ≈ (2N)³ and Σk² ≈ ⅓N³. Be honest that the block version overlaps: show the shared seam blocks in gold, shrink the blocks to show the seams thinning to nothing, and then show the limit with smooth pyramids that fit the cube exactly, so V = ⅓·S·H. Draw the analogy with two triangles making a square.
+
+Next the ball: a half ball is a stack of circles whose radius squared at height k is R² − k², so its volume is Σπ(R² − k²) = π(R³ − ⅓R³) = ⅔πR³ (show Archimedes' cylinder-minus-cone with the same layers), and a whole ball is ⁴⁄₃πR³. Answer Bo: about 905 buckets for a radius of 6, and fill the ball layer by layer.
+
+Finally show that every pointy shape follows ⅓·S·H: a cone, a tetrahedron, even a heart-shaped pyramid. Explain clearly why each layer is S·(k/H)²: the sides are straight lines from the point, so a layer k steps down is k/H as wide and k/H as deep. End at sunset by the full fish ball with all the formulas.
+
+${QUALITY}` },
 ]);

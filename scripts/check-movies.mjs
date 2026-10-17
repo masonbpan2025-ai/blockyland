@@ -20,14 +20,14 @@ try {
   await page.route('**/@vite/client', r => r.fulfill({ contentType: 'application/javascript', body: 'export const injectQuery=(u,q)=>u+"?"+q;export const createHotContext=()=>({accept(){},prune(){},dispose(){},on(){}});export const updateStyle=()=>{};export const removeStyle=()=>{};' }));
   await page.goto(base, { waitUntil: 'domcontentloaded' });
   await page.getByRole('link', { name: 'Movies', exact: true }).click(); await page.waitForURL(/\/movies(\.html)?(\?|$)/); result.navigation = true; // Cloudflare Pages serves it at /movies
-  await page.locator('.movie-card').last().waitFor(); assert.equal(await page.locator('.movie-card').count(), 2);
+  await page.locator('.movie-card').last().waitFor(); assert.equal(await page.locator('.movie-card').count(), 3);
   await page.locator('.poster img').evaluateAll(images => Promise.all(images.map(img => img.decode())));
   assert.match(await page.locator('.intro').innerText(), /demonstration of storytelling/);
   await page.locator('.prompt summary').first().click(); assert.match(await page.locator('.prompt pre').first().innerText(), /守株待兔/);
   assert.equal(await page.locator('.player iframe').count(), 0, 'the gallery does not load the YouTube players up front');
   assert.ok(await page.evaluate(() => document.querySelector('.collection').compareDocumentPosition(document.querySelector('.shows')) & Node.DOCUMENT_POSITION_FOLLOWING), 'the films come first');
   await page.screenshot({ path: path.join(output, 'gallery-desktop.png'), fullPage: true }); result.gallery = true;
-  for (const [id, youtube] of [['stump-claude', 'mk7O2zUk1_c'], ['well-see-claude', 'D7qG6BPl-jI']]) {
+  for (const [id, youtube] of [['stump-claude', 'mk7O2zUk1_c'], ['well-see-claude', 'D7qG6BPl-jI'], ['volume-layers', 'tuoBzEWgPTI']]) {
     if (galleryOnly && id !== 'stump-claude') continue;
     const card = page.locator(`[data-movie="${id}"]`);
     assert.equal(await card.locator('.film-links a').first().getAttribute('href'), `https://www.youtube.com/watch?v=${youtube}`);

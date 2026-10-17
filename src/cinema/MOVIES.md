@@ -1,9 +1,8 @@
 # Blockyland Movies
 
 The initial page's **Movies** link opens `movies.html`. It is a normal link and
-works before the game engine finishes loading. The collection uses native HTML
-video with keyboard-accessible modal playback, fullscreen controls, downloads,
-deep links (`?watch=well-see-claude`) and a link to each live 3D preview.
+works before the game engine finishes loading. Each film card plays its film in place from YouTube,
+with a deep link (`?watch=volume-layers`), the prompt that could produce it, and a link to its live 3D preview.
 The published films are hosted on YouTube and embedded on the Movies page; each film's YouTube id is in `movieCatalog.js`. Rendered MP4s and posters live in `public/movies/`, which git ignores. Builds leave the MP4s out (they exceed Cloudflare Pages' 25 MiB file limit), and the page falls back to YouTube's thumbnail when a poster is missing. After re-rendering a film, upload the new MP4 to YouTube and update its id.
 The catalogue uses Vite's base URL so project-site deployments work too.
 
@@ -35,6 +34,21 @@ wheelwright, who offers him work, so the family stays for now.
 Files: `claudeLines.js`, `claudeStory.js`, `claudeSets.js`, `claudeFilm.js`, `claudeScore.js`.
 Voices are in `public/cinema-claude/audio/`.
 
+## 03 · 一层一层数体积 — Count Volume Layer by Layer
+
+338 seconds, for ages 9 to 14. Bo wants to know how many buckets will fill his giant glass fish ball,
+and Mei shows him by counting blocks layer by layer. A staircase and its flipped twin make a rectangle,
+so 1 + 2 + … + N = N(N+1)/2, and with tiny blocks the staircase becomes a triangle: ½·B·H. Six stepped
+pyramids nearly fill a cube; the gold seam blocks they share shrink away as the blocks shrink, and in the
+limit six smooth pyramids fill it exactly: ⅓·S·H and Σk² = ⅓N³. Stacked circles (r² = R² − k², shown
+against Archimedes' cylinder minus cone) give ⅔πR³ for a half ball and ⁴⁄₃πR³ for a ball: about 905
+buckets. A side view and a shrinking layer show why every layer of a pointy shape is S·(k/H)², so a cone,
+a tetrahedron and a heart pyramid all have volume ⅓·S·H.
+
+Files: `volumeLines.js`, `volumeStory.js`, `volumeSets.js`, `volumeBlocks.js` (block math models with
+drop-in builds), `volumeFilm.js` (direction and the write-on math overlay), `volumeScore.js`.
+Voices are in `public/cinema-volume/audio/`.
+
 ## Shared toolkit
 
 | Module | Role |
@@ -42,13 +56,13 @@ Voices are in `public/cinema-claude/audio/`.
 | `claudeStage.js` | Renderer, lights, block-textured props, authored voxel world, sky, mountains, clouds, path decals, looks |
 | `claudeActors.js` | Painted player-model actors, pose rig, walk blocking, blinks, horse gaits |
 | `claudeFace.js` | 32×32 expressive faces and expression presets |
-| `claudeDirector.js` | Voice validation, lip-sync, acting helpers, camera grammar, compositor, playback/export API |
+| `claudeDirector.js` | Voice validation, lip-sync, acting helpers, camera grammar, compositor (with an optional overlay for labels and diagrams), playback/export API |
 | `claudeSound.js` | Offline mixer: voices with ducking, zither/flute/pad/bell/drum, derived foley, ambience |
 
 ## Production
 
 ```powershell
-node scripts/narrate-claude.mjs stump-claude              # or well-see-claude
+node scripts/narrate-claude.mjs stump-claude              # or well-see-claude, volume-layers
 node scripts/render-film.mjs --movie=stump-claude --preview
 node scripts/render-film.mjs --movie=stump-claude --publish
 node scripts/check-movies.mjs
