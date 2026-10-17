@@ -77,9 +77,12 @@ export class PacksModal {
   renderResourcePacksContent() {
     const activePacks = resourcePackManager.getActivePacks();
     const availablePacks = resourcePackManager.getAvailablePacks();
-    const isStayTrueActive = resourcePackManager.activePackIds[0] === 'stay_true';
-    const isFaithfulActive = resourcePackManager.activePackIds.includes('faithful_64x');
-    const isAshenActive = resourcePackManager.activePackIds[0] === 'ashen_16x';
+    // Only the preset whose textures are in effect is marked active. The Faithful card said "Active" whenever Faithful
+    // was anywhere in the stack, so it still claimed to be in use under Stay True's grass and dirt.
+    const preset = resourcePackManager.activePresetId();
+    const isStayTrueActive = preset === 'stay_true';
+    const isFaithfulActive = preset === 'faithful_64x';
+    const isAshenActive = preset === 'ashen_16x';
     const isVanillaActive = resourcePackManager.activePackIds.length === 0;
 
     return `
@@ -280,7 +283,7 @@ export class PacksModal {
           if (presetId === 'vanilla') {
             await resourcePackManager.reorderPacks([]);
           } else {
-            await resourcePackManager.activatePack(presetId);
+            await resourcePackManager.selectPreset(presetId);
           }
         } finally {
           this.render();

@@ -171,3 +171,42 @@ test('ResourcePackManager: custom HD pack automatically detects resolution from 
   assert.equal(manager.getActiveTileSize(), 16, 'Deactivating custom HD pack restores 16x tile size');
 });
 
+
+test('ResourcePackManager: featured presets are one choice, so Stay True cannot hide under a Faithful marked active', async () => {
+  // Play-test screenshot: grass and dirt drawn with Stay True's 16x tiles while the packs screen said Faithful 64x was
+  // active. Activating a preset stacked it over Faithful, and the Faithful card was marked active anywhere in the stack.
+  const manager = new ResourcePackManager();
+  await manager.reorderPacks(['faithful_64x']);
+  await manager.selectPreset('stay_true');
+  assert.deepEqual(manager.activePackIds, ['stay_true']);
+  assert.equal(manager.activePresetId(), 'stay_true');
+  await manager.selectPreset('faithful_64x');
+  assert.deepEqual(manager.activePackIds, ['faithful_64x']);
+  for (const file of ['grass_block_top.png', 'grass_block_side.png', 'dirt.png']) {
+    assert.equal(manager.resolveBlockTexture(file), `/assets/packs/faithful_64x/${file}`, `${file} comes from Faithful`);
+  }
+  assert.equal(manager.getActiveTileSize(), 64);
+});
+
+test('ResourcePackManager: choosing a preset keeps uploaded packs and the preset slot', async () => {
+  const manager = new ResourcePackManager();
+  manager.availablePacks.set('custom_a', { id: 'custom_a', tileSize: 16, blockTextures: {} });
+  await manager.reorderPacks(['custom_a', 'faithful_64x']);
+  await manager.selectPreset('ashen_16x');
+  assert.deepEqual(manager.activePackIds, ['custom_a', 'ashen_16x']);
+});
+
+test('ResourcePackManager: a saved stack with two presets keeps only the one that was in effect', () => {
+  const store = new Map([
+    ['blockyland_default_faithful64x_applied', 'true'],
+    ['blockyland_active_resource_packs', JSON.stringify(['stay_true', 'faithful_64x'])],
+  ]);
+  const previous = globalThis.localStorage;
+  globalThis.localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+  try {
+    const manager = new ResourcePackManager();
+    assert.deepEqual(manager.activePackIds, ['stay_true'], 'the packs screen now shows Stay True, which is what was drawn');
+  } finally {
+    if (previous === undefined) delete globalThis.localStorage; else globalThis.localStorage = previous;
+  }
+});

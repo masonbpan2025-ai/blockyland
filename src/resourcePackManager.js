@@ -9,6 +9,9 @@ import { FAITHFUL_64X_FILES } from './faithful64xManifest.js';
  * Procedural texture generators for featured packs (Stay True, Faithful 64x, Ashen 16x).
  * Generates PNG data URLs using HTML5 Canvas or offline 16x16 / 64x64 pixel buffers.
  */
+/** The built-in presets the packs screen offers as one exclusive choice. */
+export const FEATURED_PRESETS = ['stay_true', 'faithful_64x', 'ashen_16x'];
+
 let textureCounter = 0;
 function createPixelTextureUrl(width, height, painter, key = '') {
   if (typeof document === 'undefined') {
@@ -313,6 +316,23 @@ export class ResourcePackManager {
     return URL.createObjectURL(blob);
   }
 
+  /**
+   * The featured presets are one choice, not layers. Activating one used to stack it over the others, and Stay True
+   * (16x, repainting only grass, dirt, stone, planks and two flowers) then covered Faithful's grass and dirt while the
+   * packs screen still marked Faithful active. Uploaded packs stay where they are.
+   */
+  selectPreset(id) {
+    if (!FEATURED_PRESETS.includes(id)) return this.activatePack(id);
+    const index = this.activePackIds.findIndex(pid => FEATURED_PRESETS.includes(pid));
+    this.activePackIds = this.activePackIds.filter(pid => !FEATURED_PRESETS.includes(pid));
+    return this.activatePack(id, index === -1 ? this.activePackIds.length : index);
+  }
+
+  /** The featured preset whose textures are in effect: the highest one in the stack, or null for none. */
+  activePresetId() {
+    return this.activePackIds.find(pid => FEATURED_PRESETS.includes(pid)) ?? null;
+  }
+
   activatePack(id, priorityIndex = 0) {
     if (!this.availablePacks.has(id)) return Promise.resolve(false);
     this.activePackIds = this.activePackIds.filter(pid => pid !== id);
@@ -445,6 +465,9 @@ export class ResourcePackManager {
         const ids = JSON.parse(saved);
         if (Array.isArray(ids)) {
           this.activePackIds = ids.filter(id => this.availablePacks.has(id));
+          // A stack saved before presets were exclusive keeps only the preset that was in effect (the highest one).
+          const preset = this.activePresetId();
+          this.activePackIds = this.activePackIds.filter(id => !FEATURED_PRESETS.includes(id) || id === preset);
         }
       }
     } catch {}

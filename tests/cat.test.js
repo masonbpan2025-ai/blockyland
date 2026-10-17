@@ -109,13 +109,17 @@ test('Cat sitting posture and tail swishing in update loop', () => {
   cat.wanderTimer = 10;
   manager.update(0.1, player);
   assert.notEqual(cat.legs[0].rotation.x, 0, 'Front leg swings when walking');
+  // The body box is modelled upright and laid flat by a quarter turn. The walk pose reset it to 0, which stood
+  // the body on end: the Inspector showed it right while static and wrong as soon as the showcase ran.
+  assert.equal(cat.body.rotation.x, Math.PI / 2, 'Body lies horizontal while walking');
 
   // 2. Sitting posture: Toggled to sitting
   cat.isSitting = true;
   cat.velocity.set(0, 0, 0);
   manager.update(0.1, player);
 
-  assert.equal(cat.body.rotation.x, -0.55, 'Cat body tilts backwards when sitting');
+  // Vanilla CatModel sits with the body at an eighth of a turn: front raised, not upright.
+  assert.equal(cat.body.rotation.x, Math.PI / 4, 'Cat body raises its front when sitting');
   assert.equal(cat.legs[0].rotation.x, 0, 'Front legs extend straight when sitting');
   assert.equal(cat.legs[2].rotation.x, -Math.PI / 2, 'Hind legs tuck forward when sitting');
   assert.equal(cat.tailUpper.rotation.x, 1.35, 'Tail curls upward when sitting');

@@ -13574,8 +13574,10 @@ export class MobManager {
         if (mob.isSitting) {
           // Sitting posture
           if (mob.body) {
+            // The body box is modelled upright and laid flat by a quarter turn (vanilla CatModel); sitting
+            // raises the front by an eighth of a turn, so both postures are relative to PI/2, never to 0.
             mob.body.position.set(0, 0.30, -0.05);
-            mob.body.rotation.x = -0.55;
+            mob.body.rotation.x = Math.PI / 4;
           }
           if (mob.head) {
             mob.head.position.set(0, 0.48, 0.22);
@@ -13598,7 +13600,7 @@ export class MobManager {
           // Standing posture
           if (mob.body) {
             mob.body.position.set(0, 0.40, -0.05);
-            mob.body.rotation.x = 0;
+            mob.body.rotation.x = Math.PI / 2;
           }
           if (mob.head) {
             mob.head.position.set(0, 0.52, 0.32);

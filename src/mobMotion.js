@@ -22,6 +22,13 @@ export function knockbackVector(raw) {
 }
 
 
+/**
+ * Land mobs that swim up to the surface (Java's FloatGoal), so they keep their heads above water instead of sinking
+ * and drowning. Zombies, skeletons and iron golems have no such goal and still sink.
+ */
+export const FLOATS_IN_WATER = new Set(['cat', 'ocelot', 'wolf', 'fox', 'pig', 'cow', 'mooshroom', 'sheep', 'chicken',
+  'rabbit', 'goat', 'panda', 'polar_bear', 'llama', 'trader_llama', 'villager', 'wandering_trader']);
+
 export function wanderMob(manager, mob, dt, speed, random = null) {
   // The manager's own generator is preferred over Math.random when the caller does not name one. Nearly every
   // call site passes only the speed, so the injectable argument was decorative: a fixture that pins
@@ -111,6 +118,9 @@ function stepIsRefused(hazards, manager, mob, cell, grounded, knockback, waterId
   const maxDrop = mob.type === 'iron_golem' ? 3 : 2;
   let hasFloor = false;
   for (let dy = 1; dy <= maxDrop; dy++) {
+    // Stepping off a ledge into water is walking into water: a cat by a sunken pool walked over the rim,
+    // dropped in and drowned, because only the cell at the mob's own level was checked.
+    if (hazards.getVoxel(cell.x, cell.y - dy, cell.z) === waterId && !(isPackEquine(mob)&&mob.rider)) return true;
     if (hazards.isSolid(cell.x, cell.y - dy, cell.z)) {
       hasFloor = true;
       break;
@@ -470,6 +480,8 @@ export function moveGroundMob(manager, mob, dt) {
   for (let i = 0; i < steps; i++) {
     const support = pos.clone(); support.y -= 0.04;
     const grounded = collision(support);
+    // A floating mob paddling at the shore climbs the bank, the way a swimming mob jumps out in Java.
+    const paddling = FLOATS_IN_WATER.has(mob.type) && hazards.getVoxel(Math.floor(pos.x), Math.floor(pos.y + 0.1), Math.floor(pos.z)) === BLOCKS.WATER;
     for (const [axis, speed] of [['x', vx], ['z', vz]]) {
       if (Math.abs(speed) < 0.001) continue;
       const candidate = pos.clone(); candidate[axis] += speed * step;
@@ -487,7 +499,7 @@ export function moveGroundMob(manager, mob, dt) {
         const clearance = pos.clone(); clearance.y = raised.y;
         const floor = raised.clone(); floor.y -= 0.04;
         const raisedCell = { x: Math.floor(raised.x), y: Math.floor(raised.y), z: Math.floor(raised.z) };
-        if (mob.type !== 'magma_cube' && !mob.dying && grounded && raised.y - pos.y <= 1.04
+        if (mob.type !== 'magma_cube' && !mob.dying && (grounded || paddling) && raised.y - pos.y <= 1.04
           && !collision(clearance) && !collision(raised) && collision(floor)
           && !isLethalStep(hazards, raisedCell.x, raisedCell.y, raisedCell.z)
           && !(['zombified_piglin','zombie_pigman'].includes(mob.type)&&hazards.getVoxel(raisedCell.x,raisedCell.y-1,raisedCell.z)===BLOCKS.MAGMA_BLOCK)) pos.copy(raised);
@@ -498,8 +510,12 @@ export function moveGroundMob(manager, mob, dt) {
     }
     const maxFall = mob.maxFallSpeed !== undefined ? mob.maxFallSpeed : (mob.type === 'chicken' ? -1.5 : -40);
     const gravity = mob.gravity !== undefined ? mob.gravity : (mob.type === 'chicken' ? 8 : 24);
-    const swimming=isPackEquine(mob)&&hazards.getVoxel(Math.floor(pos.x),Math.floor(pos.y+.4),Math.floor(pos.z))===BLOCKS.WATER;
-    if(swimming) {mob.horseFallPeak=undefined;mob.velocity.y=Math.min(2,mob.velocity.y+12*step);}
+    const swimming=(isPackEquine(mob)||FLOATS_IN_WATER.has(mob.type))&&hazards.getVoxel(Math.floor(pos.x),Math.floor(pos.y+.4),Math.floor(pos.z))===BLOCKS.WATER;
+    // Floating stops where the head meets a ceiling: collision only tests the feet, so a floating pig under a lid rose
+    // until its head was inside the stone, out of the water, and could not drown. The height default matches updateDrowning.
+    const headroom=!swimming||!hazards.isSolid(Math.floor(pos.x),Math.floor(pos.y+(mob.height??1)+.05),Math.floor(pos.z));
+    if(swimming&&headroom) {mob.horseFallPeak=undefined;mob.velocity.y=Math.min(2,mob.velocity.y+12*step);}
+    else if(swimming) {mob.horseFallPeak=undefined;mob.velocity.y=Math.min(0,mob.velocity.y);}
     else mob.velocity.y = Math.max(maxFall, mob.velocity.y - gravity * step);
     const candidate = pos.clone(); candidate.y += mob.velocity.y * step;
     mob.onGround = false;
