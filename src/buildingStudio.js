@@ -929,8 +929,9 @@ function generate(origin, params, B) {
         <em>"build an aquarium with width 14 and height 8"</em></small>
       </div>
     `;
+    // An imported .schem is a building without parameters: keep its name on the badge.
     if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = 'No Building';
+      this.buildingNameBadge.textContent = this.currentBuilding?.name || 'No Building';
     }
   }
 

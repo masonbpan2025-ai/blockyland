@@ -1,25 +1,31 @@
-# Minecraft in the Browser
+# Blockyland
 
-A from-scratch, Minecraft-style voxel game that runs entirely in the browser (three.js + Vite, plain JavaScript, no game server required). It pairs a **survival-faithful Minecraft 1.21.4 replica** — terrain, biomes, structures, redstone, brewing, enchanting, dozens of mobs with ported AI — with things most voxel projects don't have: an **LLM world agent** that edits the world from natural-language requests, an in-game **Building Studio**, a **data-pack runtime**, a **mod/game-package system** with an authoritative server model, and a **bot-driven parity test suite** that checks the game against the Minecraft Wiki.
+**A Minecraft-inspired voxel game built so that making things with AI is easy and fun.**
 
-```sh
-npm install
-npm run dev        # http://localhost:3000
-```
+Blockyland shares most of what makes Minecraft great: endless worlds, survival and creative modes, crafting, redstone and dozens of mobs. It runs entirely in your browser, with nothing to install. What sets it apart is that AI is built in everywhere:
 
-Requires Node.js 22+ (tested on 24). `npm run dev` regenerates the mod catalog automatically.
+- **Agent Terminal:** describe what you want built or changed in the world, in plain words.
+- **Multiplayer:** share your world with a link, without running a server.
+- **Mods:** make new games with an AI coding assistant.
+- **Building Studio:** design large structures with AI and export them as WorldEdit `.schem` files.
+- **Movies:** make short films out of blocks.
+
+**▶ Play it now at [blockyland.online](https://blockyland.online)**, or run it yourself with `npm install && npm run dev`.
+
+![An ivy-covered stone castle with a moat, gardens and farm plots, opened in Building Studio](docs/images/readme/studio-castle.jpg)
 
 ---
 
 ## Contents
 
-- [Key features](#key-features)
-- [How it differs from Luanti and Minecraft Web Client](#how-it-differs-from-luanti-and-minecraft-web-client)
-- [AI world agent](#ai-world-agent)
-- [Mods and designed worlds](#mods-and-designed-worlds)
-- [Sharing a world](#sharing-a-world)
-- [Engine performance](#engine-performance)
-- [Lighting, water and effects](#lighting-water-and-effects)
+- [What you can do](#what-you-can-do)
+  - [1. Play in the browser, and change the world by talking to it](#1-play-in-the-browser-and-change-the-world-by-talking-to-it)
+  - [2. Host a multiplayer world with no server](#2-host-a-multiplayer-world-with-no-server)
+  - [3. Make mods with AI](#3-make-mods-with-ai)
+  - [4. Design big builds in Building Studio and export them as .schem](#4-design-big-builds-in-building-studio-and-export-them-as-schem)
+  - [5. Make movies out of blocks](#5-make-movies-out-of-blocks)
+- [Getting started](#getting-started)
+- [Under the hood](#under-the-hood)
 - [Testing](#testing)
 - [Repository layout](#repository-layout)
 - [Documentation index](#documentation-index)
@@ -27,183 +33,235 @@ Requires Node.js 22+ (tested on 24). `npm run dev` regenerates the mod catalog a
 
 ---
 
-## Key features
+## What you can do
 
-**Gameplay replica (target: Java Edition 1.21.4)**
-- Procedural worlds with seeded, order-independent chunk generation, many biomes, caves, oceans (including warm-ocean reefs) and trees across ten species plus huge mushrooms.
-- Structure generators ported from the game's own logic: villages, pillager outposts, ancient cities, bastions, end cities, mansions, monuments, trial chambers, trail ruins, shipwrecks, ruined portals, pyramids, igloos and more (`src/worldgen/`, with a jigsaw system and NBT template support).
-- Survival systems: hunger, durability, status effects, crafting, smelting, brewing, enchanting, anvils, smithing, villager trading and a raid system, beds, fishing, farming, elytra, beacons, nether and end portals, boss fights, weather and day/night.
-- A large mob roster, each with its own behavior module (animals, hostile mobs, nether and aquatic mobs, villagers, the wandering trader, golems, bosses) plus a natural mob-spawning engine built around a tick clock and a light engine.
-- Flowing water with sources, seven flow levels, falling water, buckets and currents; lava-to-obsidian interaction.
-- Redstone, rails, and an Inspector for browsing mobs, blocks, items and structures in isolation.
-- Creative and survival modes, difficulty levels, game rules and a `/give`-style command layer.
+![The Blockyland start screen: Generate New World, Load Mod, Load Saved World, Building Studio, Inspector, Movies, Packs & Skins, and Host World & Share](docs/images/readme/home.jpg)
 
-**Beyond a replica**
-- **AI World Agent** — press **C** and describe what you want built, edited or removed. The model sees the terrain around you and a screenshot of your view. See [AI world agent](#ai-world-agent).
-- **Player bot** — a scriptable bot that drives the *real* player (physics, raycasting, mining times, tool checks, drops) using A* pathfinding. No API key needed for built-in commands.
-- **Building Studio** — design, save and reuse your own buildings in-game, on an invisible ground in empty space.
-- **Data packs** — import/paste vanilla-style JSON data packs and apply or revert them in a running world.
-- **Mod / game-package system** — namespaced content, dependency and engine-version checks, and a server-authoritative game model (a Web Worker locally, a Node host online). Two example packages ship in `src/mods/`.
-- **Share a world with a link** — *Share This World* gives you a link; friends click it and join your world directly from their browsers (peer to peer, your computer is the server, up to 8 players). See [Sharing a world](#sharing-a-world).
-- **Import/export layer** — a canonical block-state model with Sponge `.schem` and vanilla structure NBT codecs, plus a `.mcworld` exporter. Format-specific code is confined to `src/io/`.
-- **Test-first parity work** — 21 documented defects found and fixed by comparing against the Minecraft Wiki through both deterministic Node probes and a headless-browser bot, with open gaps listed honestly.
+Everything starts from one screen. Each button below leads to one of the features in this section.
 
----
+### 1. Play in the browser, and change the world by talking to it
 
-## How it differs from Luanti and Minecraft Web Client
+**The game.** Blockyland is a complete sandbox game in a browser tab:
+- **Worlds:** seeded worlds with many biomes, caves, oceans and coral reefs. Villages, outposts, ancient cities, bastions, mansions, monuments, trial chambers, shipwrecks and more are generated from the same rules Minecraft uses.
+- **Survival:** hunger, crafting, smelting, brewing, enchanting, anvils, smithing, villager trading, raids, farming, fishing, beds, elytra, beacons, Nether and End portals, and boss fights.
+- **Mobs:** a large roster of animals, monsters, villagers, golems and bosses, each with its own behavior, plus natural spawning driven by light and time of day.
+- **Creative mode:** flying, every block, game rules and `/give`-style commands.
+- **Water and redstone:** flowing water with buckets and currents, redstone, and rails.
+- **Looks:** colored block lights with shadows, an optional shader, and resource packs and skins.
 
-These projects solve different problems. This table is about intent, not quality.
-
-| | **This project** | **[Luanti](https://www.luanti.org/)** (ex-Minetest) | **[Minecraft Web Client](https://github.com/zardoy/minecraft-web-client)** |
-| --- | --- | --- | --- |
-| **What it is** | A Minecraft-1.21.4-style game *and* a small package platform, in the browser | A general-purpose voxel **game engine**; the look and rules come from the installed game | A vanilla-compatible **client** (plus integrated singleplayer server) for real Java servers |
-| **Runs as** | Static web app + optional Node helpers; no install for players | Native app (desktop, Android); servers run separately | Web app; needs a TCP→WebSocket proxy to reach Java servers |
-| **Gameplay source** | Reimplemented locally: worldgen, mobs, redstone, brewing, etc. | Whatever game you choose (e.g. Luanti Game, community games) | The Java server's world and rules, or its built-in server |
-| **Primary goal** | Faithful, self-contained survival sandbox you can extend and test | Moddable engine for *many different* voxel games | Play on existing Minecraft servers from a browser tab |
-| **Extending it** | JS packages with manifests, dependencies and an authoritative session; LLM agent; data packs; Building Studio | Lua mods, server-side, via ContentDB | Resource packs, Mineflayer plugins |
-| **Language** | JavaScript (ES modules), three.js | Engine in native code; Lua for content | TypeScript, three.js, Mineflayer/Prismarine |
-| **AI building** | Built in: LLM agent with terrain and screenshot context, plus offline presets | Not part of the engine | Mineflayer-based bots possible |
-| **Real Minecraft servers** | No: worlds are shared between browsers peer to peer through a link, with your computer as the server | No (different protocol) | Yes, its main purpose (1.8–1.21.5) |
-| **Verification** | Wiki-parity test passes with recorded defects and open gaps | Mature, community-maintained | Maintained upstream (currently in maintenance mode) |
-
-**Where each is the better choice**
-- Pick **Luanti** to build a *different* voxel game with a mature native engine, Lua mod ecosystem and server-side content distribution. This project deliberately does not embed Lua, copy its package format or let servers push arbitrary code to clients.
-- Pick **Minecraft Web Client** to join real Java servers or open real world saves in a browser. This project's local world is its own replica, not Java server state, and it does not connect to Java servers.
-- Pick **this project** when you want a hackable, readable, single-language Minecraft-like in the browser with deep survival parity, LLM-assisted building, authored/designed worlds and a test suite you can trust to catch regressions.
-
-Luanti and Minecraft Web Client facts above come from their public documentation and READMEs; both projects evolve, so check them for current details. The design notes in [`docs/voxel-engine-plan.md`](docs/voxel-engine-plan.md) and [`docs/mod-system.md`](docs/mod-system.md) record what this project learned from reading Luanti, noa, Voxelize and prismarine-viewer.
-
----
-
-## AI world agent
-
-Press **C** to open the agent terminal. In **⚙️ Settings**, pick a vendor, model and API key. Model choices persist in browser `localStorage`; **API keys are session-only by default**, held in this page's memory (not `sessionStorage` or `localStorage`). Requests go directly from the browser to the selected vendor over HTTPS, with no proxy. Using or unlocking a key also refreshes that vendor's model list.
-
-### API key storage and security
-
-- **Use for session** keeps a key only in the current page. Reloading, closing the page, or choosing **Lock / forget session** removes the active copy. Choosing session-only also deletes any previously remembered key for that vendor.
-- **Remember key (encrypted)** is optional. Enter an API key, select the checkbox, enter a unique passphrase of at least 12 characters, then choose **Remember encrypted**. Web Crypto uses AES-256-GCM with a fresh random salt/IV and PBKDF2-SHA-256 (600,000 iterations). Only the ciphertext and its public encryption metadata are stored locally; the passphrase and derived encryption key are not retained. This requires HTTPS or localhost. It works independently for each vendor and website origin.
-- After reopening or reloading the game, remembered keys start **locked**. Enter the passphrase and choose **Unlock** to use the key in this page. **Lock / forget session** keeps the encrypted copy but discards the active key; **Delete key** removes both. Locking/deleting in one tab does not clear another tab's already unlocked key or cancel requests already in progress. Forgotten passphrases cannot be recovered: delete the vault and enter the API key again.
-- Existing unencrypted `mc_agent_key_*` / `gemini_api_key` entries are removed when the agent initializes. A recovered key remains available for that page only (unless an encrypted vault already exists, in which case that vault stays locked). The terminal announces the migration. Select Remember to opt into encryption; otherwise reload discards the recovered key. Deleting browser storage is not guaranteed forensic erasure of previous disk copies/backups; revoke an old key at the provider if it may have been exposed.
-- Encryption protects the saved copy **while locked**. Scripts running on the page, trusted executable mods, compromised dependencies, browser extensions with sufficient permissions or malware can still capture an unlocked key or passphrase. This is not equivalent to server-side secret storage. Keep your passphrase separate from the API key and use trusted builds/mods.
-- **Best practice:** use a dedicated, least-privilege API key with an **expiration date** where supported. Set a **small hard spending limit** or **limited prepaid balance**, with auto top-up disabled if available, and enable usage alerts. Provider support varies; an alert or soft budget is not a hard cap. Rotate keys regularly and revoke them in the provider console when no longer needed. Deleting a local key does not revoke it at the provider.
-
-Run `npm run test:agent:vault` for storage/cryptography regression tests, and `npm run test:agent:vault:browser` for the real terminal controls in Microsoft Edge. The browser test uses fake credentials and blocks provider requests.
-
-| Vendor | Default model | Default effort | Key |
-| --- | --- | --- | --- |
-| **DeepSeek** (default) | `deepseek-flash` | `high` | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
-| ChatGPT | `gpt-6-astra` | `medium` | [platform.openai.com](https://platform.openai.com/api-keys) |
-| Gemini | `gemini-3.8-flash` | not applicable | [aistudio.google.com](https://aistudio.google.com/apikey) |
-
-Each vendor keeps its own key, model and reasoning effort. Override defaults with `VITE_DEEPSEEK_MODEL`, `VITE_OPENAI_MODEL` or `VITE_GEMINI_MODEL` in `.env.local` and restart Vite.
-
-Each prompt carries recent conversation turns, stable structure IDs, names and positions, the local terrain, and (optionally) a downscaled screenshot of your first-person view, so spatial requests work:
+**The Agent Terminal.** Turn on **Cheats** (they are on by default in Creative), then press **C**. A terminal opens where you tell an AI agent what you want in plain language:
 
 - “Build a lighthouse overlooking the water.”
-- “Replace its stone walls with brick, keeping the windows.”
+- “Replace its stone walls with brick, but keep the windows.”
 - “Bridge that gap in front of me.”
+- “Summon 3 iron golems.” “Make it rain.” “Decorate this house with paintings.”
 - “Destroy the lighthouse.”
 
-**Safety by design:** the agent returns validated JSON plans for the game's own actions; it never executes model-generated JavaScript. Structures track the blocks they change, so removal restores the originals while preserving later player edits.
+| Asking the agent | The result in the world |
+|---|---|
+| ![The AI World Agent Terminal after "build a lighthouse" (517 blocks placed) and "summon 3 iron golems"](docs/images/readme/agent-terminal.jpg) | ![A red-and-white striped lighthouse beside a village house, with iron golems nearby](docs/images/readme/agent-result.jpg) |
 
-**Streaming and long requests:** responses stream, with live reasoning display, elapsed time and a progress bar. Requests abort only after 60 s of silence. If a model exhausts its output budget while thinking, the agent retries once with thinking off. HTTP failures explain what to do (bad key, no credit, rate limit, unavailable model).
+**The agent sees what you see.** Each request includes the terrain around you, the buildings and creatures nearby, the room you are standing in, and a screenshot of your view. So "that gap" and "this house" mean what you'd expect. You can also paste or upload a reference image ("recreate this image").
 
-**Offline mode** (⚙️ Settings or `/offline`) switches to a built-in preset planner without deleting your key. It is not a language model: it handles preset builds (e.g. “build a lighthouse”, “destroy it”) and basic world commands. With no key at all the status reads **NO KEY**; API errors never silently fall back to offline presets.
+**You choose the model.** Open **⚙️ AI Settings** and pick Claude, ChatGPT, Gemini or DeepSeek, a model and an API key. Requests go straight from your browser to that provider, with no proxy in between. **Offline Mode** uses a set of built-in presets instead, so you can try the terminal without a key. The screenshots above were taken in Offline Mode.
 
-**Player bot commands** (no key needed): `mine 8 coal ore`, `go to 10 64 10`, `follow cow`, `attack zombie`, `equip stone pickaxe`, `bot status`, `stop bot`. Details and limits in [`docs/player-bot.md`](docs/player-bot.md).
+**It's safe by design.** The agent returns a plan made of the game's own actions, and the game checks the plan before carrying it out. Code written by the model is never run. Every structure remembers the blocks it replaced, so "destroy it" restores the ground while keeping your own later edits.
 
----
+The same terminal also drives a **player bot**, which needs no key: `mine 8 coal ore`, `go to 10 64 10`, `follow cow`, `attack zombie`. See [`docs/player-bot.md`](docs/player-bot.md).
 
-## Mods and designed worlds
+<details>
+<summary><b>How API keys are stored</b></summary>
 
-The engine/game/package split follows ideas from Luanti (engine hosts separately installed games) and Fabric/Bedrock (manifests, `namespace:path` identities, dependency and version metadata), implemented in JavaScript.
+- **Use for session** keeps a key only in this page's memory. Reloading the page or choosing **Lock / forget session** removes it.
+- **Remember key (encrypted)** saves the key in your browser:
+  - It is encrypted with your passphrase (12+ characters) using AES-256-GCM and PBKDF2-SHA-256 with 600,000 iterations.
+  - Only the encrypted copy is stored. Saved keys start locked, so you unlock them with the passphrase each session.
+  - **Delete key** removes the saved key.
+- Encryption protects the saved copy while it is locked. While a key is unlocked, it can be read by:
+  - other scripts on the page and trusted mods
+  - browser extensions
+  - malware
+- **Best practice:** use a dedicated key with an expiry date and a small hard spending limit, and revoke it at the provider when you're done. Deleting a key locally doesn't revoke it.
 
-- **Layers:** engine (chunks, meshing, rendering, collision, ticks) → base game (Minecraft-style content) → packages (rules, maps, presentation) → world instances (seed, state, save).
-- **Packages** live in `src/mods/<id>/` with a `mod.json` manifest. `npm run mods:generate` validates them and emits the catalog; deleting a package and regenerating removes it from the build.
-- **Authority:** a package's rules run in an isolated `createGame()` factory — in a Web Worker for local play or on a Node host online (30 Hz ticks, snapshot then deltas, bounded input packets). Clients render declarative scene definitions.
-- **Examples:** `rescue-adventure` (a two-hero co-op campaign with five biomes) and `dragonball-tournament`.
-- **Trust model:** packages are trusted, build-installed code. This is not a sandbox for downloaded code, and there is no marketplace installer.
+`npm run test:agent:vault` and `npm run test:agent:vault:browser` cover key storage. They use fake credentials and block real provider requests.
+</details>
 
-Start with [`docs/mod-system.md`](docs/mod-system.md), [`docs/mod-api.md`](docs/mod-api.md) and [`docs/creating-mods.md`](docs/creating-mods.md).
+### 2. Host a multiplayer world with no server
 
----
+Click **🌐 Host World & Share** on the start screen, or **Share This World** in the pause menu. You get a link to send to friends. When they click it, they're in your world. Nobody installs anything, makes an account or runs a server: **your browser is the server**, and friends connect to it directly, peer to peer.
 
-## Sharing a world
+1. **Start or load a world, then share it.** The dialog shows a link like `https://blockyland.online/?join=ewb4b42j`, the 8-character world code and everyone in the world. The host is marked ★.
 
-Play with a few friends in your world, with nothing to install and no account to make.
+   ![The Share This World dialog with the link to send, the world code and the list of players](docs/images/sharing/1-share-dialog.png)
 
-1. Open the pause menu (or the start screen) and choose **Share This World**.
-2. Copy the link and send it to your friends.
-3. They click it. They are in your world.
+2. **Send the link** by chat, email or text.
+3. **Your friend clicks it.** Their browser connects to yours, downloads a copy of your world and drops them in next to you.
+4. **Play together.** Each of you sees the other with a name tag, and a badge shows how many players are in the world.
 
-Your computer is the server: friends connect straight to your browser, not to a service in the middle, so keep your tab open while they play. Up to 8 players. Blocks, players and chat are shared; see [`docs/sharing.md`](docs/sharing.md) for exactly what is, how a link reaches friends on another network (it needs the game served from an address they can open), the security model and troubleshooting.
+   | The host's view | The friend's view |
+   |---|---|
+   | ![The host sees the friend standing in the meadow; the badge says "Sharing: 2 players"](docs/images/sharing/2-host-view.png) | ![The friend sees the host, marked with a star, by a village house; the badge says "Joined: 2 players"](docs/images/sharing/3-friend-view.png) |
+   | *"Sharing: 2 players"* · *"Player-9369 joined the world!"* | *"Joined: 2 players"* · *"You joined Player-1202's world. Welcome!"* |
 
-```sh
-npm run dev      # friends on the same Wi-Fi: the share dialog lists links they can open
-npm run share    # build and serve the game plus the sharing service, for a tunnel or a server
+   These come from a real session on blockyland.online, with two separate browsers standing five blocks apart.
+
+5. **Stop Sharing** when you're done. Friends are told the world closed, and each of them can still save their copy.
+
+**How it works**
+
+```
+ friend's browser          introduction service             your browser (the host)
+        | -- "join ewb4b42j" ----> |                                  |
+        | -- connection offer ---> | ------------------------------->  |
+        | <---------- answer ----- | <-------------------------------  |
+        | <=========== direct WebRTC connection, peer to peer =======> |
+        | <------------------------------ your world (gzipped, once) - |
+        | <---------- blocks, movement, held items, chat (live) -----> |
 ```
 
-Java server play (`/multiplayer.html` and its bridge) was removed: this project focuses on sharing worlds peer to peer.
+- **The host is the authority.** Your browser holds the world. It gives each guest an identity, checks every message they send and relays the valid ones. Up to 8 players can be in a world.
+- **A small introduction service only helps browsers find each other.** It never carries gameplay, never sees the world and keeps no list of rooms. On blockyland.online it runs on Cloudflare (a Pages Function and a Durable Object). Locally, the dev server includes it.
+- **The world is sent once,** gzipped (under 1 MB for a default world). A friend usually connects in about 2 seconds and has the world in about 3.
+- **What's shared:**
+  - **Live:** block edits, players' movement and held items, chat, and who joins and leaves.
+  - **Separate on each computer:** mobs, dropped items, redstone, fluids, crops, the clock, chests, and each player's inventory.
+- **Guest messages are validated and rate-limited.** World codes have 40 bits of randomness, so they can't be guessed. Anyone with the link can join until you stop sharing, and there's no kick yet.
+
+```sh
+npm run dev      # friends on the same Wi-Fi: the share dialog lists network links they can open
+npm run share    # build and serve the game plus the introduction service, for a tunnel or a server
+npm run share:check -- https://your-address   # two real browsers host, join and edit in both directions
+```
+
+Full details, including blocked networks, TURN relays and every join error, are in [`docs/sharing.md`](docs/sharing.md).
+
+### 3. Make mods with AI
+
+A mod is a whole game in one folder: `src/mods/<id>/`. The folder holds a `mod.json` manifest and its own rules, maps, models, UI and sounds. The engine handles chunks, rendering, physics, input, saving and multiplayer sessions. That means a mod is mostly game design, which is exactly what an AI coding assistant is good at.
+
+Writing a mod with AI:
+1. Describe the game you want to an assistant such as Claude Code, and point it at [`docs/creating-mods.md`](docs/creating-mods.md) and [`docs/mod-api.md`](docs/mod-api.md).
+2. It creates the folder, the `mod.json` manifest and a `createGame()` rules factory.
+3. `npm run mods:generate` checks the manifest and adds the mod to the **Load Mod** menu.
+4. `npm run test:mods` checks it against the engine.
+
+A game mod's rules never touch the screen directly. They run in a Web Worker for local play, or on a Node host online, and send back scene descriptions for the engine to draw. Everything a mod registers is namespaced, and closing it removes all of it, so the base game is left as it was.
+
+| The Load Mod menu | Voxel Dash: a rhythm platformer |
+|---|---|
+| ![The Mods menu listing Voxel Dash, Rescue Adventure and World Martial Arts Tournament](docs/images/readme/mods-list.jpg) | ![Voxel Dash level select with five levels, each in a different biome](docs/images/readme/mod-voxel-dash-menu.jpg) |
+| **Voxel Dash in play** | **Rescue Adventure: a co-op campaign** |
+| ![A creeper-faced cube leaping over spikes through a sunlit meadow](docs/images/readme/mod-voxel-dash-play.jpg) | ![Rescue Suki: choose one or two players and a difficulty, then begin the story](docs/images/readme/mod-rescue.jpg) |
+
+The three bundled mods show how different a mod can be from the base game:
+- **Voxel Dash:** five Geometry Dash-style levels set in biomes, with 240 Hz physics.
+- **Rescue Adventure:** a five-realm co-op campaign with bosses and elemental weapons, ported from a standalone browser game.
+- **World Martial Arts Tournament:** an arena with Ki skills and a dungeon mode.
+
+Mods are trusted code that is part of the build, not a sandbox for downloaded code. See [`docs/mod-system.md`](docs/mod-system.md).
+
+### 4. Design big builds in Building Studio and export them as .schem
+
+**Building Studio** is an empty sky world with an invisible grid floor, made for designing structures. Open the Agent Terminal there (**C**) and ask for something like:
+- “Build a stair with a height parameter.”
+- “Build an aquarium with width 14 and height 8.”
+
+The AI writes the building as a small generator. Each parameter becomes a slider in the **Building Studio** panel, and the building rebuilds live as you drag. Your designs are saved to a library, so you can place them in any world.
+
+| Building Studio panel and Agent Terminal | The castle, from above |
+|---|---|
+| ![The Building Studio panel showing "Ivy Stone Castle" with Save, Open, Export and Import buttons next to the AI World Agent Terminal](docs/images/readme/studio-panel.jpg) | ![The imported castle: curtain walls, towers with pointed roofs, a moat, gardens and farm plots](docs/images/readme/studio-castle.jpg) |
+
+**📤 Export** saves the open building as a **WorldEdit-compatible Sponge `.schem` file**, ready for Minecraft Java with WorldEdit, or for any other tool that reads schematics. **📥 Import** loads one or more `.schem` files into your library.
+
+The castle above is `ivy_stone_castle_claudeOpus5p5.schem`, built with Claude Opus 5.5. It is 124 × 62 × 116 blocks (144,053 blocks in all), with ivy-covered walls, towers, a moat, gardens and farm plots, and it opens in the Studio in seconds. The `.schem` reader and writer live in `src/io/`, alongside vanilla structure NBT support and a `.mcworld` exporter.
+
+### 5. Make movies out of blocks
+
+Blockyland can stage, voice, score and film short animated movies in its own block world. Each film on the **Movies** page was made from **a single prompt**, which you can read under "See the prompt". From that prompt, an AI wrote the script, built the sets from the game's blocks, cast and animated the characters, generated a distinct voice for each one, composed the score, added Chinese and English subtitles, and rendered the film.
+
+![The Movies page: three films, Waiting by the Stump, We'll See and Count Volume Layer by Layer](docs/images/readme/movies-gallery.jpg)
+
+| Film | What it shows |
+|---|---|
+| **守株待兔 · Waiting by the Stump** (2:07) | A classic fable with a voiced cast, a whole season told as a time-lapse, and a moral |
+| **塞翁失马 · We'll See** (2:58) | A family drama with a sepia storybook told inside it |
+| **一层一层数体积 · Count Volume Layer by Layer** (5:38) | A math lesson for ages 9–14: the triangle, pyramid, cone and sphere formulas, found by counting blocks layer by layer |
+
+A film can be about anything. The same toolkit handled two fables and a math lesson:
+- **Stage and actors:** a three.js stage, block actors with expressive faces and lip sync, and camera direction.
+- **Sound:** neural voices, a synthesized score and sound effects.
+- **Rendering:** frame-exact rendering to 1280×720 at 24 fps.
+
+Watch the films at [blockyland.online/movies](https://blockyland.online/movies). Each film also has an interactive 3D preview. How the films are made, and the standards they meet, is in [`src/cinema/CINEMA_GUIDELINES.md`](src/cinema/CINEMA_GUIDELINES.md) and [`src/cinema/MOVIES.md`](src/cinema/MOVIES.md).
 
 ---
 
-## Engine performance
+## Getting started
 
-Performance is measured, not assumed. Highlights from [`docs/voxel-engine-plan.md`](docs/voxel-engine-plan.md) (harness figures on one development machine; ratios matter more than absolutes):
+```sh
+npm install
+npm run dev        # http://localhost:3000
+```
 
-- Voxel lookup: 121 → **28 ns/call**; one-chunk mesh: 44 → **14 ms**.
-- Time-sliced meshing with a shared per-frame budget: frames over 16.7 ms while walking at view radius 8 fell from **16.1% → 0.2%**.
-- Chunk streaming with nearest-first ordering and real unloading keeps resident geometry bounded (≈6.5 MB on a long walk, down from 41 MB and growing).
-- Deterministic generation: chunks are byte-identical regardless of generation order.
-- Warm-ocean reef optimization cut underwater mean frame interval by 35% and draw calls by 42% ([`docs/reef-performance.md`](docs/reef-performance.md)).
-
-The docs also record what was measured and rejected, and the bugs that made earlier “done” claims false.
+Requires Node.js 22+ (tested on 24). `npm run dev` regenerates the mod catalog automatically. To publish your own copy, see [`docs/deploy-cloudflare.md`](docs/deploy-cloudflare.md): Cloudflare Pages hosts the site and a Durable Object runs the sharing service.
 
 ---
 
-## Lighting, water and effects
+## Under the hood
 
-- Colored block lights (lava, glowstone, sea lantern, torches, redstone lamp, enchanting table, lit furnace, soul torch). The nearest eight exposed lights within 40 blocks cast filtered shadows; change `MAX_BLOCK_LIGHTS` in `src/lighting.js` to adjust the budget. Sun shadows cover a 64-block square around the player.
-- An optional **Lightweight Shader** adds bloom, water and atmosphere.
-- Water: sources, flow levels, falling water, buckets, currents; levels are saved with the world and updates are work-budgeted.
-- Pickups, textured TNT with smoke, light flash and debris.
-- Loading overlay with real progress: generation and meshing are batched with yields so the page never freezes.
+Plain JavaScript (ES modules), three.js and Vite. No game server is needed.
 
-Visual test pages: `/tests/visual-effects.html`, `/tests/water-flow.html` on the dev server.
+**Engine performance.** These are measured on one development machine, so the ratios matter more than the absolute numbers. Details are in [`docs/voxel-engine-plan.md`](docs/voxel-engine-plan.md).
+- Voxel lookup went from 121 → **28 ns**, and meshing one chunk from 44 → **14 ms**.
+- Time-sliced meshing cut slow frames (over 16.7 ms) while walking from **16.1% → 0.2%**.
+- Chunk streaming keeps memory bounded: about 6.5 MB on a long walk, down from 41 MB and growing.
+- Generation is deterministic: a chunk comes out byte-identical whatever order chunks are generated in.
+
+**Lighting and effects.**
+- The nearest eight colored block lights (lava, glowstone, torches, sea lanterns and more) cast filtered shadows.
+- Sun shadows cover a 64-block square around the player.
+- There's an optional shader with bloom, water and atmosphere.
+- Water flows, with sources, flow levels, falling water and currents.
+- Loading shows real progress and never freezes the page.
+
+**Data packs.** You can import vanilla-style JSON data packs and apply or revert them in a running world.
+
+**Checked against Minecraft.** Bot-driven parity tests compare behavior with the Minecraft Wiki. A headless player bot reads real inventories, blocks and entities, and never trusts its own success message. Defects found and open gaps are recorded in [`docs/parity-testing-summary.md`](docs/parity-testing-summary.md).
 
 ---
 
 ## Testing
 
 ```sh
-npm test                 # node --test, real voxel/execution code, mocked LLM responses
-npm run test:list        # list grouped suites
+npm test                    # node --test: real voxel and game code, mocked AI responses
+npm run test:list           # list the grouped suites
 npm run test:mob | test:agent | test:redstone | test:world | test:build | test:combat | test:render | test:persist
-npm run test:bot         # player-bot controller tests
-npm run test:bot:browser # Playwright: bot in a private arena in the real game
-npm run test:share:browser # Playwright: two real browsers join one world through a link
+npm run test:bot            # player bot controller
+npm run test:bot:browser    # Playwright: the bot in a private arena in the real game
+npm run test:share:browser  # Playwright: two real browsers join one world through a link
 npm run test:mods
 ```
 
-Automated tests make no billable API calls. The parity suites combine a seeded Node probe with a headless-browser bot that reads real inventories, voxels and entities, and never trusts the bot's own success message. See [`docs/parity-testing-summary.md`](docs/parity-testing-summary.md) for the full record: defects fixed, and open issues with reasons.
+Automated tests make no billable API calls.
 
 ---
 
 ## Repository layout
 
 ```text
-index.html                      entry page (the game)
-src/                              game and engine modules (main.js, world.js, mesher.js, mobs, crafting, ...)
-src/worldgen/                     structure generators, jigsaw, NBT templates, terrain adaptation
-src/io/                           canonical model, NBT, Sponge/vanilla codecs, .mcworld export
-src/engine/                       engine services for authored/mod games
-src/mods/                         game packages, loader, registry, compatibility checks
-src/multiplayer/                world sharing: links, WebRTC session, remote players
-server/                           world relay, Java-server bridge, mod-game host
-public/datapacks, public/assets   bundled data packs and assets
-docs/                             architecture notes, parity reports, mod API
-tests/, e2e/, scripts/            unit, browser and tooling scripts
+index.html                     the game
+movies.html, src/cinema/       the Movies page and the film toolkit
+src/                           game and engine modules (main.js, world.js, mesher.js, mobs, crafting, ...)
+src/worldgen/                  structure generators, jigsaw, NBT templates
+src/io/                        block-state model, NBT, Sponge .schem and vanilla codecs, .mcworld export
+src/engine/                    engine services for mod games
+src/mods/                      mods, loader, registry, compatibility checks
+src/multiplayer/               world sharing: links, WebRTC session, remote players
+server/, functions/, cloudflare/   sharing service (Node, Cloudflare Pages Function and Durable Object), mod-game host
+public/                        data packs, textures and other assets
+docs/                          architecture notes, parity reports, mod API, images
+tests/, e2e/, scripts/         unit and browser tests, tooling
 ```
 
 ---
@@ -212,13 +270,14 @@ tests/, e2e/, scripts/            unit, browser and tooling scripts
 
 | Topic | Docs |
 | --- | --- |
-| Engine design and benchmarks | `docs/voxel-engine-plan.md`, `docs/reef-performance.md` |
+| Sharing a world | `docs/sharing.md`, `docs/deploy-cloudflare.md` |
 | Mods | `docs/mod-system.md`, `docs/mod-api.md`, `docs/creating-mods.md` |
-| Sharing a world | `docs/sharing.md` |
-| Import/export | `docs/MINECRAFT_IO_ARCHITECTURE.md`, `_PARITY.md`, `_REFERENCES.md` |
+| Movies | `src/cinema/MOVIES.md`, `src/cinema/CINEMA_GUIDELINES.md` |
+| Import/export (.schem, NBT) | `docs/MINECRAFT_IO_ARCHITECTURE.md`, `_PARITY.md`, `_REFERENCES.md` |
+| Engine design and benchmarks | `docs/voxel-engine-plan.md`, `docs/reef-performance.md` |
 | Structures | `docs/STRUCTURE_ARCHITECTURE.md`, `STRUCTURE_PARITY.md` |
 | Mob spawning | `docs/MOB_SPAWNING_ARCHITECTURE.md`, `MOB_SPAWNING_PARITY.md` |
-| Per-mob parity | `docs/*-parity.md` |
+| Per-mob behavior | `docs/*-parity.md` |
 | Testing | `docs/parity-testing-summary.md`, `docs/test-determinism.md` |
 | Player bot, `/give` | `docs/player-bot.md`, `docs/give-command-agent-guide.md` |
 
@@ -226,10 +285,9 @@ tests/, e2e/, scripts/            unit, browser and tooling scripts
 
 ## Known limits
 
-- Not a general voxel engine like Luanti, and not a Java-protocol client for its local worlds.
-- Targets Java 1.21.4 behavior; the parity report lists open gaps (for example, structures cannot yet span chunk borders, and some mob/system details remain).
-- No redstone power simulation for the always-on redstone lamp; no waterlogging, bubble columns or full lava flow.
-- Mod packages are trusted code.
-- Shared worlds are peer to peer: mobs, redstone, fluids and the clock run separately on each player's computer, and anyone holding the link can join until the host stops sharing. There is no kick or ban yet. See [`docs/sharing.md`](docs/sharing.md).
-- Bot limits: ore search within 24 blocks, no swimming or parkour, no crafting yet.
-- This is an unofficial fan project, not affiliated with Mojang or Microsoft. Third-party licenses (e.g. mineflayer-pathfinder) are preserved under `docs/licenses/` and `src/vendor/`. Add a top-level `LICENSE` before publishing.
+- **Gameplay gaps:** some systems are simpler than Minecraft's. Structures can't yet span chunk borders, and there's no waterlogging, no bubble columns and no full lava flow. The parity report lists the open gaps.
+- **Shared worlds:** mobs, redstone, fluids and the clock run separately on each player's computer, and there's no kick or ban yet.
+- **No real Minecraft servers:** Blockyland doesn't connect to Minecraft Java servers. Worlds are shared between browsers instead.
+- **Mods are trusted code** that is part of the build.
+- **Player bot:** it searches for ore only within 24 blocks, and it can't swim, parkour or craft yet.
+- **Unofficial:** Blockyland is a fan project, not affiliated with Mojang or Microsoft. Third-party licenses (for example mineflayer-pathfinder) are kept in `docs/licenses/` and `src/vendor/`. Add a top-level `LICENSE` before publishing.
