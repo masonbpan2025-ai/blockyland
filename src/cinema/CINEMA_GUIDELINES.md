@@ -176,5 +176,5 @@ it lives in the shared modules, so a new film gets it by building on `createStag
    far floor in a slow camera drift with the published version
    (`ffmpeg -ss <t> -t 3 -i film.mp4 -vf "crop=…,format=gray,tblend=all_mode=difference,signalstats" -f null -`).
    It must not go up.
-7. A full render takes 20–35 minutes and a lot of memory. Close heavy apps first; Edge,
+7. A full 1080p render takes about 6–7 minutes per minute of film (a 3-minute film takes about 20 minutes) and a lot of memory. Close heavy apps first; Edge,
    Vite and FFmpeg run headless and are isolated from the dev server.
