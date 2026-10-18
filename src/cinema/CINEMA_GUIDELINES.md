@@ -138,6 +138,28 @@ node scripts/render-film.mjs --movie=<film> --publish      # full render, copied
 node scripts/check-movies.mjs                              # gallery, playback, deep link, mobile
 ```
 
+**Render quality.** Every film is rendered and published with this method, which removes the
+shimmer of thin block lines (floor grids, stone borders, grass) that 720p renders had. All of
+it lives in the shared modules, so a new film gets it by building on `createStage`,
+`meshWorld` and `createDirector`. Do not bypass them.
+
+- **Supersample.** `render-film.mjs` opens the film page with `?export`. The renderer then
+  draws at 3840×2160 (`FRAME` in `claudeStage.js`: 1920×1080 at 2× pixel ratio), and the
+  director scales that down into the 1920×1080 frame. The live preview stays 1280×720 so
+  playback stays smooth.
+- **Mipmap the world atlas.** `meshWorld` gives the film a mipmapped copy of the block atlas.
+  The chain stops at one pixel per 16-px tile, so neighbouring tiles never blend, and
+  sampling uses the nearest texel within a level, so near blocks stay crisp. The game's own
+  atlas is untouched. Never mesh a film world with the unmipmapped game material.
+- **Lay out overlays in 1280×720 units.** Captions, cards, letterbox and `overlay(ink, …)`
+  code draw in 1280×720 coordinates. The director's canvas transform scales them to the
+  output frame, so they come out sharp. Draw full-frame images with an explicit size
+  (`drawImage(img, 0, 0, 1280, 720)`), never at their intrinsic size. Never hard-code the
+  output resolution.
+- **Do not hide geometry with noise.** Once the shimmer is gone, real edges show, such as
+  1-block terrace steps in the distance. Judge them as set dressing and smooth the terrain
+  if they distract.
+
 1. **Review every shot at full size**, not only the contact sheet. Fix any shot where the
    camera is blocked, a face is unreadable, or something pops.
 2. **Check the voice:** every yes/no question rises, and no clip overlaps the next.
@@ -146,7 +168,13 @@ node scripts/check-movies.mjs                              # gallery, playback, 
 4. **Protect finished films.** After changing a shared module, re-render the other films'
    review frames and compare them pixel-for-pixel with the published render (threshold:
    8 levels). Also compare their soundtracks.
-5. **Encoding:** 1280×720, 24 fps fixed clock, H.264 High `yuv420p` CRF 23 with `faststart`,
-   AAC 48 kHz 160 kb/s.
-6. A full render takes 20–35 minutes and a lot of memory. Close heavy apps first; Edge,
+5. **Encoding:** 1920×1080 (2× supersampled), 24 fps fixed clock. Frames are captured as JPEG
+   at quality 0.97 and encoded with H.264 High `yuv420p`, CRF 18, `-preset slow`, with no bitrate cap,
+   and `faststart`. Audio is AAC 48 kHz 160 kb/s. Expect roughly 10–20 Mb/s, depending on how
+   much fine detail (crops, grass) the film has.
+6. **Check shimmer in motion, not only in stills.** Compare the frame-to-frame change of the
+   far floor in a slow camera drift with the published version
+   (`ffmpeg -ss <t> -t 3 -i film.mp4 -vf "crop=…,format=gray,tblend=all_mode=difference,signalstats" -f null -`).
+   It must not go up.
+7. A full render takes 20–35 minutes and a lot of memory. Close heavy apps first; Edge,
    Vite and FFmpeg run headless and are isolated from the dev server.
