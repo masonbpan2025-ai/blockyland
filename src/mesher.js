@@ -8,6 +8,7 @@ import { WATER_COLORS } from './water.js';
 import { isSnowSurface, snowFaceTint } from './snowShading.js';
 import { occludesWholeFace } from './blockOcclusion.js';
 import { netherWartHeight } from './netherPlants.js';
+import { vegetationTint } from './vegetationRendering.js';
 
 const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
 
@@ -295,6 +296,7 @@ export class ChunkMesher {
     const trWind = [];
     const trSnow = [];
     const trIdx = [];
+    const cutoutIdx = [];
     let trVertCount = 0;
 
     // Buffers for water
@@ -507,10 +509,11 @@ export class ChunkMesher {
               } else {
                 trUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
               }
-              trCol.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+              const tint = vegetationTint(def) || [1, 1, 1];
+              for (let i = 0; i < 4; i++) trCol.push(...tint);
               trWind.push(0,0,1,1);
               trSnow.push(0,0,0,0);
-              trIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);
+              cutoutIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);
               trVertCount += 4;
             };
             addCrossQuad([wx, wy, wz], [wx + 1, wy, wz + 1], [wx + 1, wy + plantHeight, wz + 1], [wx, wy + plantHeight, wz]);
@@ -531,22 +534,21 @@ export class ChunkMesher {
           neighbors[5] = padGet(lx - 1, ly, lz);
 
           // Water surface height is slightly lowered (0.90) for open air top to create fluid meniscus line,
-          // and slightly inset against glass and ice to avoid coplanar z-fighting
-          const isIceAbove = neighbors[0] === BLOCKS.ICE || neighbors[0] === BLOCKS.FROSTED_ICE;
+          // and slightly inset against glass to avoid coplanar z-fighting with glass panes
           const isGlassAbove = neighbors[0] === BLOCKS.GLASS;
           const topY = isWater
-            ? (neighbors[0] === BLOCKS.AIR ? (wy + 0.90) : ((isGlassAbove || isIceAbove) ? (wy + 0.995) : (wy + 1)))
+            ? (neighbors[0] === BLOCKS.AIR ? (wy + 0.90) : (isGlassAbove ? (wy + 0.995) : (wy + 1)))
             : (wy + 1);
-          const isGlassOrIce1 = neighbors[1] === BLOCKS.GLASS || neighbors[1] === BLOCKS.ICE || neighbors[1] === BLOCKS.FROSTED_ICE;
-          const isGlassOrIce2 = neighbors[2] === BLOCKS.GLASS || neighbors[2] === BLOCKS.ICE || neighbors[2] === BLOCKS.FROSTED_ICE;
-          const isGlassOrIce3 = neighbors[3] === BLOCKS.GLASS || neighbors[3] === BLOCKS.ICE || neighbors[3] === BLOCKS.FROSTED_ICE;
-          const isGlassOrIce4 = neighbors[4] === BLOCKS.GLASS || neighbors[4] === BLOCKS.ICE || neighbors[4] === BLOCKS.FROSTED_ICE;
-          const isGlassOrIce5 = neighbors[5] === BLOCKS.GLASS || neighbors[5] === BLOCKS.ICE || neighbors[5] === BLOCKS.FROSTED_ICE;
-          const botY = (isWater && isGlassOrIce1) ? (wy + 0.005) : wy;
-          const northZ = (isWater && isGlassOrIce2) ? (wz + 0.995) : (wz + 1);
-          const southZ = (isWater && isGlassOrIce3) ? (wz + 0.005) : wz;
-          const eastX = (isWater && isGlassOrIce4) ? (wx + 0.995) : (wx + 1);
-          const westX = (isWater && isGlassOrIce5) ? (wx + 0.005) : wx;
+          const isGlass1 = neighbors[1] === BLOCKS.GLASS;
+          const isGlass2 = neighbors[2] === BLOCKS.GLASS;
+          const isGlass3 = neighbors[3] === BLOCKS.GLASS;
+          const isGlass4 = neighbors[4] === BLOCKS.GLASS;
+          const isGlass5 = neighbors[5] === BLOCKS.GLASS;
+          const botY = (isWater && isGlass1) ? (wy + 0.005) : wy;
+          const northZ = (isWater && isGlass2) ? (wz + 0.995) : (wz + 1);
+          const southZ = (isWater && isGlass3) ? (wz + 0.005) : wz;
+          const eastX = (isWater && isGlass4) ? (wx + 0.995) : (wx + 1);
+          const westX = (isWater && isGlass5) ? (wx + 0.005) : wx;
 
           for (let face = 0; face < 6; face++) {
             const neighborId = neighbors[face];
@@ -554,8 +556,8 @@ export class ChunkMesher {
             // Culling condition
             if (isWater) {
               if (neighborId === BLOCKS.WATER || T.waterPlant[neighborId]) continue; // cull water adjacent to water or water plants
-              const isGlassOrIce = neighborId === BLOCKS.GLASS || neighborId === BLOCKS.ICE || neighborId === BLOCKS.FROSTED_ICE;
-              if (T.solid[neighborId] && !isGlassOrIce) continue; // solid blocks (planks, stairs, slabs, fences, etc.) occlude water
+              const isGlass = neighborId === BLOCKS.GLASS;
+              if (T.solid[neighborId] && !isGlass) continue; // solid blocks (ice, planks, stairs, slabs, fences, etc.) occlude water
               if (faceOcclusion[neighborId]) continue; // partial neighbours leave water visible
             } else if (isTransparent) {
               if (neighborId === blockId) continue;
@@ -603,8 +605,8 @@ export class ChunkMesher {
             let baseR = 1.0, baseG = 1.0, baseB = 1.0;
             if (blockId === BLOCKS.GRASS && face === 0) {
               baseR = 0.48; baseG = 0.74; baseB = 0.31;
-            } else if (blockId === BLOCKS.OAK_LEAVES) {
-              baseR = 0.35; baseG = 0.65; baseB = 0.22;
+            } else if (T.foliage[blockId]) {
+              [baseR, baseG, baseB] = vegetationTint(def) || [1, 1, 1];
             }
 
             let light0 = AO_CURVE[ao0];
@@ -624,7 +626,7 @@ export class ChunkMesher {
             if (isWater) {
               tPos = wtPos; tNorm = wtNorm; tUv = wtUv; tCol = wtCol; tIdx = wtIdx;
             } else if (isTransparent) {
-              tPos = trPos; tNorm = trNorm; tUv = trUv; tCol = trCol; tIdx = trIdx;
+              tPos = trPos; tNorm = trNorm; tUv = trUv; tCol = trCol; tIdx = T.foliage[blockId] ? cutoutIdx : trIdx;
             }
             const vCount = isWater ? wtVertCount : (isTransparent ? trVertCount : opVertCount);
 
@@ -656,7 +658,7 @@ export class ChunkMesher {
                 if (corner.height === null) corner.height = waterCornerHeight(world, Math.round(px), wy, Math.round(pz));
                 if (neighbors[0] === BLOCKS.AIR) {
                   py = wy + corner.height;
-                } else if (isGlassAbove || isIceAbove) {
+                } else if (isGlassAbove) {
                   py = wy + 0.995;
                 }
               }
@@ -730,10 +732,15 @@ export class ChunkMesher {
     const lightGeo = lightGeometries.length ? mergeGeometries(lightGeometries) : null;
     if (lightGeo) lightGeo.userData.sources = lightSources;
     for (const geometry of lightGeometries) geometry.dispose();
+    const transparentGeo = createGeo(trPos, trNorm, trUv, trCol, [...trIdx, ...cutoutIdx], trWind, trSnow);
+    if (transparentGeo) {
+      if (trIdx.length) transparentGeo.addGroup(0, trIdx.length, 0);
+      if (cutoutIdx.length) transparentGeo.addGroup(trIdx.length, cutoutIdx.length, 1);
+    }
     return {
       lightGeo,
       opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx, opWind, opSnow),
-      transparentGeo: createGeo(trPos, trNorm, trUv, trCol, trIdx, trWind, trSnow),
+      transparentGeo,
       waterGeo
     };
   }

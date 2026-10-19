@@ -138,3 +138,17 @@ test('the rotation table has four distinct facings', () => {
   assert.equal(STAIR_ROTATIONS.length, 4);
   assert.equal(new Set(STAIR_ROTATIONS).size, 4, 'each facing needs its own rotation');
 });
+
+test('a stair rises toward its facing, as in Minecraft (facing=east has its tall step on the east side)', () => {
+  // dir is the world's orientation index: 0 east, 1 west, 2 south, 3 north. East and west were once swapped,
+  // which drew every east- or west-facing stair backwards while north and south looked right.
+  const expected = { 0: ['0.75', '0.50'], 1: ['0.25', '0.50'], 2: ['0.50', '0.75'], 3: ['0.50', '0.25'] };
+  for (const [dir, [x, z]] of Object.entries(expected)) {
+    const geo = createStairGeometry(BLOCK_DEFS[BLOCKS.OAK_STAIRS], textures, Number(dir), false);
+    const p = geo.attributes.position;
+    let sx = 0, sz = 0, n = 0;
+    for (let i = 0; i < p.count; i++) if (p.getY(i) > 0.9) { sx += p.getX(i); sz += p.getZ(i); n++; }
+    assert.deepEqual([(sx / n).toFixed(2), (sz / n).toFixed(2)], [x, z], `dir ${dir}`);
+    geo.dispose();
+  }
+});

@@ -127,7 +127,7 @@ function renderInspectionWorld() {
   preview = new THREE.Group();
   const geometries = inspectionWorld.mesh(textures);
   const materials = { opaqueGeo: textures.opaqueMaterial, lightGeo: textures.lightMaterial,
-    transparentGeo: textures.transparentMaterial, waterGeo: textures.waterMaterial };
+    transparentGeo: textures.transparentMaterials || textures.transparentMaterial, waterGeo: textures.waterMaterial };
   for (const [key, material] of Object.entries(materials)) {
     if (!geometries[key]) continue;
     preview.add(new THREE.Mesh(geometries[key], material));

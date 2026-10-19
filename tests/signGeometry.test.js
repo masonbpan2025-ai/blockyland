@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { World, Chunk } from '../src/world.js';
 import { ChunkMesher } from '../src/mesher.js';
-import { createSignGeometry, createHangingSignGeometry } from '../src/slab.js';
+import { createSignGeometry, createHangingSignGeometry, createWallSignGeometry } from '../src/slab.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
 
 const textures = { getFaceUVs: () => ({ u0: 0, v0: 0, u1: 0.25, v1: 0.25 }) };
@@ -114,4 +114,18 @@ test('every sign has an item so the recipe has a destination', () => {
   }
   console.log('  signs with items: '
     + Object.keys(ITEMS).filter(k => /_sign$/.test(k)).length);
+});
+
+test('a wall sign facing a direction hangs on the block behind it, as in Minecraft', () => {
+  // facing=east means the text faces east, so the board sits against the block to the west (x near 0).
+  const def = BLOCK_DEFS[BLOCKS.OAK_WALL_SIGN];
+  const expected = { 0: 'x0', 1: 'x1', 2: 'z0', 3: 'z1' }; // east, west, south, north
+  for (const [dir, side] of Object.entries(expected)) {
+    const geo = createWallSignGeometry(def, textures, Number(dir));
+    geo.computeBoundingBox();
+    const b = geo.boundingBox;
+    const at = { x0: b.min.x === 0, x1: b.max.x === 1, z0: b.min.z === 0, z1: b.max.z === 1 };
+    assert.ok(at[side], `dir ${dir} should touch ${side}: ${JSON.stringify(b)}`);
+    geo.dispose();
+  }
 });

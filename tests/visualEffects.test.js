@@ -113,3 +113,46 @@ test('TNT detonates once with flash, smoke and sparks, then releases temporary e
   for(let i=0;i<180;i++) entities.update(1/60,player,{addItem:()=>false});
   assert.equal(detonations,1); assert.equal(entities.particles.length,0); assert.equal(entities.blastLight.intensity,0);
 });
+
+test('sun shadow bias and normalBias prevent roof and ground self-shadow striping', () => {
+  const scene = new THREE.Scene();
+  const sun = new THREE.DirectionalLight();
+  configureSunShadows(sun, scene);
+
+  // In Three.js PCF shadow mapping (shadowCoord.z += shadowBias), a positive bias
+  // pushes receiver depth away from light, causing self-shadowing acne stripes on
+  // sloped roofs (stairs) and ground. A negative bias pulls depth towards the light.
+  assert.ok(sun.shadow.bias < 0, `shadow bias must be negative to eliminate acne stripes (was ${sun.shadow.bias})`);
+  assert.ok(sun.shadow.bias >= -0.001, `shadow bias must not exceed -0.001 to prevent peter-panning (was ${sun.shadow.bias})`);
+
+  // normalBias offsets vertex along normal during shadow lookup; required for 45-deg stairs/roofs.
+  assert.ok(sun.shadow.normalBias >= 0.05, `shadow normalBias must be >= 0.05 for sloped surfaces (was ${sun.shadow.normalBias})`);
+  assert.ok(sun.shadow.mapSize.x >= 2048 && sun.shadow.mapSize.y >= 2048, 'shadow mapSize must be at least 2048');
+});
+
+test('sun shadow tracking quantizes camera motion to avoid creeping shadow patterns', () => {
+  const scene = new THREE.Scene();
+  const sun = new THREE.DirectionalLight();
+  configureSunShadows(sun, scene);
+
+  const direction = new THREE.Vector3(0.5, 1.0, 0.3).normalize();
+  const basePos = new THREE.Vector3(10, 60, 20);
+
+  // Simulate small player steps (< 1 block) as when walking or flying
+  const texelSize = 64 / sun.shadow.mapSize.x;
+  for (let step = 0; step < 5; step++) {
+    const playerPos = basePos.clone().add(new THREE.Vector3(step * 0.15, 0, step * 0.08));
+    followSun(sun, direction, playerPos);
+
+    // Light direction must stay perfectly locked to sun direction across camera movement
+    const actualDir = sun.position.clone().sub(sun.target.position).normalize();
+    assert.ok(actualDir.distanceTo(direction) < 1e-7, 'light direction must not drift during motion');
+
+    // The quantization offset from player position must be bounded by one texel in light-space
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), direction).normalize();
+    const up = new THREE.Vector3().crossVectors(direction, right).normalize();
+    const diff = sun.target.position.clone().sub(playerPos);
+    assert.ok(Math.abs(diff.dot(right)) <= texelSize, 'horizontal texel quantization must stay within 1 texel');
+    assert.ok(Math.abs(diff.dot(up)) <= texelSize, 'vertical texel quantization must stay within 1 texel');
+  }
+});

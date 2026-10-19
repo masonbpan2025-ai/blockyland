@@ -2,6 +2,7 @@
 // item. Each face samples only the part of its texture the box covers -- a 14-pixel cactus side shows 14 pixels of
 // the cactus texture, not all 16 squeezed -- which is how a block model maps its faces.
 import * as THREE from 'three';
+import { vegetationTint } from './vegetationRendering.js';
 
 /** The texture a face of the block uses, from its definition: top, bottom or side (with `all` as the fallback). */
 function faceTexture(def, kind) {
@@ -82,7 +83,9 @@ export function createModelGeometry(def, tm, state = {}) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(count * 3).fill(1), 3));
+  const colors = new Float32Array(count * 3), tint = vegetationTint(def) || [1, 1, 1];
+  for (let i = 0; i < count; i++) colors.set(tint, i * 3);
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setAttribute('emission', new THREE.Float32BufferAttribute(new Float32Array(count).fill(def.light ? 1 : 0), 1));
   geo.setAttribute('flame', new THREE.Float32BufferAttribute(new Float32Array(count), 1));
   // Indexed like every other block geometry, so the mesher's merge (which needs all-or-none indexed) accepts it.

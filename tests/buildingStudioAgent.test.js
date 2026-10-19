@@ -1,5 +1,5 @@
 // Building Studio must not swallow prompts that belong to the language model,
-// and must hand AI-built structures to its parameter panel.
+// and must hand AI-built structures to the studio so they can be saved as a .schem file.
 //
 // Regression guard: the prompt parser used to fall back to `stairs` for anything
 // it did not recognise, so every prompt — including Chinese and other free-form
@@ -86,7 +86,7 @@ test('blank or non-string input is handled without claiming', () => {
   assert.equal(manager.parsePromptParameters(undefined), null);
 });
 
-// --- AI result reaches the parameter panel ----------------------------------
+// --- AI result reaches the studio, ready to save ----------------------------
 
 test('adoptFromPlan loads a matching library structure with the model dimensions', () => {
   const manager = studio();
@@ -182,7 +182,7 @@ test('with the studio open, a free-form prompt is sent to the model', async t =>
   assert.match(calls[0].url, /deepseek/);
 });
 
-test('with the studio open, an AI-built library structure populates the panel', async t => {
+test('with the studio open, an AI-built library structure is loaded into the studio', async t => {
   const { agent, manager } = agentFixture();
   t.mock.method(globalThis, 'fetch', async () => ({
     ok: true,
@@ -248,7 +248,7 @@ test('every library building is offered in the creative Buildings tab', () => {
   }
 });
 
-test('custom on-the-fly builds with operations are not hijacked by built-in structures and save custom voxels', () => {
+test('custom on-the-fly builds with operations are not hijacked by built-in structures and save custom voxels', async () => {
   const manager = studio();
   const worldBlocks = new Map();
   manager.game = {
@@ -292,7 +292,7 @@ test('custom on-the-fly builds with operations are not hijacked by built-in stru
 
   // 3. Confirm save generates custom voxel code rather than built-in castle code
   manager.saveInput = { value: 'castle_with_bridge' };
-  manager.confirmSave();
+  await manager.confirmSave();
 
   const saved = BuildingLibrary.getBuilding('castle_with_bridge');
   assert.ok(saved, 'castle_with_bridge should be saved in BuildingLibrary');

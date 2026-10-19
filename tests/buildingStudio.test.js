@@ -179,6 +179,29 @@ describe('Building Studio and Structure Library System', () => {
       assert.ok(html.includes('id="modal-open-building"'), 'Missing modal-open-building');
     });
 
+    it('the panel has no parameter body and no Export/Import buttons; it works on .schem files', () => {
+      const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+      assert.ok(!html.includes('id="studio-parameter-controls"'), 'the parameter panel is gone');
+      assert.ok(!html.includes('studio-param-'), 'no parameter slider markup remains');
+      assert.ok(!html.includes('id="btn-studio-export-schem"'), 'Export is gone: Save writes the .schem file');
+      assert.ok(!html.includes('id="btn-studio-import-schem"'), 'Import is gone: Open loads a .schem file');
+      assert.ok(html.includes('id="studio-open-file-list"'), 'Open lists .schem files');
+      assert.ok(html.includes('id="studio-file-prompt"'), 'the no-file prompt exists');
+      assert.ok(html.includes('id="input-studio-open-schem"'), 'Open can pick a .schem from the computer');
+
+      // The terminal sits after the Save/Open footer, so it can dock directly under it.
+      const saveIndex = html.indexOf('id="btn-studio-save"');
+      const terminalIndex = html.indexOf('class="gemini-terminal-card"');
+      assert.ok(saveIndex > 0 && terminalIndex > saveIndex, 'the Agent Terminal follows the Save/Open buttons');
+
+      const css = readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8');
+      assert.match(css, /#gemini-modal\.studio-mode \.studio-workspace-wrapper/, 'studio mode docks the panels');
+      assert.match(css, /studio-settings-expanded/, 'AI Settings expands the terminal');
+
+      const ui = readFileSync(resolve(process.cwd(), 'src/ui.js'), 'utf8');
+      assert.match(ui, /setStudioPanelExpanded/, 'the settings toggle changes the studio layout');
+    });
+
     it('every element buildingStudio.js looks up exists in index.html', () => {
       // The page was renamed to structure-* ids while the studio still asked for building-* ones, so the
       // parameter panel, Save and Open were all null and silently did nothing.
@@ -305,7 +328,7 @@ describe('Building Studio and Structure Library System', () => {
       BuildingLibrary.deleteBuilding(s2.structure.id);
     });
 
-    it('BuildingStudioManager handles overwrite confirmation and renders delete button & inline rename', () => {
+    it('BuildingStudioManager handles overwrite confirmation and renders delete button & inline rename', async () => {
       // Mock DOM environment
       function createMockNode(tag = 'div') {
         const node = {
@@ -370,6 +393,16 @@ describe('Building Studio and Structure Library System', () => {
         studio.buildingNameBadge = createMockNode('span');
         studio.openList = createMockNode('div');
 
+        // A studio folder with an existing bridge.schem, so Save has a file to overwrite.
+        const files = new Map([['bridge.schem', new Uint8Array([1])]]);
+        studio.source = {
+          label: 'test/',
+          list: async () => [...files].map(([name, bytes]) => ({ name, stamp: `1:${bytes.length}`, size: bytes.length, mtime: 1 })),
+          read: async (name) => files.get(name),
+          write: async (name, bytes) => { files.set(name, bytes); },
+          exists: async (name) => files.has(name)
+        };
+
         // Create a custom structure
         const saved = BuildingLibrary.saveBuilding({
           name: 'Bridge',
@@ -377,6 +410,8 @@ describe('Building Studio and Structure Library System', () => {
           code: 'function generate() { return []; }'
         });
 
+        studio.isCustomVoxelBuild = true;
+        studio.customBuildBlocks = [{ x: 0, y: 5, z: 8, id: BLOCKS.STONE }];
         studio.currentBuilding = {
           name: 'Bridge',
           parameters: [],
@@ -384,14 +419,17 @@ describe('Building Studio and Structure Library System', () => {
         };
         studio.saveInput.value = 'Bridge';
 
-        // 1. User says NO to overwrite
+        // 1. User says NO to overwriting bridge.schem
         globalThis.confirm = () => false;
-        studio.confirmSave();
+        await studio.confirmSave();
+        assert.strictEqual(files.get('bridge.schem').length, 1, 'declining leaves the file alone');
         assert.ok(studio.saveConflictMsg.textContent.includes('already exists'));
 
         // 2. User says YES to overwrite
         globalThis.confirm = () => true;
-        studio.confirmSave();
+        await studio.confirmSave();
+        assert.ok(files.get('bridge.schem').length > 1, 'the .schem file is rewritten');
+        assert.strictEqual(studio.activeFile, 'bridge.schem', 'the saved file becomes the watched document');
         assert.ok(studio.saveModal.classList.contains('hidden'));
 
         // 3. Render open structure list and check buttons

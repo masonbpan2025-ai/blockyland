@@ -924,37 +924,41 @@
   </div>
 
 
-  <!-- AI World Agent Terminal Modal (C) & Building Studio Parameter Panel -->
+  <!-- AI World Agent Terminal Modal (C) & Building Studio file panel -->
   <div id="gemini-modal" class="game-modal hidden">
     <div class="studio-workspace-wrapper">
-      <!-- Building Studio Parameter Panel (Left Side) -->
+      <!-- Building Studio file panel (Left Side, directly above the Agent Terminal) -->
       <div id="building-parameter-panel" class="building-parameter-panel hidden">
         <div class="studio-panel-header">
           <div class="studio-panel-title-group">
             <span class="studio-panel-icon">📐</span>
             <span class="studio-panel-title">Building Studio</span>
           </div>
-          <span class="studio-building-badge" id="studio-current-building-name">No Building</span>
+          <span class="studio-building-badge" id="studio-current-building-name" title="The .schem file this studio watches">No file</span>
         </div>
 
-        <div class="studio-panel-body" id="studio-parameter-controls">
-          <div class="studio-empty-params" id="studio-empty-params">
-            <span class="studio-empty-icon">✦</span>
-            <p>No parameters yet.</p>
-            <small>Ask the Agent on the right to build a building with parameters, e.g.:<br>
-              <em>"build a stair with a height parameter"</em><br>
-              <em>"build a stair with a height H"</em><br>
-              <em>"build an aquarium with width 14 and height 8"</em>
-            </small>
+        <!-- The studio works on one .schem file. Shown until a file has been saved or opened. -->
+        <div class="studio-panel-body">
+          <div class="studio-file-prompt hidden" id="studio-file-prompt">
+            <span class="studio-file-prompt-icon">💾</span>
+            <div>
+              <strong id="studio-file-prompt-title">No .schem file yet</strong>
+              <small id="studio-file-prompt-text">Save your build to create one. The studio then watches that file, so an AI agent's edits appear here.</small>
+            </div>
+          </div>
+
+          <div class="studio-live-sync" id="studio-live-sync" title="The studio reloads whenever its .schem file changes on disk">
+            <span class="studio-live-dot" id="studio-live-dot" data-tone="off"></span>
+            <span class="studio-live-text" id="studio-live-text">Live sync off</span>
+            <button type="button" class="mc-btn studio-live-btn hidden" id="btn-studio-live-folder">📁 Choose folder</button>
           </div>
         </div>
 
         <div class="studio-panel-footer">
-          <button type="button" class="mc-btn studio-btn-save" id="btn-studio-save">💾 Save</button>
-          <button type="button" class="mc-btn studio-btn-open" id="btn-studio-open">📂 Open</button>
-          <button type="button" class="mc-btn studio-btn-export-schem" id="btn-studio-export-schem" title="Export building as WorldEdit .schem file">📤 Export</button>
-          <button type="button" class="mc-btn studio-btn-import-schem" id="btn-studio-import-schem" title="Import multiple .schem files">📥 Import</button>
+          <button type="button" class="mc-btn studio-btn-save" id="btn-studio-save" title="Save the open building as a WorldEdit-compatible .schem file">💾 Save</button>
+          <button type="button" class="mc-btn studio-btn-open" id="btn-studio-open" title="Open a .schem file into the studio">📂 Open</button>
         </div>
+        <input type="file" id="input-studio-open-schem" accept=".schem,application/octet-stream" style="display: none;">
       </div>
 
       <!-- AI World Agent Terminal Card (Right Side) -->
@@ -1103,38 +1107,51 @@
     </div>
   </div>
 
-  <!-- Save Building Modal -->
+  <!-- Save Building as .schem Modal -->
   <div id="modal-save-building" class="game-modal hidden">
     <div class="mc-dialog-card">
       <div class="mc-dialog-header">
-        <span class="mc-dialog-title">💾 Save to Building Library</span>
+        <span class="mc-dialog-title">💾 Save .schem file</span>
         <button class="gemini-close-btn" id="btn-cancel-save-building">✕</button>
       </div>
       <div class="mc-dialog-body">
-        <label class="mc-dialog-label" for="input-save-building-name">Building Name:</label>
-        <input type="text" id="input-save-building-name" class="mc-input-text" placeholder="e.g. Spiral Stairs, Coral Aquarium" autocomplete="off">
+        <label class="mc-dialog-label" for="input-save-building-name">File name:</label>
+        <input type="text" id="input-save-building-name" class="mc-input-text" placeholder="e.g. my_castle" autocomplete="off">
+        <div class="studio-save-target" id="studio-save-target"></div>
+        <div class="studio-save-hint" id="save-building-hint"></div>
         <div id="save-building-conflict-msg" class="mc-dialog-error hidden"></div>
       </div>
       <div class="mc-dialog-footer">
-        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-building">Save Building</button>
+        <button type="button" class="mc-btn mc-btn-primary" id="btn-confirm-save-building">Save .schem</button>
       </div>
     </div>
   </div>
 
-  <!-- Open Building Modal -->
+  <!-- Open .schem / Building Library Modal -->
   <div id="modal-open-building" class="game-modal hidden">
     <div class="mc-dialog-card mc-dialog-large">
       <div class="mc-dialog-header">
-        <span class="mc-dialog-title">📂 Building Library</span>
+        <span class="mc-dialog-title">📂 Open .schem</span>
         <button class="gemini-close-btn" id="btn-close-open-building">✕</button>
       </div>
-      <div class="mc-dialog-search-bar" style="display: flex; gap: 8px; align-items: center;">
-        <input type="text" id="input-search-open-building" class="mc-input-text" placeholder="Search buildings..." autocomplete="off" style="flex: 1;">
-        <button id="btn-studio-modal-import-schem" class="mc-btn mc-btn-secondary" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Import multiple .schem files">📥 Import .schem</button>
-        <button id="btn-restore-default-buildings" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in buildings">Reset Defaults</button>
-        <input type="file" id="input-studio-import-schem" multiple accept=".schem" style="display: none;">
+      <div class="studio-open-tabs" role="tablist">
+        <button type="button" class="studio-open-tab active" id="tab-studio-open-files" data-pane="files" role="tab" aria-selected="true">🗂 .schem files</button>
+        <button type="button" class="studio-open-tab" id="tab-studio-open-library" data-pane="library" role="tab" aria-selected="false">📚 Library</button>
       </div>
-      <div class="studio-open-list" id="studio-open-building-list"></div>
+      <div class="studio-open-pane" id="studio-open-files-pane">
+        <div class="studio-open-toolbar">
+          <span class="studio-open-path" id="studio-open-files-path">Looking for the studio folder…</span>
+          <button type="button" class="mc-btn" id="btn-studio-open-browse" title="Open a .schem file from anywhere on this computer">📂 From computer…</button>
+        </div>
+        <div class="studio-open-list" id="studio-open-file-list"></div>
+      </div>
+      <div class="studio-open-pane hidden" id="studio-open-library-pane">
+        <div class="mc-dialog-search-bar" style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="input-search-open-building" class="mc-input-text" placeholder="Search buildings..." autocomplete="off" style="flex: 1;">
+          <button id="btn-restore-default-buildings" class="mc-btn mc-btn-secondary hidden" style="white-space:nowrap;font-size:11px;padding:5px 10px;" title="Restore all default built-in buildings">Reset Defaults</button>
+        </div>
+        <div class="studio-open-list" id="studio-open-building-list"></div>
+      </div>
     </div>
   </div>
 

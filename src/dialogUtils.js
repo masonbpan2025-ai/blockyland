@@ -9,7 +9,8 @@ export function showConfirmDialog({
   message = 'Are you sure you want to delete this item? This cannot be undone.',
   confirmText = 'Yes, Delete',
   cancelText = 'Cancel',
-  onConfirm
+  onConfirm,
+  onCancel
 }) {
   if (typeof document !== 'undefined') {
     if (document.exitPointerLock) {
@@ -45,6 +46,7 @@ export function showConfirmDialog({
         if (e.key === 'Escape') {
           e.stopPropagation();
           cleanup();
+          onCancel?.();
         }
       };
       if (typeof window !== 'undefined') {
@@ -55,6 +57,7 @@ export function showConfirmDialog({
         if (e.target === modal) {
           e.stopPropagation();
           cleanup();
+          onCancel?.();
         }
       };
 
@@ -68,12 +71,14 @@ export function showConfirmDialog({
         btnCancel.onclick = (e) => {
           e?.stopPropagation?.();
           cleanup();
+          onCancel?.();
         };
       }
       if (btnClose) {
         btnClose.onclick = (e) => {
           e?.stopPropagation?.();
           cleanup();
+          onCancel?.();
         };
       }
       return;
@@ -84,6 +89,8 @@ export function showConfirmDialog({
   if (typeof confirm === 'function') {
     if (confirm(message)) {
       onConfirm?.();
+    } else {
+      onCancel?.();
     }
   } else {
     onConfirm?.();

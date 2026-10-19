@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WaterPass } from './waterPass.js';
 import { hideOutOfViewMobs, restoreHidden } from './entityVisibility.js';
+import { edgeAntialiasFunctions, edgeAntialiasFragment } from './edgeAntialiasing.js';
 export const SHADER_STORAGE_KEY='minecraft-lite-shader';
 // Keep normal 1080p views sharp; only larger displays downsample the world.
 // Bloom remains quarter resolution and shadow budgets remain unchanged.
@@ -24,12 +25,13 @@ void main(){
  float radial=exp(-length(sunUv-vUv)*3.0);
  gl_FragColor=vec4(bloom,shafts/12.0*radial*sunVisible*step(.9998,texture2D(sceneDepth,clamp(sunUv,0.0,1.0)).r));
 }`;
-export const compositeFragment=`varying vec2 vUv;uniform sampler2D sceneColor,sceneDepth,glow;uniform vec2 glowTexel;uniform vec3 fogColor,sunColor,eye,sunDirection;uniform mat4 inverseViewProjection;uniform float rain,underwater,twilight,time,waterSurfaceY,sunUp;
+export const compositeFragment=`varying vec2 vUv;uniform sampler2D sceneColor,sceneDepth,glow;uniform vec2 glowTexel,sceneTexel;uniform vec3 fogColor,sunColor,eye,sunDirection;uniform mat4 inverseViewProjection;uniform float rain,underwater,twilight,time,waterSurfaceY,sunUp;
+${edgeAntialiasFunctions}
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),f.x),f.y);}
 // The same net of light the water surface throws on the bottom, seen from inside the water.
 float caustics(vec2 p){p*=.85;float t=time*.55,c=0.0;for(int i=0;i<3;i++){float fi=float(i);vec2 q=p+vec2(sin(t+p.y*1.4+fi*2.1),cos(t*.9+p.x*1.2-fi*1.7))*.55;c+=1.0/(1.0+26.0*abs(sin(q.x*2.2+fi)*sin(q.y*2.2-fi)));p=p*1.37+vec2(1.7,-.9);}float net=smoothstep(.2,.8,c/3.0);return net*net*net;}
-void main(){vec3 color=texture2D(sceneColor,vUv).rgb;vec4 light=texture2D(glow,vUv)*.4;
+void main(){vec3 color=ApplyFXAA(sceneColor,sceneTexel,vUv).rgb;vec4 light=texture2D(glow,vUv)*.4;
  light+=(texture2D(glow,vUv+vec2(glowTexel.x,0.0))+texture2D(glow,vUv-vec2(glowTexel.x,0.0))+texture2D(glow,vUv+vec2(0.0,glowTexel.y))+texture2D(glow,vUv-vec2(0.0,glowTexel.y)))*.15;
  float depth=texture2D(sceneDepth,vUv).r;
  vec4 world=inverseViewProjection*vec4(vUv*2.0-1.0,depth*2.0-1.0,1.0);world/=world.w;
@@ -60,6 +62,9 @@ export class LightweightShader {
   this.quadScene=new THREE.Scene();this.quadCamera=new THREE.Camera();this.quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2));this.quad.material.dispose();this.quad.frustumCulled=false;this.quadScene.add(this.quad);
   this.glowMaterial=new THREE.ShaderMaterial({vertexShader,fragmentShader:glowFragment,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:null},sceneDepth:{value:null},texel:{value:new THREE.Vector2()},sunUv:{value:new THREE.Vector2()},sunVisible:{value:0}}});
   this.compositeMaterial=new THREE.ShaderMaterial({vertexShader,fragmentShader:compositeFragment,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:null},sceneDepth:{value:null},glow:{value:null},glowTexel:{value:new THREE.Vector2()},fogColor:{value:new THREE.Color()},sunColor:{value:new THREE.Color()},eye:{value:new THREE.Vector3()},sunDirection:{value:new THREE.Vector3(0,1,0)},inverseViewProjection:{value:this.inverse},rain:{value:0},underwater:{value:0},twilight:{value:0},time:{value:0},waterSurfaceY:{value:0},sunUp:{value:0}}});
+  this.compositeMaterial.uniforms.sceneTexel={value:new THREE.Vector2(1,1)};
+  this.edgeAntialiasing=true;this.edgeTarget=null;
+  this.edgeMaterial=new THREE.ShaderMaterial({vertexShader,fragmentShader:edgeAntialiasFragment,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:null},sceneTexel:{value:new THREE.Vector2(1,1)}}});
   this.reducedMotion=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches||false;
   let saved=false;try{saved=this.storage?.getItem(SHADER_STORAGE_KEY)==='on';}catch{}this.setEnabled(saved,false);
  }
@@ -71,26 +76,41 @@ export class LightweightShader {
   g.renderer.shadowMap.enabled=this.enabled;g.renderer.shadowMap.autoUpdate=true;g.renderer.shadowMap.needsUpdate=true;
   if(g.sunLight){g.sunLight.shadow.autoUpdate=!this.enabled;g.sunLight.shadow.needsUpdate=true;}
   for(const light of (g.blockLighting?.lights||[])){light.shadow.autoUpdate=!this.enabled;light.shadow.needsUpdate=true;}
-  if(g.sunLight){g.sunLight.shadow.mapSize.set(1024,1024);g.sunLight.shadow.map?.dispose();g.sunLight.shadow.map=null;}
+  if(g.sunLight){g.sunLight.shadow.mapSize.set(2048,2048);g.sunLight.shadow.map?.dispose();g.sunLight.shadow.map=null;}
   for(const [i,light]of (g.blockLighting?.lights||[]).entries()){light.castShadow=this.enabled&&i===0;if(!light.castShadow){light.shadow.map?.dispose();light.shadow.map=null;}}
   if(g.sky?.uniforms.uEnhanced)g.sky.uniforms.uEnhanced.value=+this.enabled;
   if(g.textures?.waterUniforms?.uEnhanced)g.textures.waterUniforms.uEnhanced.value=+this.enabled;
-  for(const material of [g.textures?.opaqueMaterial,g.textures?.transparentMaterial,g.textures?.lightMaterial])if(material){if(material.userData.windStrength)material.userData.windStrength.value=this.enabled&&!this.reducedMotion?1:0;material.needsUpdate=true;}
+  for(const material of [g.textures?.opaqueMaterial,g.textures?.transparentMaterial,g.textures?.cutoutMaterial,g.textures?.lightMaterial])if(material){if(material.userData.windStrength)material.userData.windStrength.value=this.enabled&&!this.reducedMotion?1:0;material.needsUpdate=true;}
   if(g.textures?.waterMaterial)g.textures.waterMaterial.needsUpdate=true;
   if(g.weather)g.weather.enhanced=this.enabled;
   if(!this.enabled)this.releaseTargets();
+  else this.releaseEdgeTarget();
   if(persist)try{this.storage?.setItem(SHADER_STORAGE_KEY,this.enabled?'on':'off');}catch{}
   this.updateButton();
  }
  releaseTargets(){if(this.targets){this.targets.scene.dispose();this.targets.glow.dispose();this.targets=null;}}
+ releaseEdgeTarget(){this.edgeTarget?.dispose();this.edgeTarget=null;}
+ ensureEdgeTarget(){
+  const r=this.game.renderer;r.getDrawingBufferSize(this.size);
+  const width=Math.max(1,Math.round(this.size.x)),height=Math.max(1,Math.round(this.size.y));
+  if(this.edgeTarget?.width===width&&this.edgeTarget?.height===height)return;
+  this.releaseEdgeTarget();
+  this.edgeTarget=new THREE.WebGLRenderTarget(width,height,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:true,stencilBuffer:true});
+  this.edgeMaterial.uniforms.sceneColor.value=this.edgeTarget.texture;
+  this.edgeMaterial.uniforms.sceneTexel.value.set(1/width,1/height);
+ }
  ensureTargets(){const r=this.game.renderer;r.getDrawingBufferSize(this.size);const {width,height}=shaderTargetSize(this.size.x,this.size.y);if(this.targets?.scene.width===width&&this.targets?.scene.height===height)return;
   this.releaseTargets();const scene=new THREE.WebGLRenderTarget(width,height,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:true,stencilBuffer:true});scene.depthTexture=new THREE.DepthTexture(width,height,THREE.UnsignedInt248Type);scene.depthTexture.format=THREE.DepthStencilFormat;
   const glow=new THREE.WebGLRenderTarget(Math.max(1,Math.ceil(width/4)),Math.max(1,Math.ceil(height/4)),{depthBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});this.targets={scene,glow};
   this.glowMaterial.uniforms.sceneColor.value=scene.texture;this.glowMaterial.uniforms.sceneDepth.value=scene.depthTexture;this.glowMaterial.uniforms.texel.value.set(1/width,1/height);
-  const u=this.compositeMaterial.uniforms;u.sceneColor.value=scene.texture;u.sceneDepth.value=scene.depthTexture;u.glow.value=glow.texture;u.glowTexel.value.set(1/glow.width,1/glow.height);
+  const u=this.compositeMaterial.uniforms;u.sceneColor.value=scene.texture;u.sceneDepth.value=scene.depthTexture;u.glow.value=glow.texture;u.glowTexel.value.set(1/glow.width,1/glow.height);u.sceneTexel.value.set(1/width,1/height);
  }
  render(dt=0){const g=this.game,r=g.renderer,c=g.camera;
-  if(!this.enabled){r.setRenderTarget(null);r.clear();this.renderWorld();return;}
+  if(!this.enabled){
+   if(!this.edgeAntialiasing){r.setRenderTarget(null);r.clear();this.renderWorld();return;}
+   this.ensureEdgeTarget();r.setRenderTarget(this.edgeTarget);r.clear();this.renderWorld();
+   this.quad.material=this.edgeMaterial;r.setRenderTarget(null);r.clear();r.render(this.quadScene,this.quadCamera);return;
+  }
   try{
    this.ensureTargets();this.updateShadows(dt);
    c.updateMatrixWorld();this.inverse.multiplyMatrices(c.projectionMatrix,c.matrixWorldInverse).invert();
@@ -135,5 +155,5 @@ export class LightweightShader {
  }
  /** The loaded chunks' water meshes, so the water steps are skipped on a frame with no water in view (waterPass.js). */
  *waterMeshes(){const chunks=this.game.world?.chunks;if(!chunks)return;for(const chunk of chunks.values())if(chunk.waterMesh)yield chunk.waterMesh;}
- dispose(){this.button?.removeEventListener('click',this.click);this.releaseTargets();this.waterPass?.dispose();this.glowMaterial.dispose();this.compositeMaterial.dispose();this.quad.geometry.dispose();}
+ dispose(){this.button?.removeEventListener('click',this.click);this.releaseTargets();this.releaseEdgeTarget();this.waterPass?.dispose();this.glowMaterial.dispose();this.compositeMaterial.dispose();this.edgeMaterial.dispose();this.quad.geometry.dispose();}
 }

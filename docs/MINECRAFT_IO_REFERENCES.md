@@ -48,14 +48,15 @@ lengths, `DataVersion` handling, and POI/entity regions. **Nothing here is imple
 or writer exists — so these are the references to read before Phase 6, not sources used already.
 
 ### `SpongePowered/Schematic-Specification`
-The specification for `.schem`. Implemented here: `Version`, `DataVersion`, `Width`/`Height`/`Length`, `Offset`,
-`Palette`, `PaletteMax`, `BlockData` (varints, y-z-x order), `BlockEntities`, `Entities`, `Metadata`.
+The specification for `.schem`. Implemented here, in each version's own layout: v2's flat `Palette`, `PaletteMax`,
+`BlockData`, `BlockEntities`, `Entities`; v3's `Schematic` compound with `Blocks: { Palette, Data, BlockEntities }`,
+`Entities` and `Data` sub-compounds; and `Version`, `DataVersion`, `Width`/`Height`/`Length` (read as unsigned),
+`Offset`, `Metadata` in both.
 
-**Verified against the specification: the field names and the varint encoding. Not verified: the exact block
-ordering convention.** The reader and writer agree with each other — a gap in the middle of a structure
-round-trips, which is the test that catches an ordering mistake — but agreement between our reader and our writer
-cannot prove the convention matches the specification. Confirm with a `.schem` produced by WorldEdit before
-trusting an export.
+**Verified against the specification text (versions/schematic-2.md and schematic-3.md) and WorldEdit's
+`SpongeSchematicV3Writer.java`:** the field names, both layouts, and the block ordering (`x + z * Width + y * Width
+* Length`, which is our y-z-x loop). A v3 file assembled field by field from the specification is a test fixture.
+**Still not verified:** a file actually exported by WorldEdit; add one to `tests/fixtures/io/` when available.
 
 ### `maruohon/litematica`
 The reference for `.litematic`: `Version`, `MinecraftDataVersion`, `Metadata`, and multiple `Regions` each with
@@ -104,16 +105,30 @@ information, which has to be tracked rather than discovered.
 | litematica | GPL-3.0 | reference only; nothing implemented yet |
 | Sponge specification | CC-BY-SA / public specification | field names and semantics; no text copied |
 
-No Mojang assets are stored, generated or redistributed by any of this code, and the fixtures under
-`tests/fixtures/io/` are produced by our own writers from a description in the test file.
+No Mojang assets are stored, generated or redistributed by any of this code. The fixtures under
+`tests/fixtures/io/` are produced by our own writers from a description in the test file, except
+`worldedit_house.schem`, which was written by the official WorldEdit CLI 7.4.7 after loading and copying
+`house.schem`; it is our own test build, not Mojang content.
+
+## Verified against WorldEdit
+
+The official standalone WorldEdit CLI 7.4.7 (`worldedit-cli-7.4.7-SNAPSHOT-dist.jar`, from the
+[EngineHub build server](https://builds.enginehub.org/job/worldedit)) was run with no Minecraft server:
+
+- The studio's 5x4x5 house loaded with no warnings, `//count`/`//distr` matched (81 non-air blocks: 30 oak
+  planks, 25 stone bricks, 25 bricks, 1 glass), and `//copy` + `//schem save` produced a file that matches the
+  studio's own block for block.
+- Every built-in library building loaded with exactly the expected non-air block count.
+- The 144,053-block `ivy_stone_castle_claudeOpus5p5.schem` loaded with exactly 144,053 non-air blocks.
+- The stateful fixture exposed a real incompatibility: WorldEdit requires `Pos` and `Rotation` on every entity
+  and aborts the whole load when `Rotation` is missing. The writer now supplies the identity rotation and forces
+  the FLOAT type; WorldEdit loads the fixture and preserves the pig.
 
 ## What to verify next, in order of value
 
-1. **A Sponge `.schem` from a real tool** — confirms the block ordering claim that both our reader and writer
-   currently share, which is the weakest link in the one format that ships.
-2. **A vanilla `.nbt` structure from a real world's `structures/` directory** — confirms the palette and
+1. **A vanilla `.nbt` structure from a real world's `structures/` directory** — confirms the palette and
    `blocks`/`entities` shapes against Mojang's own writer.
-3. **Loading our exported `.nbt` in a real client** (§37) — the only thing that can promote any row of the
+2. **Loading our exported `.nbt` in a real client** (§37) — the only thing that can promote any row of the
    matrix above `FUNCTIONAL`.
-4. **`minecraft-data` block tables** for the target versions, which is the prerequisite for any real DataVersion
+3. **`minecraft-data` block tables** for the target versions, which is the prerequisite for any real DataVersion
    migration.

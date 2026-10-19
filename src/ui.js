@@ -4938,6 +4938,7 @@ export class UIManager {
         this.geminiKeyDrawer.classList.remove('hidden');
         this.geminiToggleKeyBtn?.setAttribute('aria-expanded','true');
       }
+      this.setStudioPanelExpanded(showSettings || Boolean(this.geminiKeyDrawer && !this.geminiKeyDrawer.classList.contains('hidden')));
       setTimeout(() => {
         if (showSettings && this.geminiKeyInput) {
           this.geminiKeyInput.focus();
@@ -4946,6 +4947,15 @@ export class UIManager {
         }
       }, 50);
     }
+  }
+
+  /**
+   * Building Studio docks the Agent Terminal under the Save/Open buttons so the structure fills the screen.
+   * AI Settings expands it to the big settings window; closing the drawer docks it again.
+   */
+  setStudioPanelExpanded(expanded) {
+    if (!this.geminiModal?.classList.contains('studio-mode')) return;
+    this.geminiModal.classList.toggle('studio-settings-expanded', !!expanded);
   }
 
   /** Open the terminal; AI settings remain locked while Offline Mode is on. */
@@ -4959,6 +4969,7 @@ export class UIManager {
     if (this.geminiModal) {
       this.geminiModal.classList.add('hidden');
     }
+    this.setStudioPanelExpanded(false);
     if (this.player) {
       this.player.keys = {};
     }
@@ -5254,9 +5265,12 @@ export class UIManager {
         if(geminiAgent.offlineMode)return;
         if (this.geminiKeyDrawer) {
           this.geminiKeyDrawer.classList.toggle('hidden');
+          const expanded = !this.geminiKeyDrawer.classList.contains('hidden');
+          // In Building Studio the terminal is docked small; settings is the one time it needs the big window.
+          this.setStudioPanelExpanded(expanded);
           syncAgentTerminalControls(this,geminiAgent);
           // Opening Settings brings the model list up to date (a cached list younger than a day is reused).
-          if (!this.geminiKeyDrawer.classList.contains('hidden')) refreshLiveModels().catch(() => {});
+          if (expanded) refreshLiveModels().catch(() => {});
           else {
             if (this.geminiKeyInput) this.geminiKeyInput.value = '';
             if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';

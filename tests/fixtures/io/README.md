@@ -7,3 +7,4 @@ here is Mojang content and everything is redistributable. Regenerate with
 * `house.schem` - Sponge schematic v3 (gzipped NBT), 3x2x3: stone, oak stairs with properties, a chest
   with a loot table as a block entity, one block of air, and a pig entity.
 * `house.nbt` - the same structure as a vanilla Java structure template.
+* `worldedit_house.schem` - the same build, re-written by WorldEdit CLI 7.4.7 (full block-state forms).

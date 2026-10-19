@@ -19,6 +19,7 @@ import {
   IO_FORMATS, writeVarInt, readVarInt
 } from '../src/io/codecs.js';
 import { StructureTemplate } from '../src/worldgen/template.js';
+import { readNbt, writeNbt, gzip, gunzip, TagType } from '../src/io/nbt.js';
 
 const FIXTURES = join(process.cwd(), 'tests', 'fixtures', 'io');
 const state = (name, properties) => new CanonicalBlockState(name, properties);
@@ -72,7 +73,8 @@ const blockList = (structure) => structure.main.blocks
     + '`node --test tests/ioStructures.test.js`.\n\n'
     + '* `house.schem` - Sponge schematic v3 (gzipped NBT), 3x2x3: stone, oak stairs with properties, a chest\n'
     + '  with a loot table as a block entity, one block of air, and a pig entity.\n'
-    + '* `house.nbt` - the same structure as a vanilla Java structure template.\n');
+    + '* `house.nbt` - the same structure as a vanilla Java structure template.\n'
+    + '* `worldedit_house.schem` - the same build, re-written by WorldEdit CLI 7.4.7 (full block-state forms).\n');
 }
 
 // --- the canonical model ----------------------------------------------------------------------
@@ -129,6 +131,58 @@ test('Sponge v3 round-trips blocks, properties, a gap, a block entity and an ent
   assert.equal(back.source.dataVersion, 4189);
 });
 
+test('every written entity carries the Pos and Rotation WorldEdit requires', async () => {
+  // WorldEdit's reader calls getListTag("Rotation", floatTag()) and throws NoSuchElementException when an entity
+  // has no Rotation, so one entity without it makes the whole file fail to load. The writer supplies the
+  // identity rotation and forces the tag types WorldEdit validates.
+  const v3Types = {};
+  const v3 = readNbt(await gunzip(await writeSpongeSchematic(sampleStructure())), { typeMap: v3Types });
+  const pig = v3.Schematic.Entities[0];
+  assert.deepEqual([...pig.Pos], [1.5, 0, 1.5]);
+  assert.deepEqual([...pig.Data.Rotation], [0, 0], 'a missing Rotation becomes the identity rotation');
+  assert.equal(v3Types['Schematic.Entities[].Data.Rotation[]'], TagType.FLOAT);
+  assert.equal(v3Types['Schematic.Entities[].Pos[]'], TagType.DOUBLE);
+
+  const v2 = readNbt(await gunzip(await writeSpongeSchematic(sampleStructure(), { version: 2 })));
+  assert.deepEqual([...v2.Entities[0].Rotation], [0, 0]);
+
+  // An existing rotation is preserved rather than replaced.
+  const turned = sampleStructure();
+  turned.main.entities[0].nbt = { id: 'minecraft:pig', Rotation: [90, 12] };
+  const kept = readNbt(await gunzip(await writeSpongeSchematic(turned)));
+  assert.deepEqual([...kept.Schematic.Entities[0].Data.Rotation], [90, 12]);
+});
+
+test('a real WorldEdit 7.4 export reads back with its states, block entity and entity', async () => {
+  // Written by WorldEdit CLI 7.4.7 after loading tests/fixtures/io/house.schem and copying it with -e. WorldEdit
+  // fills in the defaults our file leaves implicit, so the states are the full canonical forms.
+  const bytes = readFileSync(join(FIXTURES, 'worldedit_house.schem'));
+  const { structure, warnings } = await readSpongeSchematic(bytes);
+  assert.equal(warnings.count, 0, JSON.stringify(warnings.warnings));
+  assert.deepEqual(structure.main.size, { x: 3, y: 2, z: 3 });
+  assert.equal(structure.main.blocks.length, 4);
+
+  const states = structure.main.blocks.map((b) => `${b.pos.x},${b.pos.y},${b.pos.z}=${b.state}`).sort();
+  assert.deepEqual(states, [
+    '0,0,0=minecraft:stone',
+    '0,1,0=minecraft:oak_planks',
+    '1,0,0=minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]',
+    '2,0,2=minecraft:chest[facing=south,type=single,waterlogged=false]'
+  ]);
+
+  const chest = structure.main.blockEntities[0];
+  assert.equal(chest.id, 'minecraft:chest');
+  assert.equal(chest.nbt.LootTable, 'minecraft:chests/simple_dungeon', 'WorldEdit kept the chest contents');
+  const pig = structure.main.entities[0];
+  assert.equal(pig.nbt.id, 'minecraft:pig');
+  assert.deepEqual([...pig.nbt.Rotation], [0, 0]);
+  assert.deepEqual([pig.pos.x, pig.pos.y, pig.pos.z], [1.5, 0, 1.5], 'fractional positions survive');
+
+  // Our writer can read it and write it back without changing the blocks.
+  const again = await readSpongeSchematic(await writeSpongeSchematic(structure));
+  assert.deepEqual(blockList(again.structure), blockList(structure));
+});
+
 test('the Sponge block-data stream is positional, so a gap does not shift later blocks', async () => {
   // This is the bug the writer had: skipping air made the stream short, and every block after the gap read
   // another block's palette entry. A gap in the MIDDLE is what catches it, so the sample has one.
@@ -150,13 +204,124 @@ test('the Sponge block-data stream is positional, so a gap does not shift later 
   assert.equal(back.main.blocks.find((b) => b.pos.x === 2).state.name, 'minecraft:diamond_block');
 });
 
-test('Sponge v2 warns that it cannot carry entities, and the file really omits them', async () => {
+/** The raw NBT a writer produced: the root's name and value, so tests can check the LAYOUT, not just a round trip. */
+async function rawNbt(bytes) {
+  return readNbt(await gunzip(bytes), { withName: true });
+}
+
+test('Sponge v3 is written in the v3 layout: an unnamed root holding Schematic, with blocks under Blocks', async () => {
+  const { name, value } = await rawNbt(await writeSpongeSchematic(sampleStructure(), { version: 3 }));
+  assert.equal(name, '');
+  assert.deepEqual(Object.keys(value), ['Schematic']);
+  const schematic = value.Schematic;
+  assert.equal(schematic.Version, 3);
+  assert.equal(schematic.Width, 3);
+  assert.ok(schematic.Blocks.Palette['minecraft:oak_stairs[facing=north,half=bottom,waterlogged=false]'] !== undefined);
+  assert.ok(schematic.Blocks.Data instanceof Uint8Array);
+  for (const v2Field of ['Palette', 'BlockData', 'PaletteMax', 'BlockEntities']) {
+    assert.equal(schematic[v2Field], undefined, `${v2Field} belongs to v2's layout, not v3's`);
+  }
+  const chest = schematic.Blocks.BlockEntities[0];
+  assert.equal(chest.Id, 'minecraft:chest');
+  assert.deepEqual([...chest.Pos], [2, 0, 2]);
+  assert.equal(chest.Data.LootTable, 'minecraft:chests/simple_dungeon', 'v3 keeps extra data in a Data compound');
+  const pig = schematic.Entities[0];
+  assert.equal(pig.Id, 'minecraft:pig');
+  assert.deepEqual(pig.Pos, [1.5, 0, 1.5]);
+});
+
+test('Sponge v2 is written in the v2 layout and keeps block entities and entities', async () => {
   const warnings = new WarningCollector();
   const bytes = await writeSpongeSchematic(sampleStructure(), { version: 2, warnings });
-  assert.ok(warnings.warnings.some((warning) => warning.code === IoWarning.UNSUPPORTED_COMPONENT),
-    'a v2 export of a structure with entities must warn: ' + JSON.stringify(warnings.warnings));
+  assert.equal(warnings.count, 0, JSON.stringify(warnings.warnings));
+  const { name, value } = await rawNbt(bytes);
+  assert.equal(name, 'Schematic', "v2's root compound is named Schematic");
+  assert.equal(value.Version, 2);
+  assert.equal(value.Schematic, undefined);
+  assert.equal(value.Blocks, undefined);
+  assert.ok(value.BlockData instanceof Uint8Array);
+  assert.equal(value.PaletteMax, Object.keys(value.Palette).length);
+  assert.equal(value.BlockEntities[0].LootTable, 'minecraft:chests/simple_dungeon', 'v2 flattens extra data into the entry');
+  assert.equal(value.Entities[0].Id, 'minecraft:pig');
+
   const { structure: back } = await readSpongeSchematic(bytes);
-  assert.equal(back.main.entities.length, 0, 'v2 has no Entities field, so none can be read back');
+  assert.deepEqual(blockList(back), blockList(sampleStructure()));
+  assert.equal(back.main.blockEntities[0].nbt.LootTable, 'minecraft:chests/simple_dungeon');
+  assert.equal(back.main.entities.length, 1);
+  assert.equal(back.main.entities[0].nbt.id, 'minecraft:pig');
+});
+
+/**
+ * A v3 file assembled field by field from the specification, the way WorldEdit 7.3 lays one out -- NOT by our
+ * writer -- so the reader is checked against the format rather than against itself. Swap in a real WorldEdit
+ * export as a fixture when one is available.
+ */
+async function specV3Bytes() {
+  const palette = { 'minecraft:air': 0, 'minecraft:stone': 1, 'minecraft:oak_stairs[facing=east,half=top,shape=straight,waterlogged=false]': 2, 'minecraft:chest[facing=west,type=single,waterlogged=false]': 3 };
+  // 2 x 1 x 2, y then z then x: (0,0,0) stone, (1,0,0) stairs, (0,0,1) air, (1,0,1) chest.
+  const root = {
+    Schematic: {
+      Version: 3,
+      DataVersion: 4189,
+      Metadata: { Name: 'we-house', Author: 'someone', Date: 1700000000000n, RequiredMods: [] },
+      Width: 2, Height: 1, Length: 2,
+      Offset: Int32Array.from([-1, 0, -1]),
+      Blocks: {
+        Palette: palette,
+        Data: Uint8Array.from([1, 2, 0, 3]),
+        BlockEntities: [{ Pos: Int32Array.from([1, 0, 1]), Id: 'minecraft:chest', Data: { CustomName: '"Loot"', Items: [] } }]
+      },
+      Biomes: { Palette: { 'minecraft:plains': 0 }, Data: Uint8Array.from([0, 0, 0, 0]) },
+      Entities: [{ Pos: [0.5, 0, 0.5], Id: 'minecraft:armor_stand', Data: { Invisible: 1 } }]
+    }
+  };
+  const raw = writeNbt(root, {
+    types: {
+      Version: TagType.INT, DataVersion: TagType.INT, Width: TagType.SHORT, Height: TagType.SHORT, Length: TagType.SHORT,
+      'Schematic.Entities[0].Pos[0]': TagType.DOUBLE, 'Schematic.Entities[0].Pos[1]': TagType.DOUBLE, 'Schematic.Entities[0].Pos[2]': TagType.DOUBLE,
+      Invisible: TagType.BYTE
+    }
+  });
+  return gzip(raw);
+}
+
+test('reads a v3 schematic laid out as the specification and WorldEdit 7.3 write it', async () => {
+  const warnings = new WarningCollector();
+  const { structure } = await readSpongeSchematic(await specV3Bytes(), { warnings });
+  const region = structure.main;
+  assert.deepEqual(region.size, { x: 2, y: 1, z: 2 });
+  assert.deepEqual(region.origin, { x: -1, y: 0, z: -1 });
+  assert.deepEqual(blockList(structure), [
+    '0,0,0=minecraft:stone',
+    '1,0,0=minecraft:oak_stairs[facing=east,half=top,shape=straight,waterlogged=false]',
+    '1,0,1=minecraft:chest[facing=west,type=single,waterlogged=false]+nbt'
+  ]);
+  assert.equal(region.blockEntities[0].id, 'minecraft:chest');
+  assert.equal(region.blockEntities[0].nbt.CustomName, '"Loot"', 'a v3 block entity reads its Data compound');
+  assert.equal(region.entities[0].nbt.id, 'minecraft:armor_stand');
+  assert.equal(region.entities[0].nbt.Invisible, 1, 'a v3 entity reads its Data compound');
+  assert.equal(structure.source.format, 'sponge-schem-v3');
+  assert.ok(warnings.warnings.some((w) => /biomes/.test(w.message)), 'biomes are reported as not imported, not silently lost');
+});
+
+test('detection recognises the v3 layout by content', async () => {
+  const detected = detectFormat(await gunzip(await specV3Bytes()), { filename: 'mystery.bin' });
+  assert.equal(detected.format, 'sponge-schem-v3');
+  assert.equal(detected.confidence, 'content');
+});
+
+test('still reads files this codec used to write: the v2 layout labelled Version 3', async () => {
+  const flat = {
+    Version: 3, DataVersion: 4189, Width: 1, Height: 1, Length: 2,
+    Offset: Int32Array.from([0, 0, 0]), PaletteMax: 2,
+    Palette: { 'minecraft:air': 0, 'minecraft:stone': 1 },
+    BlockData: Uint8Array.from([1, 1]),
+    BlockEntities: [{ Pos: Int32Array.from([0, 0, 1]), Id: 'minecraft:sign', Text: 'hi' }]
+  };
+  const bytes = await gzip(writeNbt(flat, { types: { Version: TagType.INT, DataVersion: TagType.INT, Width: TagType.SHORT, Height: TagType.SHORT, Length: TagType.SHORT } }));
+  const { structure } = await readSpongeSchematic(bytes);
+  assert.equal(structure.main.blocks.length, 2);
+  assert.equal(structure.main.blockEntities[0].nbt.Text, 'hi', 'flattened extra data is read by layout, not by version number');
 });
 
 // --- vanilla Java .nbt structures -------------------------------------------------------------
@@ -200,11 +365,13 @@ test('a Java structure converts to a Sponge schematic through the canonical form
   assert.deepEqual(blockList(back), blockList(sampleStructure()), 'conversion must preserve the blocks');
 });
 
-test('converting to Sponge v2 warns about the entities it cannot hold', async () => {
+test('converting to Sponge v2 keeps the entities, because v2 has an Entities list', async () => {
   const warnings = new WarningCollector();
-  await convertStructure(await writeJavaStructure(sampleStructure()), 'sponge-schem-v2', { warnings });
-  assert.ok(warnings.warnings.some((warning) => warning.code === IoWarning.UNSUPPORTED_COMPONENT),
-    JSON.stringify(warnings.warnings));
+  const converted = await convertStructure(await writeJavaStructure(sampleStructure()), 'sponge-schem-v2', { warnings });
+  assert.ok(!warnings.warnings.some((warning) => /entit/i.test(warning.message)), JSON.stringify(warnings.warnings));
+  const { structure: back } = await readSpongeSchematic(converted.bytes);
+  assert.equal(back.main.entities.length, 1);
+  assert.equal(back.main.entities[0].nbt.id, 'minecraft:pig');
 });
 
 test('detection trusts CONTENT over the file name', () => {
@@ -292,7 +459,8 @@ test('the committed fixtures exist, parse, and re-serialize byte-for-byte', asyn
     + '`node --test tests/ioStructures.test.js`.\n\n'
     + '* `house.schem` - Sponge schematic v3 (gzipped NBT), 3x2x3: stone, oak stairs with properties, a chest\n'
     + '  with a loot table as a block entity, one block of air, and a pig entity.\n'
-    + '* `house.nbt` - the same structure as a vanilla Java structure template.\n');
+    + '* `house.nbt` - the same structure as a vanilla Java structure template.\n'
+    + '* `worldedit_house.schem` - the same build, re-written by WorldEdit CLI 7.4.7 (full block-state forms).\n');
 
   for (const [file, reader, writer] of [
     ['house.schem', readSpongeSchematic, writeSpongeSchematic],

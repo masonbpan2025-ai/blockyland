@@ -11,6 +11,8 @@ export function syncAgentTerminalControls(ui,agent,{refreshing=false}={}) {
     ui.geminiKeyDrawer.disabled=offline;
     if(offline){
       ui.geminiKeyDrawer.classList.add('hidden');
+      // In Building Studio a hidden settings drawer means the terminal goes back to its small docked spot.
+      ui.setStudioPanelExpanded?.(false);
       if(ui.geminiKeyInput)ui.geminiKeyInput.value='';
       if(ui.geminiVaultPassphrase)ui.geminiVaultPassphrase.value='';
     }

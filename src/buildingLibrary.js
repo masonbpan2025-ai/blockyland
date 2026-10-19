@@ -1,4 +1,5 @@
 import { BLOCKS } from './blocks.js';
+import { worldRequestFor } from './io/blockEntityGame.js';
 import { BUILTIN_BUILDINGS } from './buildings/index.js';
 
 const STORAGE_KEY = 'minecraft_building_library_v1';
@@ -275,6 +276,12 @@ export class BuildingLibraryManager {
     if (world && typeof world.setVoxel === 'function') {
       for (const b of blocks) {
         world.setVoxel(b.x, b.y, b.z, b.id);
+        // A block imported from a .schem carries its Minecraft state and block entity: show its facing (stairs, doors,
+        // signs...), a chest's contents and a sign's text.
+        if ((b.state || b.blockEntity) && typeof world.applyStructureOrientation === 'function') {
+          const request = worldRequestFor(b);
+          if (request) world.applyStructureOrientation(request);
+        }
       }
     }
     return blocks;

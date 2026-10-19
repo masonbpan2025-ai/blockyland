@@ -71,8 +71,13 @@ function checkLength(length, limits, what) {
  * @param {boolean} [options.littleEndian] Bedrock writes little-endian; Java writes big-endian
  * @param {boolean} [options.withName]      return `{ name, value }` instead of the bare value
  * @param {object}  [options.limits]
+ * @param {object}  [options.typeMap]      when given, filled with the tag type of every NUMBER read, by path
+ *                                         (`Items[].Slot` -> TagType.BYTE; list indices are written `[]`). Plain JS
+ *                                         numbers cannot say whether they were a byte, short, int, float or double,
+ *                                         and Minecraft rejects the wrong one (an item's Slot must be a byte), so a
+ *                                         caller that writes the data back passes this map to `writeNbt`'s `types`.
  */
-export function readNbt(bytes, { littleEndian = false, withName = false, limits = NBT_LIMITS } = {}) {
+export function readNbt(bytes, { littleEndian = false, withName = false, limits = NBT_LIMITS, typeMap = null } = {}) {
   if (!bytes || typeof bytes.length !== 'number') throw new NbtError('readNbt needs a byte array');
   if (bytes.length > limits.maxBytes) throw new NbtError(`input is ${bytes.length} bytes, above the limit`);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -100,8 +105,10 @@ export function readNbt(bytes, { littleEndian = false, withName = false, limits 
     return text;
   };
 
-  const readPayload = (type, depth) => {
+  const NUMERIC = new Set([TagType.BYTE, TagType.SHORT, TagType.INT, TagType.LONG, TagType.FLOAT, TagType.DOUBLE]);
+  const readPayload = (type, depth, path = '') => {
     if (depth > limits.maxDepth) throw new NbtError(`NBT nested deeper than ${limits.maxDepth} levels`);
+    if (typeMap && NUMERIC.has(type)) typeMap[path] = type;
     switch (type) {
       case TagType.BYTE: return view.getInt8((offset++, offset - 1));
       case TagType.SHORT: return i16();
@@ -141,7 +148,7 @@ export function readNbt(bytes, { littleEndian = false, withName = false, limits 
         // A list of END is how the format spells an empty list, and it has no payloads to read.
         if (elementType === TagType.END) return [];
         const out = new Array(length);
-        for (let i = 0; i < length; i++) out[i] = readPayload(elementType, depth + 1);
+        for (let i = 0; i < length; i++) out[i] = readPayload(elementType, depth + 1, `${path}[]`);
         return out;
       }
       case TagType.COMPOUND: {
@@ -150,7 +157,7 @@ export function readNbt(bytes, { littleEndian = false, withName = false, limits 
           const childType = u8();
           if (childType === TagType.END) return out;
           const name = str();
-          out[name] = readPayload(childType, depth + 1);
+          out[name] = readPayload(childType, depth + 1, path ? `${path}.${name}` : name);
         }
       }
       default:
@@ -361,12 +368,12 @@ export const deflate = (bytes) => streamThrough(bytes, 'deflate', 'compress');
  * Content sniffing rather than file extension is a requirement of the import path: a `.dat` from a save, a
  * `.nbt` from a structure and a chunk payload from an `.mca` are all NBT, and users rename files constantly.
  */
-export async function readNbtAuto(bytes, { littleEndian = false, limits = NBT_LIMITS } = {}) {
+export async function readNbtAuto(bytes, { littleEndian = false, limits = NBT_LIMITS, typeMap = null } = {}) {
   let payload = bytes;
   if (isGzipped(payload)) payload = await gunzip(payload);
   else if (isZlib(payload)) payload = await inflate(payload);
   if (payload.length > limits.maxBytes) {
     throw new NbtError(`NBT is ${payload.length} bytes after decompression, above the ${limits.maxBytes}-byte limit`);
   }
-  return readNbt(payload, { littleEndian, limits });
+  return readNbt(payload, { littleEndian, limits, typeMap });
 }

@@ -7,7 +7,7 @@ Blockyland shares most of what makes Minecraft great: endless worlds, survival a
 - **Agent Terminal:** describe what you want built or changed in the world, in plain words.
 - **Multiplayer:** share your world with a link, without running a server.
 - **Mods:** make new games with an AI coding assistant.
-- **Building Studio:** design large structures with AI and export them as WorldEdit `.schem` files.
+- **Building Studio:** design large structures with AI and save them as WorldEdit `.schem` files.
 - **Movies:** make short films out of blocks.
 
 **▶ Play it now at [blockyland.online](https://blockyland.online)**, or run it yourself with `npm install && npm run dev`.
@@ -22,7 +22,7 @@ Blockyland shares most of what makes Minecraft great: endless worlds, survival a
   - [1. Play in the browser, and change the world by talking to it](#1-play-in-the-browser-and-change-the-world-by-talking-to-it)
   - [2. Host a multiplayer world with no server](#2-host-a-multiplayer-world-with-no-server)
   - [3. Make mods with AI](#3-make-mods-with-ai)
-  - [4. Design big builds in Building Studio and export them as .schem](#4-design-big-builds-in-building-studio-and-export-them-as-schem)
+  - [4. Design big builds in Building Studio and save them as .schem](#4-design-big-builds-in-building-studio-and-save-them-as-schem)
   - [5. Make movies out of blocks](#5-make-movies-out-of-blocks)
 - [Getting started](#getting-started)
 - [Under the hood](#under-the-hood)
@@ -160,19 +160,21 @@ The three bundled mods show how different a mod can be from the base game:
 
 Mods are trusted code that is part of the build, not a sandbox for downloaded code. See [`docs/mod-system.md`](docs/mod-system.md).
 
-### 4. Design big builds in Building Studio and export them as .schem
+### 4. Design big builds in Building Studio and save them as .schem
 
-**Building Studio** is an empty sky world with an invisible grid floor, made for designing structures. Open the Agent Terminal there (**C**) and ask for something like:
+**Building Studio** is an empty sky world with an invisible grid floor, made for designing structures. Its panel stays docked to the left with the Agent Terminal under it, so the rest of the screen is open for the build. Open the terminal (**C**) and ask for something like:
 - “Build a stair with a height parameter.”
 - “Build an aquarium with width 14 and height 8.”
 
-The AI writes the building as a small generator. Each parameter becomes a slider in the **Building Studio** panel, and the building rebuilds live as you drag. Your designs are saved to a library, so you can place them in any world.
+The AI builds it in front of you. **💾 Save** writes the build into `build_studio_schematics/<name>.schem`; **📂 Open** lists the `.schem` files there, or loads one from your computer. Saving under a name that already exists asks before overwriting. The studio watches the saved file: whenever it changes on disk — usually because an AI agent rewrote it — the build reloads and redraws immediately.
+
+Clicking **⚙️ AI Settings** expands the Agent Terminal to the full settings window; clicking it again docks the terminal back under the Save/Open buttons. Your designs are also kept in the building library, so you can place them in any world.
 
 | Building Studio panel and Agent Terminal | The castle, from above |
 |---|---|
-| ![The Building Studio panel showing "Ivy Stone Castle" with Save, Open, Export and Import buttons next to the AI World Agent Terminal](docs/images/readme/studio-panel.jpg) | ![The imported castle: curtain walls, towers with pointed roofs, a moat, gardens and farm plots](docs/images/readme/studio-castle.jpg) |
+| ![The Building Studio panel with Save and Open above the docked AI World Agent Terminal](docs/images/readme/studio-panel.jpg) | ![The opened castle: curtain walls, towers with pointed roofs, a moat, gardens and farm plots](docs/images/readme/studio-castle.jpg) |
 
-**📤 Export** saves the open building as a **WorldEdit-compatible Sponge `.schem` file**, ready for Minecraft Java with WorldEdit, or for any other tool that reads schematics. **📥 Import** loads one or more `.schem` files into your library.
+The file is a **WorldEdit-compatible Sponge `.schem`**, ready for Minecraft Java with WorldEdit, or for any other tool that reads schematics.
 
 The castle above is `ivy_stone_castle_claudeOpus5p5.schem`, built with Claude Opus 5.5. It is 124 × 62 × 116 blocks (144,053 blocks in all), with ivy-covered walls, towers, a moat, gardens and farm plots, and it opens in the Studio in seconds. The `.schem` reader and writer live in `src/io/`, alongside vanilla structure NBT support and a `.mcworld` exporter.
 

@@ -4,6 +4,7 @@ import path from 'path';
 import { sharePlugin } from './server/shareVite.js';
 import { loadModTable } from './src/mods/manifestFile.js';
 import { modGamesPlugin } from './server/modGames.js';
+import { studioSchematicsPlugin } from './server/studioSchematics.js';
 
 export function designedWorldFiles() {
   const files = new Map();
@@ -93,6 +94,7 @@ export default defineConfig({
   plugins: [
     sharePlugin(),
     modGamesPlugin(),
+    studioSchematicsPlugin(),
     rebaseScriptAssetPaths(base),
     emitDesignedWorlds(),
     leaveOutMovieFiles(),

@@ -4,69 +4,141 @@ import { BuildingLibrary } from './buildingLibrary.js';
 import { showConfirmDialog } from './dialogUtils.js';
 import { CanonicalBlockState, CanonicalStructure, CanonicalRegion, AIR } from './io/canonical.js';
 import { readSpongeSchematic, writeSpongeSchematic } from './io/codecs.js';
-import { normaliseBlockName, NAME_ALIASES } from './blockNameMatch.js';
+import { blockIdToCanonicalState, canonicalStateToBlockId, gameBlockFromState } from './io/gameBlockStates.js';
+import { JAVA_1_21_4_BLOCKS } from './io/java1214Blocks.js';
+import { encodeNbtJson, decodeNbtJson } from './io/nbtJson.js';
+import { worldRequestFor, chestSnapshot, chestBlockEntityForExport, isChest } from './io/blockEntityGame.js';
+import {
+  SchematicWatcher, DevServerSchematicSource, DirectorySchematicSource,
+  saveFolderHandle, loadFolderHandle, canPickFolder
+} from './studioSchematicWatch.js';
 
-export function blockIdToCanonicalState(id) {
-  if (id === BLOCKS.AIR || id === undefined || id === null) {
-    return AIR;
+// Block states <-> game blocks now live in io/gameBlockStates.js; re-exported so existing callers keep working.
+export { blockIdToCanonicalState, canonicalStateToBlockId };
+
+const ACTIVE_FILE_KEY = 'minecraft_studio_active_schem_v1';
+const FILE_BUILDINGS_KEY = 'minecraft_studio_file_buildings_v1';
+
+/**
+ * The generator code a voxel building is stored as. `packed` rows are [dx, dy, dz, id], then optionally a
+ * stateIndex into `states` (-1 for none) and a blockEntityIndex into `blockEntities`. A block that came from a
+ * .schem keeps its exact Minecraft state (written back on export, its facing shown in the world) and its block
+ * entity: sign text, chest contents, banner patterns, as `{ id, data, types }` with `data` in nbtJson form.
+ * `entities` (mobs, armor stands, item frames...) are not tied to a block: they are stored beside the blocks as
+ * `{ x, y, z, nbt, types }` relative to the origin, and `generate.entities(origin)` lists them for export.
+ */
+export function voxelGeneratorCode(packed, states = [], blockEntities = [], entities = []) {
+  const entityCode = entities.length ? `
+const M = ${JSON.stringify(entities)};
+generate.entities = (origin) => M.map((e) => ({ ...e, x: origin.x + e.x, y: origin.y + e.y, z: origin.z + e.z }));` : '';
+  return `
+const S = ${JSON.stringify(states)};
+const E = ${JSON.stringify(blockEntities)};
+const V = ${JSON.stringify(packed)};
+function generate(origin, params, B) {
+  const res = [];
+  for (let i = 0; i < V.length; i++) {
+    const item = V[i];
+    const block = { x: origin.x + item[0], y: origin.y + item[1], z: origin.z + item[2], id: item[3] };
+    if (item.length > 4 && item[4] >= 0) block.state = S[item[4]];
+    if (item.length > 5) block.blockEntity = E[item[5]];
+    res.push(block);
   }
-  const def = BLOCK_DEFS[id];
-  if (def && def.name) {
-    const norm = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-    try {
-      return new CanonicalBlockState(`minecraft:${norm}`);
-    } catch {}
-  }
-  for (const [key, val] of Object.entries(BLOCKS)) {
-    if (val === id) {
-      const norm = key.toLowerCase();
-      try {
-        return new CanonicalBlockState(`minecraft:${norm}`);
-      } catch {}
-    }
-  }
-  return new CanonicalBlockState('minecraft:stone');
+  return res;
+}${entityCode}
+`.trim();
 }
 
-export function canonicalStateToBlockId(state) {
-  if (!state || state.equals(AIR) || state.name === 'minecraft:air') {
-    return BLOCKS.AIR;
-  }
-  const raw = state.name.replace(/^minecraft:/, '').toLowerCase();
-  const upper = raw.toUpperCase();
-
-  if (BLOCKS[upper] !== undefined) {
-    return BLOCKS[upper];
-  }
-
-  const folded = normaliseBlockName(raw);
-  if (NAME_ALIASES[folded] && BLOCKS[NAME_ALIASES[folded]] !== undefined) {
-    return BLOCKS[NAME_ALIASES[folded]];
-  }
-
-  for (const [id, def] of Object.entries(BLOCK_DEFS)) {
-    if (def?.name && normaliseBlockName(def.name) === folded) {
-      return Number(id);
+/** Pack voxels for `voxelGeneratorCode`, interning their state strings. */
+function packVoxels(voxels, origin) {
+  const states = [];
+  const stateIndex = new Map();
+  const blockEntities = [];
+  const entityIndex = new Map();
+  const packed = voxels.map((b) => {
+    const row = [b.x - origin.x, b.y - origin.y, b.z - origin.z, b.id];
+    if (b.state) {
+      if (!stateIndex.has(b.state)) { stateIndex.set(b.state, states.length); states.push(b.state); }
+      row.push(stateIndex.get(b.state));
     }
-  }
-
-  if (raw.includes('stair')) return BLOCKS.STONE_BRICKS || BLOCKS.COBBLESTONE;
-  if (raw.includes('plank')) return BLOCKS.OAK_PLANKS;
-  if (raw.includes('log') || raw.includes('wood')) return BLOCKS.OAK_LOG;
-  if (raw.includes('leaves')) return BLOCKS.OAK_LEAVES;
-  if (raw.includes('glass')) return BLOCKS.GLASS;
-  if (raw.includes('brick')) return BLOCKS.BRICKS || BLOCKS.STONE_BRICKS;
-  if (raw.includes('sand')) return BLOCKS.SAND;
-  if (raw.includes('dirt')) return BLOCKS.DIRT;
-  if (raw.includes('wool')) return BLOCKS.WHITE_WOOL;
-
-  return BLOCKS.STONE;
+    if (b.blockEntity) {
+      if (row.length === 4) row.push(-1);
+      const key = JSON.stringify(b.blockEntity);
+      if (!entityIndex.has(key)) { entityIndex.set(key, blockEntities.length); blockEntities.push(b.blockEntity); }
+      row.push(entityIndex.get(key));
+    }
+    return row;
+  });
+  return { packed, states, blockEntities };
 }
+
+/**
+ * A block's block-entity data as a building stores it. `types` keeps only the paths this entity uses, from the
+ * file-wide map the reader collected, so a byte stays a byte when it is exported again.
+ */
+function storedBlockEntity(nbt, nbtTypes) {
+  const { id = null, ...data } = nbt;
+  const roots = new Set(Object.keys(data));
+  const types = {};
+  for (const [path, type] of Object.entries(nbtTypes ?? {})) if (roots.has(path.split(/[.[]/)[0])) types[path] = type;
+  return { id, data: encodeNbtJson(data), ...(Object.keys(types).length ? { types } : {}) };
+}
+
+const parsedStates = new Map();
+function parseState(text) {
+  let state = parsedStates.get(text);
+  if (!state) {
+    try { state = CanonicalBlockState.parse(text); } catch { state = null; }
+    parsedStates.set(text, state);
+  }
+  return state;
+}
+
+/** `My Castle.schem` and `my castle` both become `my_castle.schem`. */
+export function schematicFilename(name) {
+  const base = String(name || '')
+    .replace(/\.schem$/i, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return `${base || 'building'}.schem`;
+}
+
+/** Read a File/Blob (or a plain byte holder) into a Uint8Array. */
+async function readBytes(file) {
+  if (!file) return null;
+  if (file instanceof Uint8Array) return file;
+  if (file.bytes instanceof Uint8Array) return file.bytes;
+  if (file.data instanceof Uint8Array) return file.data;
+  if (file instanceof ArrayBuffer) return new Uint8Array(file);
+  if (typeof file.arrayBuffer === 'function') return new Uint8Array(await file.arrayBuffer());
+  return null;
+}
+
+const readStoredJson = (key) => {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+};
+const writeStoredJson = (key, value) => {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch { /* storage is a convenience; the studio still works this session */ }
+};
 
 /**
  * Building Studio is not a world: there is no terrain, only an invisible ground at this height. The cells below
  * it are solid but never drawn, so the player can stand, walk and build on it and cannot go beneath it, and
  * every building sits on or above it. The build origin (0, 5, 8) is on this ground.
+ *
+ * The studio edits one Sponge `.schem` file at a time (WorldEdit saves the same format). Save writes that file
+ * into the studio's folder and Open loads one; the folder is then watched, and a file an AI agent rewrites on
+ * disk is read back and redrawn without re-importing.
  */
 export const STUDIO_GROUND_Y = 5;
 const STUDIO_GRID_SIZE = 128;
@@ -83,33 +155,53 @@ export class BuildingStudioManager {
     this.customBuildBlocks = [];
     this.customBuildName = null;
 
+    // The .schem file this studio edits and watches. `source` is the folder it lives in (dev server or a
+    // directory the player picked), and `pendingFileName` remembers a name for a build that has no file yet.
+    this.activeFile = null;
+    this.pendingFileName = null;
+    this.source = null;
+    this.liveWatcher = null;
+    this.liveBuildingIds = new Map(Object.entries(readStoredJson(FILE_BUILDINGS_KEY) || {}));
+    this.liveFolderAction = null;
+    this.liveSyncStatus = null;
+    this._savePrompted = false;
+
     // DOM Elements
     const hasDoc = typeof document !== 'undefined';
     this.studioPanel = hasDoc ? document.getElementById('building-parameter-panel') : null;
-    this.controlsContainer = hasDoc ? document.getElementById('studio-parameter-controls') : null;
     this.buildingNameBadge = hasDoc ? document.getElementById('studio-current-building-name') : null;
+    this.filePrompt = hasDoc ? document.getElementById('studio-file-prompt') : null;
+    this.filePromptTitle = hasDoc ? document.getElementById('studio-file-prompt-title') : null;
+    this.filePromptText = hasDoc ? document.getElementById('studio-file-prompt-text') : null;
     this.btnSave = hasDoc ? document.getElementById('btn-studio-save') : null;
     this.btnOpen = hasDoc ? document.getElementById('btn-studio-open') : null;
-    this.btnExportSchem = hasDoc ? document.getElementById('btn-studio-export-schem') : null;
-    this.btnImportSchem = hasDoc ? document.getElementById('btn-studio-import-schem') : null;
-    this.btnModalImportSchem = hasDoc ? document.getElementById('btn-studio-modal-import-schem') : null;
-    this.fileInputImportSchem = hasDoc ? document.getElementById('input-studio-import-schem') : null;
+    this.fileInputOpenSchem = hasDoc ? document.getElementById('input-studio-open-schem') : null;
+    this.liveSyncDot = hasDoc ? document.getElementById('studio-live-dot') : null;
+    this.liveSyncText = hasDoc ? document.getElementById('studio-live-text') : null;
+    this.btnLiveFolder = hasDoc ? document.getElementById('btn-studio-live-folder') : null;
 
     this.saveModal = hasDoc ? document.getElementById('modal-save-building') : null;
     this.saveInput = hasDoc ? document.getElementById('input-save-building-name') : null;
     this.saveConflictMsg = hasDoc ? document.getElementById('save-building-conflict-msg') : null;
+    this.saveHint = hasDoc ? document.getElementById('save-building-hint') : null;
+    this.saveTarget = hasDoc ? document.getElementById('studio-save-target') : null;
     this.btnConfirmSave = hasDoc ? document.getElementById('btn-confirm-save-building') : null;
     this.btnCancelSave = hasDoc ? document.getElementById('btn-cancel-save-building') : null;
 
     this.openModal = hasDoc ? document.getElementById('modal-open-building') : null;
+    this.openFileList = hasDoc ? document.getElementById('studio-open-file-list') : null;
+    this.openFilesPath = hasDoc ? document.getElementById('studio-open-files-path') : null;
+    this.btnOpenBrowse = hasDoc ? document.getElementById('btn-studio-open-browse') : null;
+    this.openFilesPane = hasDoc ? document.getElementById('studio-open-files-pane') : null;
+    this.openLibraryPane = hasDoc ? document.getElementById('studio-open-library-pane') : null;
+    this.tabFiles = hasDoc ? document.getElementById('tab-studio-open-files') : null;
+    this.tabLibrary = hasDoc ? document.getElementById('tab-studio-open-library') : null;
     this.openList = hasDoc ? document.getElementById('studio-open-building-list') : null;
     this.openSearch = hasDoc ? document.getElementById('input-search-open-building') : null;
     this.btnCloseOpen = hasDoc ? document.getElementById('btn-close-open-building') : null;
     this.btnRestoreDefaults = hasDoc ? document.getElementById('btn-restore-default-buildings') : null;
 
-    if (hasDoc) {
-      this.bindEvents();
-    }
+    if (hasDoc) this.bindEvents();
   }
 
   bindEvents() {
@@ -122,14 +214,18 @@ export class BuildingStudioManager {
     });
 
     this.btnConfirmSave?.addEventListener('click', () => {
-      this.confirmSave();
+      void this.confirmSave();
     });
 
     this.saveInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        this.confirmSave();
+        void this.confirmSave();
       }
+    });
+
+    this.saveInput?.addEventListener('input', () => {
+      this.updateSaveDialog();
     });
 
     this.btnCancelSave?.addEventListener('click', () => {
@@ -160,30 +256,40 @@ export class BuildingStudioManager {
       this.renderOpenBuildingList(e.target.value);
     });
 
-    this.btnExportSchem?.addEventListener('click', () => {
-      this.exportCurrentToSchematic();
+    this.btnLiveFolder?.addEventListener('click', () => {
+      void this.liveFolderAction?.();
     });
 
-    this.btnImportSchem?.addEventListener('click', () => {
-      this.fileInputImportSchem?.click();
+    this.tabFiles?.addEventListener('click', () => this.switchOpenTab('files'));
+    this.tabLibrary?.addEventListener('click', () => this.switchOpenTab('library'));
+
+    this.btnOpenBrowse?.addEventListener('click', () => {
+      this.fileInputOpenSchem?.click();
     });
 
-    this.btnModalImportSchem?.addEventListener('click', () => {
-      this.fileInputImportSchem?.click();
-    });
-
-    this.fileInputImportSchem?.addEventListener('change', async (e) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-        await this.importSchematicFiles(files);
-        e.target.value = '';
-      }
+    this.fileInputOpenSchem?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (file) await this.openSchematicFromFile(file);
+      e.target.value = '';
     });
   }
 
   // --- Entering Building Studio Mode ---
   enterStudio() {
     this.isActive = true;
+    this._savePrompted = false;
+    // The studio starts on the file it last watched (restored by startLiveSync), not on a build left over from
+    // the previous session: the world was torn down, so that build is no longer on screen.
+    this.currentBuilding = null;
+    this.currentParameters = {};
+    this.placedVoxels = [];
+    this.placedStates = new Map();
+    this.placedBlockEntities = new Map();
+    this.isCustomVoxelBuild = false;
+    this.customBuildBlocks = [];
+    this.customBuildName = null;
+    this.activeFile = null;
+    this.pendingFileName = null;
     if (this.game.mechanisms) {
       this.game.mechanisms.setMechanism('default', this.game);
     }
@@ -209,24 +315,28 @@ export class BuildingStudioManager {
     this.game.player.isFlying = false;
     if (this.game.player.velocity) this.game.player.velocity.set(0, 0, 0);
 
-    // Open Terminal in Studio Mode
     if (typeof document !== 'undefined') {
+      // The studio opens docked: the panel and the terminal share a narrow left column so the structure fills
+      // the rest of the screen. AI Settings expands the terminal (ui.js toggles this class).
       const modal = document.getElementById('gemini-modal');
       if (modal) {
         modal.classList.add('studio-mode');
+        modal.classList.remove('studio-settings-expanded');
       }
-      if (this.studioPanel) {
-        this.studioPanel.classList.remove('hidden');
-      }
-      this.renderEmptyPanel();
+      document.getElementById('gemini-key-drawer')?.classList.add('hidden');
+      document.getElementById('gemini-toggle-key')?.setAttribute('aria-expanded', 'false');
+      if (this.studioPanel) this.studioPanel.classList.remove('hidden');
+      this.updateFileBadge();
     }
 
     if (this.game.ui?.openGeminiTerminal) {
       this.game.ui.openGeminiTerminal();
     }
 
+    if (typeof document !== 'undefined') void this.startLiveSync();
+
     this.game.ui?.addChatMessage?.(
-      '<span style="color:#38bdf8;font-weight:bold;">[Building Studio]</span> Welcome to Building Studio! Enter a prompt like "build a stair with a height parameter" to begin.'
+      '<span style="color:#38bdf8;font-weight:bold;">[Building Studio]</span> Ask the agent to build, then Save it as a .schem file. The studio watches that file, so an agent can edit it on disk and the build reloads here.'
     );
   }
 
@@ -265,6 +375,8 @@ export class BuildingStudioManager {
   exitStudio() {
     const wasActive = this.isActive;
     this.isActive = false;
+    this.stopLiveSync();
+    this.source = null;
     this.hideGroundGrid();
     if (this.game?.world) this.game.world.floorY = -Infinity;
     if (wasActive && this.savedGamerules !== undefined) {
@@ -276,6 +388,7 @@ export class BuildingStudioManager {
       const modal = document.getElementById('gemini-modal');
       if (modal) {
         modal.classList.remove('studio-mode');
+        modal.classList.remove('studio-settings-expanded');
       }
       if (this.studioPanel) {
         this.studioPanel.classList.add('hidden');
@@ -284,13 +397,10 @@ export class BuildingStudioManager {
   }
 
   /**
-   * Adopt a building the language model built, so it becomes editable in the
-   * parameter panel.
+   * Adopt a building the language model built, so it becomes the studio's build to save.
    *
-   * Called after the agent runs a plan while Building Studio is open. The point
-   * of the Studio is to iterate on parameters, so an AI-built building that
-   * never reaches the panel leaves the user with nothing to tune. Any dimension
-   * the model reported is used as the starting parameter value.
+   * Called after the agent runs a plan while Building Studio is open. The building is not associated with a
+   * file yet, so this also prompts for one: the file is what the studio watches from then on.
    *
    * @returns {boolean} true when a library building was adopted
    */
@@ -308,22 +418,8 @@ export class BuildingStudioManager {
     };
     this.currentParameters = {};
 
-    if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = name || 'Custom Building';
-    }
-
-    if (this.controlsContainer) {
-      this.controlsContainer.innerHTML = `
-        <div class="studio-empty-params">
-          <span class="studio-empty-icon">✦</span>
-          <p style="color:#38bdf8;font-weight:bold;font-size:14px;margin-bottom:6px;">${name || 'Custom Building'}</p>
-          <small style="color:#94a3b8;line-height:1.4;">
-            AI 3D build active (${(blocks || []).length} voxels).<br>
-            Click <strong style="color:#10b981;">💾 Save</strong> to store it in your Building Library.
-          </small>
-        </div>
-      `;
-    }
+    this.updateFileBadge();
+    this.maybePromptSaveFile();
   }
 
   captureCurrentVoxels() {
@@ -347,7 +443,13 @@ export class BuildingStudioManager {
         for (const v of candidateCoords.values()) {
           const id = this.game.world.getVoxel(v.x, v.y, v.z);
           if (id !== undefined && id !== BLOCKS.AIR) {
-            blocks.push({ x: v.x, y: v.y, z: v.z, id });
+            const state = this.placedStates?.get(`${v.x},${v.y},${v.z}`);
+            const placedEntity = this.placedBlockEntities?.get(`${v.x},${v.y},${v.z}`);
+            blocks.push({
+              x: v.x, y: v.y, z: v.z, id,
+              ...(state ? { state } : {}),
+              ...(placedEntity && placedEntity.blockId === id ? { blockEntity: placedEntity.blockEntity } : {})
+            });
           } else if (v.id && id !== BLOCKS.AIR) {
             blocks.push(v);
           }
@@ -369,18 +471,67 @@ export class BuildingStudioManager {
         x: b.x !== undefined ? b.x : (orig.x + (b.dx || 0)),
         y: b.y !== undefined ? b.y : (orig.y + (b.dy || 0)),
         z: b.z !== undefined ? b.z : (orig.z + (b.dz || 0)),
-        id: b.id
+        id: b.id,
+        ...(b.state ? { state: b.state } : {}),
+        ...(b.blockEntity ? { blockEntity: b.blockEntity } : {})
       }));
     }
     return (voxels || []).filter(v => v && v.id !== undefined && v.id !== BLOCKS.AIR);
   }
 
-  async exportCurrentToSchematic({ version = 3, gzipped = true } = {}) {
+  /**
+   * The Minecraft state to export for one voxel. A block that came from a .schem and has not changed since writes
+   * its original state back exactly; anything else is described from its id and the orientation the world stores.
+   */
+  exportStateOf(voxel) {
+    if (voxel.state) {
+      const parsed = parseState(voxel.state);
+      if (parsed && gameBlockFromState(parsed).id === voxel.id) return parsed;
+    }
+    return blockIdToCanonicalState(voxel.id, this.storedOrientationAt(voxel.x, voxel.y, voxel.z, voxel.id));
+  }
+
+  /**
+   * The orientation the world stores for a block. A door keeps it on its lower half and a bed on its foot, so the
+   * other half asks its partner, and both halves export facing the same way.
+   */
+  storedOrientationAt(x, y, z, id) {
+    const orientations = this.game?.world?.structureOrientations;
+    if (!orientations?.get) return null;
+    const own = orientations.get(`${x},${y},${z}`);
+    if (own) return own;
+    const def = BLOCK_DEFS[id];
+    if (def?.door && def.isTop) return orientations.get(`${x},${y - 1},${z}`) ?? null;
+    if (def?.bed && def.isHead) {
+      const steps = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+      for (const [facing, [dx, dz]] of Object.entries(steps)) {
+        const foot = orientations.get(`${x - dx},${y},${z - dz}`);
+        if (foot?.facing === facing) return foot;
+      }
+    }
+    return null;
+  }
+
+  /** The chest manager's chest at a spot, if the game has one there. */
+  chestAt(x, y, z) {
+    const chests = this.game?.chestManager ?? this.game?.world?.chestManager;
+    return chests?.getChest?.(x, y, z) ?? null;
+  }
+
+  /**
+   * Serialize the open building as a WorldEdit-compatible Sponge `.schem` file.
+   *
+   * This is the only export path: Save writes these bytes into the studio folder. `download` keeps the old
+   * browser-download behaviour for a static build with no studio folder; `announce` controls the chat log.
+   */
+  async exportCurrentToSchematic({ version = 3, gzipped = true, download = true, announce = true } = {}) {
     const voxels = this.getActiveVoxels();
     if (!voxels || voxels.length === 0) {
-      const msg = 'No building voxels to export. Please open or build a structure first.';
-      this.game?.ui?.addChatMessage?.(`<span style="color:#ef4444;font-weight:bold;">✦ ${msg}</span>`);
-      if (typeof alert === 'function') alert(msg);
+      if (announce) {
+        const msg = 'No building voxels to save. Ask the agent to build something first.';
+        this.game?.ui?.addChatMessage?.(`<span style="color:#ef4444;font-weight:bold;">✦ ${msg}</span>`);
+        if (typeof alert === 'function') alert(msg);
+      }
       return null;
     }
 
@@ -401,7 +552,7 @@ export class BuildingStudioManager {
 
     const canonicalBlocks = voxels.map(b => ({
       pos: { x: b.x - minX, y: b.y - minY, z: b.z - minZ },
-      state: blockIdToCanonicalState(b.id)
+      state: this.exportStateOf(b)
     }));
 
     const orig = this.buildOrigin || { x: 0, y: 5, z: 8 };
@@ -412,11 +563,33 @@ export class BuildingStudioManager {
     };
 
     const buildingName = this.currentBuilding?.name || this.customBuildName || 'Building';
+    // Stored block entities as imported; a chest whose contents the player changed is written as it is now.
+    const blockEntities = [];
+    for (const b of voxels) {
+      let entity = null;
+      if (isChest(b.id)) {
+        const placed = this.placedBlockEntities?.get(`${b.x},${b.y},${b.z}`);
+        entity = chestBlockEntityForExport(b.id, b.blockEntity ?? null, this.chestAt(b.x, b.y, b.z), placed?.blockId === b.id ? placed.chestSnapshot : undefined);
+      } else if (b.blockEntity?.id) {
+        entity = { id: b.blockEntity.id, nbt: decodeNbtJson(b.blockEntity.data ?? {}), nbtTypes: b.blockEntity.types };
+      }
+      if (entity) blockEntities.push({ pos: { x: b.x - minX, y: b.y - minY, z: b.z - minZ }, id: entity.id, nbt: entity.nbt, ...(entity.nbtTypes ? { nbtTypes: entity.nbtTypes } : {}) });
+    }
+
+    // Mobs, armor stands and other entities the open building came with.
+    const entities = (this.currentBuilding?.generate?.entities?.(orig) ?? []).map((e) => ({
+      pos: { x: e.x - minX, y: e.y - minY, z: e.z - minZ },
+      nbt: decodeNbtJson(e.nbt ?? {}),
+      ...(e.types ? { nbtTypes: e.types } : {})
+    }));
+
     const region = new CanonicalRegion({
       name: 'main',
       origin: offsetOrigin,
       size: { x: width, y: height, z: length },
-      blocks: canonicalBlocks
+      blocks: canonicalBlocks,
+      blockEntities,
+      entities
     });
 
     const structure = new CanonicalStructure({
@@ -434,39 +607,917 @@ export class BuildingStudioManager {
     });
 
     const bytes = await writeSpongeSchematic(structure, { version, gzipped });
-    const filename = `${buildingName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'structure'}.schem`;
+    // Blocks Minecraft 1.21.4 does not have (shelves, copper chests, poplar wood and the other later additions).
+    // The file is still a valid schematic, but WorldEdit on 1.21.4 loads each of them as air: say so rather than
+    // let a build come out with holes.
+    const newerThanTarget = [...new Set(canonicalBlocks.map(b => b.state.name.replace(/^minecraft:/, '')))]
+      .filter(name => name !== 'air' && !JAVA_1_21_4_BLOCKS.has(name)).sort();
+    const filename = schematicFilename(buildingName);
 
-    if (typeof document !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof document.createElement === 'function') {
-      try {
-        const blob = new Blob([bytes], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        if (document.body) {
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        } else {
-          a.click();
-        }
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } catch (err) {
-        console.warn('Auto download failed:', err);
+    if (download) this.downloadSchematic(bytes, filename);
+
+    if (announce) {
+      this.game?.ui?.addChatMessage?.(
+        `<span style="color:#10b981;font-weight:bold;">✦ Saved "${buildingName}" as ${filename} (WorldEdit .schem)!</span>`
+      );
+      if (newerThanTarget.length) {
+        const shown = newerThanTarget.slice(0, 6).join(', ') + (newerThanTarget.length > 6 ? `, and ${newerThanTarget.length - 6} more` : '');
+        this.game?.ui?.addChatMessage?.(
+          `<span style="color:#f59e0b;">✦ ${newerThanTarget.length} block type${newerThanTarget.length === 1 ? ' is' : 's are'} newer than Minecraft 1.21.4 (${shown}). WorldEdit on 1.21.4 loads them as air; a Minecraft version that has them loads the build whole.</span>`
+        );
       }
     }
 
-    this.game?.ui?.addChatMessage?.(
-      `<span style="color:#10b981;font-weight:bold;">✦ Exported "${buildingName}" as ${filename} (WorldEdit .schem)!</span>`
-    );
-
-    return { bytes, structure, filename };
+    return { bytes, structure, filename, newerThanTarget };
   }
 
+  /** Legacy alias. */
   exportSchematic(options) {
     return this.exportCurrentToSchematic(options);
   }
 
+  /** Save a .schem through the browser's download path (a static build with no studio folder). */
+  downloadSchematic(bytes, filename) {
+    if (typeof document === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof document.createElement !== 'function') return false;
+    try {
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      if (document.body) {
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        a.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return true;
+    } catch (err) {
+      console.warn('Auto download failed:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Turn .schem bytes into what the Building Library stores: a name from the file, a generator over the voxels, and
+   * a description. Returns null when the file holds no placeable blocks. Shared by Open, Save and live sync.
+   */
+  async buildingSpecFromSchematic(bytes, filename = 'imported.schem') {
+    const { structure } = await readSpongeSchematic(bytes);
+    if (!structure || !structure.main || !structure.main.blocks) return null;
+
+    const rawBase = (filename || structure.name || 'imported')
+      .replace(/\.schem$/i, '')
+      .replace(/[-_]+/g, ' ')
+      .trim();
+    let baseName = rawBase
+      ? rawBase.split(/\s+/).map(w => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '').join(' ')
+      : 'Imported Building';
+
+    if (baseName.toLowerCase() === 'sponge schematic') {
+      baseName = 'Imported Structure';
+    }
+
+    const region = structure.main;
+    const blocks = region.blocks;
+    if (!blocks || blocks.length === 0) {
+      return null;
+    }
+
+    const hasCustomOrigin = region.origin && (region.origin.x !== 0 || region.origin.y !== 0 || region.origin.z !== 0);
+    const centerX = Math.floor(region.size.x / 2);
+    const centerZ = Math.floor(region.size.z / 2);
+
+    const relBlocks = [];
+    let minDy = Infinity;
+
+    for (const b of blocks) {
+      const { id } = gameBlockFromState(b.state);
+      if (id === BLOCKS.AIR) continue;
+      // Keep the file's exact state unless the id alone writes it back identically.
+      const text = b.state.toString();
+      const state = blockIdToCanonicalState(id).toString() === text ? null : text;
+
+      let dx, dy, dz;
+      if (hasCustomOrigin) {
+        dx = b.pos.x + region.origin.x;
+        dy = b.pos.y + region.origin.y;
+        dz = b.pos.z + region.origin.z;
+      } else {
+        dx = b.pos.x - centerX;
+        dy = b.pos.y;
+        dz = b.pos.z - centerZ;
+      }
+
+      if (dy < minDy) minDy = dy;
+      const blockEntity = b.nbt ? storedBlockEntity(b.nbt, b.nbtTypes) : null;
+      relBlocks.push({ dx, dy, dz, id, state, blockEntity });
+    }
+
+    if (relBlocks.length === 0) return null;
+
+    // Entities, moved exactly as the blocks are.
+    const relEntities = (region.entities ?? []).map((e) => ({
+      x: hasCustomOrigin ? e.pos.x + region.origin.x : e.pos.x - centerX,
+      y: hasCustomOrigin ? e.pos.y + region.origin.y : e.pos.y,
+      z: hasCustomOrigin ? e.pos.z + region.origin.z : e.pos.z - centerZ,
+      nbt: encodeNbtJson(e.nbt ?? {}),
+      ...(e.nbtTypes && Object.keys(e.nbtTypes).length ? { types: e.nbtTypes } : {})
+    }));
+
+    if (minDy < 0) {
+      const shift = -minDy;
+      for (const rb of relBlocks) {
+        rb.dy += shift;
+      }
+      for (const e of relEntities) e.y += shift;
+    }
+
+    const { packed, states, blockEntities } = packVoxels(relBlocks.map((b) => ({ x: b.dx, y: b.dy, z: b.dz, id: b.id, state: b.state, blockEntity: b.blockEntity })), { x: 0, y: 0, z: 0 });
+    const code = voxelGeneratorCode(packed, states, blockEntities, relEntities);
+
+    // Calculate player spawn position from metadata or schematic offset:
+    let playerSpawn = null;
+    const meta = region.metadata || structure.metadata;
+    if (Array.isArray(meta?.PlayerSpawn) && meta.PlayerSpawn.length >= 3) {
+      playerSpawn = {
+        x: Number(meta.PlayerSpawn[0]),
+        y: Number(meta.PlayerSpawn[1]),
+        z: Number(meta.PlayerSpawn[2]),
+        yaw: meta.PlayerSpawn[3] !== undefined ? Number(meta.PlayerSpawn[3]) : Math.PI,
+        pitch: meta.PlayerSpawn[4] !== undefined ? Number(meta.PlayerSpawn[4]) : 0
+      };
+    } else if (meta?.PlayerSpawn && typeof meta.PlayerSpawn === 'object') {
+      playerSpawn = {
+        x: Number(meta.PlayerSpawn.x ?? 0),
+        y: Number(meta.PlayerSpawn.y ?? 0),
+        z: Number(meta.PlayerSpawn.z ?? 0),
+        yaw: meta.PlayerSpawn.yaw !== undefined ? Number(meta.PlayerSpawn.yaw) : Math.PI,
+        pitch: meta.PlayerSpawn.pitch !== undefined ? Number(meta.PlayerSpawn.pitch) : 0
+      };
+    } else if (hasCustomOrigin) {
+      playerSpawn = {
+        x: -region.origin.x,
+        y: -region.origin.y,
+        z: -region.origin.z,
+        yaw: Math.PI,
+        pitch: 0
+      };
+    }
+
+    let worldSpawn = null;
+    if (playerSpawn) {
+      const spawnDx = hasCustomOrigin ? playerSpawn.x + region.origin.x : playerSpawn.x - centerX;
+      const spawnDy = (hasCustomOrigin ? playerSpawn.y + region.origin.y : playerSpawn.y) + (minDy < 0 ? -minDy : 0);
+      const spawnDz = hasCustomOrigin ? playerSpawn.z + region.origin.z : playerSpawn.z - centerZ;
+      const orig = this.buildOrigin || { x: 0, y: STUDIO_GROUND_Y, z: 8 };
+      worldSpawn = {
+        x: orig.x + spawnDx + 0.5,
+        y: orig.y + spawnDy,
+        z: orig.z + spawnDz + 0.5,
+        yaw: playerSpawn.yaw,
+        pitch: playerSpawn.pitch
+      };
+    }
+
+    return {
+      baseName,
+      code,
+      description: `Saved as ${filename} (${relBlocks.length} voxels, ${region.size.x}x${region.size.y}x${region.size.z})`,
+      playerSpawn: worldSpawn
+    };
+  }
+
+  // --- Save: the .schem file is the studio's document ---------------------------------------------------------
+
+  /** A short file name for the current build, without the extension. */
+  defaultSaveName() {
+    const base = this.activeFile || this.pendingFileName || this.customBuildName || this.currentBuilding?.name || 'building';
+    return String(base).replace(/\.schem$/i, '');
+  }
+
+  /** True when there is something that could become a .schem file. */
+  hasSavableBuild() {
+    return Boolean(
+      (this.placedVoxels?.length)
+      || (this.customBuildBlocks?.length)
+      || (this.currentBuilding && typeof this.currentBuilding.generate === 'function')
+    );
+  }
+
+  showSaveModal({ prompted = false } = {}) {
+    if (this.saveConflictMsg) {
+      this.saveConflictMsg.classList.add('hidden');
+      this.saveConflictMsg.textContent = '';
+    }
+    if (this.saveInput) this.saveInput.value = this.defaultSaveName();
+    this.updateSaveDialog();
+    if (this.saveHint) {
+      this.saveHint.textContent = this.hasSavableBuild()
+        ? (prompted ? 'No .schem file yet: saving creates the file the studio watches.' : '')
+        : 'Nothing to save yet. Ask the agent to build something, then Save.';
+    }
+    if (this.saveModal) {
+      this.saveModal.classList.remove('hidden');
+      this.saveInput?.focus();
+      this.saveInput?.select?.();
+    }
+  }
+
+  hideSaveModal() {
+    if (this.saveModal) {
+      this.saveModal.classList.add('hidden');
+    }
+  }
+
+  /** The folder line under the name field: where this file will go. */
+  updateSaveDialog() {
+    const filename = schematicFilename(this.saveInput?.value ?? '');
+    if (this.saveTarget) {
+      this.saveTarget.textContent = this.source
+        ? `Saves to ${this.source.label}${filename}`
+        : `No studio folder yet: ${filename} downloads to your computer. Choose a folder for live sync.`;
+    }
+    if (this.saveHint && this.hasSavableBuild()) {
+      this.saveHint.textContent = '';
+    }
+  }
+
+  setSaveError(message) {
+    if (!this.saveConflictMsg) return;
+    this.saveConflictMsg.textContent = message;
+    this.saveConflictMsg.classList.remove('hidden');
+  }
+
+  /**
+   * Save the open building as `<name>.schem` in the studio folder. An existing file is only replaced after the
+   * player confirms, and the file becomes the one the studio watches.
+   */
+  async confirmSave() {
+    const raw = (this.saveInput?.value || '').trim();
+    if (!raw) {
+      this.setSaveError('Please enter a file name.');
+      return null;
+    }
+    if (!this.hasSavableBuild()) {
+      this.setSaveError('Nothing to save yet. Ask the agent to build something first.');
+      return null;
+    }
+    const filename = schematicFilename(raw);
+
+    if (await this.fileExists(filename)) {
+      const overwrite = await this.askOverwrite(filename);
+      if (!overwrite) {
+        this.setSaveError(`"${filename}" already exists. Choose another name, or confirm overwrite.`);
+        return null;
+      }
+    }
+    return this.writeSchematicFile(filename, raw);
+  }
+
+  /** Ask before replacing an existing .schem file. Resolves true when the player confirms. */
+  askOverwrite(filename) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (value) => { if (!settled) { settled = true; resolve(value); } };
+      showConfirmDialog({
+        title: '⚠️ Overwrite .schem file?',
+        message: `"${filename}" already exists in ${this.source?.label || 'the studio folder'}. Overwrite it with this build?`,
+        confirmText: 'Yes, overwrite',
+        cancelText: 'Cancel',
+        onConfirm: () => done(true),
+        onCancel: () => done(false)
+      });
+    });
+  }
+
+  async fileExists(filename) {
+    const source = this.source;
+    if (!source) return false;
+    try {
+      if (typeof source.exists === 'function') return await source.exists(filename);
+      const files = await source.list();
+      return files.some((f) => f.name.toLowerCase() === filename.toLowerCase());
+    } catch {
+      return false;
+    }
+  }
+
+  /** Serialize the build and write it to the studio folder (or download it with no folder). */
+  async writeSchematicFile(filename, displayName = null) {
+    if (this._writingFile) return null;
+    this._writingFile = true;
+    try {
+      const result = await this.exportCurrentToSchematic({ version: 3, gzipped: true, download: false, announce: false });
+      if (!result) {
+        this.setSaveError('Nothing to save yet. Ask the agent to build something first.');
+        return null;
+      }
+
+      const source = this.source;
+      let wroteToFolder = false;
+      if (source?.write && source.writable !== false) {
+        try {
+          await source.write(filename, result.bytes);
+          wroteToFolder = true;
+        } catch (error) {
+          // An already-running dev server from before this route existed answers 404/405. Save still gives the
+          // player the file (a download) and says what to do, rather than failing with no way forward.
+          const missingRoute = source.kind === 'dev-server' && /save failed: (404|405)/.test(error.message);
+          if (!missingRoute) {
+            const message = `Could not save ${filename}: ${error.message}`;
+            this.setSaveError(message);
+            this.setLiveStatus('warn', message, this.changeFolderButton());
+            return null;
+          }
+          this.downloadSchematic(result.bytes, filename);
+          this.game?.ui?.addChatMessage?.(
+            '<span style="color:#f59e0b;">✦ The running dev server has no save route yet, so the file was downloaded. Restart npm run dev to save into the studio folder.</span>'
+          );
+        }
+      } else {
+        this.downloadSchematic(result.bytes, filename);
+      }
+
+      this.activeFile = filename;
+      this.pendingFileName = null;
+      this.persistActiveFile();
+      this.hideSaveModal();
+      // Keep the Building Library in step with the file: the same save also makes the build placeable
+      // from the creative Buildings tab, as it did before the file became the studio's document.
+      const library = this.saveCurrentBuildToLibrary(displayName || filename);
+      if (library) {
+        this.liveBuildingIds.set(filename, library.id);
+        this.persistFileBuildings();
+      }
+      this.updateFileBadge();
+      // The write is ours, not an external edit: settle it so the watcher does not reload it as a change.
+      await this.liveWatcher?.settle?.(filename);
+
+      const where = wroteToFolder ? `${source.label}${filename}` : filename;
+      this.game?.ui?.addChatMessage?.(
+        `<span style="color:#10b981;font-weight:bold;">✦ Saved ${where} (WorldEdit .schem).</span>${wroteToFolder ? ' <span style="color:#94a3b8;">The studio reloads it whenever it changes.</span>' : ''}`
+      );
+      if (wroteToFolder) this.setLiveStatus('on', `Watching ${filename}`, this.changeFolderButton());
+      else this.setLiveStatus('warn', 'Saved a download; choose a folder to live-watch a .schem file', this.changeFolderButton());
+
+      if (result.newerThanTarget?.length) {
+        const shown = result.newerThanTarget.slice(0, 6).join(', ') + (result.newerThanTarget.length > 6 ? `, and ${result.newerThanTarget.length - 6} more` : '');
+        this.game?.ui?.addChatMessage?.(
+          `<span style="color:#f59e0b;">✦ ${result.newerThanTarget.length} block type${result.newerThanTarget.length === 1 ? ' is' : 's are'} newer than Minecraft 1.21.4 (${shown}). WorldEdit on 1.21.4 loads them as air.</span>`
+        );
+      }
+      return filename;
+    } finally {
+      this._writingFile = false;
+    }
+  }
+
+  /**
+   * Add or update the build in the Building Library under the name that was saved, so the file save keeps the
+   * library entry (and the creative Buildings tab) in step. A built-in name is never overwritten.
+   */
+  saveCurrentBuildToLibrary(rawName) {
+    const name = String(rawName || '').replace(/\.schem$/i, '').trim();
+    if (!name) return null;
+    const existing = BuildingLibrary.getBuilding(name);
+    if (existing?.isBuiltin) return null;
+
+    let code = '';
+    let parameters = [];
+    let description = `Saved as ${schematicFilename(name)}`;
+    const isParametric = !this.isCustomVoxelBuild &&
+      this.currentBuilding &&
+      !this.currentBuilding.isCustom &&
+      typeof this.currentBuilding.code === 'string' &&
+      this.currentBuilding.code.trim().length > 0 &&
+      Array.isArray(this.currentBuilding.parameters) &&
+      this.currentBuilding.parameters.length > 0;
+
+    if (isParametric) {
+      code = this.currentBuilding.code;
+      parameters = (this.currentBuilding.parameters || []).map(p => ({
+        ...p,
+        default: this.currentParameters[p.id] !== undefined ? this.currentParameters[p.id] : p.default
+      }));
+      description = `${name} with ${parameters.length} parameters`;
+    } else {
+      const voxels = this.captureCurrentVoxels();
+      if (voxels.length === 0) return null;
+      code = this.generateCodeFromVoxels(voxels, this.buildOrigin);
+      parameters = [];
+      description = `${name} (${voxels.length} voxels)`;
+    }
+
+    const result = BuildingLibrary.saveBuilding({
+      name,
+      parameters,
+      code,
+      icon: this.currentBuilding?.icon || '/assets/blocks/crafting_table_top.png',
+      description
+    }, Boolean(existing));
+    return result.success ? result.building : null;
+  }
+
+  // --- The active file, remembered across reloads -------------------------------------------------------------
+
+  updateFileBadge() {
+    if (this.buildingNameBadge) {
+      if (this.activeFile) {
+        this.buildingNameBadge.textContent = this.activeFile;
+        this.buildingNameBadge.title = `Watching ${this.activeFile}`;
+      } else if (this.currentBuilding || this.customBuildName || this.pendingFileName) {
+        const name = this.customBuildName || this.currentBuilding?.name || this.pendingFileName || 'Building';
+        this.buildingNameBadge.textContent = `${name} · unsaved`;
+        this.buildingNameBadge.title = 'This build is not saved to a .schem file yet';
+      } else {
+        this.buildingNameBadge.textContent = 'No file';
+        this.buildingNameBadge.title = 'The studio watches one .schem file';
+      }
+    }
+    this.renderFilePrompt();
+  }
+
+  /** The "no file yet" prompt in the panel. */
+  renderFilePrompt() {
+    if (!this.filePrompt) return;
+    const needsFile = !this.activeFile;
+    this.filePrompt.classList.toggle('hidden', !needsFile);
+    if (!needsFile) return;
+    const hasBuild = this.hasSavableBuild();
+    if (this.filePromptTitle) this.filePromptTitle.textContent = hasBuild ? 'Not saved to a file yet' : 'No .schem file yet';
+    if (this.filePromptText) {
+      this.filePromptText.textContent = hasBuild
+        ? 'Click 💾 Save to write this build as a .schem file the studio will watch.'
+        : 'Ask the agent to build something, then click 💾 Save. The studio watches the file you save.';
+    }
+  }
+
+  persistActiveFile() {
+    if (!this.activeFile) {
+      writeStoredJson(ACTIVE_FILE_KEY, null);
+      return;
+    }
+    writeStoredJson(ACTIVE_FILE_KEY, { name: this.activeFile, sourceLabel: this.source?.label || '' });
+  }
+
+  readActiveFileRecord() {
+    const record = readStoredJson(ACTIVE_FILE_KEY);
+    return record && typeof record.name === 'string' ? record : null;
+  }
+
+  persistFileBuildings() {
+    writeStoredJson(FILE_BUILDINGS_KEY, Object.fromEntries(this.liveBuildingIds));
+  }
+
+  // --- Live .schem sync: the saved file is watched -----------------------------------------------------------
+
+  /**
+   * Start watching the studio's .schem file, so an agent rewriting it on disk redraws the build.
+   *
+   * Running locally, the dev server's build_studio_schematics/ folder is used with no setup. A deployed build
+   * has no server, so it uses the folder the player chose last time (if the browser still allows it), or asks.
+   */
+  async startLiveSync() {
+    this.stopLiveSync();
+    this.source = null;
+    const dev = new DevServerSchematicSource();
+    if (await dev.probe()) {
+      await this.watchSource(dev);
+      await this.restoreActiveFile();
+      this.updateFileBadge();
+      return;
+    }
+    if (!canPickFolder()) {
+      this.setLiveStatus('off', 'Live folder sync needs Chrome or Edge', null);
+      this.updateFileBadge();
+      return;
+    }
+    const handle = await loadFolderHandle();
+    if (handle) {
+      const permission = (await handle.queryPermission?.({ mode: 'readwrite' })) ?? 'prompt';
+      if (permission === 'granted') {
+        await this.watchSource(new DirectorySchematicSource(handle));
+        await this.restoreActiveFile();
+        this.updateFileBadge();
+        return;
+      }
+      this.setLiveStatus('warn', `Live sync paused: allow access to ${handle.name}/`, {
+        label: '▶ Resume',
+        run: () => this.resumeLiveFolder(handle)
+      });
+      this.updateFileBadge();
+      return;
+    }
+    this.setLiveStatus('warn', 'Live sync off: choose a local folder of .schem files', { label: '📁 Choose folder', run: () => this.chooseLiveFolder() });
+    this.updateFileBadge();
+  }
+
+  stopLiveSync() {
+    this.liveWatcher?.stop();
+    this.liveWatcher = null;
+  }
+
+  /** The watcher's hook: only the studio's own .schem file is reloaded. */
+  async handleWatchedFileChange(name, bytes) {
+    if (!this.activeFile || String(name).toLowerCase() !== this.activeFile.toLowerCase()) return null;
+    return this.applyLiveSchematic(name, bytes);
+  }
+
+  /** Ask for a folder that holds the .schem file. The picker only opens from a click. */
+  async chooseLiveFolder() {
+    if (!canPickFolder()) return;
+    let handle;
+    let writable = true;
+    try {
+      handle = await globalThis.showDirectoryPicker({ id: 'building-studio-schematics', mode: 'readwrite' });
+    } catch (error) {
+      if (error?.name === 'AbortError') return; // the player cancelled
+      // A browser that cannot grant edit access can still watch a read-only folder.
+      try {
+        handle = await globalThis.showDirectoryPicker({ id: 'building-studio-schematics', mode: 'read' });
+        writable = false;
+      } catch {
+        return;
+      }
+    }
+    if (!handle) return;
+    await saveFolderHandle(handle);
+    await this.watchSource(new DirectorySchematicSource(handle, { writable }));
+    await this.restoreActiveFile();
+    this.updateFileBadge();
+  }
+
+  async resumeLiveFolder(handle) {
+    let permission = await handle.requestPermission?.({ mode: 'readwrite' });
+    let writable = permission === 'granted';
+    if (!writable) permission = await handle.requestPermission?.({ mode: 'read' });
+    if (permission === 'granted') {
+      await this.watchSource(new DirectorySchematicSource(handle, { writable }));
+      await this.restoreActiveFile();
+      this.updateFileBadge();
+    } else {
+      await this.chooseLiveFolder();
+    }
+  }
+
+  async watchSource(source) {
+    this.stopLiveSync();
+    this.source = source;
+    const watcher = new SchematicWatcher({
+      source,
+      // Two quick polls: the file has to hold still for one interval before it is read, so an agent's write
+      // lands in about a second rather than two.
+      intervalMs: 500,
+      // Only the studio's own file is the document. Other files an agent leaves in the folder are listed in
+      // Open, but do not replace what is on screen.
+      onChange: (name, bytes) => this.handleWatchedFileChange(name, bytes),
+      onStatus: (status) => {
+        if (status.state === 'error' && status.name) {
+          this.setLiveStatus('warn', `Could not read ${status.name}: ${status.error?.message || status.error}`, this.changeFolderButton());
+        }
+      }
+    });
+    try {
+      await watcher.start();
+    } catch (error) {
+      this.source = null;
+      this.setLiveStatus('warn', `Cannot read ${source.label}: ${error.message}`, { label: '📁 Choose folder', run: () => this.chooseLiveFolder() });
+      return;
+    }
+    this.liveWatcher = watcher;
+    this.setLiveStatus('on', this.activeFile ? `Watching ${this.activeFile}` : `${source.label} · no file yet`, this.changeFolderButton());
+    this.updateSaveDialog();
+  }
+
+  changeFolderButton() {
+    return canPickFolder() ? { label: '📁 Change', run: () => this.chooseLiveFolder() } : null;
+  }
+
+  /** Reopen the file this studio was last editing, if it is still in the folder. */
+  async restoreActiveFile() {
+    const record = this.readActiveFileRecord();
+    if (!record || !this.source || record.sourceLabel !== this.source.label) {
+      if (record) writeStoredJson(ACTIVE_FILE_KEY, null);
+      this.activeFile = null;
+      this.updateFileBadge();
+      return false;
+    }
+    let files;
+    try {
+      files = await this.source.list();
+    } catch {
+      return false;
+    }
+    if (!files.some((f) => f.name === record.name)) {
+      writeStoredJson(ACTIVE_FILE_KEY, null);
+      this.activeFile = null;
+      this.updateFileBadge();
+      this.setLiveStatus('warn', `${record.name} is no longer in ${this.source.label}`, this.changeFolderButton());
+      return false;
+    }
+    try {
+      await this.liveWatcher?.settle?.(record.name);
+      const bytes = await this.source.read(record.name);
+      await this.applyLiveSchematic(record.name, bytes, { teleportPlayer: true });
+      this.setLiveStatus('on', `Watching ${record.name}`, this.changeFolderButton());
+      return true;
+    } catch (error) {
+      this.setLiveStatus('warn', `Could not reopen ${record.name}: ${error.message}`, this.changeFolderButton());
+      return false;
+    }
+  }
+
+  /** Prompt for a file as soon as a build exists, so the studio always has a document to watch. */
+  maybePromptSaveFile() {
+    if (this.activeFile || !this.saveModal || this._savePrompted) return;
+    if (!this.hasSavableBuild()) return;
+    this._savePrompted = true;
+    this.showSaveModal({ prompted: true });
+  }
+
+  /**
+   * A watched file changed: read it, update the library building it became (or make one), and show it.
+   *
+   * The same file always maps to the same building, overwritten in place, so an agent's tenth rewrite does not
+   * leave ten copies in the library. If that building is already on screen it is redrawn where it stands.
+   */
+  async applyLiveSchematic(filename, bytes, { active = true, teleportPlayer = false } = {}) {
+    const spec = await this.buildingSpecFromSchematic(bytes, filename);
+    if (!spec) throw new Error('no placeable blocks');
+
+    if (active) {
+      this.activeFile = filename;
+      this.pendingFileName = null;
+      this.persistActiveFile();
+    } else {
+      // Opened from the computer: remember the name so Save proposes the same .schem filename.
+      this.pendingFileName = filename;
+    }
+
+    const knownId = this.liveBuildingIds.get(filename);
+    const existing = knownId ? BuildingLibrary.getBuilding(knownId) : null;
+    let name = existing ? existing.name : spec.baseName;
+    if (!existing) {
+      let counter = 2;
+      while (BuildingLibrary.hasBuilding(name)) name = `${spec.baseName} (${counter++})`;
+    }
+    const result = BuildingLibrary.saveBuilding({
+      name,
+      parameters: [],
+      code: spec.code,
+      icon: '/assets/blocks/crafting_table_top.png',
+      description: spec.description
+    }, Boolean(existing));
+    if (!result.success || !result.building) throw new Error(result.message || 'could not save the building');
+
+    const building = result.building;
+    this.liveBuildingIds.set(filename, building.id);
+    this.persistFileBuildings();
+    if (this.currentBuilding?.id === building.id) {
+      this.currentBuilding = building;
+      this.rebuildCurrentBuilding();
+    } else {
+      this.loadBuilding(building);
+    }
+    if (teleportPlayer && spec.playerSpawn && this.game?.player?.position) {
+      this.positionPlayerForSpawn(spec.playerSpawn);
+    }
+    this.updateFileBadge();
+    if (this.openModal && !this.openModal.classList.contains('hidden')) {
+      void this.renderOpenFileList();
+      this.renderOpenBuildingList(this.openSearch?.value || '');
+    }
+    if (active) {
+      this.setLiveStatus('on', `Watching ${filename} · reloaded ${new Date().toLocaleTimeString()}`, this.changeFolderButton());
+    } else {
+      this.setLiveStatus('warn', `Opened ${filename}; save it into the studio folder to watch it`, this.changeFolderButton());
+    }
+    return building;
+  }
+
+  positionPlayerForSpawn(spawn) {
+    if (!this.game?.player?.position || !spawn) return;
+    let { x, y, z, yaw, pitch } = spawn;
+    const world = this.game.world;
+    if (world?.getVoxel) {
+      const blockX = Math.floor(x);
+      const blockZ = Math.floor(z);
+      let blockY = Math.floor(y);
+      while (blockY < 250) {
+        const feet = world.getVoxel(blockX, blockY, blockZ);
+        const head = world.getVoxel(blockX, blockY + 1, blockZ);
+        if ((feet === undefined || feet === BLOCKS.AIR) && (head === undefined || head === BLOCKS.AIR)) {
+          break;
+        }
+        blockY++;
+      }
+      y = Math.max(y, blockY);
+    }
+    this.game.player.position.set(x, y, z);
+    if (yaw !== undefined) this.game.player.yaw = yaw;
+    if (pitch !== undefined) this.game.player.pitch = pitch;
+    if (this.game.player.velocity) this.game.player.velocity.set(0, 0, 0);
+    if (y > STUDIO_GROUND_Y + 1) {
+      this.game.player.isFlying = true;
+    }
+  }
+
+  setLiveStatus(tone, text, action) {
+    this.liveSyncStatus = { tone, text };
+    if (this.liveSyncDot) this.liveSyncDot.dataset.tone = tone;
+    if (this.liveSyncText) {
+      this.liveSyncText.textContent = text;
+      this.liveSyncText.title = text;
+    }
+    this.liveFolderAction = action?.run ?? null;
+    if (this.btnLiveFolder) {
+      this.btnLiveFolder.classList.toggle('hidden', !action);
+      if (action) this.btnLiveFolder.textContent = action.label;
+    }
+  }
+
+  // --- Open: a .schem file from the studio folder, or from the computer ---------------------------------------
+
+  showOpenModal() {
+    if (!this.openModal) return;
+    this.switchOpenTab('files');
+    if (this.openSearch) this.openSearch.value = '';
+    void this.renderOpenFileList();
+    this.renderOpenBuildingList('');
+    this.openModal.classList.remove('hidden');
+  }
+
+  hideOpenModal() {
+    if (this.openModal) {
+      this.openModal.classList.add('hidden');
+    }
+  }
+
+  switchOpenTab(tab) {
+    const files = tab !== 'library';
+    this.tabFiles?.classList.toggle('active', files);
+    this.tabLibrary?.classList.toggle('active', !files);
+    this.tabFiles?.setAttribute('aria-selected', String(files));
+    this.tabLibrary?.setAttribute('aria-selected', String(!files));
+    this.openFilesPane?.classList.toggle('hidden', !files);
+    this.openLibraryPane?.classList.toggle('hidden', files);
+  }
+
+  /** List the .schem files in the studio folder, newest first. */
+  async renderOpenFileList() {
+    if (!this.openFileList) return;
+    const list = this.openFileList;
+    list.innerHTML = '';
+
+    if (this.openFilesPath) {
+      this.openFilesPath.textContent = this.source ? this.source.label : 'No studio folder selected';
+    }
+
+    const loading = document.createElement('div');
+    loading.className = 'studio-open-empty';
+    loading.textContent = `Looking in ${this.source?.label || 'the studio folder'}…`;
+    list.appendChild(loading);
+
+    const emptyState = (text, withChoose) => {
+      list.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.className = 'studio-open-empty';
+      wrap.textContent = text;
+      if (withChoose) {
+        const choose = document.createElement('button');
+        choose.type = 'button';
+        choose.className = 'mc-btn';
+        choose.style.marginTop = '10px';
+        choose.textContent = '📁 Choose studio folder';
+        choose.onclick = () => {
+          this.hideOpenModal();
+          void this.chooseLiveFolder();
+        };
+        wrap.appendChild(document.createElement('br'));
+        wrap.appendChild(choose);
+      }
+      list.appendChild(wrap);
+    };
+
+    if (!this.source) {
+      emptyState('Choose a folder for the studio to save and watch .schem files.', canPickFolder());
+      return;
+    }
+
+    let files;
+    try {
+      files = await this.source.list();
+    } catch (error) {
+      emptyState(`Could not read ${this.source.label}: ${error.message}`, false);
+      return;
+    }
+    if (files.length === 0) {
+      emptyState('No .schem files yet. Save a build to create one.', false);
+      return;
+    }
+    list.innerHTML = '';
+    files.sort((a, b) => (Number(b.mtime) || 0) - (Number(a.mtime) || 0) || a.name.localeCompare(b.name));
+
+    for (const file of files) {
+      const card = document.createElement('div');
+      card.className = 'studio-open-card';
+
+      const iconImg = document.createElement('img');
+      iconImg.className = 'studio-open-card-icon';
+      iconImg.src = '/assets/blocks/crafting_table_top.png';
+      iconImg.alt = '';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'studio-open-card-info';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'studio-open-card-name';
+      nameEl.textContent = file.name;
+      nameEl.title = file.name;
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'studio-open-card-meta';
+      const bytes = Number(file.size ?? file.stamp?.split(':')?.[1] ?? 0);
+      const when = file.mtime ? new Date(Number(file.mtime)).toLocaleString() : '';
+      metaEl.textContent = `${bytes >= 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${bytes} B`}${when ? ` · ${when}` : ''}${file.name === this.activeFile ? ' · watching' : ''}`;
+
+      const descEl = document.createElement('div');
+      descEl.className = 'studio-open-card-desc';
+      descEl.textContent = file.name === this.activeFile ? 'The studio reloads this file when it changes.' : '';
+
+      infoDiv.appendChild(nameEl);
+      infoDiv.appendChild(descEl);
+      infoDiv.appendChild(metaEl);
+
+      const btnOpenThis = document.createElement('button');
+      btnOpenThis.type = 'button';
+      btnOpenThis.className = 'mc-btn studio-btn-card-load';
+      btnOpenThis.textContent = 'Open';
+      btnOpenThis.title = `Open ${file.name} in the studio`;
+      btnOpenThis.onclick = () => { void this.openSchematicFromSource(file.name); };
+
+      card.appendChild(iconImg);
+      card.appendChild(infoDiv);
+      card.appendChild(btnOpenThis);
+      list.appendChild(card);
+    }
+  }
+
+  /** Open one file from the studio folder and make it the one being watched. */
+  async openSchematicFromSource(filename) {
+    if (!this.source) return null;
+    try {
+      const bytes = await this.source.read(filename);
+      await this.liveWatcher?.settle?.(filename);
+      const building = await this.applyLiveSchematic(filename, bytes, { teleportPlayer: true });
+      this.hideOpenModal();
+      this.game?.ui?.addChatMessage?.(
+        `<span style="color:#38bdf8;font-weight:bold;">✦ Opened ${filename} into Building Studio (watching it for changes).</span>`
+      );
+      return building;
+    } catch (error) {
+      this.game?.ui?.addChatMessage?.(
+        `<span style="color:#ef4444;font-weight:bold;">✦ Could not open ${filename}: ${error.message}</span>`
+      );
+      return null;
+    }
+  }
+
+  /** Open a .schem from anywhere on the computer. Only a file also in the studio folder can be watched. */
+  async openSchematicFromFile(file) {
+    const bytes = await readBytes(file);
+    if (!bytes) return null;
+    const filename = file.name || 'opened.schem';
+    let active = false;
+    try {
+      active = await this.fileExists(filename);
+    } catch { active = false; }
+    this.pendingFileName = filename;
+    try {
+      const building = await this.applyLiveSchematic(filename, bytes, { active, teleportPlayer: true });
+      this.hideOpenModal();
+      this.game?.ui?.addChatMessage?.(
+        active
+          ? `<span style="color:#38bdf8;font-weight:bold;">✦ Opened ${filename} (watching it for changes).</span>`
+          : `<span style="color:#38bdf8;font-weight:bold;">✦ Opened ${filename}.</span> <span style="color:#94a3b8;">Save it into the studio folder to let an agent edit it on disk.</span>`
+      );
+      if (!active) this.showSaveModal({ prompted: true });
+      return building;
+    } catch (error) {
+      this.game?.ui?.addChatMessage?.(
+        `<span style="color:#ef4444;font-weight:bold;">✦ Could not open ${filename}: ${error.message}</span>`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Load one or more .schem files into the Building Library (used by the library/agent paths; the panel's Open
+   * button opens a single file directly instead).
+   */
   async importSchematicFiles(files) {
     if (!files) return [];
     const fileList = Array.isArray(files) ? files : (files.length !== undefined ? Array.from(files) : [files]);
@@ -476,112 +1527,25 @@ export class BuildingStudioManager {
 
     for (const file of fileList) {
       try {
-        let bytes;
-        let filename = file.name || file.filename || 'imported.schem';
+        const bytes = await readBytes(file);
+        if (!bytes) continue;
+        const filename = file.name || file.filename || 'imported.schem';
 
-        if (file instanceof Uint8Array) {
-          bytes = file;
-        } else if (file.bytes instanceof Uint8Array) {
-          bytes = file.bytes;
-        } else if (file.data instanceof Uint8Array) {
-          bytes = file.data;
-        } else if (typeof file.arrayBuffer === 'function') {
-          const buf = await file.arrayBuffer();
-          bytes = new Uint8Array(buf);
-        } else if (file instanceof ArrayBuffer) {
-          bytes = new Uint8Array(file);
-        } else {
-          continue;
-        }
+        const spec = await this.buildingSpecFromSchematic(bytes, filename);
+        if (!spec) continue;
 
-        const { structure } = await readSpongeSchematic(bytes);
-        if (!structure || !structure.main || !structure.main.blocks) {
-          continue;
-        }
-
-        const rawBase = (filename || structure.name || 'imported')
-          .replace(/\.schem$/i, '')
-          .replace(/[-_]+/g, ' ')
-          .trim();
-        let baseName = rawBase
-          ? rawBase.split(/\s+/).map(w => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '').join(' ')
-          : 'Imported Building';
-
-        if (baseName.toLowerCase() === 'sponge schematic') {
-          baseName = 'Imported Structure';
-        }
-
-        let candidateName = baseName;
+        let candidateName = spec.baseName;
         let counter = 2;
         while (BuildingLibrary.hasBuilding(candidateName)) {
-          candidateName = `${baseName} (${counter++})`;
+          candidateName = `${spec.baseName} (${counter++})`;
         }
-
-        const region = structure.main;
-        const blocks = region.blocks;
-        if (!blocks || blocks.length === 0) {
-          continue;
-        }
-
-        const hasCustomOrigin = region.origin && (region.origin.x !== 0 || region.origin.y !== 0 || region.origin.z !== 0);
-        const centerX = Math.floor(region.size.x / 2);
-        const centerZ = Math.floor(region.size.z / 2);
-
-        const relBlocks = [];
-        let minDy = Infinity;
-
-        for (const b of blocks) {
-          const id = canonicalStateToBlockId(b.state);
-          if (id === BLOCKS.AIR) continue;
-
-          let dx, dy, dz;
-          if (hasCustomOrigin) {
-            dx = b.pos.x + region.origin.x;
-            dy = b.pos.y + region.origin.y;
-            dz = b.pos.z + region.origin.z;
-          } else {
-            dx = b.pos.x - centerX;
-            dy = b.pos.y;
-            dz = b.pos.z - centerZ;
-          }
-
-          if (dy < minDy) minDy = dy;
-          relBlocks.push({ dx, dy, dz, id });
-        }
-
-        if (relBlocks.length === 0) continue;
-
-        if (minDy < 0) {
-          const shift = -minDy;
-          for (const rb of relBlocks) {
-            rb.dy += shift;
-          }
-        }
-
-        const packedBlocks = relBlocks.map(b => [b.dx, b.dy, b.dz, b.id]);
-        const code = `
-const V = ${JSON.stringify(packedBlocks)};
-function generate(origin, params, B) {
-  const res = [];
-  for (let i = 0; i < V.length; i++) {
-    const item = V[i];
-    res.push({
-      x: origin.x + item[0],
-      y: origin.y + item[1],
-      z: origin.z + item[2],
-      id: item[3]
-    });
-  }
-  return res;
-}
-`.trim();
 
         const saveRes = BuildingLibrary.saveBuilding({
           name: candidateName,
           parameters: [],
-          code,
+          code: spec.code,
           icon: '/assets/blocks/crafting_table_top.png',
-          description: `Imported from ${filename} (${relBlocks.length} voxels, ${region.size.x}x${region.size.y}x${region.size.z})`
+          description: spec.description
         });
 
         if (saveRes.success && saveRes.building) {
@@ -594,7 +1558,7 @@ function generate(origin, params, B) {
 
     if (importedBuildings.length > 0) {
       this.game?.ui?.addChatMessage?.(
-        `<span style="color:#10b981;font-weight:bold;">✦ Successfully imported ${importedBuildings.length} schematic structure(s) into Building Library!</span>`
+        `<span style="color:#10b981;font-weight:bold;">✦ Added ${importedBuildings.length} schematic structure(s) to the Building Library.</span>`
       );
       if (this.openModal && !this.openModal.classList.contains('hidden')) {
         this.renderOpenBuildingList(this.openSearch?.value || '');
@@ -623,23 +1587,9 @@ function generate(origin, params, B) {
 
   generateCodeFromVoxels(blocks, origin) {
     const orig = origin || this.buildOrigin;
-    const relBlocks = blocks.map(b => [b.x - orig.x, b.y - orig.y, b.z - orig.z, b.id]);
-    return `
-const V = ${JSON.stringify(relBlocks)};
-function generate(origin, params, B) {
-  const res = [];
-  for (let i = 0; i < V.length; i++) {
-    const item = V[i];
-    res.push({
-      x: origin.x + item[0],
-      y: origin.y + item[1],
-      z: origin.z + item[2],
-      id: item[3]
-    });
-  }
-  return res;
-}
-`.trim();
+    const { packed, states, blockEntities } = packVoxels(blocks, orig);
+    const entities = (this.currentBuilding?.generate?.entities?.(orig) ?? []).map((e) => ({ ...e, x: e.x - orig.x, y: e.y - orig.y, z: e.z - orig.z }));
+    return voxelGeneratorCode(packed, states, blockEntities, entities);
   }
 
   adoptFromPlan(plan) {
@@ -818,7 +1768,7 @@ function generate(origin, params, B) {
     return null;
   }
 
-  // --- Loading Building & Parameters into Studio ---
+  // --- Loading Building ---
   loadBuilding(building, initialParams = {}) {
     if (!building) return;
     this.currentBuilding = building;
@@ -833,106 +1783,9 @@ function generate(origin, params, B) {
       }
     }
 
-    if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = building.name;
-    }
-
-    this.renderParameterPanel();
+    this.updateFileBadge();
     this.rebuildCurrentBuilding();
-  }
-
-  // --- Render Parameter Panel ---
-  renderParameterPanel() {
-    if (!this.controlsContainer) return;
-    this.controlsContainer.innerHTML = '';
-
-    if (!this.currentBuilding || !Array.isArray(this.currentBuilding.parameters) || this.currentBuilding.parameters.length === 0) {
-      this.renderEmptyPanel();
-      return;
-    }
-
-    for (const param of this.currentBuilding.parameters) {
-      const paramRow = document.createElement('div');
-      paramRow.className = 'studio-param-row';
-
-      const labelGroup = document.createElement('div');
-      labelGroup.className = 'studio-param-label-group';
-
-      const label = document.createElement('span');
-      label.className = 'studio-param-label';
-      label.textContent = param.symbol ? `${param.name} (${param.symbol})` : param.name;
-
-      const valBadge = document.createElement('span');
-      valBadge.className = 'studio-param-badge';
-      valBadge.id = `studio-val-badge-${param.id}`;
-      valBadge.textContent = String(this.currentParameters[param.id]);
-
-      labelGroup.appendChild(label);
-      labelGroup.appendChild(valBadge);
-
-      const controlGroup = document.createElement('div');
-      controlGroup.className = 'studio-param-controls-group';
-
-      // Range Slider
-      const slider = document.createElement('input');
-      slider.type = 'range';
-      slider.className = 'studio-slider';
-      slider.min = param.min !== undefined ? param.min : 1;
-      slider.max = param.max !== undefined ? param.max : 50;
-      slider.step = param.step !== undefined ? param.step : 1;
-      slider.value = this.currentParameters[param.id];
-
-      // Number Input
-      const numInput = document.createElement('input');
-      numInput.type = 'number';
-      numInput.className = 'studio-num-input';
-      numInput.min = slider.min;
-      numInput.max = slider.max;
-      numInput.step = slider.step;
-      numInput.value = slider.value;
-
-      const updateValue = (newVal) => {
-        const parsed = Math.max(Number(slider.min), Math.min(Number(slider.max), Number(newVal)));
-        this.currentParameters[param.id] = parsed;
-        slider.value = parsed;
-        numInput.value = parsed;
-        valBadge.textContent = String(parsed);
-        this.rebuildCurrentBuilding();
-      };
-
-      slider.addEventListener('input', (e) => {
-        updateValue(e.target.value);
-      });
-
-      numInput.addEventListener('change', (e) => {
-        updateValue(e.target.value);
-      });
-
-      controlGroup.appendChild(slider);
-      controlGroup.appendChild(numInput);
-
-      paramRow.appendChild(labelGroup);
-      paramRow.appendChild(controlGroup);
-      this.controlsContainer.appendChild(paramRow);
-    }
-  }
-
-  renderEmptyPanel() {
-    if (!this.controlsContainer) return;
-    this.controlsContainer.innerHTML = `
-      <div class="studio-empty-params">
-        <span class="studio-empty-icon">✦</span>
-        <p>No parameters yet.</p>
-        <small>Ask the Agent in the terminal to build something with parameters, e.g.:<br>
-        <em>"build a stair with a height parameter"</em><br>
-        <em>"build a stair with a height H"</em><br>
-        <em>"build an aquarium with width 14 and height 8"</em></small>
-      </div>
-    `;
-    // An imported .schem is a building without parameters: keep its name on the badge.
-    if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = this.currentBuilding?.name || 'No Building';
-    }
+    this.maybePromptSaveFile();
   }
 
   // --- Live Rebuilding ---
@@ -954,10 +1807,24 @@ function generate(origin, params, B) {
     const newBlocks = this.currentBuilding.generate(origin, this.currentParameters, BLOCKS) || [];
 
     // 3. Place new voxels in the world
+    this.placedStates = new Map();
+    this.placedBlockEntities = new Map();
     if (this.game.world) {
+      const world = this.game.world;
       for (const b of newBlocks) {
-        this.game.world.setVoxel(b.x, b.y, b.z, b.id);
+        world.setVoxel(b.x, b.y, b.z, b.id);
         this.placedVoxels.push({ x: b.x, y: b.y, z: b.z });
+        if (!b.state && !b.blockEntity) continue;
+        const key = `${b.x},${b.y},${b.z}`;
+        if (b.state) this.placedStates.set(key, b.state);
+        // Facing from the Minecraft state; chest contents and sign text from the block entity.
+        const request = worldRequestFor(b);
+        if (request) world.applyStructureOrientation?.(request);
+        if (b.blockEntity) {
+          // The chest's contents as placed, so export can tell whether the player changed them.
+          const chest = isChest(b.id) ? this.chestAt(b.x, b.y, b.z) : null;
+          this.placedBlockEntities.set(key, { blockId: b.id, blockEntity: b.blockEntity, ...(chest ? { chestSnapshot: chestSnapshot(chest) } : {}) });
+        }
       }
     }
 
@@ -968,31 +1835,29 @@ function generate(origin, params, B) {
     if (typeof this.game.refreshDirtyChunks === 'function') {
       this.game.refreshDirtyChunks(16);
     }
+    this.renderFilePrompt();
   }
 
   /**
-   * Remove the open building from the preview and reset the panel.
-   *
-   * Used when the player asks to destroy or clear the building they are editing:
-   * the studio edits a live library instance, so there are no recorded "before"
-   * blocks to restore — reverting the blocks this session placed is the
-   * equivalent operation.
+   * Remove the open building from the preview. The .schem file on disk is left alone: the studio's document is
+   * the file, and the agent's "destroy" clears what is on screen.
    */
   clearCurrentBuilding() {
     if (Array.isArray(this.placedVoxels) && this.game?.world?.setVoxel) {
       for (const v of this.placedVoxels) {
-        // The Studio has no terrain to restore: below its ground nothing can be placed, above it is air.
         const groundId = BLOCKS.AIR;
         this.game.world.setVoxel(v.x, v.y, v.z, groundId);
       }
     }
     this.placedVoxels = [];
+    this.placedStates = new Map();
+    this.placedBlockEntities = new Map();
     this.currentBuilding = null;
     this.currentParameters = {};
-
-    if (this.controlsContainer) this.controlsContainer.innerHTML = '';
-    if (this.buildingNameBadge) this.buildingNameBadge.textContent = 'No building open';
-    this.renderEmptyPanel?.();
+    this.isCustomVoxelBuild = false;
+    this.customBuildBlocks = [];
+    this.customBuildName = null;
+    this.updateFileBadge();
 
     if (typeof this.game?.refreshDirtyChunks === 'function') this.game.refreshDirtyChunks(24);
     else if (typeof this.game?.loadChunksAroundPlayer === 'function') this.game.loadChunksAroundPlayer();
@@ -1000,143 +1865,7 @@ function generate(origin, params, B) {
     return true;
   }
 
-  // --- Save to Building Library Modal ---
-  showSaveModal() {
-    if (!this.currentBuilding && !this.isCustomVoxelBuild && (!this.placedVoxels || this.placedVoxels.length === 0)) {
-      alert('Please prompt or open a building first before saving.');
-      return;
-    }
-    if (this.saveConflictMsg) {
-      this.saveConflictMsg.classList.add('hidden');
-      this.saveConflictMsg.textContent = '';
-    }
-    if (this.saveInput) {
-      const defaultName = this.customBuildName || (this.currentBuilding?.isBuiltin ? `Custom ${this.currentBuilding.name}` : (this.currentBuilding?.name || ''));
-      this.saveInput.value = defaultName;
-    }
-    if (this.saveModal) {
-      this.saveModal.classList.remove('hidden');
-      this.saveInput?.focus();
-    }
-  }
-
-  hideSaveModal() {
-    if (this.saveModal) {
-      this.saveModal.classList.add('hidden');
-    }
-  }
-
-  confirmSave() {
-    const name = this.saveInput ? this.saveInput.value.trim() : '';
-    if (!name) {
-      if (this.saveConflictMsg) {
-        this.saveConflictMsg.textContent = 'Please enter a name for the building.';
-        this.saveConflictMsg.classList.remove('hidden');
-      }
-      return;
-    }
-
-    // Check if building of the same name already exists
-    let overwrite = false;
-    const existing = BuildingLibrary.getBuilding(name);
-    if (existing) {
-      if (existing.isBuiltin) {
-        if (this.saveConflictMsg) {
-          this.saveConflictMsg.textContent = `Cannot overwrite built-in building "${name}". Please choose a different name.`;
-          this.saveConflictMsg.classList.remove('hidden');
-        }
-        return;
-      }
-      const wantsOverwrite = typeof confirm === 'function'
-        ? confirm(`A building named "${name}" already exists. Do you want to overwrite it?`)
-        : false;
-      if (!wantsOverwrite) {
-        if (this.saveConflictMsg) {
-          this.saveConflictMsg.textContent = `A building named "${name}" already exists. Please choose a different name or confirm overwrite.`;
-          this.saveConflictMsg.classList.remove('hidden');
-        }
-        return;
-      }
-      overwrite = true;
-    }
-
-    let code = '';
-    let parameters = [];
-    let icon = this.currentBuilding?.icon || '/assets/blocks/crafting_table_top.png';
-    let description = `Custom ${name} building`;
-
-    const isParametric = !this.isCustomVoxelBuild &&
-      this.currentBuilding &&
-      !this.currentBuilding.isCustom &&
-      typeof this.currentBuilding.code === 'string' &&
-      this.currentBuilding.code.trim().length > 0 &&
-      Array.isArray(this.currentBuilding.parameters) &&
-      this.currentBuilding.parameters.length > 0;
-
-    if (isParametric) {
-      code = this.currentBuilding.code;
-      parameters = (this.currentBuilding.parameters || []).map(p => ({
-        ...p,
-        default: this.currentParameters[p.id] !== undefined ? this.currentParameters[p.id] : p.default
-      }));
-      description = `Custom ${name} with ${parameters.length} parameters`;
-    } else {
-      const voxels = this.captureCurrentVoxels();
-      if (voxels.length > 0) {
-        code = this.generateCodeFromVoxels(voxels, this.buildOrigin);
-        parameters = [];
-        description = `Custom ${name} (${voxels.length} voxels)`;
-      } else if (this.currentBuilding?.code) {
-        code = this.currentBuilding.code;
-        parameters = this.currentBuilding.parameters || [];
-      }
-    }
-
-    // Save with BuildingLibrary
-    const result = BuildingLibrary.saveBuilding({
-      name,
-      parameters,
-      code,
-      icon,
-      description
-    }, overwrite);
-
-    if (!result.success) {
-      if (this.saveConflictMsg) {
-        this.saveConflictMsg.textContent = result.message;
-        this.saveConflictMsg.classList.remove('hidden');
-      }
-      return;
-    }
-
-    this.hideSaveModal();
-    if (this.buildingNameBadge) {
-      this.buildingNameBadge.textContent = name;
-    }
-    this.currentBuilding = result.building;
-    this.isCustomVoxelBuild = false;
-
-    const actionText = result.overwritten ? 'overwritten in' : 'saved to';
-    this.game.ui?.addChatMessage?.(
-      `<span style="color:#10b981;font-weight:bold;">✦ Building "${name}" successfully ${actionText} Building Library!</span>`
-    );
-  }
-
-  // --- Open Building Library Modal ---
-  showOpenModal() {
-    if (this.openModal) {
-      this.openModal.classList.remove('hidden');
-      if (this.openSearch) this.openSearch.value = '';
-      this.updateRestoreButtonVisibility();
-      this.renderOpenBuildingList('');
-    }
-  }
-
-  hideOpenModal() {
-    if (this.openModal) {
-      this.openModal.classList.add('hidden');
-    }
-  }
+  // --- Building Library modal (the Library tab of Open) -------------------------------------------------------
 
   updateRestoreButtonVisibility() {
     if (this.btnRestoreDefaults) {
@@ -1221,7 +1950,7 @@ function generate(origin, params, B) {
             nameEl.textContent = newName;
             if (this.currentBuilding?.id === st.id) {
               this.currentBuilding.name = newName;
-              if (this.buildingNameBadge) this.buildingNameBadge.textContent = newName;
+              this.updateFileBadge();
             }
             this.game.ui?.addChatMessage?.(
               `<span style="color:#10b981;font-weight:bold;">✦ Renamed building to "${newName}"!</span>`
@@ -1261,7 +1990,9 @@ function generate(origin, params, B) {
       const paramCount = Array.isArray(st.parameters) ? st.parameters.length : 0;
       const metaEl = document.createElement('div');
       metaEl.className = 'studio-open-card-meta';
-      metaEl.textContent = `${paramCount} Parameter${paramCount === 1 ? '' : 's'}`;
+      metaEl.textContent = paramCount > 0
+        ? `${st.isBuiltin ? 'Built-in template · ' : ''}${paramCount} parameter${paramCount === 1 ? '' : 's'}`
+        : (st.isBuiltin ? 'Built-in template' : 'Saved build');
 
       infoDiv.appendChild(nameEl);
       infoDiv.appendChild(descEl);
@@ -1274,10 +2005,9 @@ function generate(origin, params, B) {
       btnOpenThis.title = `Open "${st.name}" in studio`;
       btnOpenThis.onclick = () => {
         this.hideOpenModal();
+        this.pendingFileName = st.isBuiltin ? `${st.name}.schem` : null;
         this.loadBuilding(st);
-        this.game.ui?.addChatMessage?.(
-          `<span style="color:#38bdf8;font-weight:bold;">✦ Loaded building "${st.name}" into Building Studio!</span>`
-        );
+        this.game.ui?.addChatMessage?.(`<span style="color:#38bdf8;font-weight:bold;">✦ Loaded building "${st.name}" into Building Studio!</span>`);
       };
 
       const btnDelete = document.createElement('button');
@@ -1321,5 +2051,3 @@ function generate(origin, params, B) {
     }
   }
 }
-
-export default BuildingStudioManager;

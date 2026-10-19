@@ -18,7 +18,7 @@ export const CAPABILITIES = {
     summary: 'Anything you have built I can change in place: add to it, trim it, swap the blocks, or bolt on stairs and ladders.',
     alternatives: [
       'name the build you mean, or just say "the one I just made"',
-      'open it in Building Studio and drag the sliders to reshape it'
+      'open it in Building Studio and save it as a .schem file an AI can edit on disk'
     ]
   },
   fluids: {

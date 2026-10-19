@@ -5,6 +5,8 @@ import { parseColouredName, shadedHex } from './colourPalette.js';
 import { createWaterMaterial } from './water.js';
 import { prepareWaterMaterial } from './waterPass.js';
 import { resourcePackManager } from './resourcePackManager.js';
+import { configureAtlasTexture, filterAtlasMaterial, updateAtlasFiltering } from './atlasFiltering.js';
+import { configureCutoutMaterial } from './vegetationRendering.js';
 
 export class TextureManager {
   constructor() {
@@ -61,11 +63,7 @@ export class TextureManager {
     await Promise.all(loadPromises);
 
     // 3. Create Three.js canvas texture
-    this.atlasTexture = new THREE.CanvasTexture(this.atlasCanvas);
-    this.atlasTexture.magFilter = THREE.NearestFilter;
-    this.atlasTexture.minFilter = THREE.NearestFilter;
-    this.atlasTexture.colorSpace = THREE.SRGBColorSpace;
-    this.atlasTexture.generateMipmaps = false;
+    this.atlasTexture = configureAtlasTexture(new THREE.CanvasTexture(this.atlasCanvas));
 
     // 4. Create Materials with vertexColors enabled for ambient occlusion and biome grass tint
     this.opaqueMaterial = new THREE.MeshLambertMaterial({
@@ -90,6 +88,9 @@ export class TextureManager {
 
     enableBlockEmission(this.opaqueMaterial);
     enableBlockEmission(this.transparentMaterial);
+    this.cutoutMaterial = configureCutoutMaterial(this.transparentMaterial.clone());
+    enableBlockEmission(this.cutoutMaterial);
+    this.transparentMaterials = [this.transparentMaterial, this.cutoutMaterial];
     this.lightMaterial = this.opaqueMaterial.clone();
     this.lightMaterial.alphaTest = 0.2;
     enableBlockEmission(this.lightMaterial);
@@ -102,6 +103,10 @@ export class TextureManager {
       shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'void main() {\nif (distance(vLightOrigin, referencePosition) < 0.01) discard;');
     };
 
+    for (const material of [this.opaqueMaterial, this.transparentMaterial, this.cutoutMaterial, this.lightMaterial, this.lightDistanceMaterial]) {
+      filterAtlasMaterial(material, this);
+    }
+
     this.waterMaterial = prepareWaterMaterial(createWaterMaterial());
     this.waterUniforms = this.waterMaterial.uniforms;
 
@@ -113,7 +118,7 @@ export class TextureManager {
   }
 
   update(dt, sunLight, skyColor, fog) {
-    for(const material of [this.opaqueMaterial,this.transparentMaterial,this.lightMaterial])if(material?.userData.animationTime)material.userData.animationTime.value+=dt;
+    for(const material of [this.opaqueMaterial,this.transparentMaterial,this.cutoutMaterial,this.lightMaterial])if(material?.userData.animationTime)material.userData.animationTime.value+=dt;
     this.lavaClock=(this.lavaClock||0)+dt;
     if(this.lavaImage && this.lavaClock>.12){
       this.lavaClock=0;const image=this.lavaImage,frames=Math.floor(image.height/image.width);
@@ -140,7 +145,7 @@ export class TextureManager {
   }
 
   setSnowDaylight(value) {
-    for (const material of [this.opaqueMaterial, this.transparentMaterial, this.lightMaterial]) {
+    for (const material of [this.opaqueMaterial, this.transparentMaterial, this.cutoutMaterial, this.lightMaterial]) {
       if (material?.userData.snowDaylight) material.userData.snowDaylight.value = value;
     }
   }
@@ -290,14 +295,11 @@ export class TextureManager {
     }
     await Promise.all(promises);
 
+    updateAtlasFiltering(this);
     if (this.atlasTexture) {
       if (sizeChanged) {
         this.atlasTexture.dispose();
-        this.atlasTexture = new THREE.CanvasTexture(this.atlasCanvas);
-        this.atlasTexture.magFilter = THREE.NearestFilter;
-        this.atlasTexture.minFilter = THREE.NearestFilter;
-        this.atlasTexture.colorSpace = THREE.SRGBColorSpace;
-        this.atlasTexture.generateMipmaps = false;
+        this.atlasTexture = configureAtlasTexture(new THREE.CanvasTexture(this.atlasCanvas));
 
         if (this.opaqueMaterial) {
           this.opaqueMaterial.map = this.atlasTexture;
@@ -306,6 +308,10 @@ export class TextureManager {
         if (this.transparentMaterial) {
           this.transparentMaterial.map = this.atlasTexture;
           this.transparentMaterial.needsUpdate = true;
+        }
+        if (this.cutoutMaterial) {
+          this.cutoutMaterial.map = this.atlasTexture;
+          this.cutoutMaterial.needsUpdate = true;
         }
         if (this.lightMaterial) {
           this.lightMaterial.map = this.atlasTexture;

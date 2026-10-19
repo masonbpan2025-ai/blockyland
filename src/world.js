@@ -567,6 +567,15 @@ export class World {
       this.structureOrientations.set(key0, { ...request });
       return true;
     }
+    // A sign: which way it faces (the mesher turns its board) and, from an imported block entity, its text
+    // (signText.js draws it). Kept here so a save writes both down and breaking the sign forgets both.
+    const signDef = BLOCK_DEFS[request.id];
+    if (signDef?.sign || signDef?.wallSign || signDef?.hangingSign) {
+      const dir = { east: 0, west: 1, south: 2, north: 3 }[request.facing] ?? 3;
+      this.structureOrientations.set(key0, { ...request, dir });
+      this.game?.signText?.refresh?.();
+      return true;
+    }
     const index = { east: 0, west: 1, south: 2, north: 3 }[request.facing];
     if (index === undefined) return true;
     const def = BLOCK_DEFS[request.id];
@@ -594,7 +603,12 @@ export class World {
         if (slot >= 0) items[slot] = stack; else if (items.length < 27) items.push(stack);
       }
       const existing = chests.getChest(request.x, request.y, request.z);
-      if (!existing) chests.adoptChest([request.x, request.y, request.z], chestFacing, items);
+      if (Array.isArray(request.items)) {
+        // Exact contents from an imported block entity: they replace whatever the chest held, so a schematic
+        // that changes and is loaded again shows its new contents.
+        if (existing) existing.items = request.items.slice(0, 27).map((item) => (item ? { ...item } : null));
+        else chests.adoptChest([request.x, request.y, request.z], chestFacing, request.items);
+      } else if (!existing) chests.adoptChest([request.x, request.y, request.z], chestFacing, items);
     } else if (def?.stair) {
       this.structureOrientations.set(key, { ...request, dir: index, isTop: request.half === 'top' });
       return true;
@@ -628,6 +642,7 @@ export class World {
   serializeOrientations(orientations=this.structureOrientations) {
     return [...orientations.values()].map((o) => ({
       x: o.x, y: o.y, z: o.z, id: o.id, name: o.name, facing: o.facing, half: o.half, hinge: o.hinge, lootTable: o.lootTable, slabType: o.slabType ?? null,
+      ...(o.signText ? { signText: o.signText } : {}), ...(o.rotation !== undefined ? { rotation: o.rotation } : {}),
       ...(o.spawner ? { spawner: o.spawner } : {}), ...(o.trialSpawner ? { trialSpawner: o.trialSpawner } : {}), ...(o.vault ? { vault: o.vault } : {})
       ,...(o.plantAge!==undefined?{plantAge:o.plantAge}:{}),...(o.anchorCharges!==undefined?{anchorCharges:o.anchorCharges,anchorDimension:o.anchorDimension}:{})
       ,...(o.berries!==undefined?{berries:o.berries}:{}),...(o.verticalDirection?{verticalDirection:o.verticalDirection,thickness:o.thickness}:{})

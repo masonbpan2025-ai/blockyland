@@ -935,13 +935,12 @@ export class WorldAgent {
       validatePlan(plan);
       await this.runPlan(plan, cleanPrompt);
 
-      // In Building Studio, hand the result to the parameter panel so the user
-      // can tune it. That is the whole point of the Studio: without this the
-      // model's building would be built but impossible to iterate on.
+      // In Building Studio the result replaces the open build, ready to be saved as a .schem file the studio
+      // then watches. Without this the model's building would be built but not attached to the studio.
       if (this.game?.buildingStudio?.isActive && typeof this.game.buildingStudio.adoptFromPlan === 'function') {
         const adopted = this.game.buildingStudio.adoptFromPlan(plan);
         if (adopted) {
-          this.log(`[Building Studio] Loaded "${plan.buildingType || plan.name}" into the parameter panel — adjust the sliders to rebuild it.`, 'success');
+          this.log(`[Building Studio] "${plan.buildingType || plan.name}" is on screen — click 💾 Save to write it as a .schem file the studio watches.`, 'success');
         }
       }
 

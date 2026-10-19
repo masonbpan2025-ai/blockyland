@@ -49,11 +49,46 @@ export function readVarInt(bytes, offset) {
 }
 
 export const SPONGE_FORMATS = {
-  'sponge-schem-v2': { id: 'sponge-schem-v2', version: 2, extension: 'schem', supportsBiomes: false, supportsEntities: false },
-  // v3 adds a biome palette and entities. Writing v3 when the caller asked for v2 would change the file's
-  // meaning for a consumer that cannot read it, so the version is explicit rather than "latest".
+  // v2 already has entities (and 2D biomes); v3 moves blocks into a `Blocks` compound and makes biomes 3D. Writing
+  // v3 when the caller asked for v2 would change the file's layout for a consumer that cannot read it, so the
+  // version is explicit rather than "latest".
+  'sponge-schem-v2': { id: 'sponge-schem-v2', version: 2, extension: 'schem', supportsBiomes: false, supportsEntities: true },
   'sponge-schem-v3': { id: 'sponge-schem-v3', version: 3, extension: 'schem', supportsBiomes: true, supportsEntities: true }
 };
+
+/**
+ * Find the schematic's fields in either layout the Sponge specification has used.
+ *
+ * - v2 (and v1): the fields sit directly in the root compound, which the specification names `Schematic`. Blocks
+ *   are `Palette` + `BlockData`; block entities and entities carry their extra data flattened into each entry.
+ * - v3: the root is unnamed and holds a single `Schematic` compound. Blocks move into `Blocks: { Palette, Data,
+ *   BlockEntities }`, extra data moves into a `Data` sub-compound, and `PaletteMax` is gone.
+ *
+ * Earlier versions of this codec wrote the v2 layout with `Version: 3`. Those files are still read, by layout
+ * rather than by the version number, so nothing a player already exported stops opening.
+ */
+function spongeLayout(root) {
+  const nested = root && typeof root.Schematic === 'object' && root.Schematic !== null && root.Width === undefined;
+  const body = nested ? root.Schematic : root;
+  const blocks = nested && body.Blocks && typeof body.Blocks === 'object' ? body.Blocks : null;
+  return {
+    body,
+    nested,
+    palette: blocks ? blocks.Palette : body.Palette,
+    blockData: blocks ? blocks.Data : body.BlockData,
+    blockEntities: (blocks ? blocks.BlockEntities : body.BlockEntities) ?? [],
+    entities: body.Entities ?? [],
+    hasBiomes: Boolean(body.Biomes || body.BiomePalette || body.BiomeData)
+  };
+}
+
+/** One block entity or entity's extra data: a `Data` sub-compound in v3, the entry's other keys before that. */
+function extraData(entry, nested, ownKeys) {
+  if (nested) return entry.Data && typeof entry.Data === 'object' ? { ...entry.Data } : {};
+  const data = { ...entry };
+  for (const key of ownKeys) delete data[key];
+  return data;
+}
 
 /**
  * Read a Sponge `.schem` (version 2 or 3) into the canonical form.
@@ -62,20 +97,27 @@ export const SPONGE_FORMATS = {
  * metadata, DataVersion. A field the file does not carry is left absent and REPORTED rather than invented.
  */
 export async function readSpongeSchematic(bytes, { warnings = new WarningCollector() } = {}) {
-  const root = await readNbtAuto(bytes);
+  // Every number's tag type, by path, so block-entity and entity data can be written back with the same types.
+  const typeMap = {};
+  const layout = spongeLayout(await readNbtAuto(bytes, { typeMap }));
+  const blockEntityTypes = relativeTypes(typeMap, layout.nested ? 'Schematic.Blocks.BlockEntities[].Data.' : 'BlockEntities[].', ['Pos', 'Id']);
+  const entityTypes = relativeTypes(typeMap, layout.nested ? 'Schematic.Entities[].Data.' : 'Entities[].', ['Pos', 'Id']);
+  const root = layout.body;
   const version = Number(root.Version ?? 2);
   if (version < 1 || version > 3) {
     warnings.add(IoWarning.DATA_VERSION_MISMATCH, `Sponge schematic version ${version} is not implemented; reading it as version 3`);
   }
-  const width = Number(root.Width ?? 0);
-  const height = Number(root.Height ?? 0);
-  const length = Number(root.Length ?? 0);
+  // Unsigned shorts in the specification, stored as NBT's signed TAG_Short: a side over 32767 reads negative.
+  const unsignedShort = (value) => Number(value ?? 0) & 0xffff;
+  const width = unsignedShort(root.Width);
+  const height = unsignedShort(root.Height);
+  const length = unsignedShort(root.Length);
   if (!(width > 0 && height > 0 && length > 0)) {
     throw new NbtError('a Sponge schematic needs positive Width, Height and Length');
   }
 
   // The palette maps a state string to an index; the reverse is what the block data indexes into.
-  const paletteNode = root.Palette ?? {};
+  const paletteNode = layout.palette ?? {};
   const palette = new Map();
   for (const [key, index] of Object.entries(paletteNode)) {
     let state;
@@ -88,8 +130,10 @@ export async function readSpongeSchematic(bytes, { warnings = new WarningCollect
     palette.set(Number(index), state);
   }
 
-  const blockData = root.BlockData;
-  if (!(blockData instanceof Uint8Array)) throw new NbtError('a Sponge schematic needs a BlockData byte array');
+  const blockData = layout.blockData;
+  if (!(blockData instanceof Uint8Array)) {
+    throw new NbtError(layout.nested ? 'a Sponge v3 schematic needs a Blocks.Data byte array' : 'a Sponge schematic needs a BlockData byte array');
+  }
   const volume = width * height * length;
   const blocks = [];
   let cursor = 0;
@@ -109,28 +153,31 @@ export async function readSpongeSchematic(bytes, { warnings = new WarningCollect
     blocks.push({ pos: { x, y, z }, state });
   }
 
-  const blockEntities = (root.BlockEntities ?? []).map((entry) => {
+  const blockEntities = layout.blockEntities.map((entry) => {
     const pos = entry.Pos;
     if (!(pos instanceof Int32Array) || pos.length < 3) {
       warnings.add(IoWarning.UNSUPPORTED_BLOCK_ENTITY, 'a block entity has no usable Pos; it was dropped');
       return null;
     }
-    const nbt = { ...entry };
-    delete nbt.Pos;
-    delete nbt.Id;
-    return { pos: { x: pos[0], y: pos[1], z: pos[2] }, id: entry.Id ?? null, nbt };
+    return { pos: { x: pos[0], y: pos[1], z: pos[2] }, id: entry.Id ?? null, nbt: extraData(entry, layout.nested, ['Pos', 'Id']), nbtTypes: blockEntityTypes };
   }).filter(Boolean);
 
-  const entities = (root.Entities ?? []).map((entry) => {
+  const entities = layout.entities.map((entry) => {
     const pos = entry.Pos;
     if (!(pos instanceof Float64Array) && !Array.isArray(pos)) {
       warnings.add(IoWarning.UNKNOWN_ENTITY, 'an entity has no usable Pos; it was dropped');
       return null;
     }
-    const nbt = { ...entry };
-    delete nbt.Pos;
-    return { pos: { x: Number(pos[0]), y: Number(pos[1]), z: Number(pos[2]) }, nbt };
+    // The canonical entity keeps its id inside nbt as `id`, the way vanilla entity NBT spells it, whichever
+    // layout it came from: v2 flattens `Id` into the entry, v3 keeps `Id` beside its `Data`.
+    const nbt = extraData(entry, layout.nested, ['Pos', 'Id']);
+    if (entry.Id !== undefined && nbt.id === undefined) nbt.id = entry.Id;
+    return { pos: { x: Number(pos[0]), y: Number(pos[1]), z: Number(pos[2]) }, nbt, nbtTypes: entityTypes };
   }).filter(Boolean);
+
+  if (layout.hasBiomes) {
+    warnings.add(IoWarning.UNSUPPORTED_COMPONENT, 'the schematic carries biomes, which are not imported');
+  }
 
   // REATTACH the block entities' data to the blocks they sit on.
   //
@@ -143,6 +190,7 @@ export async function readSpongeSchematic(bytes, { warnings = new WarningCollect
     const block = blockByPosition.get(`${entity.pos.x},${entity.pos.y},${entity.pos.z}`);
     if (!block) continue;
     block.nbt = { ...(entity.nbt ?? {}), ...(entity.id && !entity.nbt?.id ? { id: entity.id } : {}) };
+    if (entity.nbtTypes) block.nbtTypes = entity.nbtTypes;
   }
 
   const structure = new CanonicalStructure({
@@ -173,7 +221,8 @@ export async function readSpongeSchematic(bytes, { warnings = new WarningCollect
  * Write a canonical structure as a Sponge `.schem`.
  *
  * Gzipped, because that is what every consumer expects and what the specification's examples are. `version`
- * defaults to 3 (the current specification) and 2 is available because a v2-only tool cannot read a v3 file.
+ * defaults to 3 (the current specification, what WorldEdit 7.3+ writes) and 2 is available because a v2-only tool,
+ * such as WorldEdit 7.2 and older, cannot read a v3 file. Each version is written in its own layout (spongeLayout).
  */
 export async function writeSpongeSchematic(structure, { version = 3, gzipped = true, warnings = new WarningCollector() } = {}) {
   const region = structure.main;
@@ -217,42 +266,74 @@ export async function writeSpongeSchematic(structure, { version = 3, gzipped = t
     }
   }
 
-  const blockEntities = region.blockEntities.map((entity) => ({
-    ...entity.nbt,
-    Id: entity.id ?? entity.nbt?.Id ?? 'minecraft:chest',
-    Pos: new Int32Array([entity.pos.x, entity.pos.y, entity.pos.z])
-  }));
-  const entities = region.entities.map((entity) => ({
-    ...entity.nbt,
+  // v2 flattens each entry's extra data beside Pos and Id; v3 puts it in a `Data` sub-compound (see spongeLayout).
+  const nested = version >= 3;
+  const blockEntities = region.blockEntities.map((entity) => {
+    const id = entity.id ?? entity.nbt?.Id ?? entity.nbt?.id ?? 'minecraft:chest';
+    const data = { ...(entity.nbt ?? {}) };
+    delete data.Id;
+    delete data.id;
+    const pos = new Int32Array([entity.pos.x, entity.pos.y, entity.pos.z]);
+    if (!nested) return { ...data, Id: id, Pos: pos };
+    return Object.keys(data).length > 0 ? { Pos: pos, Id: id, Data: data } : { Pos: pos, Id: id };
+  });
+  const entities = region.entities.map((entity) => {
     // A plain ARRAY, not a Float64Array: the specification wants a TAG_List of TAG_Double here, and this
     // writer has no mapping for a typed float array -- it would fall through to a COMPOUND and write "0", "1"
     // and "2" as keys, corrupting the file in a way that reads back as nonsense rather than as an error. The
     // doubles themselves are then forced by `entityPositionTypes`, because a whole coordinate such as 4 would
     // otherwise be guessed as an INT.
-    Pos: [entity.pos.x, entity.pos.y, entity.pos.z]
-  }));
-  if (entities.length > 0 && version < 3) {
-    warnings.add(IoWarning.UNSUPPORTED_COMPONENT,
-      `Sponge schematic v2 cannot hold entities: ${entities.length} will be lost. Export as v3 instead.`,
-      { entities: entities.length });
-  }
+    const pos = [entity.pos.x, entity.pos.y, entity.pos.z];
+    const data = { ...(entity.nbt ?? {}) };
+    // WorldEdit requires both Pos and Rotation on every entity; a missing Rotation makes the whole file fail to
+    // load, not just that entity. Write the identity rotation when the source NBT has none.
+    if (!data.Rotation || typeof data.Rotation.length !== 'number' || data.Rotation.length < 2) data.Rotation = [0, 0];
+    const id = data.id ?? data.Id;
+    delete data.Id;
+    delete data.id;
+    if (!nested) return { ...data, ...(id !== undefined ? { Id: id } : {}), Pos: pos };
+    return { Pos: pos, ...(id !== undefined ? { Id: id } : {}), ...(Object.keys(data).length > 0 ? { Data: data } : {}) };
+  });
 
-  const root = {
+  const fields = {
     Version: version,
     DataVersion: structure.source.dataVersion ?? TARGET_JAVA.dataVersion,
     Width: width,
     Height: height,
     Length: length,
     Offset: Int32Array.from([region.origin.x, region.origin.y, region.origin.z]),
-    PaletteMax: states.length,
-    Palette: palette,
-    BlockData: blockData,
     Metadata: { Name: structure.name, Author: String(structure.metadata.author ?? 'minecraft-in-browser'), ...region.metadata }
   };
-  if (version >= 3 && blockEntities.length > 0) root.BlockEntities = blockEntities;
-  if (version >= 3 && entities.length > 0) root.Entities = entities;
+  let root;
+  let prefix;
+  if (nested) {
+    fields.Blocks = { Palette: palette, Data: blockData, ...(blockEntities.length > 0 ? { BlockEntities: blockEntities } : {}) };
+    if (entities.length > 0) fields.Entities = entities;
+    root = { Schematic: fields };
+    prefix = 'Schematic.';
+  } else {
+    fields.PaletteMax = states.length;
+    fields.Palette = palette;
+    fields.BlockData = blockData;
+    if (blockEntities.length > 0) fields.BlockEntities = blockEntities;
+    if (entities.length > 0) fields.Entities = entities;
+    root = fields;
+    prefix = '';
+  }
 
-  const raw = writeNbt(root, { types: { Version: TagType.INT, DataVersion: TagType.INT, Width: TagType.SHORT, Height: TagType.SHORT, Length: TagType.SHORT, ...entityPositionTypes(root.Entities) } });
+  const raw = writeNbt(root, {
+    // v2's root compound is named "Schematic"; v3's root is unnamed and holds a "Schematic" compound.
+    rootName: nested ? '' : 'Schematic',
+    types: {
+      // Carried tag types, by full path. writeNbt matches a full path before a bare key name, so the field names
+      // below (Version, Width...) cannot retype a block entity's own number of the same name.
+      ...prefixedTypes(region.blockEntities, nested ? `${prefix}Blocks.BlockEntities[].Data.` : 'BlockEntities[].'),
+      ...prefixedTypes(region.entities, nested ? `${prefix}Entities[].Data.` : 'Entities[].'),
+      Version: TagType.INT, DataVersion: TagType.INT, Width: TagType.SHORT, Height: TagType.SHORT, Length: TagType.SHORT,
+      ...entityPositionTypes(fields.Entities, prefix),
+      ...entityRotationTypes(fields.Entities, prefix, nested)
+    }
+  });
   return gzipped ? await gzip(raw) : raw;
 }
 
@@ -268,7 +349,11 @@ export async function writeSpongeSchematic(structure, { version = 3, gzipped = t
  * both are NBT.
  */
 export async function readJavaStructure(bytes, { warnings = new WarningCollector() } = {}) {
-  const root = await readNbtAuto(bytes, { littleEndian: false });
+  // Every number's tag type, by path, so block-entity and entity data are written back with the same types.
+  const typeMap = {};
+  const root = await readNbtAuto(bytes, { littleEndian: false, typeMap });
+  const blockNbtTypes = relativeTypes(typeMap, 'blocks[].nbt.', []);
+  const entityNbtTypes = relativeTypes(typeMap, 'entities[].nbt.', []);
   const sizeList = root.size;
   if (!Array.isArray(sizeList) || sizeList.length < 3) throw new NbtError('a Java structure needs a size list of three ints');
   const size = { x: Number(sizeList[0]), y: Number(sizeList[1]), z: Number(sizeList[2]) };
@@ -296,20 +381,21 @@ export async function readJavaStructure(bytes, { warnings = new WarningCollector
     }
     if (state.equals(AIR)) continue;
     const block = { pos: { x: Number(pos[0]), y: Number(pos[1]), z: Number(pos[2]) }, state };
-    if (entry.nbt) block.nbt = entry.nbt;
+    if (entry.nbt) { block.nbt = entry.nbt; block.nbtTypes = blockNbtTypes; }
     blocks.push(block);
   }
 
   const blockEntities = blocks.filter((block) => block.nbt).map((block) => ({
     pos: block.pos,
     id: block.nbt.id ?? null,
-    nbt: block.nbt
+    nbt: block.nbt,
+    nbtTypes: block.nbtTypes
   }));
 
   const entities = (root.entities ?? []).map((entry) => {
     const pos = entry.pos;
     const value = { x: Number(pos?.[0] ?? 0), y: Number(pos?.[1] ?? 0), z: Number(pos?.[2] ?? 0) };
-    return { pos: value, blockPos: entry.blockPos ? { x: entry.blockPos[0], y: entry.blockPos[1], z: entry.blockPos[2] } : null, nbt: entry.nbt ?? {} };
+    return { pos: value, blockPos: entry.blockPos ? { x: entry.blockPos[0], y: entry.blockPos[1], z: entry.blockPos[2] } : null, nbt: entry.nbt ?? {}, nbtTypes: entityNbtTypes };
   });
 
   const structure = new CanonicalStructure({
@@ -356,7 +442,13 @@ export async function writeJavaStructure(structure, { gzipped = true, includeEnt
     entities,
     DataVersion: structure.source.dataVersion ?? TARGET_JAVA.dataVersion
   };
-  const raw = writeNbt(root, { types: { DataVersion: TagType.INT } });
+  const raw = writeNbt(root, { types: {
+    ...prefixedTypes(region.blocks.filter((block) => block.nbt), 'blocks[].nbt.'),
+    ...(includeEntities ? prefixedTypes(region.entities, 'entities[].nbt.') : {}),
+    // An entity's pos is three doubles; a whole coordinate such as 4 would otherwise be guessed as an int.
+    'entities[].pos[]': TagType.DOUBLE,
+    DataVersion: TagType.INT
+  } });
   return gzipped ? await gzip(raw) : raw;
 }
 
@@ -514,8 +606,9 @@ function sniffNbtRoot(bytes) {
     const keys = root && typeof root === 'object' ? Object.keys(root) : [];
     return {
       root: keys.slice(0, 24),
-      sponge: keys.includes('Palette') && keys.includes('Width') && keys.includes('BlockData'),
-      version: Number(root.Version ?? 0),
+      sponge: (keys.includes('Palette') && keys.includes('Width') && keys.includes('BlockData'))
+        || Boolean(root.Schematic && typeof root.Schematic === 'object' && root.Schematic.Width !== undefined),
+      version: Number(root.Version ?? root.Schematic?.Version ?? 0),
       bedrockStructure: keys.includes('structure') && keys.includes('format_version'),
       javaStructure: keys.includes('size') && keys.includes('palette') && keys.includes('blocks'),
       litematic: keys.includes('Version') && keys.includes('Regions') && keys.includes('Metadata')
@@ -582,9 +675,6 @@ export async function convertStructure(bytes, targetFormat, { filename = '', war
       `converting a ${structure.source.edition} structure to ${target.edition}: block ids and states are not interchangeable across editions`,
       { from: imported.format, to: targetFormat });
   }
-  if (target.id.startsWith('sponge-schem-v2') && region.entities.length > 0) {
-    warnings.add(IoWarning.UNSUPPORTED_COMPONENT, `${region.entities.length} entities cannot be represented in Sponge v2`);
-  }
   if (target.id === 'java-structure-nbt' && region.blockEntities.length !== region.blocks.filter((b) => b.nbt).length) {
     warnings.add(IoWarning.UNSUPPORTED_BLOCK_ENTITY, 'some block entities have no block to carry them');
   }
@@ -599,10 +689,44 @@ export async function convertStructure(bytes, targetFormat, { filename = '', war
  * coordinate such as 4 an INT. A Bedrock or Sponge reader that validates the type would then reject the file,
  * so the types are stated rather than guessed.
  */
-function entityPositionTypes(entities) {
+/** The types under `prefix` (one block entity's or entity's extra data), keyed relative to it. */
+function relativeTypes(typeMap, prefix, ownKeys) {
+  const out = {};
+  for (const [path, type] of Object.entries(typeMap)) {
+    if (!path.startsWith(prefix)) continue;
+    const rel = path.slice(prefix.length);
+    if (ownKeys.includes(rel.split(/[.[]/)[0])) continue;
+    out[rel] = type;
+  }
+  return out;
+}
+
+/** Carried `nbtTypes` back to the writer's absolute paths. List indices are `[]`, which `writeNbt` matches. */
+function prefixedTypes(entries, prefix) {
+  const types = {};
+  for (const entry of entries ?? []) for (const [rel, type] of Object.entries(entry.nbtTypes ?? {})) types[`${prefix}${rel}`] = type;
+  return types;
+}
+
+function entityPositionTypes(entities, prefix = '') {
   const types = {};
   (entities ?? []).forEach((_, index) => {
-    for (let axis = 0; axis < 3; axis++) types[`Entities[${index}].Pos[${axis}]`] = TagType.DOUBLE;
+    for (let axis = 0; axis < 3; axis++) types[`${prefix}Entities[${index}].Pos[${axis}]`] = TagType.DOUBLE;
+  });
+  return types;
+}
+
+/**
+ * Forced FLOAT types for a Sponge `Entities` list's rotations.
+ *
+ * WorldEdit's reader calls `getListTag("Rotation", floatTag())` and throws when the tag is absent, so an entity
+ * whose NBT (for example one made by a test or a simplified generator) has no Rotation needs the identity one
+ * written for it. Whole values such as 0 or 180 would otherwise be guessed as INT, which WorldEdit rejects.
+ */
+function entityRotationTypes(entities, prefix = '', nested = false) {
+  const types = {};
+  (entities ?? []).forEach((_, index) => {
+    for (let axis = 0; axis < 2; axis++) types[`${prefix}Entities[${index}].${nested ? 'Data.' : ''}Rotation[${axis}]`] = TagType.FLOAT;
   });
   return types;
 }

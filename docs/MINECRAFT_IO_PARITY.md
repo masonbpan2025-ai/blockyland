@@ -23,7 +23,7 @@ trusting an export.
 | Format | Edition | Importer | Exporter | Blocks | Block States | Biomes | Entities | Block Entities | Inventories | Lighting | Structures | Metadata | Dimensions | Version Conversion | Round-trip Tested | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Sponge `.schem` v3 | Java | yes | yes | yes | yes | no | yes | yes | via block entity NBT | no | yes (one region) | yes | n/a | DataVersion carried, compared and warned | yes | **FUNCTIONAL** |
-| Sponge `.schem` v2 | Java | yes | yes | yes | yes | no | **no** (warns) | yes | via block entity NBT | no | yes | yes | n/a | as above | yes | **FUNCTIONAL** |
+| Sponge `.schem` v2 | Java | yes | yes | yes | yes | no | yes | yes | via block entity NBT | no | yes | yes | n/a | as above | yes | **FUNCTIONAL** |
 | Vanilla Java `.nbt` structure | Java | yes | yes | yes | yes | no | yes | yes | via block entity NBT | no | yes | author | n/a | DataVersion carried, compared and warned | yes | **FUNCTIONAL** |
 | Bedrock `.mcstructure` | Bedrock | no | no | — | — | — | — | — | — | — | — | — | — | — | no | NOT STARTED |
 | Legacy MCEdit `.schematic` | Java | no | no | — | — | — | — | — | — | — | — | — | — | — | no | NOT STARTED |
@@ -57,13 +57,36 @@ The Sponge writer's positional stream is the sharpest edge here and has its own 
 reattaches them to their blocks, because without that the information survives a Sponge round trip and is lost
 the moment anyone converts Sponge to Java.
 
-**Entities.** Carried in canonical form for all three formats, but Sponge v2 cannot represent them, so exporting
-a structure with entities as v2 **warns** with `UNSUPPORTED_COMPONENT`.
+**Entities.** Carried in canonical form for all three formats, including Sponge v2, whose specification has an
+`Entities` list (an earlier version of this codec wrongly dropped them from v2 with a warning). An entity's type is
+kept as `nbt.id`, as vanilla entity NBT spells it, whichever layout it came from.
 
-**Biomes.** Not carried by any implemented format. Sponge v3 can express a biome palette; it is unimplemented and
-the reader does not pretend otherwise.
+**Sponge layouts.** v2 is flat (`Palette`, `BlockData`, extra data flattened into each block entity); v3 is an
+unnamed root holding a `Schematic` compound, with `Blocks: { Palette, Data, BlockEntities }` and extra data in a
+`Data` sub-compound. Each version is written in its own layout, matching WorldEdit 7.3's `SpongeSchematicV3Writer`.
+The reader picks the layout by shape, not by `Version`, so files this codec once wrote as flat `Version: 3` still
+open.
+
+**Checked against real WorldEdit (2026-10-17).** Paper 1.21.4 build 232 with WorldEdit 7.3.19 on Java 21 (WorldEdit
+7.4.x needs Java 25 and does not load on Paper 1.21.4). Building Studio's own export of every library building, as v3
+and v2, loaded with no warning, and both WorldEdit's straight load-and-save and a paste-copy-save came back identical
+block for block. A file with every game block in every facing loaded every 1.21.4 block exactly; WorldEdit replaced
+with air only the 191 block types 1.21.4 does not have (shelves, copper chests, poplar wood and the other later
+additions). The export now names those in chat. `sulfur_block`, the one name that is not vanilla in any version, now
+exports as `minecraft:sulfur`. `tests/worldEditCompatibility.test.js` holds the result without a server, against
+Mojang's 1.21.4 block registry (`tests/fixtures/minecraft/blocks-1.21.4.json`, names, properties and values).
+
+**Biomes.** Not carried by any implemented format. Sponge v2 and v3 can express biomes; a file that carries them
+reads with an `UNSUPPORTED_COMPONENT` warning that the biomes were not imported.
 
 **Inventories.** Carried only as block-entity NBT, which is how all three formats represent a chest's contents.
+
+**NBT tag types.** A JS number cannot say whether it was a byte, short, int, float or double, and Minecraft rejects the
+wrong one (an item's `Slot` is a byte). The Sponge reader records every number's type by path (`readNbt`'s
+`typeMap`) and keeps each block entity's and entity's as `nbtTypes`; the Sponge writer writes them back. Building
+Studio stores block entities with their types, so a chest, sign or banner exports exactly as it was imported. The
+vanilla `.nbt` codec carries them the same way (`blocks[].nbt`, `entities[].nbt`) and writes entity positions as
+doubles, as the format requires.
 There is no separate canonical inventory type yet, so an inventory can be preserved but not inspected or edited.
 
 **Lighting.** Not carried by any structure format; it is a world concern and no world format is implemented.
@@ -87,8 +110,7 @@ translation, because a correct migration table is a large body of work that has 
 
 1. **No real-Minecraft validation.** §37 is unmet. Every claim above rests on our own round-trip tests.
 2. **No DataVersion migration.** Older structures are read with modern block names and warned about.
-3. **Sponge biomes are read as nothing.** A v3 file with a `Biomes` array loses it, and the reader does not warn
-   yet — it should.
+3. **Sponge biomes are not imported.** A file with biomes reads with a warning saying so.
 4. **Multi-region structures** are modelled (`CanonicalStructure.regions`) but only the first region is written by
    any implemented exporter, so a Litematica file with several regions could not round-trip even once that codec
    exists.

@@ -2,9 +2,7 @@
 node_modules/
 .npm-cache/
 test-results/
-outputs/stump-claude/
-outputs/well-see-claude/
-outputs/volume-layers/
+outputs/
 playwright-report/
 .pnp
 .pnp.js
@@ -14,6 +12,8 @@ dist/
 build/
 
 # Logs
+logs/
+worldedit/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -98,3 +98,4 @@ public/movies/
 public/cinema-claude/
 public/cinema-stump/
 public/cinema-volume/
+public/cinema-civ/

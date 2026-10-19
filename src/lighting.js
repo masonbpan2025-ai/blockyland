@@ -24,8 +24,8 @@ export function configureSunShadows(light, scene) {
   light.shadow.mapSize.set(2048, 2048);
   Object.assign(light.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 200 });
   light.shadow.camera.updateProjectionMatrix();
-  light.shadow.bias = 0.00005;
-  light.shadow.normalBias = 0.035;
+  light.shadow.bias = -0.0005;
+  light.shadow.normalBias = 0.075;
   scene.add(light.target);
 }
 

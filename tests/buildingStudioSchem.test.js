@@ -6,14 +6,15 @@ import {
   BuildingStudioManager,
   STUDIO_GROUND_Y,
   blockIdToCanonicalState,
-  canonicalStateToBlockId
+  canonicalStateToBlockId,
+  schematicFilename
 } from '../src/buildingStudio.js';
 import { BLOCKS } from '../src/blocks.js';
 import { readSpongeSchematic, writeSpongeSchematic } from '../src/io/codecs.js';
 import { CanonicalStructure, CanonicalRegion, CanonicalBlockState } from '../src/io/canonical.js';
 import { buildCreativeCatalog } from '../src/creativeCatalog.js';
 
-describe('Building Studio .schem Export and Import', () => {
+describe('Building Studio .schem Serialization and Library Import', () => {
   beforeEach(() => {
     if (typeof localStorage !== 'undefined') {
       localStorage.clear();
@@ -41,6 +42,16 @@ describe('Building Studio .schem Export and Import', () => {
       assert.strictEqual(canonicalStateToBlockId(new CanonicalBlockState('minecraft:cobblestone')), BLOCKS.COBBLESTONE);
       assert.strictEqual(canonicalStateToBlockId(new CanonicalBlockState('minecraft:air')), BLOCKS.AIR);
       assert.strictEqual(canonicalStateToBlockId(new CanonicalBlockState('minecraft:water')), BLOCKS.WATER);
+    });
+  });
+
+  describe('Saving names the file .schem', () => {
+    it('uses a safe snake_case name and always ends in .schem', () => {
+      assert.strictEqual(schematicFilename('My Castle'), 'my_castle.schem');
+      assert.strictEqual(schematicFilename('  Ivy-Stone Castle!! '), 'ivy_stone_castle.schem');
+      assert.strictEqual(schematicFilename('tower.schem'), 'tower.schem');
+      assert.strictEqual(schematicFilename(''), 'building.schem');
+      assert.strictEqual(schematicFilename('???'), 'building.schem');
     });
   });
 
@@ -114,7 +125,7 @@ describe('Building Studio .schem Export and Import', () => {
     });
   });
 
-  describe('Importing Multiple .schem Files into Structure Panel in Game', () => {
+  describe('Library import helper (agent and library paths)', () => {
     it('imports multiple .schem files, registers them in BuildingLibrary and displays them in the game structure panel', async () => {
       // 1. Create two test structures and serialize them to .schem
       const struct1 = new CanonicalStructure({

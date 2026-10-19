@@ -140,11 +140,13 @@ function mergeBoxes(parts) {
   return out;
 }
 
-// Horizontal rotations around the block centre, matching bed.js's convention.
-// 0: East (+X), 1: West (-X), 2: South (+Z), 3: North (-Z)
+// Horizontal rotations around the block centre. 0: East (+X), 1: West (-X), 2: South (+Z), 3: North (-Z).
+// The models are drawn facing north (rotation 0); THREE's rotateY turns north (-Z) toward -X for a positive angle,
+// so east is -PI/2. East and west were once the other way round, which drew every east- or west-facing stair and
+// sign backwards (a Minecraft facing=east stair rose to the west); tests/stairGeometry.test.js pins this.
 export const STAIR_ROTATIONS = [
-  Math.PI / 2,   // 0: East
-  -Math.PI / 2,  // 1: West
+  -Math.PI / 2,  // 0: East
+  Math.PI / 2,   // 1: West
   Math.PI,       // 2: South
   0,             // 3: North
 ];

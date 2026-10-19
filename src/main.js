@@ -137,6 +137,7 @@ import {
 import { ModLoader, resolveWorldMechanism } from './mods/loader.js';
 import { WorldMechanismManager } from './worldMechanisms.js';
 import { BuildingStudioManager } from './buildingStudio.js';
+import { SignTextRenderer } from './signText.js';
 import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 import { FurnaceManager } from './furnace.js';
@@ -491,6 +492,7 @@ class Game {
     // that construction, so there is one mechanism registry rather than two.
     this.modLoader = new ModLoader({ log: (line) => console.log(line) });
     this.buildingStudio = new BuildingStudioManager(this);
+    this.signText = new SignTextRenderer(this);
     this.furnaceManager = new FurnaceManager(this);
     // Food on a campfire is drawn lying on it, one piece per slot, with the dropped-item visuals.
     this.campfireFoodMeshes = new Map();
@@ -1429,7 +1431,7 @@ class Game {
     }
     if (transparentGeo) {
       // Leaves, glass and plants: part of what the water refracts, and redrawn over it where they are in front.
-      chunk.transparentMesh = markOverWater(settle(new THREE.Mesh(transparentGeo, this.textures.transparentMaterial)));
+      chunk.transparentMesh = markOverWater(settle(new THREE.Mesh(transparentGeo, this.textures.transparentMaterials || this.textures.transparentMaterial)));
       chunk.transparentMesh.renderOrder = 2;
       chunk.transparentMesh.castShadow = chunk.transparentMesh.receiveShadow = true;
       this.scene.add(chunk.transparentMesh);
@@ -4867,6 +4869,8 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     this.itemFrames?.update(dt);
     // Building Studio's ground grid follows the player.
     this.buildingStudio?.update?.();
+    // Text on signs placed from schematics (and loaded with a save).
+    this.signText?.update(dt);
 
     // Monster spawners placed by structures (monster rooms, mineshafts, fortresses, strongholds, bastions), and the
     // trial chambers' trial spawners.
