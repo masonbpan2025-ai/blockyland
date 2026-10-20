@@ -129,13 +129,25 @@ export class Inventory {
       }
     }
     if (item.isBlock) {
-      const def = BLOCK_DEFS[item.id];
-      const icon = def?.icon || (def && def.textures
-        ? `/assets/blocks/${def.textures.all || def.textures.side || def.textures.top || 'dirt.png'}`
-        : '/assets/blocks/dirt.png');
+      let def = BLOCK_DEFS[item.id];
+      if (!def && typeof item.id === 'string') {
+        const it = ITEMS[item.id];
+        if (it?.blockId) def = BLOCK_DEFS[it.blockId];
+      }
+      const it = (typeof item.id === 'string' ? ITEMS[item.id] : null) || (typeof item.id === 'number' ? Object.values(ITEMS).find(x => x.blockId === item.id) : null);
+      let icon = def?.icon;
+      if (!icon && it?.icon && (it.icon.startsWith('/assets/blocks/') || !def?.textures)) {
+        icon = it.icon;
+      }
+      if (!icon && def && def.textures) {
+        icon = `/assets/blocks/${def.textures.all || def.textures.side || def.textures.top || 'dirt.png'}`;
+      }
+      if (!icon) {
+        icon = it?.icon || '/assets/blocks/dirt.png';
+      }
       return {
         id: item.id,
-        name: def ? def.name : 'Block',
+        name: def ? def.name : (it?.name || 'Block'),
         icon: icon,
         isBlock: true,
         count: item.count

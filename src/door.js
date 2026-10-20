@@ -43,31 +43,54 @@ function createBoxPart(size, pos, textureName, tm, colorHex = 0xffffff) {
   return geo;
 }
 
+const DOOR_WOOD_COLORS = {
+  'dark oak': { wood: 0x4c3319, handle: 0xd4a017 },
+  'spruce': { wood: 0x664c33, handle: 0x222222 },
+  'birch': { wood: 0xd7c185, handle: 0x333333 },
+  'jungle': { wood: 0xa07455, handle: 0x26180c },
+  'acacia': { wood: 0xba6336, handle: 0x2b1b11 },
+  'cherry': { wood: 0xe39bb0, handle: 0x4a2832 },
+  'mangrove': { wood: 0x783636, handle: 0x221010 },
+  'bamboo': { wood: 0x98a33d, handle: 0x424712 },
+  'crimson': { wood: 0x7e354f, handle: 0xfff0a0 },
+  'warped': { wood: 0x2f6d6c, handle: 0xff9050 },
+  'pale oak': { wood: 0xd4d0c8, handle: 0x363432 },
+  'copper': { wood: 0xc06c4e, handle: 0x442211 },
+  'iron': { wood: 0xd0d5d6, handle: 0x333333 }
+};
+
+function getDoorColors(def, isIron) {
+  if (isIron) return DOOR_WOOD_COLORS.iron;
+  const name = def?.name?.toLowerCase() || '';
+  for (const [key, val] of Object.entries(DOOR_WOOD_COLORS)) {
+    if (name.includes(key)) return val;
+  }
+  return { wood: 0xb98a4e, handle: 0x22180e };
+}
+
 /**
  * Creates 3D geometry for a door half (bottom or top).
  * Size: 1.0 wide, 1.0 tall, 3/16 thick panel.
  */
-export function createDoorGeometry(isTop = false, facing = 3, open = false, isIron = false, hinge = 'left', tm = null) {
+export function createDoorGeometry(isTop = false, facing = 3, open = false, isIron = false, hinge = 'left', tm = null, def = null) {
   const parts = [];
   const thickness = 3 / 16;
-  const tex = isIron
-    ? (isTop ? 'iron_door_top.png' : 'iron_door_bottom.png')
-    : (isTop ? 'oak_door_top.png' : 'oak_door_bottom.png');
-  const defaultColor = isIron ? 0xd0d5d6 : 0xb98a4e;
+  let tex;
+  if (def?.textures) {
+    tex = isTop
+      ? (def.textures.top || def.textures.all || 'oak_door_top.png')
+      : (def.textures.bottom || def.textures.all || 'oak_door_bottom.png');
+  } else {
+    tex = isIron
+      ? (isTop ? 'iron_door_top.png' : 'iron_door_bottom.png')
+      : (isTop ? 'oak_door_top.png' : 'oak_door_bottom.png');
+  }
+  const defaultColor = 0xffffff;
 
   if (!open) {
     // Closed: panel lies flat on Z edge (z = thickness/2)
     const panel = createBoxPart([1.0, 1.0, thickness], [0.5, 0.5, thickness / 2], tex, tm, defaultColor);
     parts.push(panel);
-
-    // Door knob/handle on bottom half
-    if (!isTop) {
-      const handleX = hinge === 'left' ? 0.85 : 0.15;
-      const handleColor = isIron ? 0x333333 : 0x22180e;
-      const knobFront = createBoxPart([0.08, 0.16, 0.05], [handleX, 0.5, thickness + 0.025], tex, tm, handleColor);
-      const knobBack = createBoxPart([0.08, 0.16, 0.05], [handleX, 0.5, -0.025], tex, tm, handleColor);
-      parts.push(knobFront, knobBack);
-    }
   } else {
     // Open: panel swings 90 degrees around hinge
     // If hinge is left, panel sits at x = thickness/2 extending along Z (z: 0..1)
@@ -75,14 +98,6 @@ export function createDoorGeometry(isTop = false, facing = 3, open = false, isIr
     const panelX = hinge === 'left' ? thickness / 2 : 1 - thickness / 2;
     const panel = createBoxPart([thickness, 1.0, 1.0], [panelX, 0.5, 0.5], tex, tm, defaultColor);
     parts.push(panel);
-
-    if (!isTop) {
-      const handleZ = 0.85;
-      const handleColor = isIron ? 0x333333 : 0x22180e;
-      const knobLeft = createBoxPart([0.05, 0.16, 0.08], [panelX - thickness / 2 - 0.025, 0.5, handleZ], tex, tm, handleColor);
-      const knobRight = createBoxPart([0.05, 0.16, 0.08], [panelX + thickness / 2 + 0.025, 0.5, handleZ], tex, tm, handleColor);
-      parts.push(knobLeft, knobRight);
-    }
   }
 
   const merged = mergeGeometries(parts);
@@ -102,11 +117,11 @@ export function createDoorGeometry(isTop = false, facing = 3, open = false, isIr
 /**
  * Creates 3D geometry for a trapdoor (1 block high).
  */
-export function createTrapdoorGeometry(facing = 3, open = false, isIron = false, tm = null) {
+export function createTrapdoorGeometry(facing = 3, open = false, isIron = false, tm = null, def = null) {
   const parts = [];
   const thickness = 3 / 16;
-  const tex = isIron ? 'iron_trapdoor.png' : 'oak_trapdoor.png';
-  const defaultColor = isIron ? 0xd0d5d6 : 0xb98a4e;
+  const tex = def?.textures?.all || (isIron ? 'iron_trapdoor.png' : 'oak_trapdoor.png');
+  const defaultColor = 0xffffff;
 
   if (!open) {
     // Closed: flat horizontal slab at the bottom of the block
@@ -465,7 +480,10 @@ export class DoorManager {
     // Spawn 1 dropped door item
     if (this.game?.entities && typeof this.game.entities.spawnDroppedItem === 'function') {
       const dropPos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
-      const dropItem = isIron ? 'iron_door' : 'oak_door';
+      let dropItem = isIron ? 'iron_door' : 'oak_door';
+      if (door.ids?.closed && BLOCK_DEFS[door.ids.closed]?.dropItem) {
+        dropItem = BLOCK_DEFS[door.ids.closed].dropItem;
+      }
       this.game.entities.spawnDroppedItem(dropPos, dropItem, false, 1);
     }
 

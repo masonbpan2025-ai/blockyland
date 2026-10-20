@@ -152,13 +152,13 @@ export function createBlockGeometry(id, textures, state = {}) {
     const open = state.open !== undefined ? state.open : (numericId === BLOCKS.OAK_DOOR_OPEN || numericId === BLOCKS.OAK_DOOR_TOP_OPEN || numericId === BLOCKS.IRON_DOOR_OPEN || numericId === BLOCKS.IRON_DOOR_TOP_OPEN);
     const isIron = Boolean(def.isIron);
     const hinge = state.hinge || 'left';
-    return ensureFlameAttributes(createDoorGeometry(isTop, facing, open, isIron, hinge, textures));
+    return ensureFlameAttributes(createDoorGeometry(isTop, facing, open, isIron, hinge, textures, def));
   }
   if (def?.trapdoor) {
     const facing = state.facing !== undefined ? state.facing : 3;
     const open = state.open !== undefined ? state.open : (numericId === BLOCKS.OAK_TRAPDOOR_OPEN || numericId === BLOCKS.IRON_TRAPDOOR_OPEN);
     const isIron = Boolean(def.isIron);
-    return ensureFlameAttributes(createTrapdoorGeometry(facing, open, isIron, textures));
+    return ensureFlameAttributes(createTrapdoorGeometry(facing, open, isIron, textures, def));
   }
   if (def?.redstone && !def.redstoneNativeModel && ![BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(numericId)) return ensureFlameAttributes(redstoneGeometry(numericId, textures, state));
   if (def?.bed || numericId === BLOCKS.RED_BED_FOOT || numericId === BLOCKS.RED_BED_HEAD) {

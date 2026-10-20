@@ -1,4 +1,4 @@
-﻿import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
@@ -320,10 +320,24 @@ export function buildCreativeCatalog() {
     if (entry) catalog.push(entry);
   }
 
-  // 5. Redstone Blocks & Mechanisms
+  // 5. Redstone Blocks & Mechanisms (including all doors and trapdoors)
+  const allDoorsAndTrapdoors = [
+    BLOCKS.OAK_DOOR, BLOCKS.SPRUCE_DOOR, BLOCKS.BIRCH_DOOR, BLOCKS.JUNGLE_DOOR,
+    BLOCKS.ACACIA_DOOR, BLOCKS.DARK_OAK_DOOR, BLOCKS.PALE_OAK_DOOR, BLOCKS.MANGROVE_DOOR,
+    BLOCKS.CHERRY_DOOR, BLOCKS.BAMBOO_DOOR, BLOCKS.CRIMSON_DOOR, BLOCKS.WARPED_DOOR,
+    BLOCKS.IRON_DOOR, BLOCKS.COPPER_DOOR, BLOCKS.EXPOSED_COPPER_DOOR,
+    BLOCKS.WEATHERED_COPPER_DOOR, BLOCKS.OXIDIZED_COPPER_DOOR,
+    BLOCKS.OAK_TRAPDOOR, BLOCKS.SPRUCE_TRAPDOOR, BLOCKS.BIRCH_TRAPDOOR, BLOCKS.JUNGLE_TRAPDOOR,
+    BLOCKS.ACACIA_TRAPDOOR, BLOCKS.DARK_OAK_TRAPDOOR, BLOCKS.PALE_OAK_TRAPDOOR, BLOCKS.MANGROVE_TRAPDOOR,
+    BLOCKS.CHERRY_TRAPDOOR, BLOCKS.BAMBOO_TRAPDOOR, BLOCKS.CRIMSON_TRAPDOOR, BLOCKS.WARPED_TRAPDOOR,
+    BLOCKS.IRON_TRAPDOOR, BLOCKS.COPPER_TRAPDOOR, BLOCKS.EXPOSED_COPPER_TRAPDOOR,
+    BLOCKS.WEATHERED_COPPER_TRAPDOOR, BLOCKS.OXIDIZED_COPPER_TRAPDOOR
+  ].filter(id => id !== undefined && BLOCK_DEFS[id]);
+
   const redstoneBlocksList = [
     ...Object.keys(BLOCK_DEFS).map(Number).filter(id => id >= BLOCKS.REDSTONE_WIRE && BLOCK_DEFS[id].redstone && !BLOCK_DEFS[id].internal),
-    BLOCKS.REDSTONE_TORCH, BLOCKS.LEVER, BLOCKS.REDSTONE_LAMP, BLOCKS.TNT, BLOCKS.REDSTONE_ORE
+    BLOCKS.REDSTONE_TORCH, BLOCKS.LEVER, BLOCKS.REDSTONE_LAMP, BLOCKS.TNT, BLOCKS.REDSTONE_ORE,
+    ...allDoorsAndTrapdoors
   ];
   for (const b of redstoneBlocksList) {
     const entry = blockItem(b, 'redstone_blocks');
@@ -489,6 +503,16 @@ export function buildCreativeCatalog() {
         count: 1,
         searchTerms: `${st.name.toLowerCase()} building build ${st.id}`
       });
+    }
+  }
+
+  // 12. Index any remaining items in ITEMS so search returns all valid items
+  const registeredIds = new Set(catalog.map(c => c.id));
+  for (const [key, it] of Object.entries(ITEMS)) {
+    if (it.type === 'spawn_egg') continue; // Spawn eggs handled by spawn_eggs tab
+    if (!registeredIds.has(key) && (!it.blockId || !registeredIds.has(it.blockId))) {
+      const entry = itemEntry(key, 'all_items');
+      if (entry) catalog.push(entry);
     }
   }
 

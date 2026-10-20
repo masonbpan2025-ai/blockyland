@@ -1,4 +1,4 @@
-﻿// Door wood types: the door manager must keep a door's own wood through a full open/close cycle.
+// Door wood types: the door manager must keep a door's own wood through a full open/close cycle.
 //
 // The bug this exists for: toggleDoor hard-coded the oak ids with a fallback only for iron, so toggling
 // any other wood turned the door into oak. That was invisible while oak was the only wooden door in the
@@ -32,7 +32,7 @@ function makeManager(world) {
 test('the four door ids resolve from the definition name', () => {
   // Resolution is by name so one helper covers the hand-written oak and iron doors as well as every
   // generated wood, with no special case.
-  for (const key of ['OAK_DOOR', 'IRON_DOOR', 'SPRUCE_DOOR', 'BAMBOO_DOOR', 'CRIMSON_DOOR']) {
+  for (const key of ['OAK_DOOR', 'IRON_DOOR', 'SPRUCE_DOOR', 'DARK_OAK_DOOR', 'BAMBOO_DOOR', 'CRIMSON_DOOR']) {
     const id = BLOCKS[key];
     if (id === undefined) continue;
     const ids = doorIdSet(BLOCK_DEFS[id]);

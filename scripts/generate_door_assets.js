@@ -328,6 +328,96 @@ function getIronDoorBottomPixel(x, y) {
   return ((x + y) % 2 === 0) ? hexToRgba('#c7c7c7') : hexToRgba('#bdbdbd');
 }
 
+// 9. Dark Oak Door Item Icon (16x16)
+function getDarkOakDoorItemPixel(x, y) {
+  if (x < 3 || x > 12 || y < 1 || y > 14) return [0, 0, 0, 0];
+  if (x === 3 || x === 12 || y === 1 || y === 14) return hexToRgba('#24160a');
+  if (x === 4 && y === 7) return hexToRgba('#fff176');
+  if (x === 4 && y === 8) return hexToRgba('#fbc02d');
+  if (x === 5 && y === 8) return hexToRgba('#b27e02');
+  if (x === 11 && (y === 3 || y === 12)) return hexToRgba('#666666');
+  if (y === 7) return hexToRgba('#2c1b0c');
+  if (x === 7 || x === 8) return ((x + y) % 2 === 0) ? hexToRgba('#382312') : hexToRgba('#321e0f');
+
+  const isUpperPanel = (x === 5 || x === 6 || x === 9 || x === 10) && (y >= 3 && y <= 5);
+  if (isUpperPanel) {
+    if (x === 5 || x === 9 || y === 3) return hexToRgba('#211409');
+    if (x === 6 || x === 10 || y === 5) return hexToRgba('#55371c');
+    return hexToRgba('#3d2714');
+  }
+
+  const isLowerPanel = (x === 5 || x === 6 || x === 9 || x === 10) && (y >= 9 && y <= 12);
+  if (isLowerPanel) {
+    if (x === 5 || x === 9 || y === 9) return hexToRgba('#211409');
+    if (x === 6 || x === 10 || y === 12) return hexToRgba('#55371c');
+    return hexToRgba('#3d2714');
+  }
+
+  if (x === 4 || x === 11 || y === 2 || y === 6 || y === 8 || y === 13) return hexToRgba('#4c331a');
+  return ((x + y) % 2 === 0) ? hexToRgba('#462f18') : hexToRgba('#3e2915');
+}
+
+// 10. Dark Oak Trapdoor Item Icon (16x16)
+function getDarkOakTrapdoorItemPixel(x, y) {
+  if (x < 1 || x > 14 || y < 1 || y > 14) return [0, 0, 0, 0];
+  if (x === 1 || x === 14 || y === 1 || y === 14) return hexToRgba('#24160a');
+  if (x === 2 || x === 13 || y === 2 || y === 13) return hexToRgba('#382312');
+  if (x === 7 || x === 8 || y === 7 || y === 8) return ((x + y) % 2 === 0) ? hexToRgba('#321e0f') : hexToRgba('#2a190c');
+
+  const isPanelX = (x >= 3 && x <= 6) || (x >= 9 && x <= 12);
+  const isPanelY = (y >= 3 && y <= 6) || (y >= 9 && y <= 12);
+  if (isPanelX && isPanelY) {
+    if (x === 3 || x === 9 || y === 3 || y === 9) return hexToRgba('#1c1107');
+    if (x === 6 || x === 12 || y === 6 || y === 12) return hexToRgba('#55371c');
+    return hexToRgba('#3d2714');
+  }
+  return hexToRgba('#462f18');
+}
+
+// 11. Dark Oak Door Top Block Texture (16x16)
+function getDarkOakDoorTopPixel(x, y) {
+  if (x === 0 || x === 15 || y === 0) return hexToRgba('#24160a');
+  if (x === 1 || x === 14 || y === 1) return hexToRgba('#382312');
+  if (y === 15) return hexToRgba('#2c1b0c');
+  if (x === 7 || x === 8) return hexToRgba('#321e0f');
+  if ((x === 0 || x === 1) && (y === 3 || y === 4)) return hexToRgba('#666666');
+  if ((x === 12 || x === 13) && (y === 14 || y === 15)) return y === 14 ? hexToRgba('#fff176') : hexToRgba('#fbc02d');
+
+  const isLeftPanel = (x >= 3 && x <= 6) && (y >= 3 && y <= 14);
+  const isRightPanel = (x >= 9 && x <= 12) && (y >= 3 && y <= (x >= 11 ? 12 : 13));
+  if (isLeftPanel || isRightPanel) {
+    if (x === 3 || x === 9 || y === 3) return hexToRgba('#1c1107');
+    if (x === 6 || x === 12 || y === 14 || (isRightPanel && y === 13)) return hexToRgba('#55371c');
+    return hexToRgba('#3d2714');
+  }
+  if (x === 2 || x === 6 || x === 9 || x === 13 || y === 2) return hexToRgba('#4c331a');
+  return ((x + y) % 2 === 0) ? hexToRgba('#462f18') : hexToRgba('#3e2915');
+}
+
+// 12. Dark Oak Door Bottom Block Texture (16x16)
+function getDarkOakDoorBottomPixel(x, y) {
+  if (x === 0 || x === 15 || y === 15) return hexToRgba('#24160a');
+  if (x === 1 || x === 14 || y === 14) return hexToRgba('#382312');
+  if (y === 0) return hexToRgba('#2c1b0c');
+  if ((x >= 11 && x <= 13) && (y >= 1 && y <= 4)) {
+    if (x === 11 && y === 1) return hexToRgba('#fff176');
+    if (x === 13 || y === 4) return hexToRgba('#b27e02');
+    return hexToRgba('#fbc02d');
+  }
+  if (x === 7 || x === 8) return hexToRgba('#321e0f');
+  if ((x === 0 || x === 1) && (y === 11 || y === 12)) return hexToRgba('#666666');
+
+  const isLeftPanel = (x >= 3 && x <= 6) && (y >= 3 && y <= 13);
+  const isRightPanel = (x >= 9 && x <= 12) && (y >= 6 && y <= 13);
+  if (isLeftPanel || isRightPanel) {
+    if (x === 3 || x === 9 || y === 3 || (isRightPanel && y === 6)) return hexToRgba('#1c1107');
+    if (x === 6 || x === 12 || y === 13) return hexToRgba('#55371c');
+    return hexToRgba('#3d2714');
+  }
+  if (x === 2 || x === 6 || x === 9 || x === 13 || y === 13) return hexToRgba('#4c331a');
+  return ((x + y) % 2 === 0) ? hexToRgba('#462f18') : hexToRgba('#3e2915');
+}
+
 // Ensure target directories exist
 const itemDir = path.resolve('public/assets/items');
 const blockDir = path.resolve('public/assets/blocks');
@@ -340,12 +430,17 @@ const assets = [
   { path: path.join(itemDir, 'iron_door.png'), fn: getIronDoorItemPixel },
   { path: path.join(itemDir, 'oak_trapdoor.png'), fn: getOakTrapdoorItemPixel },
   { path: path.join(itemDir, 'iron_trapdoor.png'), fn: getIronTrapdoorItemPixel },
+  { path: path.join(itemDir, 'dark_oak_door.png'), fn: getDarkOakDoorItemPixel },
+  { path: path.join(itemDir, 'dark_oak_trapdoor.png'), fn: getDarkOakTrapdoorItemPixel },
   { path: path.join(blockDir, 'oak_door_top.png'), fn: getOakDoorTopPixel },
   { path: path.join(blockDir, 'oak_door_bottom.png'), fn: getOakDoorBottomPixel },
   { path: path.join(blockDir, 'iron_door_top.png'), fn: getIronDoorTopPixel },
   { path: path.join(blockDir, 'iron_door_bottom.png'), fn: getIronDoorBottomPixel },
   { path: path.join(blockDir, 'oak_trapdoor.png'), fn: getOakTrapdoorItemPixel },
-  { path: path.join(blockDir, 'iron_trapdoor.png'), fn: getIronTrapdoorItemPixel }
+  { path: path.join(blockDir, 'iron_trapdoor.png'), fn: getIronTrapdoorItemPixel },
+  { path: path.join(blockDir, 'dark_oak_door_top.png'), fn: getDarkOakDoorTopPixel },
+  { path: path.join(blockDir, 'dark_oak_door_bottom.png'), fn: getDarkOakDoorBottomPixel },
+  { path: path.join(blockDir, 'dark_oak_trapdoor.png'), fn: getDarkOakTrapdoorItemPixel }
 ];
 
 for (const a of assets) {
@@ -354,14 +449,16 @@ for (const a of assets) {
   console.log(`Generated: ${a.path} (${buf.length} bytes)`);
 }
 
-// Also generate clean SVG fallbacks for oak_door, iron_door, oak_trapdoor, iron_trapdoor
+// Also generate clean SVG fallbacks for oak_door, iron_door, oak_trapdoor, iron_trapdoor, dark_oak_door
 const svgOakDoor = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 16 16"><rect width="16" height="16" fill="none"/><rect x="3" y="1" width="10" height="14" rx="1" fill="#8a5f32" stroke="#4c3319" stroke-width="1"/><rect x="5" y="3" width="2" height="3" fill="#2d1c0b"/><rect x="9" y="3" width="2" height="3" fill="#2d1c0b"/><rect x="5" y="9" width="2" height="4" fill="#a27440"/><rect x="9" y="9" width="2" height="4" fill="#a27440"/><circle cx="5" cy="8" r="0.8" fill="#26180c"/></svg>`;
 const svgIronDoor = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 16 16"><rect width="16" height="16" fill="none"/><rect x="3" y="1" width="10" height="14" rx="1" fill="#b5b5b5" stroke="#5e5e5e" stroke-width="1"/><rect x="5" y="3" width="2" height="3" fill="#2b2b2b"/><rect x="9" y="3" width="2" height="3" fill="#2b2b2b"/><rect x="5" y="9" width="2" height="4" fill="#d1d1d1"/><rect x="9" y="9" width="2" height="4" fill="#d1d1d1"/><circle cx="5" cy="8" r="0.8" fill="#333333"/></svg>`;
 const svgOakTrapdoor = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 16 16"><rect width="16" height="16" fill="none"/><rect x="1" y="1" width="14" height="14" fill="#8a5f32" stroke="#4e351b" stroke-width="1"/><path d="M1 8h14M8 1v14" stroke="#5c3e1e" stroke-width="1.5"/><rect x="3.5" y="3.5" width="3" height="3" fill="#2d1c0b"/><rect x="9.5" y="3.5" width="3" height="3" fill="#2d1c0b"/><rect x="3.5" y="9.5" width="3" height="3" fill="#2d1c0b"/><rect x="9.5" y="9.5" width="3" height="3" fill="#2d1c0b"/></svg>`;
 const svgIronTrapdoor = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 16 16"><rect width="16" height="16" fill="none"/><rect x="1" y="1" width="14" height="14" fill="#b5b5b5" stroke="#555555" stroke-width="1"/><path d="M1 8h14M8 1v14" stroke="#808080" stroke-width="1.5"/><rect x="3.5" y="3.5" width="3" height="3" fill="#2b2b2b"/><rect x="9.5" y="3.5" width="3" height="3" fill="#2b2b2b"/><rect x="3.5" y="9.5" width="3" height="3" fill="#2b2b2b"/><rect x="9.5" y="9.5" width="3" height="3" fill="#2b2b2b"/></svg>`;
+const svgDarkOakDoor = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 16 16"><rect width="16" height="16" fill="none"/><rect x="3" y="1" width="10" height="14" rx="1" fill="#462f18" stroke="#24160a" stroke-width="1"/><rect x="5" y="3" width="2" height="3" fill="#3d2714" stroke="#211409" stroke-width="0.5"/><rect x="9" y="3" width="2" height="3" fill="#3d2714" stroke="#211409" stroke-width="0.5"/><rect x="5" y="9" width="2" height="4" fill="#3d2714" stroke="#211409" stroke-width="0.5"/><rect x="9" y="9" width="2" height="4" fill="#3d2714" stroke="#211409" stroke-width="0.5"/><circle cx="4.5" cy="8" r="0.8" fill="#fbc02d"/></svg>`;
 
 fs.writeFileSync(path.join(blockDir, 'oak_door.svg'), svgOakDoor);
 fs.writeFileSync(path.join(blockDir, 'iron_door.svg'), svgIronDoor);
 fs.writeFileSync(path.join(blockDir, 'oak_trapdoor.svg'), svgOakTrapdoor);
 fs.writeFileSync(path.join(blockDir, 'iron_trapdoor.svg'), svgIronTrapdoor);
+fs.writeFileSync(path.join(blockDir, 'dark_oak_door.svg'), svgDarkOakDoor);
 console.log('SVG fallbacks generated successfully!');

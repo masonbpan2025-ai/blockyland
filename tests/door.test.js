@@ -6,45 +6,64 @@ import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from '../src/blocks.js';
 import { DoorManager, createDoorGeometry, createTrapdoorGeometry } from '../src/door.js';
 import { Redstone } from '../src/redstone.js';
+import { Inventory } from '../src/inventory.js';
 
 test('Door block definitions and item entries exist with correct icon paths', () => {
   // Check Block IDs
   assert.ok(BLOCKS.OAK_DOOR, 'OAK_DOOR block ID exists');
   assert.ok(BLOCKS.IRON_DOOR, 'IRON_DOOR block ID exists');
+  assert.ok(BLOCKS.DARK_OAK_DOOR, 'DARK_OAK_DOOR block ID exists');
   assert.ok(BLOCKS.OAK_TRAPDOOR, 'OAK_TRAPDOOR block ID exists');
   assert.ok(BLOCKS.IRON_TRAPDOOR, 'IRON_TRAPDOOR block ID exists');
+  assert.ok(BLOCKS.DARK_OAK_TRAPDOOR, 'DARK_OAK_TRAPDOOR block ID exists');
   assert.ok(BLOCKS.OAK_DOOR_TOP, 'OAK_DOOR_TOP block ID exists');
   assert.ok(BLOCKS.IRON_DOOR_TOP, 'IRON_DOOR_TOP block ID exists');
+  assert.ok(BLOCKS.DARK_OAK_DOOR_TOP, 'DARK_OAK_DOOR_TOP block ID exists');
 
   // Check Item entries
   assert.ok(ITEMS.oak_door, 'ITEMS.oak_door exists');
   assert.ok(ITEMS.iron_door, 'ITEMS.iron_door exists');
+  assert.ok(ITEMS.dark_oak_door, 'ITEMS.dark_oak_door exists');
   assert.ok(ITEMS.oak_trapdoor, 'ITEMS.oak_trapdoor exists');
   assert.ok(ITEMS.iron_trapdoor, 'ITEMS.iron_trapdoor exists');
+  assert.ok(ITEMS.dark_oak_trapdoor, 'ITEMS.dark_oak_trapdoor exists');
 
   assert.equal(ITEMS.oak_door.icon, '/assets/items/oak_door.png');
   assert.equal(ITEMS.iron_door.icon, '/assets/items/iron_door.png');
+  assert.equal(ITEMS.dark_oak_door.icon, '/assets/items/dark_oak_door.png');
   assert.equal(ITEMS.oak_trapdoor.icon, '/assets/items/oak_trapdoor.png');
   assert.equal(ITEMS.iron_trapdoor.icon, '/assets/items/iron_trapdoor.png');
+  assert.equal(ITEMS.dark_oak_trapdoor.icon, '/assets/items/dark_oak_trapdoor.png');
 
-  // Check Block Defs icons
+  // Check Block Defs icons & textures
   assert.equal(BLOCK_DEFS[BLOCKS.OAK_DOOR].icon, '/assets/items/oak_door.png');
   assert.equal(BLOCK_DEFS[BLOCKS.IRON_DOOR].icon, '/assets/items/iron_door.png');
+  assert.equal(BLOCK_DEFS[BLOCKS.DARK_OAK_DOOR].icon, '/assets/items/dark_oak_door.png');
+  assert.equal(BLOCK_DEFS[BLOCKS.DARK_OAK_DOOR].textures.bottom, 'dark_oak_door_bottom.png');
+  assert.equal(BLOCK_DEFS[BLOCKS.DARK_OAK_DOOR].textures.top, 'dark_oak_door_top.png');
+  assert.notEqual(BLOCK_DEFS[BLOCKS.DARK_OAK_DOOR].textures.all, 'dark_oak_planks.png');
   assert.equal(BLOCK_DEFS[BLOCKS.OAK_TRAPDOOR].icon, '/assets/items/oak_trapdoor.png');
   assert.equal(BLOCK_DEFS[BLOCKS.IRON_TRAPDOOR].icon, '/assets/items/iron_trapdoor.png');
+  assert.equal(BLOCK_DEFS[BLOCKS.DARK_OAK_TRAPDOOR].icon, '/assets/items/dark_oak_trapdoor.png');
+  assert.equal(BLOCK_DEFS[BLOCKS.DARK_OAK_TRAPDOOR].textures.all, 'dark_oak_trapdoor.png');
 
   // Check asset files on disk
   const assetsToCheck = [
     'public/assets/items/oak_door.png',
     'public/assets/items/iron_door.png',
+    'public/assets/items/dark_oak_door.png',
     'public/assets/items/oak_trapdoor.png',
     'public/assets/items/iron_trapdoor.png',
+    'public/assets/items/dark_oak_trapdoor.png',
     'public/assets/blocks/oak_door_top.png',
     'public/assets/blocks/oak_door_bottom.png',
+    'public/assets/blocks/dark_oak_door_top.png',
+    'public/assets/blocks/dark_oak_door_bottom.png',
     'public/assets/blocks/iron_door_top.png',
     'public/assets/blocks/iron_door_bottom.png',
     'public/assets/blocks/oak_trapdoor.png',
-    'public/assets/blocks/iron_trapdoor.png'
+    'public/assets/blocks/iron_trapdoor.png',
+    'public/assets/blocks/dark_oak_trapdoor.png'
   ];
 
   for (const p of assetsToCheck) {
@@ -52,6 +71,19 @@ test('Door block definitions and item entries exist with correct icon paths', ()
     const stat = fs.statSync(path.resolve(p));
     assert.ok(stat.size > 50, `Asset ${p} has non-empty valid content (size: ${stat.size})`);
   }
+});
+
+test('Dark oak door inventory representation uses door icon instead of plank texture', () => {
+  const inventory = new Inventory();
+  const meta = inventory.getItemMeta({ id: BLOCKS.DARK_OAK_DOOR, isBlock: true, count: 3 });
+  assert.equal(meta.name, 'Dark Oak Door');
+  assert.equal(meta.icon, '/assets/items/dark_oak_door.png');
+  assert.notEqual(meta.icon, '/assets/blocks/dark_oak_planks.png');
+
+  // Also check if item passed as string key 'dark_oak_door'
+  const itemMeta = inventory.getItemMeta({ id: 'dark_oak_door', count: 3 });
+  assert.equal(itemMeta.name, 'Dark Oak Door');
+  assert.equal(itemMeta.icon, '/assets/items/dark_oak_door.png');
 });
 
 test('DoorManager places 2-block tall door and registers both halves', () => {
