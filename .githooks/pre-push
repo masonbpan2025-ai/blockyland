@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the preflight checks (scripts/preflight.mjs) before every git push: the game must build and its start-screen
+# buttons must work in a real browser. Enabled by `npm install` (the "prepare" script sets core.hooksPath to .githooks).
+exec node scripts/preflight.mjs

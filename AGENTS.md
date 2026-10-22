@@ -15,3 +15,12 @@ Guidelines for every agent (and person) changing code here.
 - When you add a test file, add it to the matching group in `scripts/test.mjs`.
 - If a relevant test fails and you think your change did not cause it, check by running that test on a clean
   checkout of `HEAD` before going further. Say which failures were already there.
+
+## Before every push and deploy
+
+- **`npm run test:preflight` must pass** (about 3 minutes): the start-screen wiring tests, a production build, and
+  `e2e/startButtons.pw.js`, which clicks every start-screen button in a real browser and builds a world through
+  Generate New World → Create World. The git pre-push hook (`.githooks/pre-push`) runs it, and so does
+  `npm run deploy:cloudflare`. `npm install` turns the hook on (`core.hooksPath`). Do not skip it with `--no-verify`.
+- Tests that start the game must **click** the start buttons, not call `game.generateNewWorld()`: a suite that calls
+  the function directly cannot notice buttons that do nothing.

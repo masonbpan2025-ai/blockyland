@@ -31,7 +31,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy:cloudflare:share": "npx wrangler deploy --config cloudflare/share/wrangler.jsonc",
-    "deploy:cloudflare": "npm run deploy:cloudflare:share && npm run build && npx wrangler pages deploy dist --project-name blockyland --branch main",
+    "deploy:cloudflare": "node scripts/preflight.mjs --skip-build && npm run deploy:cloudflare:share && npm run build && npx wrangler pages deploy dist --project-name blockyland --branch main",
     "mods:generate": "node scripts/generate-mod-catalog.mjs",
     "predev": "npm run mods:generate",
     "prebuild": "npm run mods:generate",
@@ -39,7 +39,10 @@
     "test:mods:visuals": "node scripts/test-campaign-visuals.mjs",
     "benchmark:textures:cpu": "node scripts/benchmark-textures-cpu.mjs",
     "test:agent:vault": "node --test --test-isolation=none tests/agentKeyVault.test.js",
-    "test:agent:vault:browser": "node scripts/test-agent-key-vault.mjs"
+    "test:agent:vault:browser": "node scripts/test-agent-key-vault.mjs",
+    "test:preflight": "node scripts/preflight.mjs",
+    "test:start:browser": "playwright test -c playwright.startButtons.config.js",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "type": "module",
   "dependencies": {

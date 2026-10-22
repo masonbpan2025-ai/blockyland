@@ -5104,9 +5104,37 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
   }
 }
 
+/**
+ * Say on the start screen why the game cannot run. Without this, a browser that cannot create a WebGL context (graphics
+ * acceleration off, or the GPU process disabled after a crash) left every start button silently dead: the Game
+ * constructor threw before bindStartScreen() ran.
+ */
+function showStartupFailure(err) {
+  console.error('BlockyLand could not start:', err);
+  const noWebGL = /WebGL/i.test(String(err?.message ?? err));
+  const notice = document.createElement('div');
+  notice.id = 'startup-error';
+  notice.setAttribute('role', 'alert');
+  notice.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100000;width:min(560px,calc(100vw - 32px));box-sizing:border-box;padding:14px 18px;background:#3a1010;border:2px solid #c44;color:#fff;font:15px/1.5 sans-serif;text-align:left;';
+  notice.innerHTML = noWebGL
+    ? '<b>Your browser has 3D graphics (WebGL) turned off, so BlockyLand cannot start.</b><br>'
+      + 'Turn on <i>Use graphics acceleration when available</i> in your browser settings (Chrome/Edge: Settings → System), '
+      + 'then fully close and reopen the browser. If it is already on, the graphics process may have crashed: restarting the browser usually brings it back.'
+    : `<b>BlockyLand could not start.</b><br>${String(err?.message ?? err).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c])}`;
+  const overlay = document.getElementById('start-overlay');
+  (overlay ?? document.body).prepend(notice);
+  overlay?.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+}
+
 // Start Game
 window.addEventListener('DOMContentLoaded', () => {
-  const game = new Game();
+  let game;
+  try {
+    game = new Game();
+  } catch (err) {
+    showStartupFailure(err);
+    return;
+  }
   window.game = game;
   game.start();
 });
