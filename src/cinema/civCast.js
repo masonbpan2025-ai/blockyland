@@ -242,7 +242,7 @@ function frieza() {
 function veil(R) {
   const { hw, hh, hd } = R.dims;
   const v = cube(R.head, [hw + .26, hh * 1.5, .03], [0, hh * .35, hd / 2 + .07], { all: '#fbfaf6' }); v.rotation.x = .1; // wider than the head, so it shows from the front
-  for (let i = 0; i < 7; i++) cube(R.head, [.07, .07, .07], [-hw / 2 + .04 + i * (hw - .08) / 6, hh + .06, -hd / 2 + .06 + (i % 2) * .02], { all: i % 2 ? '#ffd1e3' : '#ffffff' });
+  for (let i = 0; i < 7; i++) cube(R.head, [.055, .055, .055], [-hw / 2 + .04 + i * (hw - .08) / 6, hh + .05 + (i % 2) * .012, -hd / 2 + .06 + (i % 2) * .02], { all: i % 2 ? '#ffd1e3' : '#ffffff' }); // flowers spaced apart and staggered: no shared faces
 }
 /** A groom's black bow tie at the collar. */
 export function bowTie(R) {

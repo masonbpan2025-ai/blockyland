@@ -12,6 +12,7 @@ import { CLAUDE_STORY, CLAUDE_REVIEW_TIMES } from '../src/cinema/claudeStory.js'
 import { STUMP_STORY, STUMP_REVIEW_TIMES } from '../src/cinema/stumpStory.js';
 import { VOLUME_STORY, VOLUME_REVIEW_TIMES } from '../src/cinema/volumeStory.js';
 import { CIV_STORY, CIV_REVIEW_TIMES } from '../src/cinema/civStory.js';
+import { WED_STORY, WED_REVIEW_TIMES } from '../src/cinema/wedStory.js';
 
 const movieId = process.argv.find(a => a.startsWith('--movie='))?.slice(8);
 const FILMS = {
@@ -19,6 +20,7 @@ const FILMS = {
   'stump-claude': { story: STUMP_STORY, page: 'stump-claude.html', review: STUMP_REVIEW_TIMES, out: 'outputs/stump-claude' },
   'volume-layers': { story: VOLUME_STORY, page: 'volume-layers.html', review: VOLUME_REVIEW_TIMES, out: 'outputs/volume-layers' },
   'civ-1500': { story: CIV_STORY, page: 'civ-1500.html', review: CIV_REVIEW_TIMES, out: 'outputs/civ-1500' },
+  'civ-weddings': { story: WED_STORY, page: 'civ-weddings.html', review: WED_REVIEW_TIMES, out: 'outputs/civ-weddings' },
 };
 if (!FILMS[movieId]) throw new Error(`Choose a film with --movie=: ${Object.keys(FILMS).join(', ')}`);
 const film = FILMS[movieId], PILOT = film.story, previewPage = film.page;

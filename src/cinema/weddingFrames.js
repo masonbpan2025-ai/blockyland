@@ -1,12 +1,13 @@
 // Three Islands, Three Weddings · the key frames, one per story beat (see WEDDINGS_STORY.md). Same world and helpers as
 // the 1500 Players key frames: each entry builds a scene and a camera and paints its overlays.
 import * as T from 'three';
-import { blockTex, texBox } from './claudeStage.js';
+import { texBox } from './claudeStage.js';
 import { nameTag, bigName, caption, subtitle, dayCard, mapPin, banner, broadcast, fontsReady } from './civOverlay.js';
 import { makeCharacter, posePlayer, cube, bowTie } from './civCast.js';
 import { buildWorld, SITES, ISLANDS, SEA } from './civWorld.js';
 import { crowd, gather } from './civCrowd.js';
-import { aura, energyBall, snowfall, fairyLights, cookies, sparkles, glowMat } from './civFx.js';
+import { aura, snowfall, fairyLights, cookies, sparkles, glowMat } from './civFx.js';
+import { mat, farm, lantern, gravityMachine, smoke, sign, arch, weddingCake, ring, fireworks } from './wedProps.js';
 import { LOOKS, cam, lights, skyDome, islandScene, yawTo, mapTable, hoverPod, grassFloor, portrait, face } from './civFrames.js';
 
 Object.assign(LOOKS, {
@@ -38,90 +39,6 @@ const big = (ctx, project, c, text, size = 38) => { const p = project(headTop(c)
 const ground = (W, x, z) => W.groundAt(x, z);
 /** Something held in a hand: a small box at the end of an arm. */
 const inHand = (c, side, size, color, at = [0, -.62, -.04]) => cube(side === 'L' ? c.armL : c.armR, size, at, { all: color });
-const mat = async (name, opts = {}) => new T.MeshLambertMaterial({ map: await blockTex(name), ...opts });
-/** A carrot in the ground: an orange shoulder and a tuft of green leaves (this repo's crop textures are opaque squares). */
-function carrot(parent, at) {
-  cube(parent, [.16, .1, .16], [at[0], at[1] + .05, at[2]], { all: '#f08a24' });
-  for (const [dx, dz, h] of [[-.05, 0, .26], [.05, .03, .32], [0, -.05, .22]]) cube(parent, [.07, h, .07], [at[0] + dx, at[1] + .1 + h / 2, at[2] + dz], { all: '#4fa83a' });
-}
-/** Chi-Chi's carrot farm: rows of farmland with carrots, n × m blocks from corner (x0, z0). */
-async function farm(scene, W, x0, z0, n, m, { skip = () => false } = {}) {
-  const soil = await mat('farmland_moist.png');
-  for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) {
-    const x = Math.floor(x0) + i + .5, z = Math.floor(z0) + j + .5, g = ground(W, x, z);
-    texBox(scene, [1, .06, 1], [x, g + .03, z], soil);
-    if (!skip(i, j)) for (const dx of [-.25, .25]) carrot(scene, [x + dx, g + .06, z + (i % 2 ? .1 : -.1)]);
-  }
-}
-/** A paper lantern on a short pole; lit ones glow and light the face beside them. */
-function lantern(scene, at, lit = true) {
-  const g = new T.Group(); g.position.set(...at); scene.add(g);
-  cube(g, [.05, .5, .05], [0, .25, 0], { all: '#5a3c22' });
-  const shade = new T.Mesh(new T.BoxGeometry(.24, .3, .24), lit ? new T.MeshLambertMaterial({ color: 0xffb05a, emissive: 0xc8601a }) : new T.MeshLambertMaterial({ color: 0x9a8a70 }));
-  shade.position.y = .65; g.add(shade);
-  if (lit) { const l = new T.PointLight(0xffb070, 3, 6); l.position.set(0, .7, -.3); g.add(l); }
-  return g;
-}
-/** Bulma's gravity machine: a steel box with a dial, a hatch and a status light. */
-async function gravityMachine(scene, at, yaw = 0, { broken = false } = {}) {
-  const g = new T.Group(); g.position.set(...at); g.rotation.y = yaw; scene.add(g);
-  texBox(g, [2.2, 2, 2.2], [0, 1, 0], await mat('iron_block.png'));
-  cube(g, [.9, 1.3, .04], [0, .75, -1.12], { all: '#3a3f4a' });
-  const dial = new T.Mesh(new T.CircleGeometry(.22, 20), new T.MeshLambertMaterial({ color: 0xf2f0e6 })); dial.position.set(.0, 1.6, -1.13); dial.rotation.y = Math.PI; g.add(dial);
-  const lamp = new T.Mesh(new T.BoxGeometry(.2, .2, .2), glowMat(broken ? 0xff3030 : 0x50ff80, 1)); lamp.position.set(0, 2.15, 0); g.add(lamp);
-  return g;
-}
-/** Smoke: grey puffs rising from a point. */
-function smoke(scene, at, { n = 26, seed = 3 } = {}) {
-  const r = i => (Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453) % 1;
-  for (let i = 0; i < n; i++) {
-    const s = .35 + Math.abs(r(i)) * .7, m = new T.Mesh(new T.SphereGeometry(s, 10, 8), new T.MeshLambertMaterial({ color: 0x8a8a90, transparent: true, opacity: .55, depthWrite: false }));
-    m.position.set(at[0] + r(i + 5) * .8 + i * .03, at[1] + i * .16, at[2] + r(i + 9) * .8 - i * .02); scene.add(m);
-  }
-}
-/** A sign on two posts with painted letters. */
-function sign(scene, at, yaw, text, { w = 3.2, h = .9, bg = '#e8d6a8', ink = '#7a2a1a' } = {}) {
-  const g = new T.Group(); g.position.set(...at); g.rotation.y = yaw; scene.add(g);
-  for (const s of [-1, 1]) cube(g, [.1, 1.6, .1], [s * (w / 2 - .2), .8, 0], { all: '#5a3c22' });
-  const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w); const p = c.getContext('2d');
-  p.fillStyle = bg; p.fillRect(0, 0, c.width, c.height); p.fillStyle = ink; p.font = `bold ${Math.round(Math.min(c.height * .42, c.width * 1.6 / text.length))}px "Arial Rounded MT Bold", Arial, sans-serif`; p.textAlign = 'center'; p.textBaseline = 'middle'; p.fillText(text, c.width / 2, c.height / 2);
-  const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
-  const plain = new T.MeshLambertMaterial({ color: bg }), board = new T.Mesh(new T.BoxGeometry(w, h, .08), [plain, plain, plain, plain, new T.MeshLambertMaterial({ map: t }), plain]); // letters on the +z face
-  board.position.y = 1.6; board.castShadow = true; g.add(board); return g;
-}
-/** A cherry-blossom wedding arch. */
-async function arch(scene, at, yaw = 0, span = 4.4, h = 3.6) {
-  const g = new T.Group(); g.position.set(...at); g.rotation.y = yaw; scene.add(g);
-  const log = await mat('cherry_log.png'), leaves = await mat('cherry_leaves.png', { color: 0xffd6ea, alphaTest: .4 });
-  for (const s of [-1, 1]) texBox(g, [.4, h, .4], [s * span / 2, h / 2, 0], log);
-  texBox(g, [span + 1.4, .9, 1.1], [0, h + .3, 0], leaves); texBox(g, [span - .6, .7, .9], [0, h + 1, 0], leaves);
-  for (const s of [-1, 1]) texBox(g, [1, 1.4, 1], [s * span / 2, h - .3, 0], leaves);
-  return g;
-}
-/** Buu's wedding cake: tiers of the game's cake, as tall as a house. */
-async function weddingCake(scene, at, tiers = 4) {
-  const side = await mat('cake_side.png'), top = await mat('cake_top.png'), bottom = await mat('cake_bottom.png');
-  let y = at[1];
-  for (let i = 0; i < tiers; i++) { const s = 2.6 - i * .55, h = .9; const m = texBox(scene, [s, h, s], [at[0], y + h / 2, at[2]], side); m.material = [side, side, top, bottom, side, side]; y += h; }
-  cube(scene, [.3, .5, .3], [at[0], y + .25, at[2]], { all: '#ff9ad5' }); return y;
-}
-/** A stone tournament ring, raised a little, with corner posts. */
-async function ring(scene, at, size = 12) {
-  const stone = await mat('smooth_stone.png'), edge = await mat('stone_bricks.png');
-  texBox(scene, [size, .6, size], [at[0], at[1] + .3, at[2]], edge); texBox(scene, [size - .4, .02, size - .4], [at[0], at[1] + .61, at[2]], stone);
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) cube(scene, [.4, 1.4, .4], [at[0] + sx * size / 2, at[1] + .7, at[2] + sz * size / 2], { all: '#d6383f' });
-  return at[1] + .62;
-}
-/** Fireworks: bursts of coloured sparks in the sky. */
-function fireworks(scene, bursts) {
-  for (const [p, color, r = 6, n = 140] of bursts) {
-    const pos = [], rnd = (i, k) => Math.abs(Math.sin(i * 91.7 + k * 13.1 + p[0]) * 4375.5) % 1;
-    for (let i = 0; i < n; i++) { const a = rnd(i, 1) * Math.PI * 2, b = Math.acos(rnd(i, 2) * 2 - 1), d = r * (.8 + rnd(i, 3) * .2); pos.push(p[0] + Math.sin(b) * Math.cos(a) * d, p[1] + Math.cos(b) * d, p[2] + Math.sin(b) * Math.sin(a) * d); }
-    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
-    scene.add(new T.Points(g, new T.PointsMaterial({ color, size: .5, transparent: true, opacity: .95, depthWrite: false, blending: T.AdditiveBlending })));
-    const l = new T.PointLight(color, 40, r * 6); l.position.set(...p); scene.add(l);
-  }
-}
 /** A CCTV picture: a second little scene rendered into a canvas, tinted green with scanlines and a timestamp. */
 function cctv(renderer, scene, camera, stamp) {
   renderer.setRenderTarget(null); renderer.render(scene, camera);
@@ -194,7 +111,7 @@ export const FRAMES = {
     title: 'Temperate Island · The carrot thief: Chi-Chi flips Goku', time: '0:45',
     async build() {
       await fontsReady; const { scene, W } = await islandScene('day', { sun: [-.6, .55, .45], focus: [FARM[0], 20, FARM[1]], area: 16 });
-      await farm(scene, W, FARM[0], FARM[1], 7, 6, { skip: (i, j) => i === 0 && j === 3 });
+      await farm(scene, W.groundAt, FARM[0], FARM[1], 7, 6, { skip: (i, j) => i === 0 && j === 3 });
       const A = [FARM[0] - 1.4, FARM[1] + 2.8], B = [FARM[0] - 2.2, FARM[1] + 4.2], C = [FARM[0] - 6.4, FARM[1] + 6.8], g = ground(W, ...A);
       const goku = actor(scene, W, 'goku', B[0], B[1], { lie: true, yaw: .55, armR: [-1.5, .2], armL: [-.3, -.5], legL: -.3 });
       cube(goku.armR, [.08, .3, .08], [0, -.82, 0], { all: '#f08a24' }); cube(goku.armR, [.1, .12, .1], [0, -1.02, 0], { all: '#4fa83a' }); // the stolen carrot
@@ -276,7 +193,7 @@ export const FRAMES = {
     title: 'A real apology · Goku ties a knot in his belt', time: '4:05',
     async build() {
       await fontsReady; const { scene, W } = await islandScene('day', { sun: [-.5, .55, .6], focus: [FARM[0], 20, FARM[1]], area: 16 });
-      await farm(scene, W, FARM[0], FARM[1], 7, 6);
+      await farm(scene, W.groundAt, FARM[0], FARM[1], 7, 6);
       const A = [FARM[0] - 1.3, FARM[1] + 3.2], B = [FARM[0] - 2.5, FARM[1] + 2.9], C = [FARM[0] - 3.4, FARM[1] + 7.2], g = ground(W, ...A);
       const goku = actor(scene, W, 'goku', A[0], A[1], { face: mix(B, C, .4), armL: [-.9, .3], armR: [-.9, -.3], headPitch: .1 });
       cube(goku.torso, [.12, .12, .08], [-.1, .14, -.18], { all: '#1f4fa8' }); cube(goku.torso, [.05, .18, .03], [-.07, .02, -.19], { all: '#1f4fa8' }); // the knot

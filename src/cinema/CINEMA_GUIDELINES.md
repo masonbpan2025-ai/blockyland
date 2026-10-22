@@ -42,6 +42,31 @@ and one robotic voice reading every line, questions included.
   next line (0.12 s minimum gap).
 - Clips are trimmed of silence, peak-normalised to 0.89 and stored at 48 kHz, with a 48 Hz
   loudness envelope that drives lip-sync.
+- **The voice service sometimes returns no audio** for a line it voices fine a moment later.
+  `narrate-claude.mjs` retries each line and saves the manifest after every clip, so a failure
+  never loses finished work; rerun it with just the missing line ids. The script picks the first
+  Python that has `numpy` (and `edge_tts` for Edge voices), trying `python3.10` before `python`,
+  because on Windows plain `python` is often only the Microsoft Store shortcut; `PYTHON` overrides it.
+- **Acted voices (`--tts=openai`) for films where performance matters.** Edge voices read
+  every line in one flat tone. OpenAI `gpt-4o-mini-tts` takes an acting direction with each
+  line, so give it four things: the character's `persona` (age, energy, quirks) on its
+  `VOICES` entry together with an `oa` voice, the scene's mood (`MOODS`), the two lines spoken
+  just before it (added automatically), and a short acting note for every line that carries
+  the story (`ACT`: "embarrassed and proud at once; a long pause, then a soft, genuine
+  Please"). Describe voices; never imitate a real voice actor. The key is read from
+  `OPENAI_KEY`. Each clip records a hash of its text and direction, so a rerun only voices
+  lines whose words or direction changed, and costs only those.
+- **Acted clips run longer** (civ-weddings: 10:02 with Edge became 10:38 with OpenAI).
+  After a re-voice, run the layout script and the full continuity check again. Back up the old
+  clips first (`outputs/<film>-edge-audio/`).
+- **A flat acted question is fixed by its direction.** Say where the lift goes and what
+  kind of question it is ("a shy yes-or-no question, like asking 'will you?'; his voice climbs
+  at the very end"). Repeat until `endPitchRatio` is above 1.
+- **Fix a flat question by rewording, not by forcing the pitch.** Measure a few candidate
+  wordings and keep one that rises. Short one-word questions rise in most voices
+  ("Wedding? Cake? Really?", "Again? Tomorrow?"); long questions often fall. Change the
+  subtitle to match what is actually spoken. A voice that lets every question fall (Sonia, for
+  Chi-Chi) is worth swapping for the whole character.
 
 ## 3. Faces and acting
 
@@ -223,6 +248,11 @@ which was clearly better than the same castle placed block by block from the sam
 - **Movers face their travel.** Riders (a cloud, a cart, a train) take the vehicle's heading;
   check the yaw convention once (`yaw` faces −z) instead of adding π by habit. Two flyers and two
   cart racers flew and raced backwards.
+- **Time motion from the line it serves, not from the scene start.** A run loop, a turn or a
+  pop-up timed from `SC(scene)[0]` drifts away from its line when clips change length. Anchor it
+  to the line (`L('goku-back') - 2.65`) so the shout still lands on the stretch that faces the
+  lens. In the same way, an actor turns *before* the cut to a shot whose camera follows them
+  (`front()`), never just after it, or the camera jumps. Re-voicing civ-weddings broke both.
 - **Flying pose:** body nearly level (`flyLean` ≈ 1.25), one arm forward, legs trailing, and the
   head pitched up (positive `headPitch`) so the face reads; shoot from ahead and level with the
   flyer so the line is delivered toward the lens.
