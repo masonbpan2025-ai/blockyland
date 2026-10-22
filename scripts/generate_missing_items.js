@@ -143,36 +143,6 @@ const itemPainters = {
     }
     return [0, 0, 0, 0];
   },
-  'raw_iron.png': (x, y) => {
-    // Raw iron nugget / chunk
-    const d = Math.hypot(x - 8, y - 8);
-    if (d <= 4.2) {
-      if (x <= 7 && y <= 7) return [215, 185, 160, 255];
-      if (d <= 2.5) return [175, 140, 120, 255];
-      return [120, 95, 80, 255];
-    }
-    return [0, 0, 0, 0];
-  },
-  'raw_gold.png': (x, y) => {
-    // Raw gold chunk
-    const d = Math.hypot(x - 8, y - 8);
-    if (d <= 4.2) {
-      if (x <= 7 && y <= 7) return [255, 230, 70, 255];
-      if (d <= 2.5) return [225, 185, 30, 255];
-      return [160, 125, 15, 255];
-    }
-    return [0, 0, 0, 0];
-  },
-  'raw_copper.png': (x, y) => {
-    // Raw copper chunk
-    const d = Math.hypot(x - 8, y - 8);
-    if (d <= 4.2) {
-      if (x <= 7 && y <= 7) return [235, 140, 95, 255];
-      if (d <= 2.5) return [185, 95, 60, 255];
-      return [125, 60, 40, 255];
-    }
-    return [0, 0, 0, 0];
-  },
   'clay_ball.png': (x, y) => {
     // Gray-blue round ball
     const d = Math.hypot(x - 8, y - 8);

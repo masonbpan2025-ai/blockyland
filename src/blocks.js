@@ -1083,7 +1083,7 @@ export const BLOCK_DEFS = {
     name: 'Iron Ore',
     hardness: 3.0,
     sound: 'stone',
-    dropItem: 'iron_ingot',
+    dropItem: 'raw_iron',
     textures: {
       all: 'iron_ore.png'
     }
@@ -1092,7 +1092,7 @@ export const BLOCK_DEFS = {
     name: 'Gold Ore',
     hardness: 3.0,
     sound: 'stone',
-    dropItem: 'gold_ingot',
+    dropItem: 'raw_gold',
     textures: {
       all: 'gold_ore.png'
     }
@@ -2301,8 +2301,8 @@ for (const id of WATER_PLANT_BLOCK_IDS) {
 
 // Complete Item definitions
 export const ITEMS = {
-  iron_nugget: { name: 'Iron Nugget', icon: '/assets/items/iron_nugget.svg', type: 'material' },
-  spectral_arrow: { name: 'Spectral Arrow', icon: '/assets/items/spectral_arrow.svg', type: 'material' },
+  iron_nugget: { name: 'Iron Nugget', icon: '/assets/items/iron_nugget.png', type: 'material' },
+  spectral_arrow: { name: 'Spectral Arrow', icon: '/assets/items/spectral_arrow.png', type: 'material' },
   potion_of_fire_resistance: { name: 'Potion of Fire Resistance (3:00)', icon: '/assets/items/fire_resistance.svg', type: 'potion', stackSize: 1 },
   splash_potion_of_fire_resistance: { name: 'Splash Potion of Fire Resistance (3:00)', icon: '/assets/items/splash_fire_resistance.svg', type: 'potion', stackSize: 1 },
   // --- Swords / Weapons ---

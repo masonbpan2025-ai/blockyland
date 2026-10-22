@@ -180,6 +180,7 @@ const items = [
   'diamond_pickaxe.png', 'iron_pickaxe.png', 'stone_pickaxe.png', 'wooden_pickaxe.png',
   'diamond_axe.png', 'iron_axe.png', 'diamond_shovel.png', 'iron_shovel.png',
   'stick.png', 'coal.png', 'iron_ingot.png', 'gold_ingot.png', 'diamond.png', 'emerald.png',
+  'raw_iron.png', 'raw_gold.png', 'raw_copper.png',
   'bread.png', 'apple.png', 'cooked_beef.png', 'beef.png', 'wheat.png', 'bow.png', 'arrow.png', 'crossbow.png',
   'totem_of_undying.png'
 ];

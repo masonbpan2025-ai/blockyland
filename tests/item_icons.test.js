@@ -106,3 +106,25 @@ test('Catalog Integrity - 100% of ALL_CREATIVE_ITEMS entries have existing icon 
     assert.ok(fs.existsSync(fullPath), `Creative item icon not found: ${fullPath} for ${item.name}`);
   }
 });
+
+test('Raw Metal & Material Icons - Raw iron, gold, copper and nuggets match authentic pixel art', () => {
+  const authenticItems = [
+    { id: 'raw_iron', expectedPath: '/assets/items/raw_iron.png', minSize: 200 },
+    { id: 'raw_gold', expectedPath: '/assets/items/raw_gold.png', minSize: 200 },
+    { id: 'raw_copper', expectedPath: '/assets/items/raw_copper.png', minSize: 200 },
+    { id: 'iron_nugget', expectedPath: '/assets/items/iron_nugget.png', minSize: 150 },
+    { id: 'gold_nugget', expectedPath: '/assets/items/gold_nugget.png', minSize: 130 },
+    { id: 'spectral_arrow', expectedPath: '/assets/items/spectral_arrow.png', minSize: 120 }
+  ];
+
+  for (const { id, expectedPath, minSize } of authenticItems) {
+    const def = ITEMS[id];
+    assert.ok(def, `Item definition for ${id} must exist`);
+    assert.equal(def.icon, expectedPath, `Icon for ${id} should be ${expectedPath}`);
+    const fullPath = checkAssetExists(def.icon);
+    verifyPNGHeader(fullPath, 16, 16);
+    const size = fs.statSync(fullPath).size;
+    assert.ok(size >= minSize, `Icon for ${id} should have authentic detail (size ${size} >= ${minSize})`);
+  }
+});
+

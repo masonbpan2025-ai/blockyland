@@ -36,6 +36,7 @@ const itemsToDownload = [
 
   // Ingredients & Materials
   'charcoal.png', 'netherite_ingot.png', 'copper_ingot.png',
+  'raw_iron.png', 'raw_gold.png', 'raw_copper.png',
   'redstone.png', 'lapis_lazuli.png', 'quartz.png', 'amethyst_shard.png', 'glowstone_dust.png',
   'gunpowder.png', 'string.png', 'feather.png', 'bone.png', 'bone_meal.png',
   'ender_pearl.png', 'blaze_rod.png', 'slime_ball.png', 'snowball.png',
