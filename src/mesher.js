@@ -237,6 +237,65 @@ const AO_OFFSETS = {
   ],
 };
 
+// --- Covered faces of shaped blocks --------------------------------------------
+//
+// Shaped blocks (lava, snow layers, carpets, stairs, slabs, dripstone...) are built whole and used to keep every face,
+// even one pressed against stone or against more of the same block. A world at render distance 8 held 34,000 exposed
+// lava blocks drawing all six faces -- 400,000 triangles, most inside lava lakes -- and snow layers drew their sides
+// into each other and their bottoms into the ground. A face lying flat on the block's boundary is dropped when the
+// neighbour there covers it completely: an opaque full cube, lava beside lava (the two share the corner heights of
+// their common edge, so a side between them is inside the lava), or the same carpet beside it (same height).
+
+/** The block's sides hidden by their neighbours, one bit per face in FACE_NORMAL order. */
+function coveredSides(T, blockId, def, lx, ly, lz) {
+  let mask = 0;
+  for (let face = 0; face < 6; face++) {
+    const n = FACE_NORMAL[face];
+    const id = padGet(lx + n[0], ly + n[1], lz + n[2]);
+    if (T.occludes[id] || (id === blockId && (blockId === BLOCKS.LAVA || (def?.carpet && face >= 2)))) mask |= 1 << face;
+  }
+  return mask;
+}
+
+const EPS = 1e-4;
+/** Which face a triangle lies flat on, as a FACE_NORMAL index, or -1 when it is inside the block or slanted. */
+function boundaryFace(pos, nrm, a, b, c) {
+  const nx = nrm.getX(a), ny = nrm.getY(a), nz = nrm.getZ(a);
+  const face = ny > 0.999 ? 0 : ny < -0.999 ? 1 : nz > 0.999 ? 2 : nz < -0.999 ? 3 : nx > 0.999 ? 4 : nx < -0.999 ? 5 : -1;
+  if (face < 0) return -1;
+  const axis = face < 2 ? 1 : face < 4 ? 2 : 0;
+  const plane = face % 2 === 0 ? 1 : 0;
+  for (const v of [a, b, c]) {
+    if (Math.abs(nrm.getComponent(v, axis) - FACE_NORMAL[face][axis]) > 0.001) return -1;
+    for (let k = 0; k < 3; k++) {
+      const value = pos.getComponent(v, k);
+      if (k === axis ? Math.abs(value - plane) > EPS : value < -EPS || value > 1 + EPS) return -1;
+    }
+  }
+  return face;
+}
+
+/**
+ * Drop a block-local geometry's triangles on the covered sides. Only the index changes, so the vertex count -- and
+ * the attribute layout every merged geometry must share -- stays the same. Returns null when nothing is left.
+ */
+function dropCoveredFaces(geometry, mask) {
+  const index = geometry.index, pos = geometry.attributes.position, nrm = geometry.attributes.normal;
+  if (!mask || !index || !nrm) return geometry;
+  const kept = [];
+  for (let t = 0; t < index.count; t += 3) {
+    const a = index.getX(t), b = index.getX(t + 1), c = index.getX(t + 2);
+    const face = boundaryFace(pos, nrm, a, b, c);
+    if (face >= 0 && mask & (1 << face)) continue;
+    kept.push(a, b, c);
+  }
+  if (kept.length === index.count) return geometry;
+  if (!kept.length) { geometry.dispose(); return null; }
+  geometry.setIndex(kept);
+  geometry.clearGroups();
+  return geometry;
+}
+
 /** Face names in the order the constants below are indexed. */
 const FACE_NAMES = ['top', 'bottom', 'north', 'south', 'east', 'west'];
 const FACES = FACE_NAMES;
@@ -437,17 +496,19 @@ export class ChunkMesher {
             // A structure's stair carries its facing in `structureOrientations`; everything else here reads redstone state.
             const state = world.redstone?.state([wx, wy, wz]) || ((def.pointedDripstone || def.stair || def.slab || def.plant || blockId===BLOCKS.CHORUS_FLOWER || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
               || (def.model?.connections ? { connect: chorusConnections(world, wx, wy, wz) } : null) || {};
-            const geometry = this.shapedGeometry(blockId, state);
-            if (def.snowLayer) {
-              const normals = geometry.attributes.normal, exposure = new Float32Array(normals.count);
-              for (let i = 0; i < normals.count; i++) exposure[i] = faceSkyExposure(lx, ly, lz, normals.getX(i), normals.getY(i), normals.getZ(i), snowSkyCeilings);
-              geometry.setAttribute('snowExposure', new THREE.Float32BufferAttribute(exposure, 1));
-            } else geometry.setAttribute('snowExposure', new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count), 1));
-            geometry.translate(wx, wy, wz);
-            const origin = new Float32Array(geometry.attributes.position.count * 3);
-            for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
-            geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
-            lightGeometries.push(geometry);
+            const geometry = dropCoveredFaces(this.shapedGeometry(blockId, state), coveredSides(T, blockId, def, lx, ly, lz));
+            if (geometry) {
+              if (def.snowLayer) {
+                const normals = geometry.attributes.normal, exposure = new Float32Array(normals.count);
+                for (let i = 0; i < normals.count; i++) exposure[i] = faceSkyExposure(lx, ly, lz, normals.getX(i), normals.getY(i), normals.getZ(i), snowSkyCeilings);
+                geometry.setAttribute('snowExposure', new THREE.Float32BufferAttribute(exposure, 1));
+              } else geometry.setAttribute('snowExposure', new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count), 1));
+              geometry.translate(wx, wy, wz);
+              const origin = new Float32Array(geometry.attributes.position.count * 3);
+              for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+              geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+              lightGeometries.push(geometry);
+            }
             // A shaped emitter reaches this branch and used to `continue` straight past the emissive branch
             // below, so its light was never registered: the light manager had no source for an end rod, and
             // the emitting-block sweep had nothing to read. Candles and lanterns come through here too.
@@ -522,17 +583,21 @@ export class ChunkMesher {
               return !faceOcclusion[world.getVoxel(wx + dx, wy + dy, wz + dz)];
             });
             if (exposed) {
-              const geometry = this.shapedGeometry(blockId, caveState);
+              let geometry = this.shapedGeometry(blockId, caveState);
               if(blockId===BLOCKS.LAVA){
                 const pos=geometry.attributes.position;
 
                 for(let i=0;i<pos.count;i++)if(pos.getY(i)>.5)pos.setY(i,lavaCornerHeight(world,wx+Math.round(pos.getX(i)),wy,wz+Math.round(pos.getZ(i))));
               }
-              geometry.translate(wx, wy, wz);
-              const origin = new Float32Array(geometry.attributes.position.count * 3);
-              for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5], i);
-              geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
-              lightGeometries.push(geometry);
+              // After the lava surface is lowered: a lowered top is no longer on the boundary, so it stays.
+              geometry = dropCoveredFaces(geometry, coveredSides(T, blockId, def, lx, ly, lz));
+              if (geometry) {
+                geometry.translate(wx, wy, wz);
+                const origin = new Float32Array(geometry.attributes.position.count * 3);
+                for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5], i);
+                geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+                lightGeometries.push(geometry);
+              }
               lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5), level: emittedLight, color: def.lightColor || 0xffc477 });
             }
             continue;

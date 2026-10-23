@@ -319,7 +319,8 @@ export function findSafeMobSpawnPosition(world, mobs, type, x, y, z) {
 
   const baseY = Math.floor(y);
   const searchMaxY = Math.min(60, baseY + 10);
-  const searchMinY = Math.max(1, baseY - 12);
+  // The world's lowest layer (y = 0) is a floor too: a mob can stand on bedrock.
+  const searchMinY = Math.max(0, baseY - 12);
   const targetFloor = baseY - 1;
 
   let bestCandidate = null;

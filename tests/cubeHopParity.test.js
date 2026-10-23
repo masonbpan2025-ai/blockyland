@@ -163,7 +163,9 @@ test('a cube looks for an iron golem when no player is in range', () => {
     }
   });
   assert.equal(mob.cubeTarget, golem, 'it targets the golem');
-  assert.ok(Math.abs(mob.yaw - Math.PI / 2) < 1e-6, 'and faces it');
+  // Spawning stands the golem in the middle of a block, so the bearing is taken from where it is.
+  const bearing = Math.atan2(golem.mesh.position.x - mob.mesh.position.x, golem.mesh.position.z - mob.mesh.position.z);
+  assert.ok(Math.abs(mob.yaw - bearing) < 1e-6, 'and faces it');
 });
 
 test('a cube only hops when it is on the ground', () => {

@@ -55,7 +55,9 @@ for(const biome of ['plains','forest','desert','frozen_peaks','ocean'])test(`${b
 
 test('aquifers have local water tables, deep lava and solid separation instead of flooding every cave',()=>{
  const w=region(bare(),-2,2),n=counts(w);assert.ok(n.get(B.WATER)>50);assert.ok(n.get(B.LAVA)>50);assert.ok(n.get(B.AIR)>n.get(B.WATER)*10);
- const tables=new Set();for(let x=-32;x<48;x++)for(let z=-32;z<48;z++)for(let y=2;y<14;y++){const id=w.getVoxel(x,y,z);if(id===B.WATER){tables.add(w.caves.column(x,z).waterTable);assert.ok(y>=6);for(const [dx,dy,dz]of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])assert.notEqual(w.getVoxel(x+dx,y+dy,z+dz),B.LAVA,'generated water touches lava');}}
+ // The aquifers' own water is source water; what flows on from it into the caves below is settled before the chunk
+ // appears (worldgen/settleWater.js), so only the sources hold the water table.
+ const tables=new Set();for(let x=-32;x<48;x++)for(let z=-32;z<48;z++)for(let y=2;y<14;y++){const id=w.getVoxel(x,y,z);if(id===B.WATER){if(w.getWaterLevel(x,y,z)===0){tables.add(w.caves.column(x,z).waterTable);assert.ok(y>=6);}for(const [dx,dy,dz]of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])assert.notEqual(w.getVoxel(x+dx,y+dy,z+dz),B.LAVA,'generated water touches lava');}}
  assert.ok(tables.size>1,'one global sea level is not an aquifer system');
 });
 

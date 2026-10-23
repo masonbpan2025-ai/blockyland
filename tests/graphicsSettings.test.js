@@ -37,20 +37,20 @@ function fakeGame() {
   };
 }
 
-test('both settings default to the game as it was', () => {
+test('a player who has not chosen gets the fast settings: Performance Mode on and 4 chunks', () => {
   const storage = memoryStorage();
   assert.equal(savedRenderDistance(storage), DEFAULT_RENDER_DISTANCE);
-  assert.equal(DEFAULT_RENDER_DISTANCE, 8);
+  assert.equal(DEFAULT_RENDER_DISTANCE, 4);
   const game = fakeGame();
   const settings = new GraphicsSettings(game, { storage });
   settings.apply();
-  assert.equal(settings.performanceMode, false);
-  assert.equal(game.shader.edgeAntialiasing, true);
-  assert.equal(game.renderer.ratio, Math.min(globalThis.devicePixelRatio || 1, 1.25), 'the resolution main.js always used');
+  assert.equal(settings.performanceMode, true);
+  assert.equal(game.shader.edgeAntialiasing, false);
+  assert.equal(game.renderer.ratio, 1);
 });
 
 test('Performance Mode draws at 1x with no edge smoothing, and is remembered', () => {
-  const storage = memoryStorage();
+  const storage = memoryStorage({ [PERFORMANCE_STORAGE_KEY]: 'off' });
   const game = fakeGame();
   const settings = new GraphicsSettings(game, { storage });
   const perf = button(), distance = button();
@@ -72,7 +72,12 @@ test('Performance Mode draws at 1x with no edge smoothing, and is remembered', (
 
   perf.click();
   assert.equal(game.shader.edgeAntialiasing, true);
+  assert.equal(game.renderer.ratio, Math.min(globalThis.devicePixelRatio || 1, 1.25), 'off, the resolution main.js always used');
   assert.equal(storage.getItem(PERFORMANCE_STORAGE_KEY), 'off');
+  // Turned off is remembered too, though on is the default.
+  const off = fakeGame();
+  new GraphicsSettings(off, { storage }).apply();
+  assert.equal(off.shader.edgeAntialiasing, true);
 });
 
 test('the render distance button steps through 4, 6, 8 and 10 chunks, says which, and is remembered', () => {
@@ -90,14 +95,14 @@ test('the render distance button steps through 4, 6, 8 and 10 chunks, says which
   assert.equal(distance.textContent, 'Render Distance: 4 Chunks');
   assert.equal(storage.getItem(RENDER_DISTANCE_STORAGE_KEY), '4');
   assert.equal(savedRenderDistance(storage), 4);
-  assert.equal(savedRenderDistance(memoryStorage({ [RENDER_DISTANCE_STORAGE_KEY]: '7' })), 8, 'an unknown value falls back');
+  assert.equal(savedRenderDistance(memoryStorage({ [RENDER_DISTANCE_STORAGE_KEY]: '7' })), 4, 'an unknown value falls back');
 });
 
 test('storage that throws (a private window) does not break either setting', () => {
   const storage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
   const game = fakeGame();
   const settings = new GraphicsSettings(game, { storage });
-  assert.equal(savedRenderDistance(storage), 8);
+  assert.equal(savedRenderDistance(storage), 4);
   settings.setPerformanceMode(true);
   settings.setRenderDistance(6);
   assert.equal(game.renderer.ratio, 1);

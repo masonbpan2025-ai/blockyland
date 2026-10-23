@@ -37,7 +37,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
  * resolve an id back to one.
  */
 const BLOCK_NAMES_BY_ID = new Map();
-import { steerGround } from './netherMobAI.js';
+import { steerGround, PATH_FRAME_NODES } from './netherMobAI.js';
 import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape, findSafeMobSpawnPosition } from './mobMotion.js';
 import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { shulkerBulletData, steerShulkerBullet } from './shulkerBullet.js';
@@ -100,7 +100,8 @@ import { WITHER_HEALTH, WITHER_DIMENSIONS, WITHER_XP, WITHER_UNDEAD_TRAITS, isWi
 import { HostileMobBehaviors } from './hostileMobBehaviors.js';
 import { buildModel, adoptWhenReady, flushPendingSkinBindings, groundModel, skinBinding, applyVanillaBoxUVs } from './mobVisuals/modelBuilder.js';
 import { createEntityBox, createBoxFromFaces } from './mobVisuals/entityBox.js';
-import { initVillagerEconomy, updateVillagerWorkstation, updateZombieVillagerCuring, updateVillagerRegeneration, recordAttack, recordKill, decayGossip } from './villagerEconomy.js';
+import { mobStep, MobViewCheck } from './mobLod.js';
+import { initVillagerEconomy, JOB_SITE_BLOCKS, updateVillagerWorkstation, updateZombieVillagerCuring, updateVillagerRegeneration, recordAttack, recordKill, decayGossip } from './villagerEconomy.js';
 
 // Helper to create box with UV mapping on a specific texture sheet
 export function createBoxWithUV(w, h, d, u, v, texW = 64, texH = 64, pw, ph, pd) {  const geo = new THREE.BoxGeometry(w, h, d);
@@ -754,6 +755,12 @@ function applyVariantIdentity(mob, variant, options = {}) {
 export class MobManager {
   constructor(scene, world, sounds, entities = null) {
     this.entities = entities;
+    // The world counts job sites placed, so villagers that found none know to look again (villager update below).
+    if (world) world.jobSiteBlocks = JOB_SITE_BLOCKS;
+    // Far mobs update ~12 times a second and unseen mobs are not re-posed (mobLod.js); the game turns both on.
+    this.farMobThrottle = false;
+    this.unseenAnimationSkip = false;
+    this.mobViewCheck = new MobViewCheck();
     this.scene = scene;
     this.world = world;
     this.sounds = sounds;
@@ -3418,6 +3425,7 @@ export class MobManager {
     }
     const radii = this._collisionRadii;
     const heights = this._collisionHeights;
+    let largest = 0;
     for (let i = 0; i < len; i++) {
       const mob = this.mobs[i];
       if (!mob || mob.health <= 0 || mob.dying || !mob.mesh?.position) continue;
@@ -3425,9 +3433,47 @@ export class MobManager {
       const scale = mob.isBaby ? (isSquid(mob) ? .625 : mob.type === 'horse' ? .7 : .5) : 1.0;
       heights[i] = (mob.height || dims?.height || 1.0) * scale;
       radii[i] = Math.max(0.24, (mob.width || dims?.width || 0.6) * scale * 0.5);
+      if (radii[i] > largest) largest = radii[i];
     }
 
+    // Only mobs in neighbouring cells of a grid can touch. Every pair used to be tested, twice a frame: a village of 434
+    // mobs made 190,000 tests and cost 11 ms. A cell is wider than any two mobs' reach. The grid follows every push as
+    // it is made, a mob's neighbours are taken in the old order (by index), and a mob pushed into another cell gathers
+    // the neighbours there it has not yet passed -- so exactly the pairs the full scan separated are separated, in the
+    // same order, with the same result.
+    const cell = Math.max(2, largest * 2 + 0.5);
+    const grid = new Map();
+    const keyOf = (gx, gz) => (gx + 32768) * 65536 + (gz + 32768);
+    const cellOf = new Float64Array(len).fill(-1);
+    /** Put mob i in the cell it stands in now. */
+    const place = (i) => {
+      const p = this.mobs[i].mesh.position, k = keyOf(Math.floor(p.x / cell), Math.floor(p.z / cell));
+      if (k === cellOf[i]) return;
+      const old = grid.get(cellOf[i]);
+      if (old) old.splice(old.indexOf(i), 1);
+      let list = grid.get(k);
+      if (!list) grid.set(k, list = []);
+      list.push(i);
+      cellOf[i] = k;
+    };
+    /** Mob i's neighbours with an index above `after`, added to `into`, in index order. */
+    const gather = (i, after, into) => {
+      const p = this.mobs[i].mesh.position, cx = Math.floor(p.x / cell), cz = Math.floor(p.z / cell);
+      for (let gx = cx - 1; gx <= cx + 1; gx++) for (let gz = cz - 1; gz <= cz + 1; gz++) {
+        const list = grid.get(keyOf(gx, gz));
+        if (list) for (const j of list) if (j > after && !into.includes(j)) into.push(j);
+      }
+      return into.sort((a, b) => a - b);
+    };
+
     for (let iter = 0; iter < 2; iter++) {
+      grid.clear();
+      cellOf.fill(-1);
+      for (let i = 0; i < len; i++) {
+        const mob = this.mobs[i];
+        if (!mob || mob.health <= 0 || mob.dying || !mob.mesh?.position) continue;
+        place(i);
+      }
       for (let i = 0; i < len; i++) {
         const mobA = this.mobs[i];
         if (!mobA || mobA.health <= 0 || mobA.dying || !mobA.mesh?.position) continue;
@@ -3436,10 +3482,23 @@ export class MobManager {
         const rA = radii[i];
         const yA = mobA.mesh.position.y;
 
-        for (let j = i + 1; j < len; j++) {
+        let nearby = gather(i, i, []);
+        let rowCell = cellOf[i];
+        for (let n = 0; n < nearby.length; n++) {
+          if (n > 0) {
+            // The last pair may have moved both mobs: the grid follows them. A mob pushed into another cell adds the
+            // neighbours there that come later in the order.
+            const prev = nearby[n - 1];
+            place(prev);
+            place(i);
+            if (cellOf[i] !== rowCell) { rowCell = cellOf[i]; nearby = gather(i, prev, nearby.slice(n)); n = 0; }
+          }
+          const j = nearby[n];
           const mobB = this.mobs[j];
           if (!mobB || mobB.health <= 0 || mobB.dying || !mobB.mesh?.position) continue;
           if (mobA.rider === mobB || mobB.rider === mobA) continue;
+          // Two far mobs that both waited this frame have not moved; they are separated when one of them next steps.
+          if (mobA.lodSkipped && mobB.lodSkipped) continue;
 
           const dx = mobA.mesh.position.x - mobB.mesh.position.x;
           const dz = mobA.mesh.position.z - mobB.mesh.position.z;
@@ -3511,6 +3570,7 @@ export class MobManager {
             }
           }
         }
+        if (nearby.length) { place(nearby[nearby.length - 1]); place(i); }
       }
     }
   }
@@ -10727,6 +10787,8 @@ export class MobManager {
   update(dt, player) {
     dt = Math.min(dt, 0.1);
     this.ensureFaultTracking();
+    // Route searches all mobs together may make this frame (netherMobAI.js PATH_FRAME_NODES).
+    this.pathNodesLeft = PATH_FRAME_NODES;
     // Finish any skin whose texture finished downloading after its mob was built. Cheap once everything has
     // decoded, because the pending list empties itself.
     syncDeferredSkins();
@@ -10764,9 +10826,19 @@ export class MobManager {
     // loop down with it: every other mob froze mid-step and stopped reacting to hits,
     // and the only trace was a console line. A mob that faults is now reported once
     // and skipped, so the rest of the world keeps moving.
+    // Far mobs think less often and unseen mobs are not re-posed (mobLod.js). Both are off unless the game turns them
+    // on, so a manager driven directly (tests, tools) steps every mob every call as before.
+    const frameDt = dt;
+    this.lodFrame = (this.lodFrame ?? 0) + 1;
+    const playerPosition = player?.position ?? null;
+    const view = this.unseenAnimationSkip ? this.mobViewCheck.update(this.game?.camera, this.world, this.game?.scene?.fog) : null;
     for (let i = this.mobs.length - 1; i >= 0; i--) {
       const mob = this.mobs[i];
       if (this.brokenMobs.has(mob)) continue;
+      // This mob's own timestep, which everything below uses. 0: a far mob waiting for its next step.
+      const dt = this.farMobThrottle ? mobStep(mob, frameDt, playerPosition, this.lodFrame) : frameDt;
+      if (dt === 0) continue;
+      const animate = !view || view.sees(mob);
       let motionStartX, motionStartZ;
       try {
         motionStartX = mob.mesh.position.x; motionStartZ = mob.mesh.position.z;
@@ -10905,7 +10977,7 @@ export class MobManager {
       }
       const vx = mob.velocity ? mob.velocity.x : 0;
       const vz = mob.velocity ? mob.velocity.z : 0;
-      this.updateMobAnimation(mob, dt, vx, vz);
+      if (animate) this.updateMobAnimation(mob, dt, vx, vz);
       } catch (err) {
         // One broken mob must not stop the others. Report it once and skip it from
         // now on, rather than throwing every frame and burying the cause.
@@ -10914,7 +10986,7 @@ export class MobManager {
       } finally {
         // Species AI may return early for a pose, a ride or aquatic motion. Articulate
         // every surviving quadruped after that path, while preserving its special action.
-        if (!this.brokenMobs.has(mob) && quadrupedMode(mob)) try {
+        if (animate && !this.brokenMobs.has(mob) && quadrupedMode(mob)) try {
           const p = mob.mesh.position;
           updateQuadrupedMotion(mob, dt, {
             distance: Math.hypot(p.x - motionStartX, p.z - motionStartZ), player,
@@ -13066,10 +13138,24 @@ export class MobManager {
       // Periodically check workstation claims and restocking. The day counter is what caps a villager at the
       // wiki's "twice per day", so it has to travel with the call rather than be recomputed from a clock that
       // wraps every 24000 ticks.
+      // A villager that found no job site looks again less and less often -- 4, 8, 16, then every 30 s -- as a search
+      // reads ~9,800 cells, and a village of 105 job seekers spent 3 ms a frame finding nothing. A job site placed
+      // anywhere since its last search brings it back to the usual two seconds.
       mob.workstationCheckTimer = (mob.workstationCheckTimer || 0) - dt;
+      if (mob.jobSearchFailures && mob.jobSitesSeen !== (this.world.jobSitesPlaced ?? 0)) {
+        mob.jobSearchFailures = 0;
+        mob.workstationCheckTimer = Math.min(mob.workstationCheckTimer, 2.0);
+      }
       if (mob.workstationCheckTimer <= 0) {
-        mob.workstationCheckTimer = 2.0;
         updateVillagerWorkstation(mob, this.world, this.mobs, { day: this.game?.dayCount ?? 0 });
+        if (mob.workstation || mob.profession === 'nitwit') {
+          mob.jobSearchFailures = 0;
+          mob.workstationCheckTimer = 2.0;
+        } else {
+          mob.jobSearchFailures = (mob.jobSearchFailures || 0) + 1;
+          mob.jobSitesSeen = this.world.jobSitesPlaced ?? 0;
+          mob.workstationCheckTimer = Math.min(30, 2.0 * 2 ** mob.jobSearchFailures);
+        }
       }
 
       // Wiki: "Every 20 minutes, all gossips of a villager decays by the amount in the 'Decay' column." The

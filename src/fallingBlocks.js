@@ -49,10 +49,12 @@ export class FallingBlocks {
     this.entities = [];
     this.acc = 0;
     this.random = Math.random;
+    /** Block id -> the instanced mesh its falling blocks are drawn with (see `draw`). */
+    this.drawn = new Map();
   }
   /** main.js hands over drawing and the item/entity systems once they exist. */
   attach({ scene, textures, entities, mobs, player, sounds } = {}) { Object.assign(this, { scene, textures, entityManager: entities, mobs, player, sounds }); }
-  reset() { this.pending.clear(); for (const e of this.entities) e.mesh?.removeFromParent?.(); this.entities.length = 0; this.acc = 0; }
+  reset() { this.pending.clear(); this.entities.length = 0; this.acc = 0; this.draw(); }
 
   /** A block changed at x,y,z: the block there and the one above it may have lost (or gained) support. */
   notify(x, y, z) {
@@ -63,10 +65,59 @@ export class FallingBlocks {
   }
 
   update(dt) {
-    if (!this.pending.size && !this.entities.length) return;
+    if (!this.pending.size && !this.entities.length && !this.shown) return;
     this.acc = Math.min(this.acc + dt, TICK * 10);
     while (this.acc >= TICK) { this.acc -= TICK; this.tick(); }
-    for (const e of this.entities) e.mesh?.position.set(e.x, e.y + 0.5, e.z);
+    this.draw();
+  }
+
+  /**
+   * Falling blocks of one kind share one geometry and are drawn as instances of it. Each used to be a mesh with its
+   * own geometry: a beach collapsing into a flooded cave put two thousand in the air at once, and drawing them took
+   * most of a second a frame -- and their geometries were never disposed.
+   */
+  draw() {
+    const scene = this.scene ?? this.world.game?.scene;
+    if (!scene) return;
+    const counts = new Map();
+    for (const e of this.entities) counts.set(e.id, (counts.get(e.id) ?? 0) + 1);
+    for (const [id, n] of counts) {
+      let mesh = this.drawn.get(id);
+      if (!mesh || mesh.instanceMatrix.count < n) {
+        const geometry = mesh?.geometry ?? this.blockGeometry(id);
+        const material = mesh?.material ?? (this.textures ?? this.world.game?.textures)?.opaqueMaterial ?? new THREE.MeshLambertMaterial({ color: 0xdbcf9a });
+        if (mesh) { mesh.removeFromParent(); mesh.dispose(); }
+        mesh = new THREE.InstancedMesh(geometry, material, Math.max(16, 2 ** Math.ceil(Math.log2(n))));
+        mesh.name = 'falling blocks';
+        // Its bounds would have to be recomputed every frame as the blocks move; there are few of these meshes.
+        mesh.frustumCulled = false;
+        this.drawn.set(id, mesh);
+      }
+      if (mesh.parent !== scene) scene.add(mesh);
+    }
+    const next = new Map();
+    const matrix = new THREE.Matrix4();
+    for (const e of this.entities) {
+      const mesh = this.drawn.get(e.id), i = next.get(e.id) ?? 0;
+      next.set(e.id, i + 1);
+      mesh.setMatrixAt(i, matrix.makeTranslation(e.x, e.y + 0.5, e.z));
+    }
+    for (const [id, mesh] of this.drawn) {
+      mesh.count = counts.get(id) ?? 0;
+      mesh.visible = mesh.count > 0;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    this.shown = this.entities.length > 0;
+  }
+
+  /** The geometry a falling block of this kind is drawn with, centred on its origin. */
+  blockGeometry(id) {
+    const textures = this.textures ?? this.world.game?.textures;
+    try {
+      const geometry = textures?.opaqueMaterial ? createBlockGeometry(id, textures) : null;
+      if (geometry) return geometry.translate(-0.5, -0.5, -0.5);
+    } catch { /* drawn as a plain box */ }
+    return new THREE.BoxGeometry(0.98, 0.98, 0.98);
   }
 
   tick() {
@@ -75,7 +126,7 @@ export class FallingBlocks {
       for (const [k, t] of this.pending) { if (t <= 1) due.push(k); else this.pending.set(k, t - 1); }
       for (const k of due) { this.pending.delete(k); const [x, y, z] = k.split(',').map(Number); this.check(x, y, z); }
     }
-    for (let i = this.entities.length - 1; i >= 0; i--) if (this.step(this.entities[i])) { this.entities[i].mesh?.removeFromParent?.(); this.entities.splice(i, 1); }
+    for (let i = this.entities.length - 1; i >= 0; i--) if (this.step(this.entities[i])) this.entities.splice(i, 1);
   }
 
   /** Concrete powder: "placed into, placed next to, or fall into ... water" turns it into concrete. */
@@ -96,16 +147,7 @@ export class FallingBlocks {
   }
 
   spawn(id, x, y, z) {
-    const e = { id, x: x + 0.5, y, z: z + 0.5, vy: 0, startY: y, age: 0, mesh: null };
-    const scene = this.scene ?? this.world.game?.scene, textures = this.textures ?? this.world.game?.textures;
-    if (scene) {
-      try {
-        const geo = textures?.opaqueMaterial ? createBlockGeometry(id, textures) : null;
-        geo?.translate(-0.5, -0.5, -0.5);
-        const mesh = geo ? new THREE.Mesh(geo, textures.opaqueMaterial) : new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.98, 0.98), new THREE.MeshLambertMaterial({ color: 0xdbcf9a }));
-        mesh.position.set(e.x, e.y + 0.5, e.z); scene.add(mesh); e.mesh = mesh;
-      } catch { e.mesh = null; }
-    }
+    const e = { id, x: x + 0.5, y, z: z + 0.5, vy: 0, startY: y, age: 0 };
     this.entities.push(e);
     return e;
   }

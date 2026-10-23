@@ -22,6 +22,13 @@ import { rollStructureLoot } from './structureLoot.js';
 import { BED_DIRECTIONS } from './bed.js';
 import { isWallAttached, attachStateForStructure, rememberAttachment } from './wallAttached.js';
 import { findSafeMobSpawnPosition } from './mobMotion.js';
+import { settleChunkWater } from './worldgen/settleWater.js';
+
+/**
+ * How much water a new chunk's arrival may check (#settleNewWater), in cells: a frame's share. A long cascade's remainder
+ * goes on in the ordinary simulation. A count rather than a time, so that a chunk comes out the same on every machine.
+ */
+const SETTLE_CELLS = 1000;
 
 // Gradient tables, built once. They were nested array literals inside noise2D/noise3D, so every sample (thousands
 // per chunk) allocated thirteen arrays; same values, so the same terrain.
@@ -468,6 +475,8 @@ export class World {
     this.chunkCacheHits = 0;
     this.chunkCacheMisses = 0;
     this.water = new WaterSimulation(this);
+    /** New terrain's water, run to rest as each chunk arrives (#settleNewWater); the game's own flows stay in `water`. */
+    this.newWater = new WaterSimulation(this, { queuesOwnChanges: true });
     this.lava = new LavaSimulation(this);
     this.redstone = new Redstone(this);
     this.fallingBlocks = new FallingBlocks(this);
@@ -857,7 +866,7 @@ export class World {
     this.generatingChunks = (this.generatingChunks || 0) + 1;
     try {
       const record = this.#generateRecorded(chunk, new GenerationRecorder({ capture: true }));
-      return { ...record, cx, cz, voxels: chunk.voxels, waterLevels: chunk.waterLevels, weatherRevision: chunk.weatherRevision ?? 0 };
+      return { ...record, cx, cz, voxels: chunk.voxels, waterLevels: chunk.waterLevels, weatherRevision: chunk.weatherRevision ?? 0, waterAtRest: !!chunk.waterAtRest };
     } finally {
       this.generatingChunks--;
       this.chunks.delete(key);
@@ -882,6 +891,7 @@ export class World {
     chunk.voxels.set(result.voxels);
     chunk.waterLevels.set(result.waterLevels);
     if (result.weatherRevision) chunk.weatherRevision = result.weatherRevision;
+    chunk.waterAtRest = !!result.waterAtRest;
     this.chunks.set(`${cx},${cz}`, chunk);
     this.chunkCache[((cx + CHUNK_HASH_OFFSET) * 31 + (cz + CHUNK_HASH_OFFSET)) & CHUNK_CACHE_MASK] = chunk;
     this.generatingChunks = (this.generatingChunks || 0) + 1;
@@ -926,9 +936,44 @@ export class World {
   }
 
   /** What every new chunk gets once its voxels are in: water, light, and the creature population pass. */
+  /**
+   * Run a new chunk's water to rest before the chunk is drawn, flowing into and out of the chunks already loaded.
+   *
+   * The generator settles each chunk's water by itself (worldgen/settleWater.js), but a chunk cannot see its
+   * neighbours: an ocean over a cave that runs on under the next chunk, a lake beside a neighbour's ravine. That
+   * water used to move after the world appeared -- thousands of changes in its first half minute, each re-meshing a
+   * chunk and waking the sand above it. It is moved here instead, while the chunk still waits for its neighbours
+   * before it is meshed. It wakes no sand and drops no washed-away plants, and a cascade too long for one arrival is
+   * left to the ordinary simulation. It counts as generation: a neighbour it flows into is not marked modified,
+   * since the same flow is made again when that neighbour is generated again beside this chunk.
+   */
+  #settleNewWater(chunk) {
+    const water = this.newWater;
+    if (!water || this.floorY > 0) return false;
+    // Its inside is at rest already (generateChunkTerrain); what can move is at its edges, now that it has neighbours.
+    water.wakeChunk(chunk, { edgesOnly: true });
+    this.settlingNewWater = true;
+    this.generatingChunks = (this.generatingChunks || 0) + 1;
+    try {
+      for (let cells = 0; water.pending.size && cells < SETTLE_CELLS;) {
+        const budget = SETTLE_CELLS - cells;
+        cells += Math.min(budget, water.pending.size);
+        water.tick(budget);
+      }
+    } finally {
+      this.settlingNewWater = false;
+      this.generatingChunks--;
+      for (const key of water.pending) this.water.pending.add(key);
+      water.pending.clear();
+    }
+    return true;
+  }
+
   #finishNewChunk(chunk) {
     const { cx, cz } = chunk;
-    this.water.initChunk(chunk);
+    // Settled terrain's water is at rest, inside (the generator) and at its edges (#settleNewWater): nothing to wake.
+    const settled = this.#settleNewWater(chunk) && chunk.waterAtRest;
+    this.water.initChunk(chunk, { wake: !settled });
     // Allocate lighting; initChunk queues propagation and its arrays initially contain zeroes.
     this.light.initChunk(cx, cz);
     // Chunk-generation creature population.
@@ -1163,7 +1208,16 @@ export class World {
     return Math.floor((def.baseHeight || 25) + base * (def.heightScale || 5) + detail * 3);
   }
 
+  /**
+   * A chunk's terrain, with its water already at rest (worldgen/settleWater.js). A barrier floor rewrites the cells
+   * below it in every world lookup, which the chunk-only settling cannot see, so such worlds leave it to run time.
+   */
   generateChunkTerrain(chunk) {
+    this.#generateTerrain(chunk);
+    if (!(this.floorY > 0)) settleChunkWater(chunk, { orientations: this.structureOrientations });
+  }
+
+  #generateTerrain(chunk) {
     if (this.isFlatWorld) {
       for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
         for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
@@ -2072,10 +2126,14 @@ export class World {
     this.cauldronLevels?.delete(`${wx},${wy},${wz}`);
     chunk.waterLevels[index] = level;
     if (this.structureOrientations.size > 0) this.structureOrientations.delete(`${wx},${wy},${wz}`);
-    this.water.notify(wx, wy, wz, !fluidUpdate);
+    // New terrain's settling water queues its own next cells (#settleNewWater); the game's water is not woken by it.
+    if (!this.settlingNewWater) this.water.notify(wx, wy, wz, !fluidUpdate);
     this.lava.notify(wx, wy, wz, !fluidUpdate);
     this.redstone.notify(wx, wy, wz);
-    this.fallingBlocks?.notify(wx, wy, wz);
+    // Nor does it wake the sand above it: generated terrain does not react to itself.
+    if (!this.settlingNewWater) this.fallingBlocks?.notify(wx, wy, wz);
+    // A job site placed: villagers that found none look again (mobs.js; the set is villagerEconomy.js JOB_SITE_BLOCKS).
+    if (this.jobSiteBlocks?.has(blockId)) this.jobSitesPlaced = (this.jobSitesPlaced || 0) + 1;
     this.leafDecay?.notify(wx, wy, wz, previous, blockId);
 
     // If voxel is at border of chunk, mark neighbor chunks dirty too

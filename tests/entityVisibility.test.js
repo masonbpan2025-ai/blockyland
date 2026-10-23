@@ -54,7 +54,8 @@ test('the game marks a chunk drawn when its mesh arrives, and the world render h
   const apply = main.slice(main.indexOf('  applyChunkGeometry(chunk, geometry) {'), main.indexOf('  applyChunkGeometry(chunk, geometry) {') + 2500);
   assert.match(apply, /chunk\.meshedOnce = true;/);
   const shader = readFileSync(new URL('../src/lightweightShader.js', import.meta.url), 'utf8');
-  assert.match(shader, /const hidden=hideOutOfViewMobs\(g\);\s*try\{this\.renderWorldPasses\(\);\}finally\{restoreHidden\(hidden\);\}/);
+  // Hidden for the render and put back after it -- with distant mobs' small parts too (mobLod.js).
+  assert.match(shader, /const hidden=hideOutOfViewMobs\(g\);[\s\S]{0,200}const details=g\.mobDetailLod\?hideDistantMobDetails\(g\):\[\];\s*try\{this\.renderWorldPasses\(\);\}finally\{restoreHidden\(details\);restoreHidden\(hidden\);\}/);
 });
 
 test('minecarts, dropped items and orbs follow the same rule as mobs', () => {

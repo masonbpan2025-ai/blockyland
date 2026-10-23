@@ -1,11 +1,33 @@
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
 import { wanderMob } from './mobMotion.js';
-import { findPath, directRouteIsSafe } from './mobPathfinder.js';
+import { findPath, directRouteIsSafe, PATH_DEFAULTS } from './mobPathfinder.js';
 import { isLethalStep } from './hazards.js';
 
 /** How often a mob recomputes its route, in seconds. */
 const PATH_REPLAN = 0.5;
+
+/**
+ * A search that finds no way to the goal costs the most -- it spends its whole node limit -- and used to be made again
+ * every half second for as long as the goal stayed out of reach. A villager city's zombies, each chasing a villager
+ * behind a wall, spent most of the frame there. After a failed search the mob waits twice as long as the last time,
+ * up to PATH_BACKOFF_MAX seconds, walking the partial route toward the closest point it found meanwhile; a route
+ * found, or a goal that moves FAILED_GOAL_MOVE blocks from the one it could not reach, starts it over.
+ */
+const PATH_BACKOFF_MAX = 8;
+const FAILED_GOAL_MOVE = 8;
+/**
+ * A search made again after one failed looks only this far (expanded nodes, against PATH_DEFAULTS.maxNodes for the
+ * first): it is asking whether the goal has come within reach, and a full search that fails is a 15-25 ms frame.
+ */
+const RETRY_NODES = 1000;
+
+/**
+ * Route searches every mob may make in one frame, in expanded nodes: one full search (PATH_DEFAULTS.maxNodes). A search
+ * starts only while some is left, so a crowd that all wants routes at once spreads them over the next frames.
+ * MobManager.update refills it (`pathNodesLeft`); a manager without one is not limited.
+ */
+export const PATH_FRAME_NODES = PATH_DEFAULTS.maxNodes;
 
 /**
  * Minimum time a locally-chosen avoidance heading is held before it may be reconsidered.
@@ -48,6 +70,11 @@ function routeAimPoint(manager, mob, destination, dt) {
     mob.stuckTimer = (mob.stuckTimer || 0) + dt;
   }
   const stuck = mob.stuckTimer > 0.45;
+  // A goal far from the one no route reached may well be reachable: search again at once.
+  if (mob.pathFailures && mob.failedGoal && Math.hypot(mob.failedGoal.x - destination.x, mob.failedGoal.z - destination.z) > FAILED_GOAL_MOVE) {
+    mob.pathFailures = 0;
+    mob.pathCooldown = 0;
+  }
   if (stuck) mob.pathProgressAt = { x: pos.x, z: pos.z };
 
   // Re-plan when the goal has moved a long way, on the cadence, or after getting stuck.
@@ -65,20 +92,33 @@ function routeAimPoint(manager, mob, destination, dt) {
     mob.avoidCells.set(here, now);
     if (mob.path && mob.path.length > 1) mob.path.shift();
     mob.stuckTimer = 0;
-    mob.pathCooldown = 0;
+    // Stuck on the way to a goal no route reaches is expected: it waits out its backoff like any other failure.
+    if (!mob.pathFailures) mob.pathCooldown = 0;
     mob.pathProgressAt = { x: pos.x, z: pos.z };
   }
 
   // Note the guard is on the path OBJECT, not its length: an empty path means "no route
   // found", and treating that as "nothing to do" stopped a blocked mob ever planning again.
-  if (!mob.path || mob.path.length === 0 || goalMoved || stuck) {
+  // This frame's searches spent (PATH_FRAME_NODES): a mob due for one keeps what it has and asks again next frame.
+  const waitingForBudget = mob.pathCooldown <= 0 && manager.pathNodesLeft !== undefined && manager.pathNodesLeft <= 0;
+  if ((!mob.path || mob.path.length === 0 || goalMoved || stuck) && !waitingForBudget) {
     if (mob.pathCooldown <= 0 && needsRoute()) {
       const avoidSet = mob.avoidCells && mob.avoidCells.size ? new Set(mob.avoidCells.keys()) : null;
-      const plan = findPath(manager, mob, pos, destination, avoidSet ? { avoid: avoidSet } : undefined);
+      const limits = mob.pathFailures ? { maxNodes: RETRY_NODES } : {};
+      const plan = findPath(manager, mob, pos, destination, avoidSet ? { ...limits, avoid: avoidSet } : limits);
+      if (manager.pathNodesLeft !== undefined) manager.pathNodesLeft -= plan.nodes;
       mob.path = plan.path;
       mob.pathGoal = { x: destination.x, y: destination.y, z: destination.z };
-      mob.pathCooldown = PATH_REPLAN;
       mob.pathReached = plan.reached;
+      if (plan.reached) {
+        mob.pathFailures = 0;
+        mob.failedGoal = null;
+        mob.pathCooldown = PATH_REPLAN;
+      } else {
+        mob.pathFailures = (mob.pathFailures || 0) + 1;
+        mob.failedGoal = mob.pathGoal;
+        mob.pathCooldown = Math.min(PATH_BACKOFF_MAX, PATH_REPLAN * 2 ** mob.pathFailures);
+      }
       // A new route may legitimately want the other way around an obstacle.
       mob.steerSide = 0;
     } else if (goalMoved) {

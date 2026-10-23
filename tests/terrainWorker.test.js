@@ -63,6 +63,8 @@ test('a chunk generated alone is the chunk generated among its neighbours', () =
   // The property the whole design rests on: a worker holds only the chunk it is making.
   for (const [seed, biome] of [[99, 'all'], [12345, 'plains']]) {
     const full = new World(seed, biome);
+    // Generation itself: once generated, a chunk's water runs on into the chunks beside it (world.js #settleNewWater).
+    full.newWater = null;
     for (let cx = -2; cx <= 2; cx++) for (let cz = -2; cz <= 2; cz++) full.getOrCreateChunk(cx, cz);
     for (const [cx, cz] of [[-1, -1], [1, 0], [0, 1], [1, 1], [-1, 1]]) {
       const alone = new World(seed, biome);
@@ -109,6 +111,9 @@ test('a chunk unloaded and generated again gets its structures back, without the
   // its structures there and skipped them, so the chunk came back as bare terrain: holes in villages.
   for (const [seed, biome] of [[99, 'all'], [12345, 'plains']]) {
     const world = new World(seed, biome);
+    // Water run on into loaded neighbours (world.js #settleNewWater) depends on which are loaded, and a plant it washed
+    // away the first time may stand the second; that is settleWater.test.js's subject, the structures are this one's.
+    world.newWater = null;
     const game = { world, scene: new THREE.Scene(), blockLighting: { setChunk() {} } };
     const streamer = new ChunkStreamer(game);
     let restored = 0, withStructures = 0;

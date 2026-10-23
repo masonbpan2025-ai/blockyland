@@ -8,12 +8,13 @@
  *   - Render distance 6 instead of 8 took it from 62 to 44ms. The fog follows the distance (atmosphere.js), so the
  *     world still fades out at its edge rather than ending in a wall.
  *
- * Both are kept in localStorage, like the Lightweight Shader's switch, and both default to the game as it was.
+ * Both are kept in localStorage, like the Lightweight Shader's switch. A player who has not chosen gets the fast
+ * settings: Performance Mode on and 4 chunks.
  */
 export const PERFORMANCE_STORAGE_KEY = 'blockyland-performance-mode';
 export const RENDER_DISTANCE_STORAGE_KEY = 'blockyland-render-distance';
 export const RENDER_DISTANCES = Object.freeze([4, 6, 8, 10]);
-export const DEFAULT_RENDER_DISTANCE = 8;
+export const DEFAULT_RENDER_DISTANCE = 4;
 /** The canvas resolution cap outside Performance Mode, as main.js always set it. */
 export const FULL_PIXEL_RATIO = 1.25;
 
@@ -44,7 +45,7 @@ export class GraphicsSettings {
   constructor(game, { storage = globalThis.localStorage } = {}) {
     this.game = game;
     this.storage = storage;
-    this.performanceMode = read(storage, PERFORMANCE_STORAGE_KEY) === 'on';
+    this.performanceMode = read(storage, PERFORMANCE_STORAGE_KEY) !== 'off';
     this.performanceButton = null;
     this.distanceButton = null;
   }

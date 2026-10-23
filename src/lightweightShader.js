@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WaterPass } from './waterPass.js';
 import { hideOutOfViewMobs, restoreHidden } from './entityVisibility.js';
+import { hideDistantMobDetails } from './mobLod.js';
 import { edgeAntialiasFunctions, edgeAntialiasFragment } from './edgeAntialiasing.js';
 export const SHADER_STORAGE_KEY='minecraft-lite-shader';
 // Keep normal 1080p views sharp; only larger displays downsample the world.
@@ -145,7 +146,9 @@ export class LightweightShader {
  renderWorld(){const g=this.game;
   // Mobs only where their terrain is drawn and short of the fog's far edge; flags restored after the frame.
   const hidden=hideOutOfViewMobs(g);
-  try{this.renderWorldPasses();}finally{restoreHidden(hidden);}
+  // And, on distant mobs, the parts too small to see (mobLod.js), when the game has that switched on.
+  const details=g.mobDetailLod?hideDistantMobDetails(g):[];
+  try{this.renderWorldPasses();}finally{restoreHidden(details);restoreHidden(hidden);}
  }
  renderWorldPasses(){const g=this.game,r=g.renderer,c=g.camera;
   if(!this.waterPass)this.waterPass=new WaterPass();

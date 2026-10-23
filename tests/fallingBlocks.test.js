@@ -138,3 +138,31 @@ test('the real world notifies it and the game loop runs it', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.match(main, /this\.world\.fallingBlocks\?\.update\(worldDt\);/);
 });
+
+test('falling blocks of a kind are instances of one shared geometry, one draw however many fall', async () => {
+  // A beach collapsing into a flooded cave put two thousand in the air at once, each with a geometry and draw of its
+  // own, never disposed.
+  const THREE = await import('three');
+  const { world, run } = makeWorld();
+  world.game.scene = new THREE.Scene();
+  for (let x = 0; x < 40; x++) world.setVoxel(x, 30, 0, BLOCKS.SAND);
+  world.setVoxel(0, 30, 5, BLOCKS.GRAVEL);
+  run(0.2);
+  const drawn = world.game.scene.children.filter((o) => o.isInstancedMesh);
+  assert.equal(drawn.length, 2, 'one mesh for the sand, one for the gravel');
+  const sand = world.fallingBlocks.drawn.get(BLOCKS.SAND);
+  assert.equal(sand.count, 40);
+  const at = new THREE.Matrix4(), p = new THREE.Vector3();
+  const e = world.fallingBlocks.entities.find((x) => x.id === BLOCKS.SAND);
+  const i = world.fallingBlocks.entities.filter((x) => x.id === BLOCKS.SAND).indexOf(e);
+  sand.getMatrixAt(i, at); p.setFromMatrixPosition(at);
+  assert.ok(p.distanceTo(new THREE.Vector3(e.x, e.y + 0.5, e.z)) < 1e-4, 'each instance where its block is');
+  const geometry = sand.geometry;
+  run(4);
+  assert.equal(world.fallingBlocks.entities.length, 0, 'all landed');
+  assert.equal(sand.count, 0);
+  assert.equal(sand.visible, false);
+  world.setVoxel(3, 30, 3, BLOCKS.SAND);
+  run(0.2);
+  assert.equal(world.fallingBlocks.drawn.get(BLOCKS.SAND).geometry, geometry, 'the next one reuses the geometry');
+});

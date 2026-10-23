@@ -212,12 +212,14 @@ test('it targets a player within 16 blocks and pursues iron golems', () => {
 
   // Wiki: it "actively pursue[s] and attack[s] iron golems", so at an EQUAL distance the golem wins.
   // The golem has to be at least as near as the player for this to mean anything.
+  // Spawning moves a golem to the middle of a block, so it is put exactly where the player stands.
   const golem = manager.spawnMob('iron_golem', 10, 1, 0);
-  assert.equal(findBreezeTarget(manager, breeze, player), golem, 'wiki: iron golems are pursued');
+  golem.mesh.position.copy(player.position);
+  assert.ok(findBreezeTarget(manager, breeze, player) === golem, 'wiki: iron golems are pursued');
 
   // Creative players are not attacked, and neither is anything on Peaceful.
   player.gamemode = 'creative';
-  assert.equal(findBreezeTarget(manager, breeze, player), golem, 'the golem is still a target');
+  assert.ok(findBreezeTarget(manager, breeze, player) === golem, 'the golem is still a target');
   manager.mobs.splice(manager.mobs.indexOf(golem), 1);
   assert.equal(findBreezeTarget(manager, breeze, player), null, 'not a creative player');
   player.gamemode = 'survival';

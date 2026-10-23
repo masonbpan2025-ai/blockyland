@@ -61,6 +61,9 @@ export const WORKSTATION_TO_PROFESSION = {
   [BLOCKS.GRINDSTONE]: 'weaponsmith'
 };
 
+/** The job site blocks, for the world to count their placing (World.jobSitesPlaced; mobs.js wakes job seekers). */
+export const JOB_SITE_BLOCKS = new Set(Object.keys(WORKSTATION_TO_PROFESSION).map(Number));
+
 /**
  * Wiki: the villagers that cannot trade at all.
  *
@@ -1101,11 +1104,8 @@ export function updateVillagerWorkstation(villager, world, allVillagers = [], op
     const vz = Math.floor(vPos.z);
     const radius = 16;
 
-    const claimedCoords = new Set(
-      allVillagers
-        .filter((v) => v !== villager && v.workstation)
-        .map((v) => `${v.workstation.x},${v.workstation.y},${v.workstation.z}`)
-    );
+    // Built only when a job site turns up: most of the ~9,800 cells searched hold none, and a key was made for each.
+    let claimedCoords = null;
 
     let bestDistSq = Infinity;
     let foundWorkstation = null;
@@ -1113,14 +1113,17 @@ export function updateVillagerWorkstation(villager, world, allVillagers = [], op
     for (let x = vx - radius; x <= vx + radius; x++) {
       for (let y = Math.max(1, vy - 4); y <= Math.min(62, vy + 4); y++) {
         for (let z = vz - radius; z <= vz + radius; z++) {
-          const coordKey = `${x},${y},${z}`;
-          if (claimedCoords.has(coordKey)) continue;
-
           const block = world.getVoxel(x, y, z);
           const prof = WORKSTATION_TO_PROFESSION[block];
           if (!prof) continue;
           // If villager is locked into a profession, must match that profession
           if (villager.xp > 0 && villager.profession !== 'unemployed' && villager.profession !== prof) continue;
+          claimedCoords ??= new Set(
+            allVillagers
+              .filter((v) => v !== villager && v.workstation)
+              .map((v) => `${v.workstation.x},${v.workstation.y},${v.workstation.z}`)
+          );
+          if (claimedCoords.has(`${x},${y},${z}`)) continue;
 
           const distSq = (x - vx) ** 2 + (y - vy) ** 2 + (z - vz) ** 2;
           if (distSq < bestDistSq) {

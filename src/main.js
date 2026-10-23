@@ -81,6 +81,7 @@ import { ChunkStreamer } from './chunkStreamer.js';
 import { installHotkeys } from './hotkeys.js';
 import { MobSpawnManager } from './spawning/mobSpawnManager.js';
 import { ChunkMesher } from './mesher.js';
+import { ChunkBatches } from './chunkBatches.js';
 import { SoundEngine } from './audio.js';
 import { Player } from './player.js';
 import { MobManager } from './mobs.js';
@@ -396,6 +397,8 @@ class Game {
     this.graphicsSettings.apply();
     this.graphicsSettings.bindButtons(document.getElementById('btn-performance'), document.getElementById('btn-distance'));
     this.mesher = new ChunkMesher(this.textures);
+    // Chunk meshes are drawn a region at a time, one draw for many chunks (chunkBatches.js).
+    this.chunkBatches = new ChunkBatches(this.scene);
     this.mesher.game = this;
     this.world.game = this;
 
@@ -418,6 +421,11 @@ class Game {
     this.entities = new EntityManager(this.scene, this.world, this.sounds, this.textures);
     this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
     this.mobs.game = this;
+    // Mob level of detail (mobLod.js): far mobs think ~12 times a second, unseen mobs are not re-posed, and distant
+    // mobs are drawn without the parts too small to see. A village's mobs were most of its frame.
+    this.mobs.farMobThrottle = true;
+    this.mobs.unseenAnimationSkip = true;
+    this.mobDetailLod = true;
 
     // 3b. Natural mob spawning.
     //
@@ -1441,28 +1449,36 @@ class Game {
       chunk.lightMesh = settle(new THREE.Mesh(lightGeo, this.textures.lightMaterial));
       chunk.lightMesh.castShadow = chunk.lightMesh.receiveShadow = true;
       chunk.lightMesh.customDistanceMaterial = this.textures.lightDistanceMaterial;
-      this.scene.add(chunk.lightMesh);
+      this.drawChunkMesh(chunk, chunk.lightMesh);
     }
     if (opaqueGeo) {
       chunk.opaqueMesh = settle(new THREE.Mesh(opaqueGeo, this.textures.opaqueMaterial));
       chunk.opaqueMesh.castShadow = chunk.opaqueMesh.receiveShadow = true;
-      this.scene.add(chunk.opaqueMesh);
+      this.drawChunkMesh(chunk, chunk.opaqueMesh);
     }
     if (waterGeo) {
       chunk.waterMesh = markWater(settle(new THREE.Mesh(waterGeo, this.textures.waterMaterial)));
       chunk.waterMesh.renderOrder = 1;
       chunk.waterMesh.receiveShadow = true;
-      this.scene.add(chunk.waterMesh);
+      this.drawChunkMesh(chunk, chunk.waterMesh);
     }
     if (transparentGeo) {
       // Leaves, glass and plants: part of what the water refracts, and redrawn over it where they are in front.
       chunk.transparentMesh = markOverWater(settle(new THREE.Mesh(transparentGeo, this.textures.transparentMaterials || this.textures.transparentMaterial)));
       chunk.transparentMesh.renderOrder = 2;
       chunk.transparentMesh.castShadow = chunk.transparentMesh.receiveShadow = true;
-      this.scene.add(chunk.transparentMesh);
+      this.drawChunkMesh(chunk, chunk.transparentMesh);
     }
 
     chunk.dirty = false;
+  }
+
+  /**
+   * Draw a chunk mesh through its region's batch (chunkBatches.js), or on its own: in an authored campaign, whose
+   * presentation recolours the chunk meshes' own geometry (campaignPresentation.js), and for a mesh no batch can hold.
+   */
+  drawChunkMesh(chunk, mesh) {
+    if (this.world.generationMode === 'authored' || !this.chunkBatches?.add(chunk.cx, chunk.cz, mesh)) this.scene.add(mesh);
   }
 
   /**

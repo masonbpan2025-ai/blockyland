@@ -80,15 +80,16 @@ test('water maintains full ceiling height under solid wooden/stone blocks', () =
   assert.equal(waterHeight(world, 7, 20, 5), 1, 'water topped by oak stairs must have full height 1');
 });
 
-test('aquarium glass and ice continue to render water faces with 0.995 inset under ice/glass to prevent z-fighting', () => {
+// Ice is not inset against: water's faces against ice are culled instead (iceWaterShadows.test.js).
+test('aquarium glass continues to render water faces with a 0.995 inset under glass to prevent z-fighting', () => {
   const world = new World(999);
   const chunk = new Chunk(0, 0);
   world.chunks.set('0,0', chunk);
 
-  // Water block adjacent to glass (east) and ice above
+  // Water block adjacent to glass (east) and glass above
   chunk.setVoxel(5, 10, 5, BLOCKS.WATER);
   chunk.setVoxel(6, 10, 5, BLOCKS.GLASS);
-  chunk.setVoxel(5, 11, 5, BLOCKS.ICE);
+  chunk.setVoxel(5, 11, 5, BLOCKS.GLASS);
 
   const mesher = new ChunkMesher(texStub);
   const geo = mesher.meshChunk(chunk, world);
@@ -103,8 +104,8 @@ test('aquarium glass and ice continue to render water faces with 0.995 inset und
     }
     if (pos.getX(i) === 6) hasEastFace = true;
   }
-  assert.ok(topFaceY !== null, 'found top water face under ice');
-  assert.equal(Number(topFaceY.toFixed(3)), 10.995, 'top face under ice/glass must be at 10.995 to prevent z-fighting');
+  assert.ok(topFaceY !== null, 'found top water face under glass');
+  assert.equal(Number(topFaceY.toFixed(3)), 10.995, 'top face under glass must be at 10.995 to prevent z-fighting');
   assert.ok(hasEastFace, 'east face against glass must be generated');
 
   for (const g of Object.values(geo)) g?.dispose();

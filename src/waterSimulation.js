@@ -44,8 +44,18 @@ export function waterReplaceable(id) {
 }
 
 export class WaterSimulation {
-  constructor(world) {
+  /** Scratch space for directions(), made on first use. */
+  #search = null;
+
+  /**
+   * @param {object} world
+   * @param {object} [options]
+   * @param {boolean} [options.queuesOwnChanges] queue the cells around each change itself. The world's own water is
+   *   queued by World.setVoxel; a second simulation over the same world (or over one chunk) is not.
+   */
+  constructor(world, { queuesOwnChanges = false } = {}) {
     this.world = world;
+    this.queuesOwnChanges = queuesOwnChanges;
     this.pending = new Set();
     this.time = 0;
     this.routes = new Map();
@@ -75,13 +85,29 @@ export class WaterSimulation {
     }
   }
 
-  initChunk(chunk) {
+  /**
+   * @param {object} [options]
+   * @param {boolean} [options.wake] queue the chunk's water; false for new terrain already run to rest
+   *   (World #settleNewWater), whose flowing water would otherwise all be ticked once to find it does not move.
+   */
+  initChunk(chunk, { wake = true } = {}) {
     this.world.lava?.initChunk(chunk);
     this.world.redstone?.initChunk(chunk);
-    if (chunkScanIsLocal(this.world, chunk)) { this.#initChunkLocal(chunk); return; }
+    if (wake) this.wakeChunk(chunk);
+  }
+
+  /**
+   * Queue a new chunk's water that may need to move, and its neighbours' water along the shared edges.
+   * @param {object} [options]
+   * @param {boolean} [options.edgesOnly] only the chunk's edge columns: its inside is already at rest (the generator
+   *   settled it, worldgen/settleWater.js), and only what lies beyond its edges is new.
+   */
+  wakeChunk(chunk, { edgesOnly = false } = {}) {
+    if (chunkScanIsLocal(this.world, chunk)) { this.#initChunkLocal(chunk, edgesOnly); return; }
     // Old maps and generated oceans have zero metadata, meaning source water.
     // Wake exposed water, not every interior voxel of a large ocean.
     for (let y=0;y<64;y++) for(let z=0;z<16;z++) for(let x=0;x<16;x++) {
+      if (edgesOnly && x!==0 && x!==15 && z!==0 && z!==15) continue;
       if (chunk.getVoxel(x,y,z)!==BLOCKS.WATER) continue;
       const wx=chunk.cx*16+x, wz=chunk.cz*16+z;
       if (this.needsTick(wx,y,wz,chunk.waterLevels[chunk.getIndex(x,y,z)])) this.notify(wx,y,wz);
@@ -100,13 +126,14 @@ export class WaterSimulation {
    * 4,096 more along the borders, which was a sixth of generating a chunk. Cells on the chunk's edge, whose
    * outlets lie in a neighbour, still ask the world.
    */
-  #initChunkLocal(chunk) {
+  #initChunkLocal(chunk, edgesOnly = false) {
     const { outlet, waterPlant } = fluidIdTables();
     const vox = chunk.voxels, levels = chunk.waterLevels, W = BLOCKS.WATER;
     const bx = chunk.cx * 16, bz = chunk.cz * 16;
     for (let i = 0; i < vox.length; i++) {
       if (vox[i] !== W) continue;
       const x = i & 15, z = (i >> 4) & 15, y = i >> 8;
+      if (edgesOnly && x !== 0 && x !== 15 && z !== 0 && z !== 15) continue;
       const level = levels[i];
       let wake = level > 0;
       if (!wake && level === 0) {
@@ -129,23 +156,42 @@ export class WaterSimulation {
     }
   }
 
+  /**
+   * The sides water at x,y,z prefers: those with the shortest way, within four blocks, to a place it can fall. For each
+   * side, a breadth-first search over passable cells from the cell on that side (never back through x,z), three steps
+   * deep. The four searches share one 9x9 window around x,z, whose passable and can-fall answers are looked up once
+   * each: this was most of the water simulation's time, as strings, sets and arrays made for every cell it visited.
+   */
   directions(x,y,z) {
     const id=key(x,y,z);
-    if(this.routes.has(id)) return this.routes.get(id);
-    const costs = SIDES.map(([dx,dz]) => {
-      if(!this.passable(x+dx,y,z+dz)) return Infinity;
-      const queue=[[x+dx,z+dz,0]], seen=new Set([`${x},${z}`]);
-      for(let i=0;i<queue.length;i++) {
-        const [px,pz,depth]=queue[i], k=`${px},${pz}`;
-        if(seen.has(k)) continue;
-        seen.add(k);
-        if(this.canFall(px,y,pz)) return depth;
+    const cached=this.routes.get(id);
+    if(cached) return cached;
+    const s=this.#search ??= { stamp:0, passStamp:new Int32Array(81), pass:new Uint8Array(81), fallStamp:new Int32Array(81), fall:new Uint8Array(81),
+      seen:new Int32Array(81), seenStamp:0, qx:new Int8Array(81), qz:new Int8Array(81), qd:new Int8Array(81) };
+    const stamp=++s.stamp;
+    // Window cells by offset from x,z (each within four steps, so -4..4).
+    const passableAt=(dx,dz)=>{ const i=(dx+4)*9+dz+4; if(s.passStamp[i]!==stamp){ s.passStamp[i]=stamp; s.pass[i]=this.passable(x+dx,y,z+dz)?1:0; } return s.pass[i]===1; };
+    const fallsAt=(dx,dz)=>{ const i=(dx+4)*9+dz+4; if(s.fallStamp[i]!==stamp){ s.fallStamp[i]=stamp; s.fall[i]=this.canFall(x+dx,y,z+dz)?1:0; } return s.fall[i]===1; };
+    const costs=[Infinity,Infinity,Infinity,Infinity];
+    for(let side=0;side<4;side++) {
+      const [dx,dz]=SIDES[side];
+      if(!passableAt(dx,dz)) continue;
+      const seen=++s.seenStamp;
+      s.seen[40]=seen; // x,z itself
+      s.seen[(dx+4)*9+dz+4]=seen;
+      s.qx[0]=dx; s.qz[0]=dz; s.qd[0]=0;
+      for(let head=0,tail=1;head<tail;head++) {
+        const px=s.qx[head],pz=s.qz[head],depth=s.qd[head];
+        if(fallsAt(px,pz)) { costs[side]=depth; break; }
         if(depth>=3) continue;
-        for(const [sx,sz] of SIDES) if(this.passable(px+sx,y,pz+sz)) queue.push([px+sx,pz+sz,depth+1]);
+        for(const [sx,sz] of SIDES) {
+          const nx=px+sx,nz=pz+sz,i=(nx+4)*9+nz+4;
+          if(s.seen[i]===seen || !passableAt(nx,nz)) continue;
+          s.seen[i]=seen; s.qx[tail]=nx; s.qz[tail]=nz; s.qd[tail]=depth+1; tail++;
+        }
       }
-      return Infinity;
-    });
-    const best=Math.min(...costs);
+    }
+    const best=Math.min(costs[0],costs[1],costs[2],costs[3]);
     const result=SIDES.filter((_,i)=>costs[i]===best);
     this.routes.set(id,result);
     return result;
@@ -200,6 +246,7 @@ export class WaterSimulation {
       const previous=this.world.getVoxel(x,y,z);
       if(level>=0 && previous!==BLOCKS.AIR && previous!==BLOCKS.WATER) this.onDisplace?.(x,y,z,previous);
       this.world.setVoxel(x,y,z,replacement ?? (level<0?BLOCKS.AIR:BLOCKS.WATER),Math.max(0,level),true);
+      if(this.queuesOwnChanges) this.notify(x,y,z);
     }
     return changes.length;
   }

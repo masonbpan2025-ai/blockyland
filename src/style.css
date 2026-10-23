@@ -2212,11 +2212,13 @@ html, body {
   margin-top: 8px;
 }
 .pause-datapacks { width: 380px; max-width: 85vw; }
-.pause-datapacks > summary { list-style: none; text-align: center; box-sizing: border-box; }
+.pause-datapacks > summary { list-style: none; text-align: center; box-sizing: border-box; margin: 0 auto; }
 .pause-datapacks > summary::-webkit-details-marker { display: none; }
 .pause-datapacks-body { margin-top: 8px; padding: 12px; background: #111827; border-radius: 5px; max-height: 35vh; overflow-y: auto; color: #d7e3fc; }
 .pause-datapacks .datapack-section { padding: 0; margin: 0; border: 0; }
 .mc-menu-card:has(#pause-datapacks) { max-height: 90vh; overflow-y: auto; }
+/* In a window too short for the menu, scroll it: without this the buttons shrink to fit and squash their text. */
+.mc-menu-card:has(#pause-datapacks) > * { flex-shrink: 0; }
 
 .gemini-world-row {
   display: flex;

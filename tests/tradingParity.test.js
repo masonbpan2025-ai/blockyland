@@ -1095,8 +1095,13 @@ test('an employed villager runs its update loop and restocks without fault', () 
   };
   Object.assign(manager, { game: { player, worldTime: 6000, dayCount: 1, difficulty: 'normal', controls: {}, weather: { weatherType: 'clear' } } });
 
-  const villager = manager.spawnVillager(0, 10, 0, 'farmer');
-  world.setVoxel(1, 10, 1, BLOCKS.COMPOSTER);
+  // On the ground, not inside it: a villager spawned in stone is pushed out into the next chunk, which this test
+  // never generates, and falls through it.
+  for (let cx = -1; cx <= 1; cx++) for (let cz = -1; cz <= 1; cz++) world.getOrCreateChunk(cx, cz);
+  const y = world.getHighestSolidY(0, 0) + 1;
+  player.position.set(4, y, 4);
+  const villager = manager.spawnVillager(0.5, y, 0.5, 'farmer');
+  world.setVoxel(1, y, 1, BLOCKS.COMPOSTER);
   assert.equal(villager.trades.length, 2, 'a novice farmer holds two of its five offers');
 
   const inv = inventoryWith({ id: 'wheat', isBlock: false, count: 4000 });
@@ -1118,8 +1123,8 @@ test('an employed villager runs its update loop and restocks without fault', () 
   assert.ok(villager.trades.length <= MAX_TRADES);
 
   // Wiki: opening the menu "pauses their pathfinding, and makes them face the trading player."
-  villager.mesh.position.set(0, 10, 0);
-  player.position.set(0, 10, 4);
+  villager.mesh.position.set(0.5, y, 0.5);
+  player.position.set(0.5, y, 4.5);
   villager.tradingWith = true;
   for (let i = 0; i < 60; i++) manager.update(1 / 60, player);
   assert.equal(villager.velocity.x, 0);
