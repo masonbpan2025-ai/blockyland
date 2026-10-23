@@ -386,6 +386,9 @@ export default defineConfig({
       }
     }
   ],
+  // The terrain worker (src/terrainWorker.js) imports the world's whole generation graph; module workers keep it one
+  // ES module graph rather than an IIFE bundle, which cannot hold code-split chunks.
+  worker: { format: 'es' },
   build: {
     outDir: 'dist',
     rollupOptions: {

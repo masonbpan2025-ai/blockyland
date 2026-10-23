@@ -158,6 +158,9 @@ import { DeepDarkWardenManager } from './deepDarkWarden.js';
 import { BossFightManager } from './bossFights.js';
 import { WorldSyncManager } from './multiplayer/worldSyncManager.js';
 import { markWater, markOverWater } from './waterPass.js';
+import { keepCutoutsSinglePass } from './singlePassMaterials.js';
+import { TerrainWorkerClient } from './terrainWorkerClient.js';
+import { GraphicsSettings, savedRenderDistance } from './graphicsSettings.js';
 import { UNDERWATER_FOG_COLOR, underwaterVisibility, underwaterFogColor, underwaterMiningMultiplier } from './waterRules.js';
 
 
@@ -199,6 +202,8 @@ class Game {
 
     // Three.js Core
     this.scene = new THREE.Scene();
+    // Mob skins are alpha-tested and double-sided; drawn in one pass, not two (singlePassMaterials.js).
+    this.sweepCutoutMaterials = keepCutoutsSinglePass(this.scene);
     this.scene.background = new THREE.Color(0x78a7ff); // sky blue
     this.scene.fog = new THREE.Fog(0x78a7ff, 45, 95);
 
@@ -322,7 +327,8 @@ class Game {
      * docs/voxel-engine-plan.md -- time-slicing the mesh loop is the outstanding work, and the next
      * step up in distance should follow it rather than precede it.
      */
-    this.renderDistance = 8;
+    // The player's own choice from the pause menu (graphicsSettings.js), 8 until they make one.
+    this.renderDistance = savedRenderDistance();
     // Streaming owns generate / mesh / unload from here on. Created before any world exists, and
     // given the world when one is made, so it can be constructed once. The extra generate ring
     // keeps a chunk's border real while it is meshed; the wider unload radius stops a walk back
@@ -331,6 +337,9 @@ class Game {
       meshRadius: this.renderDistance,
       unloadRadius: this.renderDistance + 3,
     });
+    // New Overworld terrain is generated on a worker thread once the worker has been checked against the game
+    // (terrainWorkerClient.js); until then, and wherever it cannot help, the streamer generates here as before.
+    try { this.terrainWorker = TerrainWorkerClient.forBrowser(); } catch (err) { console.warn('[Terrain worker] unavailable:', err); this.terrainWorker = null; }
 
     // Created here rather than in start() so the start-overlay handlers can
     // always use it, even if start() is still awaiting textures.
@@ -382,6 +391,10 @@ class Game {
     this.waterSplashes = new WaterSplashes(this.scene, this.world);
     this.shader = new LightweightShader(this);
     this.shader.bindButton(document.getElementById('btn-shader'));
+    // Performance Mode and the render distance button (graphicsSettings.js).
+    this.graphicsSettings = new GraphicsSettings(this);
+    this.graphicsSettings.apply();
+    this.graphicsSettings.bindButtons(document.getElementById('btn-performance'), document.getElementById('btn-distance'));
     this.mesher = new ChunkMesher(this.textures);
     this.mesher.game = this;
     this.world.game = this;
@@ -574,6 +587,8 @@ class Game {
     this.worldType = 'generated';
     this.world.isFlatWorld = false;
     this.world.generationMode = 'procedural';
+    // Start the terrain worker now, so the chunks this load generates are what it is checked against.
+    this.terrainWorker?.prepare(this);
     this.buildingStudio?.exitStudio();
     this.paintings?.clear(); this.itemFrames?.clear();
     // Catch a missing UI method up front: previously such a call threw late in
@@ -1385,6 +1400,16 @@ class Game {
   refreshDirtyChunks(budget = 4) {
     if (!this.streamer || !this.world) return;
     this.streamer.flush(this.player.position.x, this.player.position.z, Math.max(1, budget) * 2);
+  }
+
+  /**
+   * Change how many chunks are drawn around the player. The streamer replans at once (unloading what is now too far,
+   * or streaming in the new ring), and the fog follows on the next frame because it is worked out from this number
+   * (atmosphere.js).
+   */
+  setRenderDistance(chunks) {
+    this.renderDistance = Math.max(1, Math.floor(chunks));
+    this.streamer?.setRenderDistance(this.renderDistance);
   }
 
   rebuildChunkMesh(chunk) {
@@ -5074,6 +5099,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     this.updateDebugOverlays();
 
     // 8. Render Main World Scene (held items and DOM UI remain sharp).
+    this.sweepCutoutMaterials?.(dt);
     this.shader.render(dt);
 
     // 9. Render 1st person held item overlay (Hidden in Dungeon Mode)

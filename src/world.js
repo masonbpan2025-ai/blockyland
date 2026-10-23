@@ -10,7 +10,8 @@ import { WaterSimulation } from './waterSimulation.js';
 import { BIOMES, getBiomeDef } from './biomes.js';
 import { LightEngine } from './spawning/lightEngine.js';
 import { JavaRandom } from './spawning/spawnRandom.js';
-import { createWorldStructures, enabledStructureIds } from './worldStructures.js';
+import { createWorldStructures, enabledStructureIds, GENERATION_COUNTS } from './worldStructures.js';
+import { GenerationRecorder } from './generationRecorder.js';
 import { netherOreAt, decorateNetherChunk } from './netherTerrain.js';
 import { endColumn, decorateEndChunk } from './endTerrain.js';
 import { isChorus, collapseChorusSupport } from './chorus.js';
@@ -188,6 +189,22 @@ export const CHUNK_HEIGHT = 64;
 // power of two. Fail loudly here rather than producing subtly wrong block reads if this changes.
 if ((CHUNK_SIZE_X & (CHUNK_SIZE_X - 1)) !== 0 || (CHUNK_SIZE_Z & (CHUNK_SIZE_Z - 1)) !== 0) {
   throw new Error('CHUNK_SIZE_X and CHUNK_SIZE_Z must be powers of two for the bitmask lookup');
+}
+
+/**
+ * The structure-orientation map, counting its changes.
+ *
+ * The monster and trial spawners tick 20 times a second, and each tick asked the world for its spawners by walking
+ * every oriented block -- every stair, door and chest a structure placed, thousands in a village. With a change count
+ * the world rebuilds those lists only after something was actually set or removed.
+ */
+export class OrientationMap extends Map {
+  constructor(entries) { super(); this.version = 0; this.recorder = null; if (entries) for (const [k, v] of entries) this.set(k, v); }
+  // `recorder` is set only while a chunk generates under a GenerationRecorder (generationRecorder.js).
+  set(key, value) { this.version++; this.recorder?.mapSet(key, value); return super.set(key, value); }
+  // Recorded even when absent here: the game's map can still hold the key from an earlier visit to the chunk.
+  delete(key) { this.recorder?.mapDelete(key); const had = super.delete(key); if (had) this.version++; return had; }
+  clear() { if (this.size) this.version++; super.clear(); }
 }
 
 export class Chunk {
@@ -504,40 +521,48 @@ export class World {
       // A pack can ask for denser structures (Structure Hunter); 1 is vanilla spacing.
       spacingScale: winningSpacingScale(),
       spacingOverrides: winningSpacingOverrides(),
-      onOrientation: (request) => this.applyStructureOrientation(request),
-      // Villagers, the iron golem and the pen animals of a generated village.
-      onSpawn: (request) => {
-        const mobs = this.game?.mobs;
-        if (!mobs || typeof mobs.spawnMob !== 'function') return false;
-        // A swamp hut's witch does not spawn on Peaceful (the wiki says so); it is dropped, not retried.
-        if ((request.type === 'witch' || request.type === 'zombie_villager') && this.game.difficulty === 'peaceful') return true;
-        // The End crystals on the spikes belong to the dragon fight, which places them (bossFights.initEndArena).
-        if (request.type === 'end_crystal') return true;
-        // A mineshaft's chest is a minecart with a chest, standing on its rail.
-        if (request.type === 'chest_minecart') {
-          const rails = this.game?.railSystem;
-          if (!rails) return false;
-          const cart = rails.spawnCart([request.x, request.y, request.z], { subType: 'chest_minecart' });
-          if (cart && request.options?.lootTable) cart.items = rollStructureLoot(request.options.lootTable, lootSeedFor(Math.floor(request.x), Math.floor(request.y), Math.floor(request.z), this.seed));
-          return true;
-        }
-        if (request.type === 'iron_golem' || request.type === 'villager' || request.type === 'camel') {
-          const safe = findSafeMobSpawnPosition(this, mobs, request.type, request.x, request.y, request.z);
-          if (safe) {
-            request.x = safe.x;
-            request.y = safe.y;
-            request.z = safe.z;
-          }
-        }
-        const mob = mobs.spawnMob(request.type, request.x, request.y, request.z, request.options);
-        if (!mob) return false;
-        // Structure mobs do not despawn by distance (the wiki, for the hut's witch and cat, and the same rule
-        // holds for a village's golem and animals): the despawn pass reads this flag.
-        if (request.options?.persistent && typeof mob === 'object') mob.persistenceRequired = true;
-        return true;
-      },
+      // While a chunk generates under a recorder (a terrain worker, or the game checking one), the request is
+      // also written down; see generationRecorder.js. Without one, these are the plain hooks.
+      onOrientation: (request) => this.generationRecorder
+        ? this.generationRecorder.orient(request, (r) => this.applyStructureOrientation(r))
+        : this.applyStructureOrientation(request),
+      onSpawn: (request) => this.generationRecorder
+        ? this.generationRecorder.spawn(request, (r) => this.spawnStructureMob(r))
+        : this.spawnStructureMob(request),
     });
     return this.structures;
+  }
+
+  /** Villagers, the iron golem and the pen animals of a generated village: a structure's spawn request. */
+  spawnStructureMob(request) {
+    const mobs = this.game?.mobs;
+    if (!mobs || typeof mobs.spawnMob !== 'function') return false;
+    // A swamp hut's witch does not spawn on Peaceful (the wiki says so); it is dropped, not retried.
+    if ((request.type === 'witch' || request.type === 'zombie_villager') && this.game.difficulty === 'peaceful') return true;
+    // The End crystals on the spikes belong to the dragon fight, which places them (bossFights.initEndArena).
+    if (request.type === 'end_crystal') return true;
+    // A mineshaft's chest is a minecart with a chest, standing on its rail.
+    if (request.type === 'chest_minecart') {
+      const rails = this.game?.railSystem;
+      if (!rails) return false;
+      const cart = rails.spawnCart([request.x, request.y, request.z], { subType: 'chest_minecart' });
+      if (cart && request.options?.lootTable) cart.items = rollStructureLoot(request.options.lootTable, lootSeedFor(Math.floor(request.x), Math.floor(request.y), Math.floor(request.z), this.seed));
+      return true;
+    }
+    if (request.type === 'iron_golem' || request.type === 'villager' || request.type === 'camel') {
+      const safe = findSafeMobSpawnPosition(this, mobs, request.type, request.x, request.y, request.z);
+      if (safe) {
+        request.x = safe.x;
+        request.y = safe.y;
+        request.z = safe.z;
+      }
+    }
+    const mob = mobs.spawnMob(request.type, request.x, request.y, request.z, request.options);
+    if (!mob) return false;
+    // Structure mobs do not despawn by distance (the wiki, for the hut's witch and cat, and the same rule
+    // holds for a village's golem and animals): the despawn pass reads this flag.
+    if (request.options?.persistent && typeof mob === 'object') mob.persistenceRequired = true;
+    return true;
   }
 
   /**
@@ -622,9 +647,21 @@ export class World {
   /** The orientations to write into a save: plain data, enough to apply each one again on load. */
   /** The trial spawners structures placed: `[{ x, y, z, mob, kind }]`. */
   trialSpawners() {
-    const out = [];
-    for (const o of this.structureOrientations.values()) if (o.trialSpawner) out.push({ x: o.x, y: o.y, z: o.z, mob: o.trialSpawner.mob, kind: o.trialSpawner.kind ?? 'normal' });
-    return out;
+    return this.#orientationList('trialSpawners', (o) => o.trialSpawner ? { x: o.x, y: o.y, z: o.z, mob: o.trialSpawner.mob, kind: o.trialSpawner.kind ?? 'normal' } : null);
+  }
+
+  /**
+   * The entries `pick` keeps from the orientation map, rebuilt only when the map has changed (OrientationMap).
+   * A plain Map, which tests and older saves may still hand in, is walked every time as before.
+   */
+  #orientationList(name, pick) {
+    const map = this.structureOrientations;
+    const cached = (this.orientationLists ??= {})[name];
+    if (map instanceof OrientationMap && cached?.map === map && cached.version === map.version) return cached.list.slice();
+    const list = [];
+    for (const o of map.values()) { const entry = pick(o); if (entry) list.push(entry); }
+    if (map instanceof OrientationMap) this.orientationLists[name] = { map, version: map.version, list };
+    return list.slice();
   }
 
   /** A vault's data (ominous or not), if a structure placed one here. */
@@ -634,9 +671,7 @@ export class World {
 
   /** The monster spawners structures placed: `[{ x, y, z, mob }]`. */
   spawners() {
-    const out = [];
-    for (const o of this.structureOrientations.values()) if (o.spawner) out.push({ x: o.x, y: o.y, z: o.z, mob: o.spawner });
-    return out;
+    return this.#orientationList('spawners', (o) => o.spawner ? { x: o.x, y: o.y, z: o.z, mob: o.spawner } : null);
   }
 
   serializeOrientations(orientations=this.structureOrientations) {
@@ -659,7 +694,7 @@ export class World {
 
   reseed(seed = 4289, selectedBiome = this.selectedBiome) {
     this.endState=null;
-    this.structureOrientations = new Map();
+    this.structureOrientations = new OrientationMap();
     this.seed = seed;
     this.selectedBiome = selectedBiome || 'all';
     this.noise = new FastNoise(seed);
@@ -723,7 +758,7 @@ export class World {
       this.dimensionChunks[newDim] = new Map();
     }
     this.chunks = this.dimensionChunks[newDim];
-    this.structureOrientations=this.dimensionOrientations[newDim]??=new Map();
+    this.structureOrientations=this.dimensionOrientations[newDim]??=new OrientationMap();
     // `this.chunks` now points at a different Map. A slot cached from the previous dimension
     // would answer with a chunk from the wrong world, so the cache must be dropped.
     this.invalidateChunkCache();
@@ -782,8 +817,117 @@ export class World {
     this.chunkCache[((cx + CHUNK_HASH_OFFSET) * 31 + (cz + CHUNK_HASH_OFFSET)) & CHUNK_CACHE_MASK] = chunk;
     if (this.generationMode !== 'authored') {
       this.generatingChunks = (this.generatingChunks || 0) + 1;
-      try { this.generateChunkTerrain(chunk); } finally { this.generatingChunks--; }
+      try {
+        // A terrain worker being checked asks for a record of a few chunks generated here (terrainWorkerClient.js).
+        const probe = this.generationProbe?.accept?.(this, cx, cz) ? this.generationProbe : null;
+        if (probe) {
+          const appliedBefore = this.structures?.appliedKeysFor?.(cx, cz) ?? [];
+          const realizedBefore = this.structures?.realizedKeysFor?.(cx, cz) ?? [];
+          const record = this.#generateRecorded(chunk, new GenerationRecorder());
+          probe.add({ ...record, cx, cz, appliedBefore, realizedBefore, voxels: chunk.voxels.slice(), waterLevels: chunk.waterLevels.slice(), weatherRevision: chunk.weatherRevision ?? 0 });
+        } else {
+          this.generateChunkTerrain(chunk);
+        }
+      } finally { this.generatingChunks--; }
     }
+    this.#finishNewChunk(chunk);
+    return chunk;
+  }
+
+  /**
+   * Generate a chunk without keeping it, and say everything the generation did: what a terrain worker runs.
+   *
+   * The chunk is registered while it generates, as `getOrCreateChunk` does, and dropped afterwards; generation reads
+   * no other chunk, so this world never needs to hold more than the one. `appliedKeys` are the structure starts
+   * the game holds written into this chunk now, and `realizedKeys` the ones it has ever written there, so this copy
+   * of the engine skips, and re-writes without mobs, exactly the ones the game's own would.
+   *
+   * @returns {{cx, cz, voxels: Uint16Array, waterLevels: Uint8Array, weatherRevision: number, ops: Array,
+   *   loot: Array, appliedKeys: string[], stats: object}}
+   */
+  generateDetached(cx, cz, appliedKeys = [], realizedKeys = []) {
+    // This copy's own memory of the chunk is replaced by the game's: the game may have unloaded it since.
+    this.structures?.forgetChunk?.(cx, cz);
+    this.structures?.markApplied?.(appliedKeys);
+    this.structures?.markRealized?.(realizedKeys);
+    const key = `${cx},${cz}`;
+    const chunk = new Chunk(cx, cz);
+    this.chunks.set(key, chunk);
+    this.chunkCache[((cx + CHUNK_HASH_OFFSET) * 31 + (cz + CHUNK_HASH_OFFSET)) & CHUNK_CACHE_MASK] = chunk;
+    this.generatingChunks = (this.generatingChunks || 0) + 1;
+    try {
+      const record = this.#generateRecorded(chunk, new GenerationRecorder({ capture: true }));
+      return { ...record, cx, cz, voxels: chunk.voxels, waterLevels: chunk.waterLevels, weatherRevision: chunk.weatherRevision ?? 0 };
+    } finally {
+      this.generatingChunks--;
+      this.chunks.delete(key);
+      this.invalidateChunkCache();
+    }
+  }
+
+  /**
+   * Put a chunk a terrain worker generated into the world, as if `getOrCreateChunk` had generated it here.
+   *
+   * The voxels are copied in, then the worker's record is replayed in order: orientation map writes, and the
+   * structures' orientation and spawn requests through the engine's own dispatch (so a door, chest or villager
+   * reaches the same manager by the same path, and waits to be retried in the same way when that manager is not
+   * up). The rest -- water, light, the creature population pass -- is the same tail every new chunk gets.
+   *
+   * @returns {Chunk|null} the chunk, or null when the world already has one there (generated here meanwhile)
+   */
+  adoptGeneratedChunk(result) {
+    const { cx, cz } = result;
+    if (this.chunks.get(`${cx},${cz}`)) return null;
+    const chunk = new Chunk(cx, cz);
+    chunk.voxels.set(result.voxels);
+    chunk.waterLevels.set(result.waterLevels);
+    if (result.weatherRevision) chunk.weatherRevision = result.weatherRevision;
+    this.chunks.set(`${cx},${cz}`, chunk);
+    this.chunkCache[((cx + CHUNK_HASH_OFFSET) * 31 + (cz + CHUNK_HASH_OFFSET)) & CHUNK_CACHE_MASK] = chunk;
+    this.generatingChunks = (this.generatingChunks || 0) + 1;
+    try {
+      const structures = this.structures;
+      structures?.adoptGenerated?.(result);
+      for (const op of result.ops ?? []) {
+        if (op[0] === 'set') this.structureOrientations.set(op[1], op[2]);
+        else if (op[0] === 'delete') this.structureOrientations.delete(op[1]);
+        else structures?.replayRequest?.(op[0], op[1]);
+      }
+    } finally { this.generatingChunks--; }
+    this.#finishNewChunk(chunk);
+    return chunk;
+  }
+
+  /** Generate a chunk's terrain with a recorder listening, and collect what it did besides its voxels. */
+  #generateRecorded(chunk, recorder) {
+    const structures = this.structures;
+    const lootBefore = structures?.loot?.length ?? 0;
+    const statsBefore = structures?.stats ? { ...structures.stats } : {};
+    const appliedBefore = new Set(structures?.appliedKeysFor?.(chunk.cx, chunk.cz) ?? []);
+    const map = this.structureOrientations;
+    this.generationRecorder = recorder;
+    if (map instanceof OrientationMap) map.recorder = recorder;
+    try {
+      this.generateChunkTerrain(chunk);
+    } finally {
+      this.generationRecorder = null;
+      if (map instanceof OrientationMap) map.recorder = null;
+    }
+    const stats = {};
+    for (const name of GENERATION_COUNTS) stats[name] = (structures?.stats?.[name] ?? 0) - (statsBefore[name] ?? 0);
+    return {
+      ops: recorder.ops,
+      loot: recorder.copy(structures?.loot?.slice(lootBefore) ?? []),
+      appliedKeys: (structures?.appliedKeysFor?.(chunk.cx, chunk.cz) ?? []).filter((key) => !appliedBefore.has(key)),
+      stats,
+      // Something could not be copied: a worker must not be trusted with this record, nor a check pass on it.
+      unrecordable: recorder.unrecordable,
+    };
+  }
+
+  /** What every new chunk gets once its voxels are in: water, light, and the creature population pass. */
+  #finishNewChunk(chunk) {
+    const { cx, cz } = chunk;
     this.water.initChunk(chunk);
     // Allocate lighting; initChunk queues propagation and its arrays initially contain zeroes.
     this.light.initChunk(cx, cz);
@@ -800,7 +944,6 @@ export class World {
       this.light.relightChunk(cx, cz);
       generationSpawner.onChunkGenerated(cx, cz);
     }
-    return chunk;
   }
 
   /**
@@ -924,17 +1067,18 @@ export class World {
     // The column's biome and height, kept for the last few thousand columns: a structure asks about many blocks of
     // the same few columns.
     this.genColumns ??= new Map();
-    const ck = `${wx},${wz}`;
+    // A numeric key, as in plansAt: this runs for every block a planned structure tests.
+    const ck = (wx + 33554432) * 67108864 + (wz + 33554432);
     let column = this.genColumns.get(ck);
     if (!column) {
       const bId = this.getBiome(wx, wz);
-      column = { def: getBiomeDef(bId), height: this.surfaceHeightAt(wx, wz, bId) };
+      column = { biome: bId, height: this.surfaceHeightAt(wx, wz, bId) };
       if (this.genColumns.size > 4096) this.genColumns.clear();
       this.genColumns.set(ck, column);
     }
-    const { def, height } = column;
+    const { biome, height } = column;
     if (wy > height) return false;
-    return this.caves.cellAt(wx,wy,wz,this.caves.column(wx,wz,height,this.getBiome(wx,wz)))===null;
+    return this.caves.cellAt(wx,wy,wz,this.caves.column(wx,wz,height,biome))===null;
   }
 
   /** Index the Nether portal blocks of every chunk held (after a load: setVoxel indexes the rest). */

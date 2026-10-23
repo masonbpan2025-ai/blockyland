@@ -10,16 +10,30 @@ const rock=new Set([B.STONE,B.DEEPSLATE,B.TUFF,B.GRANITE,B.DIORITE,B.ANDESITE,B.
 const netherRock=new Set([B.NETHERRACK,B.NETHER_QUARTZ_ORE,B.NETHER_GOLD_ORE,B.BLACKSTONE,B.BASALT,B.SOUL_SAND,B.SOUL_SOIL,B.GRAVEL]);
 const mix=(seed,x,z,salt)=>{let h=Math.imul(x,374761393)^Math.imul(z,668265263)^(seed|0)^salt;h=Math.imul(h^(h>>>13),1274126177);return ((h^(h>>>16))>>>0)/4294967296;};
 const lerp=(a,b,t)=>a+(b-a)*t;
+// Numeric cache keys: these caches are read for every block a structure probes, and building a template string for
+// each lookup was a large share of generation. Exact for coordinates within 2^25 of the origin.
+const KEY_OFFSET=33554432,KEY_SPAN=67108864;
+const columnKey=(x,z)=>(x+KEY_OFFSET)*KEY_SPAN+(z+KEY_OFFSET);
+// What a column needs to know about its surface biome, worked out once per biome rather than once per column.
+const biomeTraits=new Map();
+function traitsOf(biome){
+  const def=getBiomeDef(biome);let t=biomeTraits.get(biome);
+  // The definition is compared, not just cached: a data pack can replace a biome while the game runs.
+  if(!t||t.def!==def){t={def,inland:def.category!=='offshore'&&!/river|beach/.test(biome),humidSurface:/dark_forest|jungle|old_growth/.test(biome)};biomeTraits.set(biome,t);}
+  return t;
+}
 
 export class CaveTerrain {
-  constructor(world){this.world=world;this.regions=new Map();this.columns=new Map();}
+  constructor(world){this.world=world;this.regions=new Map();this.columns=new Map();this.tiles=new Map();}
+  /** The cache for the current dimension; a dimension change keeps the other dimension's entries apart. */
+  cacheFor(store){const dim=this.world.dimension;let m=store.get(dim);if(!m)store.set(dim,m=new Map());return m;}
   hub(gx,gz){
     const w=this.world,r=s=>mix(w.seed,gx,gz,s),x=gx*REGION+16+r(11)*32,z=gz*REGION+16+r(13)*32;
     const height=w.surfaceHeightAt(Math.floor(x),Math.floor(z));
     return [x,Math.max(6,Math.min(18,height-10))+(r(17)-.5)*2,z];
   }
   region(gx,gz){
-    const key=`${this.world.dimension}|${gx},${gz}`;if(this.regions.has(key))return this.regions.get(key);
+    const regions=this.cacheFor(this.regions),key=columnKey(gx,gz),known=regions.get(key);if(known!==undefined)return known;
     const w=this.world,r=s=>mix(w.seed,gx,gz,s),hub=this.hub(gx,gz),segments=[];
     const tube=(a,b,salt,entrance=false)=>{
       let last=a;const bend=(r(salt)-.5)*16;
@@ -35,25 +49,43 @@ export class CaveTerrain {
     const entrance=[ex,w.surfaceHeightAt(Math.floor(ex),Math.floor(ez))+1,ez];tube(hub,entrance,109,true);
     const room={x:hub[0],y:hub[1],z:hub[2],rx:7+r(131)*6,ry:3.5+r(137)*3,rz:6+r(139)*5};
     const result={gx,gz,hub,segments,room,entrance};
-    if(this.regions.size>=256)this.regions.delete(this.regions.keys().next().value);this.regions.set(key,result);return result;
+    if(regions.size>=256)regions.delete(regions.keys().next().value);regions.set(key,result);return result;
   }
-  column(x,z,height=this.world.surfaceHeightAt(x,z),biome=this.world.getBiome(x,z)){
-    const key=`${this.world.dimension}|${x},${z}`;if(this.columns.has(key))return this.columns.get(key);
-    const gx=Math.floor(x/REGION),gz=Math.floor(z/REGION),segments=[],rooms=[];
+  /**
+   * The rooms and tunnel segments that can reach any column of a 16 x 16 tile, in the order `column` tests them.
+   *
+   * A column used to test every segment of the nine regions around it, about 280 boxes, on each cache miss. The
+   * tile keeps the few that can matter. The order is kept because `kindAt` stops at the first segment that hits.
+   */
+  tile(tx,tz){
+    const tiles=this.cacheFor(this.tiles),key=columnKey(tx,tz),known=tiles.get(key);if(known!==undefined)return known;
+    // A region is a whole number of tiles wide, so every column of the tile has the same nine regions.
+    const x0=tx*16+.5,x1=tx*16+15.5,z0=tz*16+.5,z1=tz*16+15.5,gx=Math.floor(tx*16/REGION),gz=Math.floor(tz*16/REGION),segments=[],rooms=[];
     for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
       const region=this.region(gx+dx,gz+dz),room=region.room;
-      if(Math.abs(x+.5-room.x)<room.rx&&Math.abs(z+.5-room.z)<room.rz)rooms.push(room);
-      for(const s of region.segments)if(x+.5>=s.minX&&x+.5<=s.maxX&&z+.5>=s.minZ&&z+.5<=s.maxZ)segments.push(s);
+      if(room.x-room.rx<x1&&room.x+room.rx>x0&&room.z-room.rz<z1&&room.z+room.rz>z0)rooms.push(room);
+      for(const s of region.segments)if(s.maxX>=x0&&s.minX<=x1&&s.maxZ>=z0&&s.minZ<=z1)segments.push(s);
     }
-    const w=this.world,def=getBiomeDef(biome),n=w.caveNoise;
-    const moisture=w.biomeNoise.noise2D((x+713)*.009,(z-311)*.009),inland=def.category!=='offshore'&&!/river|beach/.test(biome);
-    const humidSurface=/dark_forest|jungle|old_growth/.test(biome);
+    const result={segments,rooms};
+    if(tiles.size>=1024)tiles.delete(tiles.keys().next().value);tiles.set(key,result);return result;
+  }
+  column(x,z,height,biome){
+    const columns=this.cacheFor(this.columns),key=columnKey(x,z),known=columns.get(key);if(known!==undefined)return known;
+    // Worked out only on a miss. These were default parameters, which JavaScript evaluates on every call -- so each
+    // cached lookup still paid for a biome and a terrain-height noise sample.
+    if(biome===undefined)biome=this.world.getBiome(x,z);
+    if(height===undefined)height=this.world.surfaceHeightAt(x,z);
+    const segments=[],rooms=[],near=this.tile(Math.floor(x/16),Math.floor(z/16));
+    for(const room of near.rooms)if(Math.abs(x+.5-room.x)<room.rx&&Math.abs(z+.5-room.z)<room.rz)rooms.push(room);
+    for(const s of near.segments)if(x+.5>=s.minX&&x+.5<=s.maxX&&z+.5>=s.minZ&&z+.5<=s.maxZ)segments.push(s);
+    const w=this.world,{def,inland,humidSurface}=traitsOf(biome),n=w.caveNoise;
+    const moisture=w.biomeNoise.noise2D((x+713)*.009,(z-311)*.009);
     const caveBiome=def.isCavern?biome:inland&&w.noise.noise2D(x*.004,z*.004)>.35?'dripstone_caves':moisture>(humidSurface?-.35:.25)?'lush_caves':null;
     const aquiferX=Math.floor(x/24),aquiferZ=Math.floor(z/24),wet=mix(w.seed,aquiferX,aquiferZ,401)<.28;
     const c={x,z,height,biome,def,segments,rooms,caveBiome,wet,waterTable:7+Math.floor(mix(w.seed,aquiferX,aquiferZ,409)*6),
       pillar:n.noise2D((x+181)*.11,(z-79)*.11)>.53,
       floor:8+Math.floor(n.noise2D(x*.035,z*.035)*3),ceiling:34+Math.floor(n.noise2D((x+41)*.026,(z-91)*.026)*5)};
-    if(this.columns.size>=8192)this.columns.delete(this.columns.keys().next().value);this.columns.set(key,c);return c;
+    if(columns.size>=8192)columns.delete(columns.keys().next().value);columns.set(key,c);return c;
   }
   biomeAt(x,y,z,column=null){
     const w=this.world,b=w.getBiome(x,z);if(w.dimension!=='overworld'||w.isFlatWorld||w.generationMode==='authored'||getBiomeDef(b).isVoid)return b;

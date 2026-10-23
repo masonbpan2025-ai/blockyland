@@ -12,7 +12,7 @@ import { sheepApplyWool } from './sheepBehavior.js';
 import { applyMooshroomVariant } from './mooshroomBehavior.js';
 import { applyRabbitCoat, applyRabbitName } from './rabbitBehavior.js';
 import * as THREE from 'three';
-import { Chunk } from './world.js';
+import { Chunk, OrientationMap } from './world.js';
 import { yieldToBrowser } from './progressOverlay.js';
 
 /**
@@ -245,7 +245,7 @@ function restoreMapDimension(game,mapData,seed) {
       chunk.dirty=true;chunks.set(world.chunkKey(chunk.cx,chunk.cz),chunk);
     }
     world.dimensionChunks[name]=chunks;
-    world.dimensionOrientations[name]=new Map((data.structureOrientations??[]).map(o=>[`${o.x},${o.y},${o.z}`,o]));
+    world.dimensionOrientations[name]=new OrientationMap((data.structureOrientations??[]).map(o=>[`${o.x},${o.y},${o.z}`,o]));
   }
 }
 

@@ -132,6 +132,42 @@ export function isVegetation(id) {
 }
 
 /** A stable identity for one start, used to write it into a chunk at most once. */
+/**
+ * A set of `${dimension}|${cx},${cz}|${start}` keys, also indexed by their chunk so one chunk's keys can be listed or
+ * dropped without scanning the rest.
+ */
+function createChunkKeySet() {
+  const keys = new Set();
+  const byChunk = new Map();
+  const chunkOf = (key) => key.slice(0, key.indexOf('|', key.indexOf('|') + 1));
+  return {
+    has: (key) => keys.has(key),
+    add(list) {
+      for (const key of list) {
+        if (keys.has(key)) continue;
+        keys.add(key);
+        const chunk = chunkOf(key);
+        let entries = byChunk.get(chunk);
+        if (!entries) byChunk.set(chunk, entries = []);
+        entries.push(key);
+      }
+    },
+    keysFor: (chunk) => (byChunk.get(chunk) ?? []).slice(),
+    forget(chunk) {
+      for (const key of byChunk.get(chunk) ?? []) keys.delete(key);
+      byChunk.delete(chunk);
+    },
+  };
+}
+
+/**
+ * The counters generating a chunk advances by itself, which a worker reports and the game adds up. `mobs`,
+ * `spawned` and `oriented` are left out: replaying the chunk's requests advances those (`replayRequest`). So is
+ * `planned`: the game plans for itself whenever it asks about structures, and counting the worker's too would
+ * count the same plans twice.
+ */
+export const GENERATION_COUNTS = Object.freeze(['chunks', 'structures', 'blocks', 'outOfWorld', 'cleared']);
+
 function startKey(start) {
   const box = start.box;
   return `${start.structureId}@${box.minX},${box.minY},${box.minZ}`;
@@ -208,9 +244,24 @@ export function createWorldStructures({
   // One entry per chunk ever considered: a start, or null for "nothing here". Memoised because the scan
   // reaches the same neighbour chunk from many directions and planning is the expensive half.
   const plans = new Map();
-  // Which start has already been realized into which chunk. A chunk can be asked to generate more than once
-  // (the world registers a chunk before generating it, and callers re-enter), so this keeps writes idempotent.
-  const applied = new Set();
+  // Two records of which start has been realized into which chunk, kept by chunk so a terrain worker can be told
+  // them (appliedKeysFor, realizedKeysFor) and this engine told what a worker did (markApplied, markRealized).
+  //
+  //   applied   -- written into the chunk the world holds NOW. A chunk can be asked to generate more than once (the
+  //                world registers a chunk before generating it, and callers re-enter), so this keeps writes
+  //                idempotent. It is forgotten when the chunk is unloaded (forgetChunk): the chunk's blocks are gone,
+  //                and when it is generated again its structures must be written again. They were not, which left
+  //                holes in villages and every other structure after walking away and back.
+  //   realized  -- ever written, for the life of the world. A structure written a second time does not ask for its
+  //                mobs again: its villagers, golem and witch were spawned the first time and are still there.
+  const applied = createChunkKeySet();
+  const realized = createChunkKeySet();
+  const markApplied = (keys) => applied.add(keys);
+  const markRealized = (keys) => realized.add(keys);
+  const appliedKeysFor = (chunkX, chunkZ, dimension = dimensionNow()) => applied.keysFor(`${dimension}|${chunkX},${chunkZ}`);
+  const realizedKeysFor = (chunkX, chunkZ, dimension = dimensionNow()) => realized.keysFor(`${dimension}|${chunkX},${chunkZ}`);
+  /** The chunk has left the world: what was written into it is gone with it. */
+  const forgetChunk = (chunkX, chunkZ, dimension = dimensionNow()) => applied.forget(`${dimension}|${chunkX},${chunkZ}`);
   const loot = [];
   const stats = { chunks: 0, planned: 0, structures: 0, blocks: 0, outOfWorld: 0, mobs: 0, spawned: 0, oriented: 0, cleared: 0 };
 
@@ -260,6 +311,21 @@ export function createWorldStructures({
     const entry = { kind, request, attempts: 1 };
     if (deliver(entry)) { if (kind === 'spawn') stats.spawned++; else stats.oriented++; return; }
     pendingSpawns.push(entry);
+  }
+  /**
+   * Take in what a terrain worker's copy of this engine did for one chunk (terrainWorkerClient.js), as if this
+   * engine had generated it: the requests go out through the same `dispatch`, in the same order, and the keys,
+   * loot and counts are added to this engine's own.
+   */
+  function replayRequest(kind, request) {
+    if (kind === 'spawn') { spawns.push(request); stats.mobs++; } else orientations.push(request);
+    dispatch(kind, request);
+  }
+  function adoptGenerated({ appliedKeys = [], loot: chunkLoot = [], stats: counts = {} } = {}) {
+    markApplied(appliedKeys);
+    markRealized(appliedKeys);
+    for (const entry of chunkLoot) loot.push(entry);
+    for (const name of GENERATION_COUNTS) stats[name] += counts[name] ?? 0;
   }
   function flushSpawns() {
     if (pendingSpawns.length === 0) return 0;
@@ -314,18 +380,45 @@ export function createWorldStructures({
     const bx = Math.floor(x);
     const by = Math.floor(y);
     const bz = Math.floor(z);
-    const cx = Math.floor(bx / sizes.x);
-    const cz = Math.floor(bz / sizes.z);
+    const near = piecesReaching(Math.floor(bx / sizes.x), Math.floor(bz / sizes.z));
+    for (let i = 0; i < near.boxes.length; i++) {
+      if (near.boxes[i].contains(bx, by, bz)) return near.ids[i];
+    }
+    return null;
+  }
+
+  /**
+   * Every planned piece whose box reaches into this chunk, with its structure id, in the order `structureIdAt` used
+   * to visit them (so the first match is the same one).
+   *
+   * The spawner asks `structureIdAt` for every spawn attempt, and each ask walked the plans of the 289 chunks around
+   * it and every piece in them. Plans never change once made, so what reaches a chunk is worked out once.
+   */
+  const reachingByDimension = new Map();
+  function piecesReaching(chunkX, chunkZ) {
+    const dimension = dimensionNow();
+    let byChunk = reachingByDimension.get(dimension);
+    if (!byChunk) reachingByDimension.set(dimension, byChunk = new Map());
+    const key = (chunkX + 1048576) * 2097152 + (chunkZ + 1048576);
+    const known = byChunk.get(key);
+    if (known !== undefined) return known;
+    const minX = chunkX * sizes.x; const maxX = minX + sizes.x - 1;
+    const minZ = chunkZ * sizes.z; const maxZ = minZ + sizes.z - 1;
+    const near = { boxes: [], ids: [] };
     for (let dx = -radiusChunks; dx <= radiusChunks; dx++) {
       for (let dz = -radiusChunks; dz <= radiusChunks; dz++) {
-        for (const start of plansAt(cx + dx, cz + dz)) {
+        for (const start of plansAt(chunkX + dx, chunkZ + dz, dimension)) {
           for (const piece of start.pieces) {
-            if (piece.box.contains(bx, by, bz)) return start.structureId;
+            const b = piece.box;
+            if (b.maxX < minX || b.minX > maxX || b.maxZ < minZ || b.minZ > maxZ) continue;
+            near.boxes.push(b); near.ids.push(start.structureId);
           }
         }
       }
     }
-    return null;
+    if (byChunk.size >= 4096) byChunk.delete(byChunk.keys().next().value);
+    byChunk.set(key, near);
+    return near;
   }
 
   /**
@@ -381,7 +474,10 @@ export function createWorldStructures({
 
         const key = `${dimension}|${chunk.cx},${chunk.cz}|${startKey(start)}`;
         if (applied.has(key)) continue;
-        applied.add(key);
+        // Written here before, then unloaded: the blocks and orientations go back, the mobs and loot list do not.
+        const again = realized.has(key);
+        markApplied([key]);
+        markRealized([key]);
 
         const own = new Set();
         const written = engine.realize(start, (x, y, z, id, meta) => {
@@ -398,7 +494,7 @@ export function createWorldStructures({
           // A village path over water becomes planks (the generator says which, through `ifWater`).
           if (meta && meta.ifWater !== undefined && chunk.getVoxel(lx, y, lz) === blockIds.WATER) id = meta.ifWater;
           chunk.setVoxel(lx, y, lz, id);
-          if (meta && meta.lootTable) loot.push({ x, y, z, lootTable: meta.lootTable });
+          if (meta && meta.lootTable && !again) loot.push({ x, y, z, lootTable: meta.lootTable });
           // A block that has a way of facing (a door, bed, chest or stair): tell the game which way, since the
           // chunk holds only its id.
           const props = meta?.state?.properties;
@@ -419,6 +515,8 @@ export function createWorldStructures({
           return true;
         }, {
           spawnMob: (type, x, y, z, options) => {
+            // Its mobs were spawned the first time and outlive the chunk (structure mobs are persistent).
+            if (again) return true;
             // `y` is the floor block's top; a hair above it so the mob does not start inside the floor.
             const request = { type, x, y: y + 0.01, z, options };
             spawns.push(request);
@@ -456,6 +554,13 @@ export function createWorldStructures({
     orientations,
     pendingSpawns,
     flushSpawns,
+    appliedKeysFor,
+    realizedKeysFor,
+    markApplied,
+    markRealized,
+    forgetChunk,
+    replayRequest,
+    adoptGenerated,
     /** The engine for the dimension the world is in now. */
     get engine() { return engineFor(dimensionNow()); },
     engineFor,

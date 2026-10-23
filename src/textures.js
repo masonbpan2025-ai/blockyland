@@ -196,6 +196,8 @@ export class TextureManager {
     const v0 = 1.0 - ((row + 1) / this.atlasGridSize) + inset;
 
     this.tileCoords[fileName] = { col, row, u0, v0, u1, v1 };
+    // The mesher keeps built block shapes, whose UVs come from here; a new tile tells it they may be stale.
+    this.atlasVersion = (this.atlasVersion || 0) + 1;
 
     return new Promise((resolve) => {
       if (typeof Image === 'undefined') {
@@ -229,6 +231,7 @@ export class TextureManager {
    * When packs are deactivated/turned off, resizes back to 512x512 to ensure zero performance degradation.
    */
   async rebuildAtlas() {
+    this.atlasVersion = (this.atlasVersion || 0) + 1;
     const newTileSize = resourcePackManager.getActiveTileSize();
     const sizeChanged = (newTileSize !== this.tileSize);
 

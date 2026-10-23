@@ -158,6 +158,18 @@ function blockTables() {
   return t;
 }
 
+/** A shape cache key: the block and every state field except its position. */
+function shapeKey(blockId, state) {
+  let key = String(blockId);
+  if (!state) return key;
+  for (const name in state) {
+    if (name === 'x' || name === 'y' || name === 'z' || name === 'p') continue;
+    const value = state[name];
+    key += `|${name}=${value !== null && typeof value === 'object' ? JSON.stringify(value) : value}`;
+  }
+  return key;
+}
+
 function isSolidBlock(blockId) {
   return tables.solid[blockId];
 }
@@ -234,6 +246,41 @@ const FACES = FACE_NAMES;
 export class ChunkMesher {
   constructor(textureManager) {
     this.tm = textureManager;
+    /** Built shapes by block and state, cloned per block (see `shapedGeometry`). */
+    this.shapeCache = new Map();
+    this.shapeCacheStamp = null;
+  }
+
+  /**
+   * The geometry of a shaped block, in block-local coordinates, as a fresh copy the caller may translate.
+   *
+   * A village has thousands of stairs, fences, slabs and torches, and building each one's BoxGeometry and merging it
+   * was a third of the cost of meshing a chunk. A shape depends only on the block, its state and the atlas, so it is
+   * built once and cloned. The state's position (`x`, `y`, `z`, `p`) is left out of the key, since no shape reads it.
+   * Emptied by `checkShapeCache` when the atlas moves a tile or a mod registers a block.
+   */
+  shapedGeometry(blockId, state) {
+    const key = shapeKey(blockId, state);
+    let template = this.shapeCache.get(key);
+    if (!template) {
+      // Kept as a plain BufferGeometry: `clone()` on a BoxGeometry or CylinderGeometry first builds a default one of
+      // its own (a 32-sided cylinder) and then overwrites it, which cost more than the copy itself.
+      const built = createBlockGeometry(blockId, this.tm, state);
+      template = new THREE.BufferGeometry().copy(built);
+      built.dispose();
+      if (this.shapeCache.size >= 4096) this.shapeCache.clear();
+      this.shapeCache.set(key, template);
+    }
+    return new THREE.BufferGeometry().copy(template);
+  }
+
+  /** Drop the built shapes if the atlas or the block table changed since they were made. Once per chunk mesh. */
+  checkShapeCache(tables) {
+    const stamp = `${this.tm?.atlasVersion ?? 0}|${tables.size}`;
+    if (stamp === this.shapeCacheStamp) return;
+    for (const geometry of this.shapeCache.values()) geometry.dispose();
+    this.shapeCache.clear();
+    this.shapeCacheStamp = stamp;
   }
 
   meshChunk(chunk, world) {
@@ -270,6 +317,7 @@ export class ChunkMesher {
     // Snapshot each build so a resumed mesh keeps its own table and newly
     // registered mod definitions are picked up by the next build.
     const T = blockTables();
+    this.checkShapeCache(T);
     const faceOcclusion = T.occludes;
     const lightGeometries = [];
     const lightSources = [];
@@ -389,7 +437,7 @@ export class ChunkMesher {
             // A structure's stair carries its facing in `structureOrientations`; everything else here reads redstone state.
             const state = world.redstone?.state([wx, wy, wz]) || ((def.pointedDripstone || def.stair || def.slab || def.plant || blockId===BLOCKS.CHORUS_FLOWER || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
               || (def.model?.connections ? { connect: chorusConnections(world, wx, wy, wz) } : null) || {};
-            const geometry = createBlockGeometry(blockId, this.tm, state);
+            const geometry = this.shapedGeometry(blockId, state);
             if (def.snowLayer) {
               const normals = geometry.attributes.normal, exposure = new Float32Array(normals.count);
               for (let i = 0; i < normals.count; i++) exposure[i] = faceSkyExposure(lx, ly, lz, normals.getX(i), normals.getY(i), normals.getZ(i), snowSkyCeilings);
@@ -421,7 +469,7 @@ export class ChunkMesher {
           }
           if (special === SPECIAL.TRAPDOOR) {
             const state = world.redstone?.state([wx, wy, wz]) || {};
-            const geometry = createBlockGeometry(blockId, this.tm, state);
+            const geometry = this.shapedGeometry(blockId, state);
             geometry.translate(wx, wy, wz);
             const origin = new Float32Array(geometry.attributes.position.count * 3);
             for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
@@ -474,7 +522,7 @@ export class ChunkMesher {
               return !faceOcclusion[world.getVoxel(wx + dx, wy + dy, wz + dz)];
             });
             if (exposed) {
-              const geometry = createBlockGeometry(blockId, this.tm,caveState);
+              const geometry = this.shapedGeometry(blockId, caveState);
               if(blockId===BLOCKS.LAVA){
                 const pos=geometry.attributes.position;
 

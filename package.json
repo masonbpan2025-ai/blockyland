@@ -42,6 +42,8 @@
     "test:agent:vault:browser": "node scripts/test-agent-key-vault.mjs",
     "test:preflight": "node scripts/preflight.mjs",
     "test:start:browser": "playwright test -c playwright.startButtons.config.js",
+    "test:terrain-worker:browser": "playwright test -c playwright.terrainWorker.config.js",
+    "test:graphics:browser": "playwright test -c playwright.graphics.config.js",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "type": "module",

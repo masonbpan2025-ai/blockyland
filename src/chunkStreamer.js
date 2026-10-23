@@ -59,7 +59,7 @@ export class ChunkStreamer {
     this.centerZ = null;
 
     // Counters, for tests and for a debug readout.
-    this.stats = { generated: 0, meshed: 0, unloaded: 0, lastGenerateMs: 0, lastMeshMs: 0 };
+    this.stats = { generated: 0, adopted: 0, meshed: 0, unloaded: 0, lastGenerateMs: 0, lastMeshMs: 0 };
 
     /**
      * Running estimates of what one generate and one mesh cost, so a frame can decide whether to
@@ -70,6 +70,9 @@ export class ChunkStreamer {
      */
     this.estimatedGenerateMs = 3.7;
     this.estimatedMeshMs = 5.7;
+    /** The same for adopting a chunk a terrain worker generated (adoptWorkerChunks). */
+    this.estimatedAdoptMs = 2;
+    this.adoptPerFrame = options.adoptPerFrame ?? 1;
 
     /**
      * Total budget for building work in one frame, shared between generation and meshing.
@@ -131,11 +134,42 @@ export class ChunkStreamer {
   }
 
   setRenderDistance(radius) {
+    const shrinking = Math.max(1, Math.floor(radius)) < this.meshRadius;
     this.meshRadius = Math.max(1, Math.floor(radius));
+    // A smaller distance is chosen to draw less, now: meshes beyond it would otherwise stay in the scene until their
+    // chunks passed the unload radius. The chunks stay; they are meshed again if they come back into range.
+    if (shrinking && this.centerX !== null) this.dropMeshesBeyond(this.centerX, this.centerZ, this.meshRadius);
     this.generateRadius = this.meshRadius + 1;
     this.unloadRadius = this.meshRadius + 3;
     // Force a replan on the next update.
     this.centerX = null;
+  }
+
+  /** Remove the meshes of chunks more than `radius` chunks from (pcx, pcz), keeping their voxels. */
+  dropMeshesBeyond(pcx, pcz, radius) {
+    const game = this.game;
+    const job = this.inProgress?.chunk;
+    if (job && Math.max(Math.abs(job.cx - pcx), Math.abs(job.cz - pcz)) > radius) {
+      this.inProgress.iterator?.return?.();
+      this.inProgress = null;
+    }
+    for (const chunk of game.world.chunks.values()) {
+      if (Math.max(Math.abs(chunk.cx - pcx), Math.abs(chunk.cz - pcz)) <= radius) continue;
+      let had = false;
+      for (const slot of ['opaqueMesh', 'transparentMesh', 'waterMesh', 'lightMesh']) {
+        const mesh = chunk[slot];
+        if (!mesh) continue;
+        game.scene.remove(mesh);
+        mesh.geometry?.dispose();
+        chunk[slot] = null;
+        had = true;
+      }
+      if (had) {
+        game.blockLighting?.setChunk?.(chunk.cx, chunk.cz, []);
+        chunk.dirty = true;
+      }
+      this.loaded.delete(this.key(chunk.cx, chunk.cz));
+    }
   }
 
   key(cx, cz) {
@@ -232,6 +266,8 @@ export class ChunkStreamer {
     if (this.game.world.generationMode !== 'authored' && !chunk.modified) {
       this.game.world.light?.removeChunk?.(chunk.cx, chunk.cz);
       this.game.world.chunks.delete(this.key(chunk.cx, chunk.cz));
+      // Its structures leave with its blocks, so generating it again writes them again (worldStructures.js).
+      this.game.world.structures?.forgetChunk?.(chunk.cx, chunk.cz);
     }
     this.game.world.invalidateChunkCache();
     this.loaded.delete(this.key(chunk.cx, chunk.cz));
@@ -246,11 +282,19 @@ export class ChunkStreamer {
     }
   }
 
-  /** Generate terrain nearest-first until the budget is spent. */
+  /**
+   * Generate terrain nearest-first until the budget is spent.
+   *
+   * With a checked terrain worker (terrainWorkerClient.js) most chunks are made off the main thread: this adopts
+   * the ones it has finished, asks it for the nearest missing ones, and generates here only what it cannot make.
+   */
   runGeneration(world, pcx, pcz) {
     const start = now();
     const phaseStart = start;
     let generated = 0;
+    const worker = this.game?.terrainWorker ?? null;
+    worker?.sync?.(this.game);
+    if (worker) generated += this.adoptWorkerChunks(world, worker, pcx, pcz, phaseStart);
 
     // Collect candidates: inside generateRadius and not yet in the world.
     const candidates = [];
@@ -264,6 +308,12 @@ export class ChunkStreamer {
     candidates.sort((a, b) => a.d - b.d);
 
     for (const c of candidates) {
+      // The worker's chunks cost this frame nothing until they are adopted. One it is busy with, or has no room
+      // for yet, simply waits: generating it here as well would bring back the stall the worker exists to remove.
+      if (worker?.canGenerate?.(world, c.cx, c.cz)) {
+        if (!worker.isPending(c.cx, c.cz)) worker.request(world, c.cx, c.cz);
+        continue;
+      }
       // Check before starting, not only after finishing. The previous "do the work, then look at
       // the clock" loop could not bound a frame at all: one chunk costs a median of 3.7ms but up
       // to 24.7ms, so a frame that had already spent 5ms would still begin a 25ms chunk.
@@ -277,6 +327,34 @@ export class ChunkStreamer {
 
     this.stats.lastGenerateMs = now() - start;
     return generated;
+  }
+
+  /**
+   * Put the worker's finished chunks into the world, under the same frame budget as generation.
+   *
+   * Adopting is a copy plus the water, light and creature tail every new chunk gets, a few milliseconds rather
+   * than the tens that generating took. A chunk the player has since left far behind is dropped rather than
+   * adopted only to be unloaded.
+   */
+  adoptWorkerChunks(world, worker, pcx, pcz, phaseStart) {
+    let adopted = 0;
+    // One a frame. A border crossing brings about nineteen chunks while the player takes a few hundred frames to
+    // cross the next chunk, so one keeps up with walking, and the frame then pays for at most one adoption; three in
+    // one frame was itself a 20ms frame. A teleport fills in at sixty a second.
+    while (worker.hasResult() && adopted < this.adoptPerFrame) {
+      if (this.wouldExceed(this.estimatedAdoptMs, now() - phaseStart, this.generateMs, adopted === 0)) break;
+      const result = worker.takeResult();
+      if (!worker.eligible(world, result.cx, result.cz)) continue;
+      if (Math.max(Math.abs(result.cx - pcx), Math.abs(result.cz - pcz)) > this.unloadRadius) continue;
+      const t0 = now();
+      const chunk = world.adoptGeneratedChunk(result);
+      this.estimatedAdoptMs = this.#blend(this.estimatedAdoptMs, now() - t0);
+      if (!chunk) continue;
+      adopted++;
+      this.stats.generated++;
+      this.stats.adopted++;
+    }
+    return adopted;
   }
 
   /**

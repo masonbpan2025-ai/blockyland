@@ -1598,6 +1598,10 @@ export const BIOMES = {
 
 export function getBiomeDef(id) {
   if (!id) return BIOMES.plains;
+  // Terrain generation asks this hundreds of thousands of times per chunk, nearly always with an id that is already
+  // a key, so look that up before paying for the regular expression below.
+  const direct = typeof id === 'string' ? BIOMES[id] : undefined;
+  if (direct) return direct;
   const clean = String(id).toLowerCase().trim().replace(/[\s-]+/g, '_');
   return BIOMES[clean] || BIOMES.plains;
 }
