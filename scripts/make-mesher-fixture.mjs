@@ -1,4 +1,8 @@
-// Build tests/fixtures/mesherBefore.js: the pre-optimisation mesher, importable, for A/B measurement.
+// Build a mesher fixture for tests/mesherPerformance.test.js, importable from tests/fixtures/:
+//   - mesherBefore.js (the default): the pre-optimisation mesher, which the speed and allocation checks measure
+//     the current one against;
+//   - mesherReference.js (MESHER_OUT=reference): the mesher as last committed, which the geometry checks compare
+//     the current one against. Regenerate it when the mesher's output is changed on purpose.
 //
 // Kept as a script rather than a hand-edited copy so it can be regenerated from git at any commit.
 //
@@ -19,12 +23,18 @@ if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
 // Imports resolve relative to the fixture's new location.
 text = text.replace(/from '\.\//g, "from '../../src/");
 
+const reference = process.env.MESHER_OUT === 'reference';
+const out = reference ? 'tests/fixtures/mesherReference.js' : 'tests/fixtures/mesherBefore.js';
 const rev = process.env.MESHER_REV || 'a previous revision';
-const header = `// GENERATED -- do not edit. The mesher as it was at ${rev}, kept so a performance change to the
-// mesher can be measured against what it replaced. Regenerate with:
+const purpose = reference
+  ? `kept so a change to the
+// mesher that alters its geometry by accident is caught. Regenerate it when the geometry is changed on purpose:`
+  : `kept so a performance change to the
+// mesher can be measured against what it replaced. Regenerate with:`;
+const header = `// GENERATED -- do not edit. The mesher as it was at ${rev}, ${purpose}
 //   cmd /c "git cat-file blob <rev>:src/mesher.js > %TEMP%\\mesher_src.js"
-//   $env:MESHER_SOURCE="$env:TEMP\\mesher_src.js"; node scripts/make-mesher-fixture.mjs
+//   $env:MESHER_SOURCE="$env:TEMP\\mesher_src.js"; ${reference ? '$env:MESHER_OUT="reference"; ' : ''}node scripts/make-mesher-fixture.mjs
 // Imported only by tests/mesherPerformance.test.js.
 `;
-writeFileSync('tests/fixtures/mesherBefore.js', header + text, 'utf8');
-console.log(`wrote tests/fixtures/mesherBefore.js (${text.length} bytes)`);
+writeFileSync(out, header + text, 'utf8');
+console.log(`wrote ${out} (${text.length} bytes)`);

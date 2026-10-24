@@ -30,6 +30,14 @@ export async function profileWater({ url, frames = 180, headless = true, scenari
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.addInitScript(() => {
+      // The graphics settings are pinned, so the figures compare across commits whatever the defaults are: Performance
+      // Mode off and 8 chunks, as the game drew when the budgets and baseline were set. A fresh browser otherwise takes
+      // the defaults, and when those became Performance Mode on and 4 chunks, the plain frame lost its edge smoothing
+      // and the shader-to-plain ratio moved with no change to the water renderer.
+      try {
+        localStorage.setItem('blockyland-performance-mode', 'off');
+        localStorage.setItem('blockyland-render-distance', '8');
+      } catch { /* storage blocked: the defaults apply */ }
       let state = 4242;
       Math.random = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 0x100000000; };
     });

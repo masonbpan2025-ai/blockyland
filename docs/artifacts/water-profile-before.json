@@ -1,7 +1,7 @@
 {
-  "url": "http://127.0.0.1:3022",
+  "url": "http://127.0.0.1:3031",
   "gpu": "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)",
-  "frames": 180,
+  "frames": 150,
   "results": [
     {
       "scenario": {
@@ -11,153 +11,175 @@
         "pitch": -0.45
       },
       "workMs": {
-        "n": 160,
-        "mean": 22.63875000551343,
-        "p50": 22.399999976158142,
-        "p95": 28.90000009536743,
-        "max": 31.5
+        "n": 130,
+        "mean": 30.22769230768944,
+        "p50": 29.700000000186265,
+        "p95": 37.700000000186265,
+        "max": 47.700000000186265
       },
       "drawCalls": {
-        "n": 160,
-        "mean": 0,
-        "p50": 0,
-        "p95": 0,
-        "max": 0
+        "n": 130,
+        "mean": 98.85384615384615,
+        "p50": 100,
+        "p95": 101,
+        "max": 101
       },
       "triangles": {
-        "n": 160,
-        "mean": 0,
-        "p50": 0,
-        "p95": 0,
-        "max": 0
+        "n": 130,
+        "mean": 712259.2461538462,
+        "p50": 712273,
+        "p95": 712285,
+        "max": 712285
       },
-      "gcMs": 5,
-      "profiledMs": 4637,
+      "gcMs": 16,
+      "profiledMs": 5347,
       "hot": [
         {
           "fn": "readPixels :0",
-          "ms": 1556.3,
-          "pct": 33.6
+          "ms": 2549.9,
+          "pct": 47.7
         },
         {
-          "fn": "#runBfs src/spawning/lightEngine.js:410",
-          "ms": 314.6,
-          "pct": 6.8
-        },
-        {
-          "fn": "getParameters node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:46085",
-          "ms": 248.1,
-          "pct": 5.4
-        },
-        {
-          "fn": "updateMatrixWorld node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:10046",
-          "ms": 179.7,
-          "pct": 3.9
-        },
-        {
-          "fn": "projectObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52080",
-          "ms": 160.2,
-          "pct": 3.5
-        },
-        {
-          "fn": "needsUpdate node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42958",
-          "ms": 147.3,
+          "fn": "getBoundingSphereAt node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:19596",
+          "ms": 170.7,
           "pct": 3.2
         },
         {
-          "fn": "getProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52227",
-          "ms": 128.1,
-          "pct": 2.8
+          "fn": "updateMatrixWorld node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:10046",
+          "ms": 108.1,
+          "pct": 2
         },
         {
-          "fn": "getVoxel src/world.js:1563",
-          "ms": 127.7,
-          "pct": 2.8
+          "fn": "projectObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:52080",
+          "ms": 85.3,
+          "pct": 1.6
         },
         {
-          "fn": "setup node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42887",
-          "ms": 83,
-          "pct": 1.8
+          "fn": "column src/worldgen/caveTerrain.js:72",
+          "ms": 83.6,
+          "pct": 1.6
         },
         {
-          "fn": "#relightChunk src/spawning/lightEngine.js:268",
-          "ms": 77.1,
-          "pct": 1.7
+          "fn": "animate src/main.js?t=1792808422706:4820",
+          "ms": 75.6,
+          "pct": 1.4
         },
         {
-          "fn": "#buildField src/spawning/lightEngine.js:346",
-          "ms": 45.2,
-          "pct": 1
+          "fn": "onBeforeRender node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:19895",
+          "ms": 66.7,
+          "pct": 1.2
         },
         {
-          "fn": "multiplyMatrices node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:8252",
-          "ms": 45.2,
-          "pct": 1
+          "fn": "g.animate :17",
+          "ms": 65.4,
+          "pct": 1.2
         },
         {
-          "fn": "setProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52328",
-          "ms": 44,
+          "fn": "update src/lighting.js:79",
+          "ms": 65.1,
+          "pct": 1.2
+        },
+        {
+          "fn": "getVoxel src/world.js?t=1792808422706:1991",
+          "ms": 47.6,
           "pct": 0.9
         },
         {
-          "fn": "bindVertexArray :0",
-          "ms": 40.2,
-          "pct": 0.9
-        },
-        {
-          "fn": "blockOpacity src/spawning/lightEngine.js:76",
-          "ms": 39.8,
-          "pct": 0.9
-        },
-        {
-          "fn": "setValue node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45357",
-          "ms": 36.3,
+          "fn": "update src/entities.js:423",
+          "ms": 41.2,
           "pct": 0.8
         },
         {
-          "fn": "animate src/main.js:3834",
-          "ms": 33.1,
+          "fn": "texSubImage2D :0",
+          "ms": 34.8,
           "pct": 0.7
         },
         {
-          "fn": "getBindingState node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42912",
-          "ms": 29.4,
+          "fn": "multiplyMatrices node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:8252",
+          "ms": 34.3,
           "pct": 0.6
         },
         {
-          "fn": "update node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42100",
-          "ms": 28.1,
+          "fn": "update src/netherPlants.js:68",
+          "ms": 30.3,
           "pct": 0.6
         },
         {
-          "fn": "spawnForChunk src/spawning/naturalSpawner.js:344",
-          "ms": 27.2,
-          "pct": 0.6
-        },
-        {
-          "fn": "drawElements :0",
-          "ms": 26.6,
-          "pct": 0.6
-        },
-        {
-          "fn": "WebGLRenderer.renderBufferDirect node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:51786",
-          "ms": 26.6,
-          "pct": 0.6
-        },
-        {
-          "fn": "update src/mobs.js:10568",
-          "ms": 26.6,
-          "pct": 0.6
-        },
-        {
-          "fn": "recordAttempt src/spawning/naturalSpawner.js:699",
-          "ms": 24.7,
+          "fn": "setProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:52328",
+          "ms": 28.3,
           "pct": 0.5
         },
         {
-          "fn": "setValueV3f node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:44937",
-          "ms": 23.4,
+          "fn": "traverse node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:9986",
+          "ms": 26.5,
           "pct": 0.5
+        },
+        {
+          "fn": "update src/mobs.js:10787",
+          "ms": 26.4,
+          "pct": 0.5
+        },
+        {
+          "fn": "heightAt src/spawning/spawnValidation.js:147",
+          "ms": 21.3,
+          "pct": 0.4
+        },
+        {
+          "fn": "renderObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:52210",
+          "ms": 21,
+          "pct": 0.4
+        },
+        {
+          "fn": "runMeshing src/chunkStreamer.js?t=1792808422706:367",
+          "ms": 18,
+          "pct": 0.3
+        },
+        {
+          "fn": "discover src/netherPlants.js:32",
+          "ms": 17.7,
+          "pct": 0.3
+        },
+        {
+          "fn": "nextInt src/spawning/spawnRandom.js:95",
+          "ms": 16.8,
+          "pct": 0.3
+        },
+        {
+          "fn": "updateMobTypeBehavior src/mobs.js:11083",
+          "ms": 16.7,
+          "pct": 0.3
+        },
+        {
+          "fn": "drawImage :0",
+          "ms": 16.5,
+          "pct": 0.3
+        },
+        {
+          "fn": "needsUpdate node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:42958",
+          "ms": 15.5,
+          "pct": 0.3
+        }
+      ],
+      "callers": [
+        {
+          "ms": 2550,
+          "chain": "readPixels@:0 < g.animate@:17 < (anon)@src/main.js:4821 < (root)@:0"
+        },
+        {
+          "ms": 7,
+          "chain": "getParameters@node_modules/.vite/deps/three.module-Bj7iJlUn.js:46085 < getProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52227 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52210 < renderObjects@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52200 < renderScene@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52125 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/heldItem.js:264"
+        },
+        {
+          "ms": 4,
+          "chain": "getProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52227 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52210 < renderObjects@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52200 < renderScene@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52125 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/heldItem.js:264 < animate@src/main.js:4820"
+        },
+        {
+          "ms": 2,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:6101 < refreshTransformUniform@node_modules/.vite/deps/three.module-Bj7iJlUn.js:50037 < refreshUniformsCommon@node_modules/.vite/deps/three.module-Bj7iJlUn.js:50083 < refreshMaterialUniforms@node_modules/.vite/deps/three.module-Bj7iJlUn.js:50048 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52210 < renderObjects@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52200 < renderScene@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52125"
+        },
+        {
+          "ms": 1,
+          "chain": "getParameters@node_modules/.vite/deps/three.module-Bj7iJlUn.js:46085 < getProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52227 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52210 < renderObjects@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52200 < renderScene@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52125 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136"
         }
       ]
     },
@@ -169,153 +191,203 @@
         "pitch": -0.45
       },
       "workMs": {
-        "n": 160,
-        "mean": 29.529999993741512,
-        "p50": 28.799999952316284,
-        "p95": 40.39999997615814,
-        "max": 48.59999990463257
+        "n": 130,
+        "mean": 52.04461538453515,
+        "p50": 51.200000000186265,
+        "p95": 63.80000000074506,
+        "max": 70.70000000018626
       },
       "drawCalls": {
-        "n": 160,
-        "mean": 0,
-        "p50": 0,
-        "p95": 0,
-        "max": 0
+        "n": 130,
+        "mean": 299.16153846153844,
+        "p50": 308,
+        "p95": 365,
+        "max": 370
       },
       "triangles": {
-        "n": 160,
-        "mean": 0,
-        "p50": 0,
-        "p95": 0,
-        "max": 0
+        "n": 130,
+        "mean": 1077034.5692307693,
+        "p50": 1044505,
+        "p95": 1216673,
+        "max": 1217424
       },
-      "gcMs": 17,
-      "profiledMs": 5542,
+      "gcMs": 16,
+      "profiledMs": 8200,
       "hot": [
         {
           "fn": "readPixels :0",
-          "ms": 2333.6,
-          "pct": 42.1
+          "ms": 5029.2,
+          "pct": 61.3
         },
         {
-          "fn": "intersectsObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:18785",
-          "ms": 297.8,
-          "pct": 5.4
-        },
-        {
-          "fn": "getParameters node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:46085",
-          "ms": 264.8,
-          "pct": 4.8
-        },
-        {
-          "fn": "updateMatrix node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:10023",
-          "ms": 244.9,
-          "pct": 4.4
-        },
-        {
-          "fn": "needsUpdate node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42958",
-          "ms": 207.5,
+          "fn": "onBeforeRender node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:19895",
+          "ms": 305.3,
           "pct": 3.7
         },
         {
-          "fn": "updateMatrixWorld node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:10046",
-          "ms": 189,
-          "pct": 3.4
+          "fn": "column src/worldgen/caveTerrain.js:72",
+          "ms": 161.5,
+          "pct": 2
         },
         {
-          "fn": "setup node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42887",
-          "ms": 114,
-          "pct": 2.1
-        },
-        {
-          "fn": "getProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52227",
-          "ms": 103.7,
-          "pct": 1.9
-        },
-        {
-          "fn": "renderObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:47372",
-          "ms": 103.5,
-          "pct": 1.9
-        },
-        {
-          "fn": "projectObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52080",
-          "ms": 96.5,
-          "pct": 1.7
-        },
-        {
-          "fn": "bindVertexArray :0",
-          "ms": 81.3,
-          "pct": 1.5
-        },
-        {
-          "fn": "multiplyMatrices node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:8252",
-          "ms": 65.3,
-          "pct": 1.2
-        },
-        {
-          "fn": "setProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52328",
-          "ms": 57.3,
-          "pct": 1
-        },
-        {
-          "fn": "WebGLRenderer.renderBufferDirect node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:51786",
-          "ms": 57,
-          "pct": 1
-        },
-        {
-          "fn": "setValue node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45357",
-          "ms": 54.2,
-          "pct": 1
-        },
-        {
-          "fn": "getBindingState node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42912",
-          "ms": 42.4,
+          "fn": "update src/lighting.js:79",
+          "ms": 69.6,
           "pct": 0.8
         },
         {
-          "fn": "update node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42100",
-          "ms": 34.6,
+          "fn": "projectObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:52080",
+          "ms": 64.9,
+          "pct": 0.8
+        },
+        {
+          "fn": "animate src/main.js?t=1792808422706:4820",
+          "ms": 60.6,
+          "pct": 0.7
+        },
+        {
+          "fn": "getVoxel src/world.js?t=1792808422706:1991",
+          "ms": 57,
+          "pct": 0.7
+        },
+        {
+          "fn": "updateMatrix node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:10023",
+          "ms": 51.2,
           "pct": 0.6
         },
         {
-          "fn": "getProgramCacheKey node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:46304",
-          "ms": 32.9,
+          "fn": "intersectsObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:18785",
+          "ms": 50.6,
           "pct": 0.6
         },
         {
-          "fn": "animate src/main.js:3834",
-          "ms": 29.9,
+          "fn": "updateMatrixWorld node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:10046",
+          "ms": 47.7,
+          "pct": 0.6
+        },
+        {
+          "fn": "update src/mobs.js:10787",
+          "ms": 46.5,
+          "pct": 0.6
+        },
+        {
+          "fn": "renderObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:47372",
+          "ms": 46.4,
+          "pct": 0.6
+        },
+        {
+          "fn": "texSubImage2D :0",
+          "ms": 43.7,
           "pct": 0.5
         },
         {
-          "fn": "drawElements :0",
-          "ms": 29,
+          "fn": "g.animate :17",
+          "ms": 41.8,
           "pct": 0.5
         },
         {
-          "fn": "spawnForChunk src/spawning/naturalSpawner.js:344",
-          "ms": 28.9,
+          "fn": "update src/entities.js:423",
+          "ms": 41.6,
           "pct": 0.5
         },
         {
-          "fn": "upload node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45414",
-          "ms": 27.1,
+          "fn": "WebGLRenderer.renderBufferDirect node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:51786",
+          "ms": 41.2,
           "pct": 0.5
         },
         {
-          "fn": "setValue node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45406",
-          "ms": 24.8,
+          "fn": "heightAt src/spawning/spawnValidation.js:147",
+          "ms": 40.2,
+          "pct": 0.5
+        },
+        {
+          "fn": "updateMobTypeBehavior src/mobs.js:11083",
+          "ms": 37.8,
+          "pct": 0.5
+        },
+        {
+          "fn": "bindVertexArray :0",
+          "ms": 35.3,
           "pct": 0.4
         },
         {
-          "fn": "arraysEqual node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:44900",
-          "ms": 23.5,
+          "fn": "setProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:52328",
+          "ms": 32.4,
           "pct": 0.4
         },
         {
-          "fn": "setValueM4Array node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45222",
-          "ms": 23.5,
+          "fn": "traverse node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:9986",
+          "ms": 31.3,
           "pct": 0.4
+        },
+        {
+          "fn": "multiplyMatrices node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:8252",
+          "ms": 30.2,
+          "pct": 0.4
+        },
+        {
+          "fn": "nextInt src/spawning/spawnRandom.js:95",
+          "ms": 27.5,
+          "pct": 0.3
+        },
+        {
+          "fn": "moveGroundMob src/mobMotion.js:368",
+          "ms": 27.4,
+          "pct": 0.3
+        },
+        {
+          "fn": "getBindingState node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:42912",
+          "ms": 27.4,
+          "pct": 0.3
+        }
+      ],
+      "callers": [
+        {
+          "ms": 5029,
+          "chain": "readPixels@:0 < g.animate@:17 < (anon)@src/main.js:4821 < (root)@:0"
+        },
+        {
+          "ms": 21,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146"
+        },
+        {
+          "ms": 16,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109"
+        },
+        {
+          "ms": 13,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109"
+        },
+        {
+          "ms": 10,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < WebGLShadowMap.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47158 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153"
+        },
+        {
+          "ms": 9,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146"
+        },
+        {
+          "ms": 8,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < WebGLShadowMap.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47158 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136"
+        },
+        {
+          "ms": 7,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153"
+        },
+        {
+          "ms": 6,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153"
+        },
+        {
+          "ms": 5,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109 < animate@src/main.js:4820"
+        },
+        {
+          "ms": 4,
+          "chain": "getProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52227 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52210 < renderObjects@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52200 < renderScene@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52125 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/heldItem.js:264 < animate@src/main.js:4820"
+        },
+        {
+          "ms": 4,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < WebGLShadowMap.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47158 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146"
         }
       ]
     },
@@ -327,154 +399,204 @@
         "pitch": -0.1
       },
       "workMs": {
-        "n": 160,
-        "mean": 22.553125009685754,
-        "p50": 22.300000071525574,
-        "p95": 30.399999976158142,
-        "max": 39.199999928474426
+        "n": 130,
+        "mean": 45.93538461543906,
+        "p50": 42.200000000186265,
+        "p95": 55.09999999962747,
+        "max": 397.20000000018626
       },
       "drawCalls": {
-        "n": 160,
-        "mean": 0,
-        "p50": 0,
-        "p95": 0,
-        "max": 0
+        "n": 130,
+        "mean": 55.223076923076924,
+        "p50": 57,
+        "p95": 65,
+        "max": 65
       },
       "triangles": {
-        "n": 160,
-        "mean": 0,
-        "p50": 0,
-        "p95": 0,
-        "max": 0
+        "n": 130,
+        "mean": 701814.7538461538,
+        "p50": 701823,
+        "p95": 701987,
+        "max": 701987
       },
       "underwater": true,
-      "gcMs": 12,
-      "profiledMs": 4331,
+      "gcMs": 18,
+      "profiledMs": 7624,
       "hot": [
         {
           "fn": "readPixels :0",
-          "ms": 1546.6,
-          "pct": 35.7
+          "ms": 3004,
+          "pct": 39.4
         },
         {
-          "fn": "getParameters node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:46085",
-          "ms": 301.8,
-          "pct": 7
+          "fn": "onBeforeRender node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:19895",
+          "ms": 424.3,
+          "pct": 5.6
         },
         {
-          "fn": "updateMatrix node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:10023",
-          "ms": 165.6,
-          "pct": 3.8
+          "fn": "init src/audio.js:36",
+          "ms": 361,
+          "pct": 4.7
         },
         {
-          "fn": "updateMatrixWorld node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:10046",
-          "ms": 118.8,
-          "pct": 2.7
-        },
-        {
-          "fn": "projectObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52080",
-          "ms": 110.8,
-          "pct": 2.6
-        },
-        {
-          "fn": "getProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52227",
-          "ms": 107.1,
-          "pct": 2.5
-        },
-        {
-          "fn": "multiplyMatrices node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:8252",
-          "ms": 80.3,
+          "fn": "update src/lighting.js:79",
+          "ms": 145.6,
           "pct": 1.9
         },
         {
-          "fn": "bindVertexArray :0",
-          "ms": 75.1,
-          "pct": 1.7
+          "fn": "updateMatrix node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:10023",
+          "ms": 133.9,
+          "pct": 1.8
         },
         {
-          "fn": "WebGLRenderer.renderBufferDirect node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:51786",
-          "ms": 72.6,
-          "pct": 1.7
+          "fn": "getVoxel src/world.js?t=1792808422706:1991",
+          "ms": 116.5,
+          "pct": 1.5
         },
         {
-          "fn": "setProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52328",
-          "ms": 72.4,
-          "pct": 1.7
+          "fn": "animate src/main.js?t=1792808422706:4820",
+          "ms": 114,
+          "pct": 1.5
         },
         {
-          "fn": "needsUpdate node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42958",
-          "ms": 68.3,
-          "pct": 1.6
+          "fn": "updateMatrixWorld node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:10046",
+          "ms": 112,
+          "pct": 1.5
         },
         {
-          "fn": "getBindingState node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42912",
-          "ms": 58.4,
-          "pct": 1.3
+          "fn": "update src/mobs.js:10787",
+          "ms": 89,
+          "pct": 1.2
         },
         {
-          "fn": "intersectsObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:18785",
-          "ms": 46,
+          "fn": "updateMobTypeBehavior src/mobs.js:11083",
+          "ms": 80.7,
           "pct": 1.1
         },
         {
-          "fn": "getProgramCacheKey node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:46304",
-          "ms": 45.5,
-          "pct": 1.1
+          "fn": "projectObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:52080",
+          "ms": 65,
+          "pct": 0.9
         },
         {
-          "fn": "setValue node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45357",
-          "ms": 32.9,
+          "fn": "column src/worldgen/caveTerrain.js:72",
+          "ms": 61.6,
           "pct": 0.8
         },
         {
-          "fn": "renderObjects node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52200",
-          "ms": 32.3,
-          "pct": 0.7
-        },
-        {
-          "fn": "getVoxel src/world.js:1563",
-          "ms": 31.3,
-          "pct": 0.7
-        },
-        {
-          "fn": "updateMobTypeBehavior src/mobs.js:10816",
-          "ms": 31,
-          "pct": 0.7
-        },
-        {
-          "fn": "moveGroundMob src/mobMotion.js:206",
-          "ms": 27.8,
-          "pct": 0.6
-        },
-        {
-          "fn": "update src/mobs.js:10568",
-          "ms": 27.5,
-          "pct": 0.6
-        },
-        {
-          "fn": "animate src/main.js:3834",
-          "ms": 26.5,
-          "pct": 0.6
-        },
-        {
-          "fn": "copy node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:4176",
-          "ms": 25.3,
-          "pct": 0.6
-        },
-        {
-          "fn": "get node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:46480",
-          "ms": 24.6,
-          "pct": 0.6
-        },
-        {
-          "fn": "copy node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:13542",
-          "ms": 24.1,
-          "pct": 0.6
-        },
-        {
-          "fn": "setValue node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45406",
-          "ms": 23.7,
+          "fn": "ownerOf src/spawning/spawnState.js:303",
+          "ms": 41.7,
           "pct": 0.5
+        },
+        {
+          "fn": "texSubImage2D :0",
+          "ms": 40.9,
+          "pct": 0.5
+        },
+        {
+          "fn": "#cachedChunk src/spawning/lightEngine.js:271",
+          "ms": 38.7,
+          "pct": 0.5
+        },
+        {
+          "fn": "moveGroundMob src/mobMotion.js:368",
+          "ms": 38.7,
+          "pct": 0.5
+        },
+        {
+          "fn": "applyMobCollisions src/mobs.js:3414",
+          "ms": 34.6,
+          "pct": 0.5
+        },
+        {
+          "fn": "g.animate :17",
+          "ms": 34.6,
+          "pct": 0.5
+        },
+        {
+          "fn": "recordAttempt src/spawning/naturalSpawner.js:700",
+          "ms": 32.9,
+          "pct": 0.4
+        },
+        {
+          "fn": "querySelector :0",
+          "ms": 32.7,
+          "pct": 0.4
+        },
+        {
+          "fn": "drawImage :0",
+          "ms": 32.3,
+          "pct": 0.4
+        },
+        {
+          "fn": "update src/ambientParticles.js:87",
+          "ms": 31.8,
+          "pct": 0.4
+        },
+        {
+          "fn": "emit src/ambientParticles.js:59",
+          "ms": 30.5,
+          "pct": 0.4
+        },
+        {
+          "fn": "discover src/netherPlants.js:32",
+          "ms": 29.3,
+          "pct": 0.4
+        },
+        {
+          "fn": "multiplyMatrices node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:8252",
+          "ms": 28.8,
+          "pct": 0.4
+        }
+      ],
+      "callers": [
+        {
+          "ms": 3004,
+          "chain": "readPixels@:0 < g.animate@:17 < (anon)@src/main.js:4821 < (root)@:0"
+        },
+        {
+          "ms": 48,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146"
+        },
+        {
+          "ms": 45,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109"
+        },
+        {
+          "ms": 19,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153"
+        },
+        {
+          "ms": 16,
+          "chain": "getProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52227 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52210 < renderObjects@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52200 < renderScene@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52125 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/heldItem.js:264 < animate@src/main.js:4820"
+        },
+        {
+          "ms": 15,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109 < animate@src/main.js:4820"
+        },
+        {
+          "ms": 14,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109"
+        },
+        {
+          "ms": 6,
+          "chain": "getParameters@node_modules/.vite/deps/three.module-Bj7iJlUn.js:46085 < getProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52227 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52210 < renderObjects@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52200 < renderScene@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52125 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/heldItem.js:264"
+        },
+        {
+          "ms": 4,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/heldItem.js:264 < animate@src/main.js:4820 < g.animate@:17 < (anon)@src/main.js:4821"
+        },
+        {
+          "ms": 2,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136"
+        },
+        {
+          "ms": 2,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153"
+        },
+        {
+          "ms": 1,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/heldItem.js:264 < animate@src/main.js:4820"
         }
       ]
     },
@@ -486,154 +608,204 @@
         "pitch": -0.1
       },
       "workMs": {
-        "n": 160,
-        "mean": 47.44750000163913,
-        "p50": 43.199999928474426,
-        "p95": 67.69999992847443,
-        "max": 390.2999999523163
+        "n": 130,
+        "mean": 72.62230769236787,
+        "p50": 71.70000000018626,
+        "p95": 99.6000000005588,
+        "max": 136.6000000005588
       },
       "drawCalls": {
-        "n": 160,
-        "mean": 0,
-        "p50": 0,
-        "p95": 0,
-        "max": 0
+        "n": 130,
+        "mean": 185.8846153846154,
+        "p50": 176,
+        "p95": 230,
+        "max": 235
       },
       "triangles": {
-        "n": 160,
-        "mean": 0,
-        "p50": 0,
-        "p95": 0,
-        "max": 0
+        "n": 130,
+        "mean": 1091888.6153846155,
+        "p50": 1047431,
+        "p95": 1227753,
+        "max": 1227813
       },
       "underwater": true,
-      "gcMs": 25,
-      "profiledMs": 8656,
+      "gcMs": 38,
+      "profiledMs": 11882,
       "hot": [
         {
           "fn": "readPixels :0",
-          "ms": 2430.2,
-          "pct": 28.1
+          "ms": 4891.6,
+          "pct": 41.2
         },
         {
-          "fn": "renderObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:47372",
-          "ms": 392.7,
-          "pct": 4.5
+          "fn": "onBeforeRender node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:19895",
+          "ms": 821.6,
+          "pct": 6.9
         },
         {
-          "fn": "getParameters node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:46085",
-          "ms": 380.6,
-          "pct": 4.4
-        },
-        {
-          "fn": "init src/audio.js:36",
-          "ms": 333.6,
-          "pct": 3.9
-        },
-        {
-          "fn": "copy node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:4176",
-          "ms": 226.1,
-          "pct": 2.6
-        },
-        {
-          "fn": "bindVertexArray :0",
-          "ms": 204.5,
-          "pct": 2.4
-        },
-        {
-          "fn": "updateMatrix node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:10023",
-          "ms": 185.1,
-          "pct": 2.1
-        },
-        {
-          "fn": "applyMatrix4 node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:4356",
-          "ms": 182.9,
-          "pct": 2.1
-        },
-        {
-          "fn": "WebGLRenderer.renderBufferDirect node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:51786",
-          "ms": 179.1,
-          "pct": 2.1
-        },
-        {
-          "fn": "getProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52227",
-          "ms": 156.7,
+          "fn": "update src/lighting.js:79",
+          "ms": 209,
           "pct": 1.8
         },
         {
-          "fn": "getBindingState node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42912",
-          "ms": 156.4,
-          "pct": 1.8
-        },
-        {
-          "fn": "setProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52328",
-          "ms": 153.1,
-          "pct": 1.8
-        },
-        {
-          "fn": "updateMatrixWorld node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:10046",
-          "ms": 147.1,
-          "pct": 1.7
-        },
-        {
-          "fn": "needsUpdate node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:42958",
-          "ms": 138.3,
+          "fn": "update src/mobs.js:10787",
+          "ms": 186,
           "pct": 1.6
         },
         {
-          "fn": "projectObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:52080",
-          "ms": 136,
-          "pct": 1.6
-        },
-        {
-          "fn": "copy node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:13542",
-          "ms": 110,
+          "fn": "column src/worldgen/caveTerrain.js:72",
+          "ms": 158.1,
           "pct": 1.3
         },
         {
-          "fn": "multiplyMatrices node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:8252",
-          "ms": 103.5,
+          "fn": "animate src/main.js?t=1792808422706:4820",
+          "ms": 141.8,
           "pct": 1.2
         },
         {
-          "fn": "drawElements :0",
-          "ms": 85.8,
+          "fn": "updateMatrix node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:10023",
+          "ms": 127.9,
+          "pct": 1.1
+        },
+        {
+          "fn": "getVoxel src/world.js?t=1792808422706:1991",
+          "ms": 125.8,
+          "pct": 1.1
+        },
+        {
+          "fn": "updateMatrixWorld node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:10046",
+          "ms": 114.5,
           "pct": 1
         },
         {
-          "fn": "intersectsObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:18785",
-          "ms": 74.9,
+          "fn": "texSubImage2D :0",
+          "ms": 112,
           "pct": 0.9
         },
         {
-          "fn": "setValue node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45357",
-          "ms": 74.8,
+          "fn": "updateMobTypeBehavior src/mobs.js:11083",
+          "ms": 107.9,
           "pct": 0.9
         },
         {
-          "fn": "getProgramCacheKey node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:46304",
-          "ms": 64.3,
+          "fn": "projectObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:52080",
+          "ms": 106.6,
+          "pct": 0.9
+        },
+        {
+          "fn": "intersectsObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:18785",
+          "ms": 90.6,
+          "pct": 0.8
+        },
+        {
+          "fn": "WebGLRenderer.renderBufferDirect node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:51786",
+          "ms": 88.7,
           "pct": 0.7
         },
         {
-          "fn": "uniformMatrix4fv :0",
-          "ms": 62.2,
+          "fn": "moveGroundMob src/mobMotion.js:368",
+          "ms": 86.3,
           "pct": 0.7
         },
         {
-          "fn": "onRotationChange node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:9310",
-          "ms": 58.6,
+          "fn": "renderObject node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:47372",
+          "ms": 81.6,
           "pct": 0.7
         },
         {
-          "fn": "spawnForChunk src/spawning/naturalSpawner.js:344",
-          "ms": 56.9,
-          "pct": 0.7
-        },
-        {
-          "fn": "upload node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=27d5d57b:45414",
-          "ms": 51.4,
+          "fn": "bindVertexArray :0",
+          "ms": 73.2,
           "pct": 0.6
+        },
+        {
+          "fn": "emit src/ambientParticles.js:59",
+          "ms": 64.7,
+          "pct": 0.5
+        },
+        {
+          "fn": "#cachedChunk src/spawning/lightEngine.js:271",
+          "ms": 62.4,
+          "pct": 0.5
+        },
+        {
+          "fn": "setValue node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:45406",
+          "ms": 57.2,
+          "pct": 0.5
+        },
+        {
+          "fn": "multiplyMatrices node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:8252",
+          "ms": 53.4,
+          "pct": 0.4
+        },
+        {
+          "fn": "recordAttempt src/spawning/naturalSpawner.js:700",
+          "ms": 46.6,
+          "pct": 0.4
+        },
+        {
+          "fn": "setProgram node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=7f5757ac:52328",
+          "ms": 45,
+          "pct": 0.4
+        },
+        {
+          "fn": "drawImage :0",
+          "ms": 43.6,
+          "pct": 0.4
+        },
+        {
+          "fn": "update src/entities.js:423",
+          "ms": 43.6,
+          "pct": 0.4
+        }
+      ],
+      "callers": [
+        {
+          "ms": 4892,
+          "chain": "readPixels@:0 < g.animate@:17 < (anon)@src/main.js:4821 < (root)@:0"
+        },
+        {
+          "ms": 48,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146"
+        },
+        {
+          "ms": 45,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109"
+        },
+        {
+          "ms": 26,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109"
+        },
+        {
+          "ms": 17,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < WebGLShadowMap.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47158 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146"
+        },
+        {
+          "ms": 17,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146 < render@src/lightweightShader.js:109 < animate@src/main.js:4820"
+        },
+        {
+          "ms": 16,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < WebGLShadowMap.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47158 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153"
+        },
+        {
+          "ms": 15,
+          "chain": "getParameters@node_modules/.vite/deps/three.module-Bj7iJlUn.js:46085 < getProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52227 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < WebGLShadowMap.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47158 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136"
+        },
+        {
+          "ms": 14,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < WebGLShadowMap.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47158 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136"
+        },
+        {
+          "ms": 13,
+          "chain": "getParameters@node_modules/.vite/deps/three.module-Bj7iJlUn.js:46085 < getProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52227 < setProgram@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52328 < WebGLRenderer.renderBufferDirect@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51786 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < renderObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47372 < WebGLShadowMap.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:47158"
+        },
+        {
+          "ms": 12,
+          "chain": "updateMatrix@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10023 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < updateMatrixWorld@node_modules/.vite/deps/three.module-Bj7iJlUn.js:10046 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153"
+        },
+        {
+          "ms": 12,
+          "chain": "intersectsObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:18785 < intersectsFrustum@node_modules/.vite/deps/three.module-Bj7iJlUn.js:17690 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < projectObject@node_modules/.vite/deps/three.module-Bj7iJlUn.js:52080 < WebGLRenderer.render@node_modules/.vite/deps/three.module-Bj7iJlUn.js:51996 < render@src/waterPass.js:136 < renderWorldPasses@src/lightweightShader.js:153 < renderWorld@src/lightweightShader.js:146"
         }
       ]
     }

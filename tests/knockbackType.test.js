@@ -66,3 +66,14 @@ test('the motion code normalises the knockback before it reads it', () => {
     assert.match(before, /if \(mob\.knockback\) mob\.knockback = knockbackVector\(mob\.knockback\);/, 'normalised just before the read');
   }
 });
+
+test('the mob update makes the knockback a Vector3 before any mover reads it', () => {
+  // A mover that reads it before the motion code does (a polar bear's) turned a plain {x, z} into a NaN height and
+  // an update error that stopped the mob. The per-mob update normalises it first, inside its try.
+  const src = read('src/mobs.js');
+  const loop = src.indexOf('motionStartX = mob.mesh.position.x; motionStartZ = mob.mesh.position.z;');
+  assert.ok(loop > 0, 'the per-mob update loop');
+  const next = src.slice(loop, loop + 2000);
+  assert.match(next, /if \(mob\.knockback\) mob\.knockback = knockbackVector\(mob\.knockback\);/);
+  assert.ok(next.indexOf('knockbackVector') < next.indexOf('dismountIfChickenDead'), 'before anything else in the update');
+});

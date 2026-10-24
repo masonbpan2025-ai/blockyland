@@ -10,7 +10,7 @@ import { WaterSimulation } from './waterSimulation.js';
 import { BIOMES, getBiomeDef } from './biomes.js';
 import { LightEngine } from './spawning/lightEngine.js';
 import { JavaRandom } from './spawning/spawnRandom.js';
-import { createWorldStructures, enabledStructureIds, GENERATION_COUNTS } from './worldStructures.js';
+import { createWorldStructures, enabledStructureIds, withEndFixtures, GENERATION_COUNTS } from './worldStructures.js';
 import { GenerationRecorder } from './generationRecorder.js';
 import { netherOreAt, decorateNetherChunk } from './netherTerrain.js';
 import { endColumn, decorateEndChunk } from './endTerrain.js';
@@ -521,7 +521,7 @@ export class World {
    * default three structures and vanilla spacing and never saw the chosen preset (Structure Hunter generated
    * three structures, 400+ blocks apart).
    */
-  rebuildStructures({ enabledIds = enabledStructureIds() } = {}) {
+  rebuildStructures({ enabledIds = withEndFixtures(enabledStructureIds()) } = {}) {
     this.structures = createWorldStructures({
       seed: this.seed,
       world: this,

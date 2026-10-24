@@ -56,7 +56,17 @@ test('the player stops turning the view on hover, and the lock-loss handler paus
 
   const main = read('src/main.js');
   const lock = main.slice(main.indexOf("document.addEventListener('pointerlockchange', () => {"), main.indexOf("window.addEventListener('mouseup', (e) => {", main.indexOf("document.addEventListener('pointerlockchange'")));
-  // Vanilla-style: the first Escape only detaches the mouse; the pause menu opens on a second Escape.
-  assert.doesNotMatch(lock, /togglePauseMenu/, 'losing the lock no longer opens the pause menu');
+  // The listener hands lock loss to `handlePointerLockLoss`, which opens the pause menu as vanilla's Escape does
+  // (Chrome takes that Escape and sends only the lock change).
+  assert.doesNotMatch(lock, /togglePauseMenu/, 'the listener itself does not toggle the menu');
+  assert.match(lock, /this\.handlePointerLockLoss\(\)/);
+  // Only a lock that was held and is gone: a change with nothing locked before (a click's request that did not take)
+  // paused the game on a left click.
+  assert.match(lock, /if \(wasLocked && !this\.pointerLocked\) \{/);
+  // And a click asks for the lock only when it is not held already.
+  assert.match(main, /this\.renderer\.domElement\.addEventListener\('click', requestLockOnClick\);/);
+  const loss = main.slice(main.indexOf('  handlePointerLockLoss() {'), main.indexOf('\n  }', main.indexOf('  handlePointerLockLoss() {')));
+  // It read `this.phase`, which the game does not have: undefined counted as idle and the menu never opened.
+  assert.match(loss, /phase: this\.lifecycle\?\.phase/, 'the decision sees the real lifecycle phase');
   assert.match(read('src/ui.js'), /document\.pointerLockElement\) \{\s*\/\/ Mouse attached[\s\S]*?exitPointerLock\(\);/);
 });

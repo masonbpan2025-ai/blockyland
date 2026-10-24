@@ -21,14 +21,27 @@ test.describe('starting, leaving and re-entering a world', () => {
 
   test.afterAll(async () => { await globalThis.__page?.close(); });
 
-  /** Generate a world from the seed given, the way the start screen does, and report the state it leaves. */
+  /**
+   * Generate a world from the seed given by clicking through the start screen, and report the state it leaves. A world
+   * already running is left through the pause menu's Back to Main first, as a player would: calling
+   * `generateNewWorld()` over a running world is refused (the lifecycle allows one load at a time), and the reseed
+   * before it had already emptied the world, so every test after the first ran in a world with no chunks.
+   */
   async function generate(seed) {
-    return globalThis.__page.evaluate(async (seed) => {
+    const page = globalThis.__page;
+    if (await page.evaluate(() => window.game.lifecycle.phase !== 'idle')) {
+      await page.evaluate(() => document.getElementById('btn-title-screen').click());
+      await page.waitForFunction(() => window.game.lifecycle.phase === 'idle');
+    }
+    await page.click('#btn-start-new-world');
+    await expect(page.locator('#world-biome-modal')).toBeVisible({ timeout: 20000 });
+    await page.click('#world-mode-creative');
+    await page.selectOption('#world-biome-select', 'plains');
+    await page.fill('#world-seed-input', String(seed));
+    await page.click('#btn-create-world-confirm');
+    await page.waitForFunction(() => window.game.worldReady && window.game.lifecycle.phase === 'ready', null, { timeout: 300000 });
+    return page.evaluate(async () => {
       const g = window.game;
-      g.applyWorldSettings({ gameMode: 'creative' });
-      g.world.reseed(seed, 'plains');
-      await g.generateNewWorld();
-      document.getElementById('start-overlay').style.display = 'none';
       const p = g.player.position;
       const rd = Number.isFinite(g.renderDistance) ? g.renderDistance : 4;
       const pcx = Math.floor(p.x / 16), pcz = Math.floor(p.z / 16);
@@ -41,7 +54,7 @@ test.describe('starting, leaving and re-entering a world', () => {
         if (hasBlocks && !chunk.opaqueMesh && !chunk.transparentMesh && !chunk.waterMesh) unmeshedWithBlocks++;
       }
       return { phase: g.lifecycle.phase, worldReady: g.worldReady, chunks: g.world.chunks.size, nearby, dirtyNear, unmeshedWithBlocks, camera: g.camera.position.toArray(), eye: p.y + g.player.eyeHeight, player: p.toArray() };
-    }, seed);
+    });
   }
 
   test('BUG 5: the first frame of a new world has every chunk around the player meshed', async () => {
@@ -91,6 +104,11 @@ test.describe('starting, leaving and re-entering a world', () => {
     const pause = await globalThis.__page.evaluate(async () => {
       const g = window.game;
       // Chrome takes Escape while the pointer is locked and sends no keydown, so losing the lock is the signal.
+      // A headless browser cannot take the lock, so the game is told it had it; a change with no lock before it is a
+      // request that did not take, and must NOT pause (a left click used to).
+      document.dispatchEvent(new Event('pointerlockchange'));
+      const pausedWithoutLock = !document.getElementById('pause-menu').classList.contains('hidden');
+      g.pointerLocked = true;
       document.dispatchEvent(new Event('pointerlockchange'));
       const open = !document.getElementById('pause-menu').classList.contains('hidden');
       g.ui.closeAllModals();
@@ -101,11 +119,43 @@ test.describe('starting, leaving and re-entering a world', () => {
       // Dragging with a button held still turns it.
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: 640, clientY: 300, movementX: 120, movementY: 0, buttons: 1 }));
       const dragYaw = g.player.yaw;
-      return { open, hoverTurned: hoverYaw !== yaw0, dragTurned: dragYaw !== hoverYaw };
+      return { pausedWithoutLock, open, hoverTurned: hoverYaw !== yaw0, dragTurned: dragYaw !== hoverYaw };
     });
+    expect(pause.pausedWithoutLock, 'a lock change with no lock held (a click) does not pause').toBe(false);
     expect(pause.open, 'losing the pointer opens the pause menu').toBe(true);
     expect(pause.hoverTurned, 'moving over the canvas without the lock does not turn the view').toBe(false);
     expect(pause.dragTurned, 'dragging with a button still turns it').toBe(true);
+  });
+
+  test('BUG 6: left-clicking the game, to take the mouse or to mine, never pauses it; Escape does', async () => {
+    // Every click asked for the pointer lock again, even while it was held, and any lock change with nothing locked
+    // was taken for Escape: a left click opened the pause menu. Real mouse clicks on the canvas, as a player makes.
+    const page = globalThis.__page;
+    await generate(4242);
+    const state = () => page.evaluate(() => ({
+      locked: !!document.pointerLockElement,
+      paused: !document.getElementById('pause-menu').classList.contains('hidden'),
+    }));
+    const centre = { x: 640, y: 360 };
+    // Clicks to take the mouse. Headless Chrome may refuse the first requests; a refused one must not pause either.
+    for (let i = 0; i < 8; i++) {
+      await page.mouse.click(centre.x, centre.y);
+      await page.waitForTimeout(300);
+      expect((await state()).paused, `click ${i + 1} paused the game`).toBe(false);
+      if ((await state()).locked) break;
+    }
+    // Clicks and a held button while the mouse is locked: attacking and mining.
+    for (let i = 0; i < 6; i++) { await page.mouse.click(centre.x, centre.y); await page.waitForTimeout(150); }
+    await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up(); await page.waitForTimeout(200);
+    const playing = await state();
+    expect(playing.paused, 'clicking and mining did not pause the game').toBe(false);
+    if (playing.locked) {
+      // Escape releases the lock, and that opens the pause menu.
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(400);
+      expect(await state(), 'Escape released the mouse and paused').toEqual({ locked: false, paused: true });
+    }
+    await page.evaluate(() => window.game.ui.closeAllModals());
   });
 
   test('BUG 2: a struck camel runs away from the blow, even while it is sitting', async () => {

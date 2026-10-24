@@ -26,7 +26,7 @@ import {
 import { selectWeightedEntry, packSizeFor } from '../src/spawning/biomeSpawnResolver.js';
 import { MobCategory } from '../src/spawning/mobCategories.js';
 import {
-  enabledStructureIds, packStructureIds, generatableStructureIds, WORLD_STRUCTURE_IDS,
+  enabledStructureIds, packStructureIds, generatableStructureIds, WORLD_STRUCTURE_IDS, END_FIXTURE_IDS,
 } from '../src/worldStructures.js';
 import { World } from '../src/world.js';
 
@@ -318,7 +318,8 @@ test('the WORLD takes its structure list from the pack', (t) => {
   applyFor(t, { 'data/t/worldgen/structure/igloo.json': { type: 'minecraft:igloo' } });
   const world2 = new World();
   if (world2.structures.enabledIds) {
-    assert.deepEqual([...world2.structures.enabledIds], ['igloo'], 'the new world enabled the pack structure');
+    // Plus the End's pillars, exit portal and platform, which no pack's list removes (worldStructures.js).
+    assert.deepEqual([...world2.structures.enabledIds], ['igloo', ...END_FIXTURE_IDS], 'the new world enabled the pack structure');
     if (defaultIds) assert.notDeepEqual([...world2.structures.enabledIds], defaultIds, 'which differs from the default');
   } else {
     // The engine does not expose its enabled set; assert the source of truth it was built from instead.
@@ -374,7 +375,7 @@ test('a pack that enables a structure the world cannot place plans nothing, and 
   // the world places nothing. `stats` says so rather than the world looking broken.
   applyFor(t, { 'data/t/worldgen/structure/monument.json': { type: 'minecraft:ocean_monument' } });
   const world = new World();
-  assert.deepEqual([...world.structures.enabledIds], ['monument']);
+  assert.deepEqual([...world.structures.enabledIds], ['monument', ...END_FIXTURE_IDS]);
   const planned = plannedStructures(world, 4);
   for (const id of planned.keys()) assert.equal(id, 'monument');
   // Whatever it planned, the engine's own stats agree about how many chunks it looked at.

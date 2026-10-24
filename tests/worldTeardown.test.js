@@ -75,6 +75,16 @@ test('after Back to Main, a new world is accepted: "Generate New World" is not r
   assert.equal(game.lifecycle.phase, 'loading');
 });
 
+test('Back to Main takes down the "Generating World" cover, which otherwise blocks the title screen', () => {
+  // A load finishes a little after its world is ready and hides the cover only if the world is still up, so leaving
+  // in between left the cover over the title screen and Generate New World could not be clicked.
+  const { game } = runningGame();
+  let hidden = 0;
+  game.overlay = { hide: () => { hidden++; } };
+  teardownWorld(game);
+  assert.equal(hidden, 1);
+});
+
 test('the chunk streamer forgets the old world, so the new chunks are built and not skipped', () => {
   // The bug's other half: the streamer kept the old coordinates as loaded.
   const { game, calls } = runningGame();
@@ -192,4 +202,15 @@ test('Back to Main leaves a shared world first, so a host stops hosting and a gu
   const { game, calls } = runningGame();
   teardownWorld(game);
   assert.equal(calls[0], 'sharing', 'before anything else is torn down, so friends are told while the world still exists');
+});
+
+test('Create World hides the title screen after the load only if the world is still up', () => {
+  // The load finishes a little after its world is ready. Leaving in between (Back to Main) put the title screen back,
+  // and then this hid it again under a blank screen. e2e/worldStart.pw.js leaves straight after each load.
+  const ui = readFileSync(join(process.cwd(), 'src/ui.js'), 'utf8');
+  const at = ui.indexOf('await this.game.generateNewWorld();');
+  assert.ok(at > 0);
+  const after = ui.slice(at, at + 400);
+  assert.match(after, /if \(this\.startOverlay && this\.game\.worldReady\) this\.startOverlay\.style\.display = 'none';/);
+  assert.doesNotMatch(after, /if \(this\.startOverlay\) this\.startOverlay\.style\.display = 'none';/);
 });

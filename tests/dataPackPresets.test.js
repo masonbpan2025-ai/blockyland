@@ -327,6 +327,22 @@ test('Beast Wilds is the hostile one and genuinely has no structures', (t) => {
   assert.equal(packSuppressesStructures(), true);
 });
 
+test('every preset world keeps the pillars, exit portal and arrival platform of the End', (t) => {
+  // Wiki (Exit Portal): the portal is made by the dragon fight, and the obsidian platform and pillars by the End
+  // itself; no data pack structure list removes them. A preset that left them out trapped its players in the End.
+  for (const id of ['beast_wilds', 'lush_havens', 'reef_life']) {
+    let revert = null;
+    applyPreset({ after: (fn) => { revert = fn; } }, id);
+    try {
+      const world = new World(5);
+      world.rebuildStructures();
+      for (const fixture of ['end_spike', 'end_podium', 'end_platform']) {
+        assert.ok(world.structures.enabledIds.includes(fixture), `${id} keeps ${fixture}`);
+      }
+    } finally { revert(); }
+  }
+});
+
 test('a pack that merely says nothing about structures still gets the baked three', (t) => {
   // The suppression above must not become the default, or every world would lose its villages.
   const built = buildPresetPack('amber_autumn');

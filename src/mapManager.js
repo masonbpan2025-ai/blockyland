@@ -249,6 +249,25 @@ function restoreMapDimension(game,mapData,seed) {
   }
 }
 
+/**
+ * Give every loaded chunk its light, as a generated chunk gets it (World #finishNewChunk). A save carries no light, and
+ * loading made none: every light query in a loaded world read 0, as if it were midnight underground. Zombies and
+ * skeletons never burned by day, and hostile mobs spawned in the open in daylight. The engine fills the arrays in over
+ * the next frames, within its budget; the chunks around the player are lit at once, so the first frames are right.
+ */
+export function lightLoadedChunks(world, around = null, radius = 2) {
+  const light = world?.light;
+  if (!light?.initChunk) return;
+  for (const chunk of world.chunks.values()) light.initChunk(chunk.cx, chunk.cz);
+  if (!around || !light.relightChunk) return;
+  const pcx = Math.floor(around.x / 16), pcz = Math.floor(around.z / 16);
+  for (let cx = pcx - radius; cx <= pcx + radius; cx++) for (let cz = pcz - radius; cz <= pcz + radius; cz++) {
+    if (!world.chunks.has(world.chunkKey(cx, cz))) continue;
+    light.relightChunk(cx, cz);
+    light.dirty?.delete?.(`${cx},${cz}`);
+  }
+}
+
 export async function deserializeWorldAsync(game, mapData, options = {}) {
   if (!mapData?.chunks) throw new Error('Invalid map file format: missing chunks data');
   startMapLoad(game);
@@ -300,6 +319,8 @@ async function restoreWorldAsync(game, mapData, options = {}) {
     }
   }
   game.world.chunks.clear();
+  // The old world's light goes with its chunks: kept, a loaded chunk at the same place read the old light.
+  game.world.light?.clear?.();
   game.world.water?.reset();
 
   // 2. Clean up dynamic block lights
@@ -341,6 +362,7 @@ async function restoreWorldAsync(game, mapData, options = {}) {
   }
 
   for (const chunk of game.world.chunks.values()) game.world.water?.initChunk(chunk);
+  lightLoadedChunks(game.world, mapData.player?.position);
   game.world.redstone?.restore(mapData.redstone);
   game.world.restoreOrientations?.(mapData.structureOrientations);
   await report(58, 'Initialising fluids & redstone');
@@ -550,6 +572,8 @@ export function deserializeWorld(game, mapData, options = {}) {
     }
   }
   game.world.chunks.clear();
+  // The old world's light goes with its chunks: kept, a loaded chunk at the same place read the old light.
+  game.world.light?.clear?.();
   game.world.water?.reset();
 
   // 2. Clean up dynamic block lights
@@ -584,6 +608,7 @@ export function deserializeWorld(game, mapData, options = {}) {
   report(45, `Decoded ${totalChunks} chunks`);
 
   for (const chunk of game.world.chunks.values()) game.world.water?.initChunk(chunk);
+  lightLoadedChunks(game.world, mapData.player?.position);
 
   game.world.redstone?.restore(mapData.redstone);
   report(60, 'Initialising fluids');

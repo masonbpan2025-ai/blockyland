@@ -34,6 +34,9 @@ export function teardownWorld(game) {
   step('lifecycle', () => resetLifecycle(game.lifecycle));
   // A shared world ends with the player's visit to it: stop hosting, or leave the host's world, and forget the others.
   step('sharing', () => game.worldSync?.leave?.());
+  // The "Generating World" cover. A load finishes a little after its world is ready, and only hides the cover if the
+  // world is still up then; leaving in between left it over the title screen, where no button could be clicked.
+  step('loading cover', () => game.overlay?.hide?.());
   step('flags', () => {
     game.worldReady = false;
     game.worldGenerated = false;

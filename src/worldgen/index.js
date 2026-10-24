@@ -295,7 +295,8 @@ export function createStructureEngine({ seed, dimension = 'overworld', biomeAt =
             airBlock,
             surfaceBlock,
             floorY: piece.meta?.groundY ?? null,
-            isStructureBlock: (x, y, z) => written.has(`${x},${y},${z}`)
+            isStructureBlock: (x, y, z) => written.has(`${x},${y},${z}`),
+            columns: clip
           });
           for (const key of Object.keys(totals)) totals[key] += adapted.counts[key];
           // Adaptation blocks are terrain, not structure: writing them through the raw writer keeps them out

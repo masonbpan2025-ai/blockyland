@@ -70,11 +70,37 @@ test('a goal no route reaches is searched for less and less often, not twice a s
   assert.ok(mob.mesh.position.distanceTo(prey) < 4, `it came to the box, ${mob.mesh.position.distanceTo(prey).toFixed(1)} blocks away`);
 });
 
+test('at the closest point to a goal no route reaches, it stands facing the goal rather than pacing to and fro', () => {
+  // It used to head straight on from the end of the partial route, into the wall, and its avoidance turned it back:
+  // an iron golem facing a skeleton behind a fence paced back and forth at full speed.
+  const manager = counting(boxWorld()), mob = zombie(manager);
+  const prey = new THREE.Vector3(12.5, 0, 0.5);
+  chase(manager, mob, prey, 10);
+  let travelled = 0, reversals = 0, lastVx = 0, lastVz = 0;
+  const dt = 1 / 30;
+  for (let i = 0; i < 30 * 6; i++) {
+    const before = mob.mesh.position.clone();
+    chase(manager, mob, prey, dt);
+    travelled += before.distanceTo(mob.mesh.position);
+    const vx = mob.velocity.x, vz = mob.velocity.z;
+    if (vx * lastVx + vz * lastVz < 0) reversals++;
+    if (vx || vz) { lastVx = vx; lastVz = vz; }
+  }
+  // Six seconds take in a retry (backoff 4 s, then 8 s), which may walk it a step: no more than that.
+  assert.ok(travelled < 2, `it moved ${travelled.toFixed(1)} blocks in six seconds at the box`);
+  assert.ok(reversals <= 1, `${reversals} about-turns`);
+  assert.ok(mob.mesh.position.distanceTo(prey) < 4, 'at the box');
+  const facing = Math.atan2(prey.x - mob.mesh.position.x, prey.z - mob.mesh.position.z);
+  assert.ok(Math.abs(Math.atan2(Math.sin(mob.yaw - facing), Math.cos(mob.yaw - facing))) < 0.2, 'facing what it wants');
+});
+
 test('a goal that moves well away from the one it could not reach is searched for at once', () => {
   const manager = counting(boxWorld()), mob = zombie(manager);
   chase(manager, mob, new THREE.Vector3(12.5, 0, 0.5), 10);
   const before = manager.searches;
-  chase(manager, mob, new THREE.Vector3(-12.5, 0, 0.5), 1 / 30);
+  // Beyond the box from where it waits, more than eight blocks from the goal it gave up on: the way there needs a
+  // route (round the box), so it searches rather than steering straight.
+  chase(manager, mob, new THREE.Vector3(21.5, 0, 0.5), 1 / 30);
   assert.equal(manager.searches, before + 1, 'searched on the first frame, though it was backing off');
   assert.equal(mob.pathFailures, 0, 'the new goal is reachable: the backoff is over');
 });

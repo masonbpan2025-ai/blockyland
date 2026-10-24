@@ -88,3 +88,13 @@ test('the fixed mobs still behave with the flag present', () => {
     assert.ok(mob.mesh, `${type} has a model`);
   }
 });
+
+test('the safe-spawn search stands a mob on the lowest block layer (y = 0) when that is the ground', async () => {
+  // It searched for a floor from y = 1 up, so on ground at y = 0 it found none and fell back to a height a block in the
+  // air: an iron golem placed level with a player stood a block higher, farther away, and lost a breeze's attention.
+  const { findSafeMobSpawnPosition } = await import('../src/mobMotion.js');
+  const world = { getVoxel: (x, y) => (y < 1 ? BLOCKS.STONE : BLOCKS.AIR), surfaceHeightAt: () => 1 };
+  const mobs = { isBlockSolid: (x, y, z) => world.getVoxel(x, y, z) === BLOCKS.STONE, getMobDimensions: () => ({ width: 1.4, height: 2.7 }), checkMobCollision: () => false };
+  const at = findSafeMobSpawnPosition(world, mobs, 'iron_golem', 10, 1, 0);
+  assert.ok(Math.abs(at.y - 1) < 0.05, `stands on the y = 0 layer, at y ${at.y}`);
+});

@@ -205,12 +205,15 @@ export const STRUCTURE_SETS = Object.freeze({
     'ruined_portal_swamp', 'buried_treasure',
   ],
   /** Buried and underground finds, for a world that is about exploring. */
-  dungeons: [
+  // A preset's list replaces the default rather than adding to it, so this starts from the default: without it the
+  // dungeon preset lost the monster rooms (the wiki's "Dungeon") and geodes, and the End its pillars and exit portal.
+  dungeons: [...new Set([
+    ...WORLD_STRUCTURE_IDS,
     'trial_chambers', 'ancient_city', 'trail_ruins', 'buried_treasure', 'ruined_portal',
     'mineshaft', 'mineshaft_mesa', 'stronghold',
     // The Nether's dungeons: the fortress and the bastion remnant.
     'fortress', 'bastion_remnant',
-  ].filter(id => BUILDABLE.has(id)),
+  ])].filter(id => BUILDABLE.has(id)),
   /** Coastal and oceanic. */
   maritime: [
     'shipwreck', 'shipwreck_beached', 'ocean_ruin_cold', 'ocean_ruin_warm', 'monument', 'buried_treasure',

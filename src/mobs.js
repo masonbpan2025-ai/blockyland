@@ -38,7 +38,8 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
  */
 const BLOCK_NAMES_BY_ID = new Map();
 import { steerGround, PATH_FRAME_NODES } from './netherMobAI.js';
-import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape, findSafeMobSpawnPosition } from './mobMotion.js';
+import { updateGolemTarget, pursueGolemTarget, golemCanHit } from './ironGolemBehavior.js';
+import { wanderMob, moveGroundMob, moveFlyingMob, updateHazardEscape, findSafeMobSpawnPosition, knockbackVector } from './mobMotion.js';
 import { locomotionFor, updateAmbientLocomotion } from './ambientLocomotion.js';
 import { shulkerBulletData, steerShulkerBullet } from './shulkerBullet.js';
 import { createWildEndermanState, isProvoked, provoke, tickAnger, gazeProvokes,
@@ -10842,6 +10843,9 @@ export class MobManager {
       let motionStartX, motionStartZ;
       try {
         motionStartX = mob.mesh.position.x; motionStartZ = mob.mesh.position.z;
+        // Every mover reads the push as a Vector3. A plain {x, z} (a goat's ram once left one) turned the mob's height
+        // into NaN and stopped its update with an error, so one is made a Vector3 before anything reads it.
+        if (mob.knockback) mob.knockback = knockbackVector(mob.knockback);
         // A frozen mob is posed, not simulated: no AI, no physics, no animation. Mob
         // Studio sets this so a mob stands still while you look at it, and the debug
         // inspector sets it so a model can be examined without it wandering off.
@@ -13238,30 +13242,15 @@ export class MobManager {
         wanderMob(this, mob, dt, 1.0);
       }
     } else if (mob.type === 'iron_golem') {
-      // Find nearest hostile target (Pillager or Zombie)
-      let nearestHostile = null;
-      let minDist = 16;
-      for (const other of this.mobs) {
-        if (other.health > 0 && (other.type === 'pillager' || other.type === 'zombie' || other.type === 'husk' || other.type === 'wither_skeleton')) {
-          const d = mob.mesh.position.distanceTo(other.mesh.position);
-          if (d < minDist) {
-            minDist = d;
-            nearestHostile = other;
-          }
-        }
-      }
+      // The wiki's targets, only ones it can see, kept until they die or get away, and chased along a route
+      // (ironGolemBehavior.js): it used to charge any zombie within 16 blocks through the ground, and jitter.
+      const nearestHostile = updateGolemTarget(this, mob, dt);
 
       if (nearestHostile) {
-        // Charge at enemy!
-        const dir = nearestHostile.mesh.position.clone().sub(mob.mesh.position);
-        dir.y = 0;
-        dir.normalize();
-        mob.yaw = Math.atan2(dir.x, dir.z);
-        mob.velocity.x = dir.x * 3.8;
-        mob.velocity.z = dir.z * 3.8;
+        pursueGolemTarget(this, mob, nearestHostile, dt);
 
         // Attack when close
-        if (minDist < 2.0 && mob.attackCooldown <= 0) {
+        if (golemCanHit(mob, nearestHostile) && mob.attackCooldown <= 0) {
           mob.attackCooldown = 1.0;
           this.sounds.playIronGolem();
           // Uppercut punch animation

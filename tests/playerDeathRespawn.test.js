@@ -140,6 +140,17 @@ test('the carried inventory is emptied and the result is reported', () => {
   assert.equal(p.inventory.cursorItem, null);
 });
 
+test('the hotbar and the XP bar are redrawn empty when the items drop', () => {
+  // They were not: after a respawn the hotbar still drew every dropped item, and picking one found an empty slot.
+  const p = makePlayer({ xpLevel: 5, level: 5 });
+  p.inventory.hotbar[0] = { id: 'stone', isBlock: true, count: 64 };
+  const drawn = [];
+  p.game.ui.updateHotbar = () => drawn.push(['hotbar', p.inventory.hotbar.filter(Boolean).length]);
+  p.game.ui.updateStats = () => drawn.push(['stats', p.level]);
+  p.dropInventoryOnDeath();
+  assert.deepEqual(drawn, [['hotbar', 0], ['stats', 0]], 'drawn after the inventory and level were cleared');
+});
+
 test('the tournament never drops an inventory', () => {
   const p = makePlayer();
   p.game.tournament = { isTournamentMap: true };

@@ -130,12 +130,26 @@ function routeAimPoint(manager, mob, destination, dt) {
 
   const wp = mob.path && mob.path[0];
   if (wp) return { x: wp.x + 0.5, y: wp.y, z: wp.z + 0.5, followingWaypoint: true };
+  // At the end of a route that did not reach the goal: the closest point there is. Heading straight on from it ran
+  // the mob into what the route went round, its avoidance turned it back, and it paced to and fro at full speed (an
+  // iron golem facing a skeleton behind a fence). It holds here, facing the goal, until the goal moves or the next
+  // search, as a Minecraft mob that cannot reach its target stands at the nearest point.
+  if (mob.pathFailures && mob.pathReached === false && mob.failedGoal
+    && Math.hypot(mob.failedGoal.x - destination.x, mob.failedGoal.z - destination.z) <= FAILED_GOAL_MOVE
+    && needsRoute()) return { x: pos.x, y: pos.y, z: pos.z, holding: true };
   return destination;
 }
 
 export function steerGround(manager, mob, destination, dt, speed = 2.5, stop = 0) {
   // Aim at the next waypoint when a route is needed, otherwise straight at the target.
   const aim = routeAimPoint(manager, mob, destination, dt);
+  if (aim.holding) {
+    mob.velocity.x = mob.velocity.z = 0;
+    mob.avoidTime = 0;
+    const dx = destination.x - mob.mesh.position.x, dz = destination.z - mob.mesh.position.z;
+    if (dx || dz) mob.yaw = Math.atan2(dx, dz);
+    return;
+  }
   const direction = new THREE.Vector3(aim.x, mob.mesh.position.y, aim.z).sub(mob.mesh.position).setY(0);
   const distance = direction.length();
   // A waypoint has to be reached, not merely approached. Halting within `stop` of it left the

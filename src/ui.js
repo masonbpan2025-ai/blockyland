@@ -4182,7 +4182,9 @@ export class UIManager {
           this.closeBiomeModal();
 
           await this.game.generateNewWorld();
-          if (this.startOverlay) this.startOverlay.style.display = 'none';
+          // Only while the world is still up: the load finishes a little after it is ready, and a player who has
+          // already gone Back to Main was left on a blank screen with the title screen hidden under it.
+          if (this.startOverlay && this.game.worldReady) this.startOverlay.style.display = 'none';
         } catch (err) {
           console.error('[World] Failed to generate world with biome:', err);
           this.game.failWorldStart?.(err);

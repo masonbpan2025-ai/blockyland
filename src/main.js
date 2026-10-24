@@ -2159,12 +2159,9 @@ class Game {
       }
     };
 
-    this.renderer.domElement.addEventListener('click', (e) => {
-      requestLockOnClick();
-      if (!this.modRuntime?.exclusiveSimulation && this.worldGenerated && !this.ui?.isModalOpen?.() && !this.ui?.isChatOpen) {
-        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
-      }
-    });
+    // Only when not locked already (requestLockOnClick checks): a second, unconditional request on every click made
+    // the browser report the lock as changing while the player was just mining, which paused the game.
+    this.renderer.domElement.addEventListener('click', requestLockOnClick);
     if (this.container && this.container !== this.renderer.domElement) {
       this.container.addEventListener('click', requestLockOnClick);
     }
@@ -2229,7 +2226,12 @@ class Game {
       }
     });
     document.addEventListener('pointerlockchange', () => {
-      if (document.pointerLockElement !== this.renderer.domElement) {
+      // A loss is the lock going away after it was held. The browser also reports a change when a request does not
+      // take (a click's request that is refused or cut short), with nothing locked before or after; that is not the
+      // player pressing Escape, and treating it as one opened the pause menu on a left click.
+      const wasLocked = this.pointerLocked === true;
+      this.pointerLocked = document.pointerLockElement === this.renderer.domElement;
+      if (wasLocked && !this.pointerLocked) {
         this.bow?.cancel();
         this.eating?.cancel();
         // Losing pointer lock reels the line in, which is the same as the player looking away: no durability
@@ -2266,7 +2268,9 @@ class Game {
   handlePointerLockLoss() {
     if (shouldPauseOnLockLoss({
       worldReady: this.worldReady,
-      phase: this.phase,
+      // The lifecycle's phase: the game has no `phase` of its own, and reading one gave undefined, taken as idle, so
+      // losing the pointer (Escape, in Chrome) never opened the pause menu.
+      phase: this.lifecycle?.phase,
       dead: this.player?.isDead,
       sleeping: this.bedManager?.isSleeping,
       modalOpen: this.ui?.isModalOpen?.(),

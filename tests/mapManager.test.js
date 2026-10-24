@@ -172,6 +172,37 @@ test('deserializeWorld restores world chunks, seed, player, inventory, and AI me
 });
 
 
+test('a loaded world has light: open sky is bright, underground is dark, and the old world\'s light is gone', () => {
+  // A save carries no light and loading made none, so every light query read 0: zombies and skeletons never burned
+  // by day, and hostile mobs spawned in the village in daylight.
+  const world = new World(9999);
+  for (let cx = -1; cx <= 1; cx++) for (let cz = -1; cz <= 1; cz++) world.getOrCreateChunk(cx, cz);
+  const game = {
+    world, worldTime: 6000, scene: { remove() {} }, camera: { quaternion: { setFromEuler() {} } },
+    player: {
+      position: { x: 8, y: 40, z: 8, set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
+      velocity: { x: 0, y: 0, z: 0, set() {} }, yaw: 0, pitch: 0, gamemode: 'survival', health: 20, hunger: 20, exp: 0, level: 0, update() {},
+    },
+    inventory: { hotbar: new Array(9).fill(null), storage: new Array(27).fill(null), activeSlot: 0 },
+    mobs: { mobs: [], clearMobs() { this.mobs = []; }, spawnMob() {} },
+    geminiAgent: { builtStructures: [], lastBuiltStructure: null, conversationHistory: [] },
+    loadChunksAroundPlayer() {}, rebuildChunkMesh() {}, ui: { updateStats() {}, updateHotbar() {}, addChatMessage() {} },
+  };
+  const saved = serializeWorld(game, 'Lit');
+  // Light that belongs to no loaded chunk, as a previous world's would.
+  world.light.initChunk(40, 40);
+
+  deserializeWorld(game, saved);
+  const surface = world.getHighestSolidY(8, 8);
+  assert.equal(world.getSkyLight(8, surface + 1, 8), 15, 'open sky above the player is fully lit as soon as the world loads');
+  assert.ok(world.getSkyLight(8, Math.max(1, surface - 6), 8) < 15, 'and the ground under it is not');
+  assert.equal(world.light.chunks.has('40,40'), false, 'the previous world\'s light was dropped');
+  // Every loaded chunk has light, and the rest is filled in by the engine's budgeted update.
+  for (const chunk of world.chunks.values()) assert.ok(world.light.chunks.has(`${chunk.cx},${chunk.cz}`), `${chunk.cx},${chunk.cz} has light`);
+  while (world.light.dirtyCount) world.light.update(1e9);
+  assert.equal(world.getSkyLight(-8, world.getHighestSolidY(-8, -8) + 1, -8), 15, 'away from the player too');
+});
+
 test('Default save directory can save and load map files on local disk', () => {
   const savesDir = path.resolve(process.cwd(), 'saves');
   if (!fs.existsSync(savesDir)) {

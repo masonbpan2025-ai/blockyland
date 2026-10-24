@@ -4,8 +4,12 @@
 // under water, with the Lightweight Shader off and on, and a 1x1 readPixels after each frame so GPU work counts.
 //
 // Two kinds of check:
-//   - Against the recorded baseline (docs/artifacts/water-profile-before.json, the game before this work) when the
-//     GPU is the same one the baseline was taken on: no scenario may be more than 10% slower at the median.
+//   - Against the recorded baseline (docs/artifacts/water-profile-before.json) when the GPU is the same one the
+//     baseline was taken on: no scenario may be more than 10% slower at the median. The baseline was re-recorded on
+//     2026-10-23, with the profiler's graphics settings pinned (Performance Mode off, 8 chunks). The first one, from
+//     before the water work, no longer described the game: by then defbe3a ran the same scenes 2-3x slower than it
+//     recorded (other content had changed the scene), and the chunk batching after defbe3a ran them 1.4-2.7x faster
+//     than defbe3a. Re-record it the same way when the scene changes on purpose.
 //   - Budgets that hold on any machine: the second water render and the refraction copy must not double the frame,
 //     no material may be rebuilding its program every frame, and draw calls stay bounded.
 import { test, expect } from '@playwright/test';

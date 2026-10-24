@@ -1,0 +1,876 @@
+// GENERATED -- do not edit. The mesher as it was at 9abdc42, kept so a change to the
+// mesher that alters its geometry by accident is caught. Regenerate it when the geometry is changed on purpose:
+//   cmd /c "git cat-file blob <rev>:src/mesher.js > %TEMP%\mesher_src.js"
+//   $env:MESHER_SOURCE="$env:TEMP\mesher_src.js"; $env:MESHER_OUT="reference"; node scripts/make-mesher-fixture.mjs
+// Imported only by tests/mesherPerformance.test.js.
+import * as THREE from 'three';
+import { BLOCKS, BLOCK_DEFS } from '../../src/blocks.js';
+import { CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_HEIGHT } from '../../src/world.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createBlockGeometry } from '../../src/blockGeometry.js';
+import { lavaCornerHeight, waterCornerHeight, waterCurrent } from '../../src/waterGeometry.js';
+import { WATER_COLORS } from '../../src/water.js';
+import { isSnowSurface, snowFaceTint } from '../../src/snowShading.js';
+import { occludesWholeFace } from '../../src/blockOcclusion.js';
+import { netherWartHeight } from '../../src/netherPlants.js';
+import { vegetationTint } from '../../src/vegetationRendering.js';
+
+const AO_CURVE = [0.45, 0.62, 0.82, 1.0];
+
+// --- Padded voxel window -----------------------------------------------------
+//
+// Face culling needs the six neighbours of every voxel and ambient occlusion needs the eight
+// neighbours of each face corner, which reach one block beyond the chunk. Reading those through
+// world.getVoxel meant roughly 14 map lookups per visible face -- and for AO the same cell was
+// fetched repeatedly. Copying the chunk plus a one-block border into a flat array once per mesh
+// turns all of that into array indexing.
+//
+// The padding is 1 in x and z. In y there is no padding because getVoxel already returns air
+// outside 0..CHUNK_HEIGHT-1, so the clamped index below lands on a real cell whose value is the
+// air it would have returned.
+const PAD_X = CHUNK_SIZE_X + 2;
+const PAD_Z = CHUNK_SIZE_Z + 2;
+const PAD_STRIDE_Y = PAD_X * PAD_Z;
+
+/** Scratch buffers, reused across meshes so a mesh allocates nothing for its border. */
+let borderBlocks = null;
+let skyCeilings = null;
+
+function ensureBorderBuffers() {
+  if (borderBlocks) return;
+  // Match Chunk.voxels: coral and newer blocks have IDs above 255. Truncating
+  // them here breaks occlusion and emits thousands of hidden reef/water faces.
+  borderBlocks = new Uint16Array(PAD_STRIDE_Y * CHUNK_HEIGHT);
+  skyCeilings = new Int16Array(PAD_STRIDE_Y);
+}
+
+/**
+ * Copy the chunk and its one-block border into the scratch buffer.
+ *
+ * Interior columns are copied straight out of the chunk's own typed array; only the one-block
+ * ring calls world.getVoxel. No noise is evaluated here.
+ */
+function fillBorder(chunk, world) {
+  ensureBorderBuffers();
+  const cx = chunk.cx;
+  const cz = chunk.cz;
+  const voxels = chunk.voxels;
+  skyCeilings.fill(-1);
+
+  for (let px = 0; px < PAD_X; px++) {
+    const wx = cx * CHUNK_SIZE_X + px - 1;
+    const insideX = px >= 1 && px <= CHUNK_SIZE_X;
+    for (let pz = 0; pz < PAD_Z; pz++) {
+      const wz = cz * CHUNK_SIZE_Z + pz - 1;
+      const insideZ = pz >= 1 && pz <= CHUNK_SIZE_Z;
+      const columnBase = (px * PAD_Z + pz) * CHUNK_HEIGHT;
+
+      if (insideX && insideZ) {
+        // Interior column: one bulk typed-array copy straight out of the chunk's own storage.
+        // The chunk's index layout is (y * CHUNK_SIZE_Z + lz) * CHUNK_SIZE_X + lx, so a column is
+        // strided rather than contiguous; copying y-by-y is the cheapest correct form.
+        const lx = px - 1;
+        const lz = pz - 1;
+        const columnStride = CHUNK_SIZE_X * CHUNK_SIZE_Z;
+        const src = lz * CHUNK_SIZE_X + lx;
+        for (let y = 0; y < CHUNK_HEIGHT; y++) {
+          const id = voxels[y * columnStride + src];
+          borderBlocks[columnBase + y] = id;
+          const def = BLOCK_DEFS[id];
+          if (id !== BLOCKS.AIR && def?.solid !== false && !def?.transparent && !def?.plant) skyCeilings[px * PAD_Z + pz] = y;
+        }
+      } else {
+        for (let y = 0; y < CHUNK_HEIGHT; y++) {
+          const id = world.getVoxel(wx, y, wz);
+          borderBlocks[columnBase + y] = id === undefined ? 0 : id;
+          const def = BLOCK_DEFS[id];
+          if (id && def?.solid !== false && !def?.transparent && !def?.plant) skyCeilings[px * PAD_Z + pz] = y;
+        }
+      }
+    }
+  }
+}
+
+/** Voxel from the padded window. Out-of-range y is real air, which is what getVoxel returned. */
+function padGet(x, y, z) {
+  if (y < 0 || y >= CHUNK_HEIGHT) return BLOCKS.AIR;
+  const px = x + 1;
+  const pz = z + 1;
+  if (px < 0 || px >= PAD_X || pz < 0 || pz >= PAD_Z) return BLOCKS.AIR;
+  return borderBlocks[(px * PAD_Z + pz) * CHUNK_HEIGHT + y];
+}
+
+function faceSkyExposure(x, y, z, nx, ny, nz, ceilings) {
+  const column = (x + nx + 1) * PAD_Z + z + nz + 1;
+  return y + ny > ceilings[column] ? 1 : 0;
+}
+
+/**
+ * Biome of a column, in world coordinates.
+ *
+ * Deliberately NOT cached here. An earlier version cached this per padded chunk column in a
+ * module-level array and it produced mismatched water tint across a chunk seam: the two chunks
+ * either side of the seam disagreed about the same shared column. The cost is irrelevant anyway,
+ * because the only caller (water tinting) already memoises by world column for the duration of a
+ * mesh -- a whole chunk's water surface asks for each column once.
+ */
+function biomeAt(world, wx, wz) {
+  return typeof world.getBiome === 'function' ? world.getBiome(wx, wz) : null;
+}
+
+
+// Vertex AO calculation: returns 0..3 based on solid neighbors
+function vertexAO(side1, side2, corner) {
+  if (side1 && side2) return 0;
+  return 3 - (side1 + side2 + corner);
+}
+
+// --- Per-block lookup tables ----------------------------------------------------
+//
+// The inner loop used to ask BLOCK_DEFS the same questions for every voxel: a twenty-property test of whether the
+// block takes the shaped-geometry path, whether it is a plant or transparent, foliage (a lower-cased name search
+// per visible face), snow, a portal -- and rebuilt the face-occlusion table from all 1,400 definitions for every
+// chunk. They are answered once per block id here, and rebuilt only when the registry changes size (a mod adding
+// blocks). Same answers, so the same mesh; measured 44 ms -> see tests/mesherPerformance.test.js for the parity.
+export const SPECIAL = Object.freeze({ NONE: 0, SHAPED: 1, DOOR: 2, TRAPDOOR: 3, REDSTONE: 4, BED: 5, CHEST: 6 });
+let tables = null;
+function blockTables() {
+  const size = Object.keys(BLOCK_DEFS).length;
+  if (tables && tables.size === size) return tables;
+  const t = {
+    size,
+    occludes: new Uint8Array(65536), solid: new Uint8Array(65536), special: new Uint8Array(65536),
+    plant: new Uint8Array(65536), transparent: new Uint8Array(65536), foliage: new Uint8Array(65536),
+    snow: new Uint8Array(65536), portal: new Uint8Array(65536), waterPlant: new Uint8Array(65536), light: new Uint8Array(65536),
+  };
+  for (const key in BLOCK_DEFS) {
+    const id = Number(key); const def = BLOCK_DEFS[key];
+    if (!(id >= 0 && id < 65536) || !def) continue;
+    t.occludes[id] = occludesWholeFace(def) ? 1 : 0;
+    t.solid[id] = id !== BLOCKS.AIR && id !== BLOCKS.WATER && def.solid !== false && !def.plant ? 1 : 0;
+    t.special[id] = (def.pointedDripstone || def.slab || def.pane || def.carpet || def.stair || def.candle || def.chain || def.fence || def.wall || def.pressurePlate || def.button || def.fenceGate || def.banner || def.hangingSign || def.wallSign || def.wallFan || def.head || def.wallHead || def.sign || def.rod || def.rail || def.flowerPot || def.model) ? SPECIAL.SHAPED
+      : def.door ? SPECIAL.DOOR : def.trapdoor ? SPECIAL.TRAPDOOR : def.redstone && (!def.redstoneNativeModel || def.redstoneBulb) ? SPECIAL.REDSTONE : def.bed ? SPECIAL.BED
+      : (def.chest || id === BLOCKS.CHEST) ? SPECIAL.CHEST : SPECIAL.NONE;
+    t.plant[id] = def.plant ? 1 : 0;
+    t.transparent[id] = def.transparent || def.plant ? 1 : 0;
+    t.foliage[id] = def.name && def.name.toLowerCase().includes('leaves') ? 1 : 0;
+    t.snow[id] = isSnowSurface(id) ? 1 : 0;
+    t.portal[id] = def.portal ? 1 : 0;
+    t.waterPlant[id] = def.waterPlant ? 1 : 0;
+    t.light[id] = def.light ? 1 : 0;
+  }
+  tables = t;
+  return t;
+}
+
+/** A shape cache key: the block and every state field except its position. */
+function shapeKey(blockId, state) {
+  let key = String(blockId);
+  if (!state) return key;
+  for (const name in state) {
+    if (name === 'x' || name === 'y' || name === 'z' || name === 'p') continue;
+    const value = state[name];
+    key += `|${name}=${value !== null && typeof value === 'object' ? JSON.stringify(value) : value}`;
+  }
+  return key;
+}
+
+function isSolidBlock(blockId) {
+  return tables.solid[blockId];
+}
+
+// --- Static per-face geometry tables -----------------------------------------
+//
+// The inner loop used to build, for every visible face, a 4-element array of [x,y,z] corner
+// triples, a normal array, and an array of the eight ambient-occlusion sample offsets -- plus a
+// closure (`addFace`) per voxel. A profiled chunk spends ~30% of its time in meshChunk and ~14% in
+// addFace, with garbage collection at 5.5%. All of that per-face data is constant, so it lives in
+// tables here and is read rather than rebuilt.
+//
+// Corner order for each face is exactly the order the previous code pushed them, and the UVs are
+// emitted in the same sequence, so the vertex stream is unchanged.
+
+/** Normal per face. */
+const FACE_NORMAL = [
+  [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0],
+];
+
+/**
+ * Corner offsets per face, as flat triples relative to the block's minimum corner.
+ *
+ * The previous code derived the y extremes from `topY`/`botY` and the horizontal extremes from
+ * `northZ`/`southZ`/`eastX`/`westX`, which are all `wy`/`wy+1`/`wz`/`wz+1` except for water
+ * against glass. Those special cases are applied at write time by WET_FACE_HEIGHT below, so the
+ * table holds the plain cube.
+ */
+const FACE_CORNERS = [
+  // top (+Y): (0,1,1) (1,1,1) (1,1,0) (0,1,0)
+  [0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0],
+  // bottom (-Y): (0,0,0) (1,0,0) (1,0,1) (0,0,1)
+  [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1],
+  // north (+Z): (0,0,1) (1,0,1) (1,1,1) (0,1,1)
+  [0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1],
+  // south (-Z): (1,0,0) (0,0,0) (0,1,0) (1,1,0)
+  [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0],
+  // east (+X): (1,0,1) (1,0,0) (1,1,0) (1,1,1)
+  [1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1],
+  // west (-X): (0,0,0) (0,0,1) (0,1,1) (0,1,0)
+  [0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0],
+];
+
+/**
+ * Ambient-occlusion sample offsets per face per vertex, as (side1, side2, corner) triples.
+ *
+ * Only the top and bottom faces participate in this engine's AO; the four side faces keep the
+ * default 3, which is what `vertexAO`'s callers previously produced by leaving ao at 3. Each entry
+ * is two [dx,dy,dz] sides followed by the corner, flattened to 9 numbers per vertex.
+ */
+const AO_OFFSETS = {
+  // top (+Y). Order matches s1,s2,s3,s4 and c1..c4 in the original.
+  top: [
+    -1, 1, 0, 0, 1, 1, -1, 1, 1,   // vertex 0: s1, s4, c4
+    1, 1, 0, 0, 1, 1, 1, 1, 1,      // vertex 1: s2, s4, c3
+    1, 1, 0, 0, 1, -1, 1, 1, -1,    // vertex 2: s2, s3, c2
+    -1, 1, 0, 0, 1, -1, -1, 1, -1,  // vertex 3: s1, s3, c1
+  ],
+  // bottom (-Y). Vertex order s1,s3,c1 / s2,s3,c2 / s2,s4,c3 / s1,s4,c4.
+  bottom: [
+    -1, -1, 0, 0, -1, -1, -1, -1, -1,
+    1, -1, 0, 0, -1, -1, 1, -1, -1,
+    1, -1, 0, 0, -1, 1, 1, -1, 1,
+    -1, -1, 0, 0, -1, 1, -1, -1, 1,
+  ],
+};
+
+// --- Covered faces of shaped blocks --------------------------------------------
+//
+// Shaped blocks (lava, snow layers, carpets, stairs, slabs, dripstone...) are built whole and used to keep every face,
+// even one pressed against stone or against more of the same block. A world at render distance 8 held 34,000 exposed
+// lava blocks drawing all six faces -- 400,000 triangles, most inside lava lakes -- and snow layers drew their sides
+// into each other and their bottoms into the ground. A face lying flat on the block's boundary is dropped when the
+// neighbour there covers it completely: an opaque full cube, lava beside lava (the two share the corner heights of
+// their common edge, so a side between them is inside the lava), or the same carpet beside it (same height).
+
+/** The block's sides hidden by their neighbours, one bit per face in FACE_NORMAL order. */
+function coveredSides(T, blockId, def, lx, ly, lz) {
+  let mask = 0;
+  for (let face = 0; face < 6; face++) {
+    const n = FACE_NORMAL[face];
+    const id = padGet(lx + n[0], ly + n[1], lz + n[2]);
+    if (T.occludes[id] || (id === blockId && (blockId === BLOCKS.LAVA || (def?.carpet && face >= 2)))) mask |= 1 << face;
+  }
+  return mask;
+}
+
+const EPS = 1e-4;
+/** Which face a triangle lies flat on, as a FACE_NORMAL index, or -1 when it is inside the block or slanted. */
+function boundaryFace(pos, nrm, a, b, c) {
+  const nx = nrm.getX(a), ny = nrm.getY(a), nz = nrm.getZ(a);
+  const face = ny > 0.999 ? 0 : ny < -0.999 ? 1 : nz > 0.999 ? 2 : nz < -0.999 ? 3 : nx > 0.999 ? 4 : nx < -0.999 ? 5 : -1;
+  if (face < 0) return -1;
+  const axis = face < 2 ? 1 : face < 4 ? 2 : 0;
+  const plane = face % 2 === 0 ? 1 : 0;
+  for (const v of [a, b, c]) {
+    if (Math.abs(nrm.getComponent(v, axis) - FACE_NORMAL[face][axis]) > 0.001) return -1;
+    for (let k = 0; k < 3; k++) {
+      const value = pos.getComponent(v, k);
+      if (k === axis ? Math.abs(value - plane) > EPS : value < -EPS || value > 1 + EPS) return -1;
+    }
+  }
+  return face;
+}
+
+/**
+ * Drop a block-local geometry's triangles on the covered sides. Only the index changes, so the vertex count -- and
+ * the attribute layout every merged geometry must share -- stays the same. Returns null when nothing is left.
+ */
+function dropCoveredFaces(geometry, mask) {
+  const index = geometry.index, pos = geometry.attributes.position, nrm = geometry.attributes.normal;
+  if (!mask || !index || !nrm) return geometry;
+  const kept = [];
+  for (let t = 0; t < index.count; t += 3) {
+    const a = index.getX(t), b = index.getX(t + 1), c = index.getX(t + 2);
+    const face = boundaryFace(pos, nrm, a, b, c);
+    if (face >= 0 && mask & (1 << face)) continue;
+    kept.push(a, b, c);
+  }
+  if (kept.length === index.count) return geometry;
+  if (!kept.length) { geometry.dispose(); return null; }
+  geometry.setIndex(kept);
+  geometry.clearGroups();
+  return geometry;
+}
+
+/** Face names in the order the constants below are indexed. */
+const FACE_NAMES = ['top', 'bottom', 'north', 'south', 'east', 'west'];
+const FACES = FACE_NAMES;
+
+
+
+export class ChunkMesher {
+  constructor(textureManager) {
+    this.tm = textureManager;
+    /** Built shapes by block and state, cloned per block (see `shapedGeometry`). */
+    this.shapeCache = new Map();
+    this.shapeCacheStamp = null;
+  }
+
+  /**
+   * The geometry of a shaped block, in block-local coordinates, as a fresh copy the caller may translate.
+   *
+   * A village has thousands of stairs, fences, slabs and torches, and building each one's BoxGeometry and merging it
+   * was a third of the cost of meshing a chunk. A shape depends only on the block, its state and the atlas, so it is
+   * built once and cloned. The state's position (`x`, `y`, `z`, `p`) is left out of the key, since no shape reads it.
+   * Emptied by `checkShapeCache` when the atlas moves a tile or a mod registers a block.
+   */
+  shapedGeometry(blockId, state) {
+    const key = shapeKey(blockId, state);
+    let template = this.shapeCache.get(key);
+    if (!template) {
+      // Kept as a plain BufferGeometry: `clone()` on a BoxGeometry or CylinderGeometry first builds a default one of
+      // its own (a 32-sided cylinder) and then overwrites it, which cost more than the copy itself.
+      const built = createBlockGeometry(blockId, this.tm, state);
+      template = new THREE.BufferGeometry().copy(built);
+      built.dispose();
+      if (this.shapeCache.size >= 4096) this.shapeCache.clear();
+      this.shapeCache.set(key, template);
+    }
+    return new THREE.BufferGeometry().copy(template);
+  }
+
+  /** Drop the built shapes if the atlas or the block table changed since they were made. Once per chunk mesh. */
+  checkShapeCache(tables) {
+    const stamp = `${this.tm?.atlasVersion ?? 0}|${tables.size}`;
+    if (stamp === this.shapeCacheStamp) return;
+    for (const geometry of this.shapeCache.values()) geometry.dispose();
+    this.shapeCache.clear();
+    this.shapeCacheStamp = stamp;
+  }
+
+  meshChunk(chunk, world) {
+    // Non-resumable path: drive the generator to completion in one call, which is what every
+    // existing caller and test uses. The work is identical either way.
+    const state = this.beginChunkMesh(chunk, world);
+    let step = state.next();
+    while (!step.done) step = state.next();
+    return step.value;
+  }
+
+  /**
+   * Start a mesh that can be suspended and resumed between columns.
+   *
+   * Why this exists. Generation and meshing were atomic per chunk, so the worst frame was
+   * `budget + longest single chunk` -- measured p99 16.5ms and max 38.9ms against a 16.7ms frame.
+   * No amount of pre-checking can bound a frame below the cost of one indivisible chunk, which is
+   * why the streaming budget could not be a hard bound. Yielding per column makes a chunk
+   * interruptible, so the real bound becomes the budget plus one column.
+   *
+   * Usage:
+   *   const it = mesher.beginChunkMesh(chunk, world);
+   *   ... loop { const r = it.next(); if (r.done) return r.value; } until out of time
+   *   ... next frame, keep calling it.next() on the same iterator
+   *
+   * @returns {Generator<void, {opaqueGeo, transparentGeo, waterGeo, lightGeo}>}
+   */
+  beginChunkMesh(chunk, world) {
+    return this.#buildChunkMesh(chunk, world, true);
+  }
+
+  *#buildChunkMesh(chunk, world, resumable) {
+    // Resolve model coverage once per block type, not six times per voxel.
+    // Snapshot each build so a resumed mesh keeps its own table and newly
+    // registered mod definitions are picked up by the next build.
+    const T = blockTables();
+    this.checkShapeCache(T);
+    const faceOcclusion = T.occludes;
+    const lightGeometries = [];
+    const lightSources = [];
+    const cx = chunk.cx;
+    const cz = chunk.cz;
+    const worldOffsetX = cx * CHUNK_SIZE_X;
+    const worldOffsetZ = cz * CHUNK_SIZE_Z;
+
+    // Buffers for opaque blocks
+    const opPos = [];
+    const opNorm = [];
+    const opUv = [];
+    const opCol = [];
+    const opWind = [];
+    const opSnow = [];
+    const opIdx = [];
+    let opVertCount = 0;
+
+    // Buffers for transparent blocks (glass, leaves, plants)
+    const trPos = [];
+    const trNorm = [];
+    const trUv = [];
+    const trCol = [];
+    const trWind = [];
+    const trSnow = [];
+    const trIdx = [];
+    const cutoutIdx = [];
+    let trVertCount = 0;
+
+    // Buffers for water
+    const wtPos = [];
+    const wtNorm = [];
+    const wtUv = [];
+    const wtCol = [];
+    const wtIdx = [];
+    const wtDepth = [];
+    const wtFlow = [];
+    let wtVertCount = 0;
+    // Reusable per-voxel neighbour scratch, so the hot loop allocates nothing.
+    const neighbors = new Int32Array(6);
+    const depthCache = new Map();
+    const tintCache = new Map();
+    const cornerCache = new Map();
+    const flowCache = new Map();
+
+    // Copy the chunk and its border once. Everything the inner loop needs is then a flat array
+    // read rather than a world lookup.
+    fillBorder(chunk, world);
+    const snowSkyCeilings = skyCeilings.slice();
+
+    // Column depth for water corner heights. Keys stay in WORLD coordinates so the two sides of a
+    // chunk seam agree on the depth of the shared column.
+    const columnDepth = (x, y, z) => {
+      const key = `${x},${y},${z}`;
+      if (depthCache.has(key)) return depthCache.get(key);
+      let depth = 0;
+      while (depth < 24 && y - depth >= 0 && world.getVoxel(x, y - depth, z) === BLOCKS.WATER) depth++;
+      depthCache.set(key, depth);
+      return depth;
+    };
+    // Shared world-coordinate corners produce matching depth/tint on both sides of a chunk seam.
+    const waterCorner = (x, y, z) => {
+      const cornerKey = `${x},${y},${z}`;
+      if (cornerCache.has(cornerKey)) return cornerCache.get(cornerKey);
+      let depth = 0;
+      const tint = new THREE.Color(0, 0, 0);
+      for (let dx = -1; dx <= 0; dx++) for (let dz = -1; dz <= 0; dz++) {
+        depth += columnDepth(x + dx, y, z + dz);
+        const key = `${x + dx},${z + dz}`;
+        if (!tintCache.has(key)) {
+          tintCache.set(key, WATER_COLORS[biomeAt(world, x + dx, z + dz)] || WATER_COLORS.plains);
+        }
+        tint.add(tintCache.get(key));
+      }
+      const result = { depth: Math.max(0.25, depth / 4), tint: tint.multiplyScalar(0.25), height: null };
+      cornerCache.set(cornerKey, result);
+      return result;
+    };
+    const cachedCurrent = (x, y, z) => {
+      const key = `${x},${y},${z}`;
+      if (!flowCache.has(key)) flowCache.set(key, waterCurrent(world, x, y, z));
+      return flowCache.get(key);
+    };
+
+    for (let lx = 0; lx < CHUNK_SIZE_X; lx++) {
+      // A resumable build yields once per column (x slice), which is the unit the streamer
+      // time-slices on. `yield` is only legal directly inside the generator body, not inside the
+      // closures above, which is why the yield sits here rather than deeper in.
+      if (resumable) yield lx;
+      for (let ly = 0; ly < CHUNK_HEIGHT; ly++) {
+        for (let lz = 0; lz < CHUNK_SIZE_Z; lz++) {
+          const blockId = chunk.getVoxel(lx, ly, lz);
+          if (blockId === BLOCKS.AIR) continue;
+
+          const def = BLOCK_DEFS[blockId];
+          const isWater = blockId === BLOCKS.WATER;
+          const isPlant = T.plant[blockId] === 1;
+          const isTransparent = T.transparent[blockId] === 1;
+          const special = T.special[blockId];
+
+          // A plain cube with every face against a block that hides it draws nothing: the common case (buried
+          // stone), skipped before any other work. Shaped, lit and plant blocks keep their own paths below.
+          if (special === 0 && !isPlant && !isWater && T.light[blockId] === 0 && blockId !== BLOCKS.RESPAWN_ANCHOR) {
+            const up = padGet(lx, ly + 1, lz), dn = padGet(lx, ly - 1, lz), n = padGet(lx, ly, lz + 1), so = padGet(lx, ly, lz - 1), e = padGet(lx + 1, ly, lz), w = padGet(lx - 1, ly, lz);
+            if (faceOcclusion[up] && faceOcclusion[dn] && faceOcclusion[n] && faceOcclusion[so] && faceOcclusion[e] && faceOcclusion[w]) continue;
+          }
+
+          const wx = worldOffsetX + lx;
+          const wy = ly;
+          const wz = worldOffsetZ + lz;
+
+          // Partial-cube shapes -- slabs, panes, carpets -- cannot use the plain-cube fast path, so
+          // they are routed through createBlockGeometry. An unrecognised shape falls through to the
+          // fast path and is drawn full size, which for any of these looks like a rendering bug
+          // rather than a missing feature.
+          if (special === SPECIAL.SHAPED) {
+            // A structure's stair carries its facing in `structureOrientations`; everything else here reads redstone state.
+            const state = world.redstone?.state([wx, wy, wz]) || ((def.pointedDripstone || def.stair || def.slab || def.plant || blockId===BLOCKS.CHORUS_FLOWER || def.model?.wallAttached) && world.structureOrientations?.get(`${wx},${wy},${wz}`))
+              || (def.model?.connections ? { connect: chorusConnections(world, wx, wy, wz) } : null) || {};
+            const geometry = dropCoveredFaces(this.shapedGeometry(blockId, state), coveredSides(T, blockId, def, lx, ly, lz));
+            if (geometry) {
+              if (def.snowLayer) {
+                const normals = geometry.attributes.normal, exposure = new Float32Array(normals.count);
+                for (let i = 0; i < normals.count; i++) exposure[i] = faceSkyExposure(lx, ly, lz, normals.getX(i), normals.getY(i), normals.getZ(i), snowSkyCeilings);
+                geometry.setAttribute('snowExposure', new THREE.Float32BufferAttribute(exposure, 1));
+              } else geometry.setAttribute('snowExposure', new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count), 1));
+              geometry.translate(wx, wy, wz);
+              const origin = new Float32Array(geometry.attributes.position.count * 3);
+              for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+              geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+              lightGeometries.push(geometry);
+            }
+            // A shaped emitter reaches this branch and used to `continue` straight past the emissive branch
+            // below, so its light was never registered: the light manager had no source for an end rod, and
+            // the emitting-block sweep had nothing to read. Candles and lanterns come through here too.
+            if (def.light) {
+              lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5), level: def.light, color: def.lightColor || 0xffc477 });
+            }
+            continue;
+          }
+          if (special === SPECIAL.DOOR) {
+            const doorMgr = world.game?.doorManager || this.game?.doorManager || world.doorManager;
+            const state = doorMgr?.getDoor(wx, wy, wz) || {};
+            const geometry = createBlockGeometry(blockId, this.tm, state);
+            geometry.translate(wx, wy, wz);
+            const origin = new Float32Array(geometry.attributes.position.count * 3);
+            for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+            geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+            lightGeometries.push(geometry);
+            continue;
+          }
+          if (special === SPECIAL.TRAPDOOR) {
+            const state = world.redstone?.state([wx, wy, wz]) || {};
+            const geometry = this.shapedGeometry(blockId, state);
+            geometry.translate(wx, wy, wz);
+            const origin = new Float32Array(geometry.attributes.position.count * 3);
+            for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+            geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+            lightGeometries.push(geometry);
+            continue;
+          }
+          if (special === SPECIAL.REDSTONE) {
+            const state=world.redstone?.state([wx,wy,wz]) || {};
+            const geometry=createBlockGeometry(blockId,this.tm,state);geometry.translate(wx,wy,wz);
+            const origin=new Float32Array(geometry.attributes.position.count*3);for(let i=0;i<origin.length;i+=3)origin.set([wx+.5,wy+.5,wz+.5],i);
+            geometry.setAttribute('lightOrigin',new THREE.Float32BufferAttribute(origin,3));lightGeometries.push(geometry);
+            const level=def.redstoneBulb&&state.on?def.light:blockId===BLOCKS.REDSTONE_LAMP&&state.on?15:[BLOCKS.REDSTONE_TORCH,BLOCKS.REDSTONE_WALL_TORCH].includes(blockId)&&state.output?7:0;
+            if(level)lightSources.push({position:new THREE.Vector3(wx+.5,wy+.5,wz+.5),level,color:blockId===BLOCKS.REDSTONE_TORCH?0xff4335:0xffc477});
+            continue;
+          }
+          if (special === SPECIAL.BED) {
+            const state = world.game?.bedManager?.getBed(wx, wy, wz) || {};
+            const geometry = createBlockGeometry(blockId, this.tm, state);
+            geometry.translate(wx, wy, wz);
+            const origin = new Float32Array(geometry.attributes.position.count * 3);
+            for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+            geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+            lightGeometries.push(geometry);
+            continue;
+          }
+          if (special === SPECIAL.CHEST) {
+            const chestMgr = world.game?.chestManager || this.game?.chestManager || world.chestManager;
+            const state = chestMgr?.getChest(wx, wy, wz) || {};
+            const geometry = createBlockGeometry(blockId, this.tm, state);
+            geometry.translate(wx, wy, wz);
+            const origin = new Float32Array(geometry.attributes.position.count * 3);
+            for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + 0.5, wz + 0.5], i);
+            geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+            lightGeometries.push(geometry);
+            // An ender chest gives light 7 (its wiki infobox); this branch used to skip registering it.
+            if (def?.light) lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + 0.5, wz + 0.5), level: def.light, color: def.lightColor || 0x9b5cff });
+            continue;
+          }
+          if(blockId===BLOCKS.RESPAWN_ANCHOR) {
+            const level=Math.min(15,4*(world.structureOrientations?.get(`${wx},${wy},${wz}`)?.anchorCharges??0));
+            if(level)lightSources.push({position:new THREE.Vector3(wx+.5,wy+.8,wz+.5),level,color:0x995cff});
+          }
+          const caveState=def?.caveVines?world.structureOrientations?.get(`${wx},${wy},${wz}`):undefined;
+          const emittedLight=def?.caveVines?(caveState?.berries?14:0):def?.light;
+          if (emittedLight) {
+            // Separate emitters so their distance-shadow material can suppress
+            // self-shadowing while retaining shadows from the sun/other lamps.
+            const exposed = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].some(([dx,dy,dz]) => {
+              return !faceOcclusion[world.getVoxel(wx + dx, wy + dy, wz + dz)];
+            });
+            if (exposed) {
+              let geometry = this.shapedGeometry(blockId, caveState);
+              if(blockId===BLOCKS.LAVA){
+                const pos=geometry.attributes.position;
+
+                for(let i=0;i<pos.count;i++)if(pos.getY(i)>.5)pos.setY(i,lavaCornerHeight(world,wx+Math.round(pos.getX(i)),wy,wz+Math.round(pos.getZ(i))));
+              }
+              // After the lava surface is lowered: a lowered top is no longer on the boundary, so it stays.
+              geometry = dropCoveredFaces(geometry, coveredSides(T, blockId, def, lx, ly, lz));
+              if (geometry) {
+                geometry.translate(wx, wy, wz);
+                const origin = new Float32Array(geometry.attributes.position.count * 3);
+                for (let i = 0; i < origin.length; i += 3) origin.set([wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5], i);
+                geometry.setAttribute('lightOrigin', new THREE.Float32BufferAttribute(origin, 3));
+                lightGeometries.push(geometry);
+              }
+              lightSources.push({ position: new THREE.Vector3(wx + 0.5, wy + (def.shape === 'torch' ? 0.7 : 0.5), wz + 0.5), level: emittedLight, color: def.lightColor || 0xffc477 });
+            }
+            continue;
+          }
+
+          // Cross-quad rendering for flowers (Poppy, Dandelion)
+          if (isPlant) {
+            const plantHeight=blockId===BLOCKS.NETHER_WART?netherWartHeight(world.structureOrientations?.get(`${wx},${wy},${wz}`)?.plantAge):1;
+            const uv = this.tm.getFaceUVs(blockId, 'all');
+            // A plant anchored to a ceiling draws downward from the block's top face, so its texture has
+            // to be flipped: the artwork's top edge belongs at the ceiling, not at the floor. The quad's
+            // vertex POSITIONS are unchanged -- the cell is the cell -- so this is a V swap, and the
+            // winding is left alone because the quad is double-sided in effect through the second
+            // crossing quad.
+            const hanging = Boolean(def.hang);
+            const addCrossQuad = (p1, p2, p3, p4) => {
+              const baseIdx = trVertCount;
+              trPos.push(...p1, ...p2, ...p3, ...p4);
+              trNorm.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
+              if (hanging) {
+                trUv.push(uv.u0, uv.v1, uv.u1, uv.v1, uv.u1, uv.v0, uv.u0, uv.v0);
+              } else {
+                trUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
+              }
+              const tint = vegetationTint(def) || [1, 1, 1];
+              for (let i = 0; i < 4; i++) trCol.push(...tint);
+              trWind.push(0,0,1,1);
+              trSnow.push(0,0,0,0);
+              cutoutIdx.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3);
+              trVertCount += 4;
+            };
+            addCrossQuad([wx, wy, wz], [wx + 1, wy, wz + 1], [wx + 1, wy + plantHeight, wz + 1], [wx, wy + plantHeight, wz]);
+            addCrossQuad([wx, wy, wz + 1], [wx + 1, wy, wz], [wx + 1, wy + plantHeight, wz], [wx, wy + plantHeight, wz + 1]);
+            continue;
+          }
+
+          // Check all 6 faces. Sampled from the padded window in LOCAL coordinates, which is the
+          // same data getVoxel(world coords) returned, without the per-call map lookup.
+          //
+          // A reusable array rather than a fresh {top,bottom,...} object per voxel: the object
+          // literal was one allocation for every non-air voxel in the chunk.
+          neighbors[0] = padGet(lx, ly + 1, lz);
+          neighbors[1] = padGet(lx, ly - 1, lz);
+          neighbors[2] = padGet(lx, ly, lz + 1);
+          neighbors[3] = padGet(lx, ly, lz - 1);
+          neighbors[4] = padGet(lx + 1, ly, lz);
+          neighbors[5] = padGet(lx - 1, ly, lz);
+
+          // Water surface height is slightly lowered (0.90) for open air top to create fluid meniscus line,
+          // and slightly inset against glass to avoid coplanar z-fighting with glass panes
+          const isGlassAbove = neighbors[0] === BLOCKS.GLASS;
+          const topY = isWater
+            ? (neighbors[0] === BLOCKS.AIR ? (wy + 0.90) : (isGlassAbove ? (wy + 0.995) : (wy + 1)))
+            : (wy + 1);
+          const isGlass1 = neighbors[1] === BLOCKS.GLASS;
+          const isGlass2 = neighbors[2] === BLOCKS.GLASS;
+          const isGlass3 = neighbors[3] === BLOCKS.GLASS;
+          const isGlass4 = neighbors[4] === BLOCKS.GLASS;
+          const isGlass5 = neighbors[5] === BLOCKS.GLASS;
+          const botY = (isWater && isGlass1) ? (wy + 0.005) : wy;
+          const northZ = (isWater && isGlass2) ? (wz + 0.995) : (wz + 1);
+          const southZ = (isWater && isGlass3) ? (wz + 0.005) : wz;
+          const eastX = (isWater && isGlass4) ? (wx + 0.995) : (wx + 1);
+          const westX = (isWater && isGlass5) ? (wx + 0.005) : wx;
+
+          for (let face = 0; face < 6; face++) {
+            const neighborId = neighbors[face];
+
+            // Culling condition
+            if (isWater) {
+              if (neighborId === BLOCKS.WATER || T.waterPlant[neighborId]) continue; // cull water adjacent to water or water plants
+              const isGlass = neighborId === BLOCKS.GLASS;
+              if (T.solid[neighborId] && !isGlass) continue; // solid blocks (ice, planks, stairs, slabs, fences, etc.) occlude water
+              if (faceOcclusion[neighborId]) continue; // partial neighbours leave water visible
+            } else if (isTransparent) {
+              if (neighborId === blockId) continue;
+              if (faceOcclusion[neighborId]) continue;
+            } else {
+              // Texture opacity is not shape coverage: a carpet beside a furnace
+              // must never remove its entire side or bottom.
+              if (faceOcclusion[neighborId]) continue;
+            }
+
+            // The texture manager keys faces by NAME ('top', 'side', 'bottom', ...), not by the
+            // numeric slot this loop uses. Passing the number made every face of a block whose
+            // definition has no `all` texture -- grass, every log, furnaces, sandstone and the
+            // rest of the 40-odd multi-texture blocks -- miss every branch and fall through to
+            // the manager's missing-texture fallback, which is why their surfaces rendered black.
+            const uv = this.tm.getFaceUVs(blockId, FACE_NAMES[face]);
+            const corners = FACE_CORNERS[face];
+            const normal = FACE_NORMAL[face];
+
+            // Ambient occlusion. Only the top and bottom faces participate; the sides keep 3,
+            // which is what the previous code left them at.
+            let ao0 = 3, ao1 = 3, ao2 = 3, ao3 = 3;
+            const aoOffsets = AO_OFFSETS[FACES[face]];
+            if (aoOffsets && !isWater && !isTransparent) {
+              const v0 = vertexAO(
+                isSolidBlock(padGet(lx + aoOffsets[0], ly + aoOffsets[1], lz + aoOffsets[2])),
+                isSolidBlock(padGet(lx + aoOffsets[3], ly + aoOffsets[4], lz + aoOffsets[5])),
+                isSolidBlock(padGet(lx + aoOffsets[6], ly + aoOffsets[7], lz + aoOffsets[8])));
+              const v1 = vertexAO(
+                isSolidBlock(padGet(lx + aoOffsets[9], ly + aoOffsets[10], lz + aoOffsets[11])),
+                isSolidBlock(padGet(lx + aoOffsets[12], ly + aoOffsets[13], lz + aoOffsets[14])),
+                isSolidBlock(padGet(lx + aoOffsets[15], ly + aoOffsets[16], lz + aoOffsets[17])));
+              const v2 = vertexAO(
+                isSolidBlock(padGet(lx + aoOffsets[18], ly + aoOffsets[19], lz + aoOffsets[20])),
+                isSolidBlock(padGet(lx + aoOffsets[21], ly + aoOffsets[22], lz + aoOffsets[23])),
+                isSolidBlock(padGet(lx + aoOffsets[24], ly + aoOffsets[25], lz + aoOffsets[26])));
+              const v3 = vertexAO(
+                isSolidBlock(padGet(lx + aoOffsets[27], ly + aoOffsets[28], lz + aoOffsets[29])),
+                isSolidBlock(padGet(lx + aoOffsets[30], ly + aoOffsets[31], lz + aoOffsets[32])),
+                isSolidBlock(padGet(lx + aoOffsets[33], ly + aoOffsets[34], lz + aoOffsets[35])));
+              ao0 = v0; ao1 = v1; ao2 = v2; ao3 = v3;
+            }
+
+            // Biome Tinting
+            let baseR = 1.0, baseG = 1.0, baseB = 1.0;
+            if (blockId === BLOCKS.GRASS && face === 0) {
+              baseR = 0.48; baseG = 0.74; baseB = 0.31;
+            } else if (T.foliage[blockId]) {
+              [baseR, baseG, baseB] = vegetationTint(def) || [1, 1, 1];
+            }
+
+            let light0 = AO_CURVE[ao0];
+            let light1 = AO_CURVE[ao1];
+            let light2 = AO_CURVE[ao2];
+            let light3 = AO_CURVE[ao3];
+            if (T.snow[blockId]) {
+              const tint = snowFaceTint(normal[0], normal[1], normal[2]);
+              baseR *= tint[0]; baseG *= tint[1]; baseB *= tint[2];
+            }
+            if (T.portal[blockId]) {
+              light0 = light1 = light2 = light3 = 1.0;
+            }
+
+            // Select Target Buffers
+            let tPos = opPos, tNorm = opNorm, tUv = opUv, tCol = opCol, tIdx = opIdx;
+            if (isWater) {
+              tPos = wtPos; tNorm = wtNorm; tUv = wtUv; tCol = wtCol; tIdx = wtIdx;
+            } else if (isTransparent) {
+              tPos = trPos; tNorm = trNorm; tUv = trUv; tCol = trCol; tIdx = T.foliage[blockId] ? cutoutIdx : trIdx;
+            }
+            const vCount = isWater ? wtVertCount : (isTransparent ? trVertCount : opVertCount);
+
+            // Wind moves foliage only; terrain and buildings stay fixed.
+            const isFoliage = T.foliage[blockId] === 1;
+            if (!isWater) {
+              const w = isFoliage ? 1 : 0;
+              (isTransparent ? trWind : opWind).push(w, w, w, w);
+              const exposure = T.snow[blockId] ? faceSkyExposure(lx, ly, lz, normal[0], normal[1], normal[2], snowSkyCeilings) : 0;
+              (isTransparent ? trSnow : opSnow).push(exposure, exposure, exposure, exposure);
+            }
+
+            for (let v = 0; v < 4; v++) {
+              const co = v * 3;
+              const px = wx + corners[co];
+              const pz = wz + corners[co + 2];
+              // The corner table holds the plain cube; the original code replaced the y extremes
+              // with topY/botY BEFORE deciding whether to lower a corner for water. That order
+              // matters: on the top face every corner is at the top plane, so every corner gets
+              // the water surface lookup, whereas testing the raw corner first would skip half of
+              // them and flatten the surface.
+              let py;
+              if (face === 0) py = topY;
+              else if (face === 1) py = botY;
+              else py = (corners[co + 1] === 1 ? topY : wy);
+              const corner = isWater ? waterCorner(Math.round(px), wy, Math.round(pz)) : null;
+              // Water lowers only the corners sitting on the block's top plane open to air.
+              if (isWater && face !== 1 && py > wy) {
+                if (corner.height === null) corner.height = waterCornerHeight(world, Math.round(px), wy, Math.round(pz));
+                if (neighbors[0] === BLOCKS.AIR) {
+                  py = wy + corner.height;
+                } else if (isGlassAbove) {
+                  py = wy + 0.995;
+                }
+              }
+              tPos.push(px, py, pz);
+              tNorm.push(normal[0], normal[1], normal[2]);
+              if (isWater) {
+                wtCol.push(corner.tint.r, corner.tint.g, corner.tint.b);
+                wtDepth.push(corner.depth);
+                // Inline rather than indexing per-face arrays of corner coordinates: those were
+                // two four-element arrays allocated for every visible face.
+                // The face's corner columns (was two six-element arrays per voxel).
+                const faceXv = face === 2 ? northZ : face === 3 ? southZ : face === 4 ? eastX : face === 5 ? westX : wx;
+                const faceZv = face === 2 ? northZ : face === 3 ? southZ : wz;
+                const vx = face === 2 || face === 3 || face === 4 ? faceXv + (v === 1 || v === 2 ? 1 : 0) : wx;
+                const vz = face === 0 || face === 1 ? wz : faceZv + (v >= 2 ? 1 : 0);
+                const flow = cachedCurrent(vx, wy, vz);
+                wtFlow.push(flow.x, flow.z);
+              }
+            }
+
+            // Push UVs
+            tUv.push(uv.u0, uv.v0, uv.u1, uv.v0, uv.u1, uv.v1, uv.u0, uv.v1);
+
+            // Push Vertex Colors (AO * Tint)
+            if (!isWater) {
+              tCol.push(
+                baseR * light0, baseG * light0, baseB * light0,
+                baseR * light1, baseG * light1, baseB * light1,
+                baseR * light2, baseG * light2, baseB * light2,
+                baseR * light3, baseG * light3, baseB * light3
+              );
+            }
+
+            // Push Quad Indices (flipping diagonal if AO requires smooth shading)
+            if (ao0 + ao2 > ao1 + ao3) {
+              tIdx.push(vCount, vCount + 1, vCount + 2, vCount, vCount + 2, vCount + 3);
+            } else {
+              tIdx.push(vCount + 1, vCount + 2, vCount + 3, vCount + 1, vCount + 3, vCount);
+            }
+
+            if (isWater) wtVertCount += 4;
+            else if (isTransparent) trVertCount += 4;
+            else opVertCount += 4;
+          }
+        }
+      }
+    }
+
+    // Helper to create Three.js BufferGeometry
+    const createGeo = (pos, norm, uv, col, idx, wind = null, snow = null) => {
+      if (pos.length === 0) return null;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      geo.setAttribute('emission', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3), 1));
+      if(wind)geo.setAttribute('wind',new THREE.Float32BufferAttribute(wind,1));
+      if(snow)geo.setAttribute('snowExposure',new THREE.Float32BufferAttribute(snow,1));
+      geo.setIndex(idx);
+      geo.computeBoundingSphere();
+      return geo;
+    };
+
+    const waterGeo = createGeo(wtPos, wtNorm, wtUv, wtCol, wtIdx);
+    if (waterGeo) {
+      waterGeo.setAttribute('waterDepth', new THREE.Float32BufferAttribute(wtDepth, 1));
+      waterGeo.setAttribute('waterFlow', new THREE.Float32BufferAttribute(wtFlow, 2));
+    }
+    for (const geo of lightGeometries) if (!geo.attributes.snowExposure) geo.setAttribute('snowExposure', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count), 1));
+    const lightGeo = lightGeometries.length ? mergeGeometries(lightGeometries) : null;
+    if (lightGeo) lightGeo.userData.sources = lightSources;
+    for (const geometry of lightGeometries) geometry.dispose();
+    const transparentGeo = createGeo(trPos, trNorm, trUv, trCol, [...trIdx, ...cutoutIdx], trWind, trSnow);
+    if (transparentGeo) {
+      if (trIdx.length) transparentGeo.addGroup(0, trIdx.length, 0);
+      if (cutoutIdx.length) transparentGeo.addGroup(trIdx.length, cutoutIdx.length, 1);
+    }
+    return {
+      lightGeo,
+      opaqueGeo: createGeo(opPos, opNorm, opUv, opCol, opIdx, opWind, opSnow),
+      transparentGeo,
+      waterGeo
+    };
+  }
+}
+
+/**
+ * Which neighbours a chorus plant reaches for: other chorus plants and flowers on every side, and end stone below
+ * (wiki, Chorus Plant: it "connects to" adjacent chorus plants and flowers, and to end stone beneath it).
+ */
+function chorusConnections(world, x, y, z) {
+  const chorus = (id) => id === BLOCKS.CHORUS_PLANT || id === BLOCKS.CHORUS_FLOWER;
+  const at = (dx, dy, dz) => world.getVoxel(x + dx, y + dy, z + dz);
+  return { north: chorus(at(0, 0, -1)), south: chorus(at(0, 0, 1)), west: chorus(at(-1, 0, 0)), east: chorus(at(1, 0, 0)),
+    up: chorus(at(0, 1, 0)), down: chorus(at(0, -1, 0)) || at(0, -1, 0) === BLOCKS.END_STONE };
+}

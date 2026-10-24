@@ -136,3 +136,18 @@ test('the result is deterministic and does not depend on iteration order', () =>
   assert.deepEqual(first.writes, second.writes);
   assert.deepEqual(first.counts, second.counts);
 });
+
+test('adapting only one chunk\'s columns gives exactly that part of adapting the whole box', () => {
+  // A chunk realising a structure 150 chunks wide adapted all of it and kept its own sixteen columns: an ancient city
+  // took a minute to build. Each column is worked out on its own, so the clipped writes must be the same ones.
+  const box = new BlockBox(3, 20, -7, 40, 30, 25);
+  const surfaceY = (x, z) => 22 + ((x * 7 + z * 13) % 11);
+  for (const adaptation of ['beard_thin', 'beard_box', 'bury', 'encapsulate']) {
+    const whole = adaptToTerrain({ adaptation, box, surfaceY, foundationBlock: 1, airBlock: 0, surfaceBlock: 2 }).writes;
+    const columns = new BlockBox(16, -64, 0, 31, 320, 15);
+    const clipped = adaptToTerrain({ adaptation, box, surfaceY, foundationBlock: 1, airBlock: 0, surfaceBlock: 2, columns }).writes;
+    const inside = whole.filter((w) => w.x >= 16 && w.x <= 31 && w.z >= 0 && w.z <= 15);
+    assert.deepEqual(clipped, inside, `${adaptation}: the same writes, in the same order`);
+    assert.ok(inside.length > 0, `${adaptation}: the chunk is inside the box`);
+  }
+});

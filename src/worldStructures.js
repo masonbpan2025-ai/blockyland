@@ -43,6 +43,18 @@ export const WORLD_STRUCTURE_IDS = ['village_plains', 'igloo', 'desert_pyramid',
   'end_spike', 'end_podium', 'end_platform', 'end_city'];
 
 /**
+ * The End's own fixtures: its obsidian pillars, the exit portal and the obsidian platform players arrive on. In
+ * Minecraft these are features placed by the End itself (the exit portal by the dragon fight), which no data pack's
+ * structure list turns off; a world whose preset left them out had no way back from the End.
+ */
+export const END_FIXTURE_IDS = Object.freeze(['end_spike', 'end_podium', 'end_platform']);
+
+/** A world's structure list with the End's fixtures always in it. */
+export function withEndFixtures(ids) {
+  return [...new Set([...ids, ...END_FIXTURE_IDS])];
+}
+
+/**
  * Every structure id the engine can actually generate.
  *
  * `generatorCoverage` splits the registry into structures with and without a generator.
@@ -543,6 +555,7 @@ export function createWorldStructures({
   }
 
   return {
+    enabledIds: [...enabled],
     applyToChunk,
     planAt,
     plansAt,

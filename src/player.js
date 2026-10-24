@@ -1546,6 +1546,10 @@ export class Player {
 
     // The carried inventory is gone. Crafting grid and results are a workspace, not owned items.
     inv?.clearCarried?.();
+    // And shown to be gone: the hotbar and XP bar kept drawing the dropped items and level until something
+    // else redrew them, and picking a slot that looked full found it empty.
+    this.game?.ui?.updateHotbar?.();
+    this.game?.ui?.updateStats?.();
     return { dropped: drops.length, xpPoints: loss.points, kept: false };
   }
 

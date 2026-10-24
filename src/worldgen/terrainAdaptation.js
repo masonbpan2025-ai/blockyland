@@ -42,6 +42,9 @@ export const TERRAIN_ADAPTATION_INFLATE = 12;
  *                                               room); defaults to the box bottom
  * @param {function} [options.isStructureBlock]  `(x, y, z) => bool`, so nothing the structure wrote is
  *                                               overwritten
+ * @param {BlockBox} [options.columns]           only the columns inside this box's x and z (the chunk being
+ *                                               generated); every column is worked out on its own, so the writes
+ *                                               there are the same as the whole box's
  */
 export function adaptToTerrain({
   adaptation = 'none',
@@ -52,7 +55,8 @@ export function adaptToTerrain({
   airBlock = null,
   surfaceBlock = null,
   floorY = null,
-  isStructureBlock = () => false
+  isStructureBlock = () => false,
+  columns = null
 } = {}) {
   if (!TERRAIN_ADAPTATIONS.includes(adaptation)) {
     throw new Error(`unknown terrain adaptation "${adaptation}"`);
@@ -64,6 +68,9 @@ export function adaptToTerrain({
   if (typeof surfaceY !== 'function') throw new Error(`terrain adaptation "${adaptation}" needs a surfaceY callback`);
 
   const target = adaptation === 'beard_box' ? box.inflate(TERRAIN_ADAPTATION_INFLATE) : box;
+  // A chunk realizing a structure that spans 150 chunks adapted all of it and kept its own sixteen columns.
+  const x0 = Math.max(target.minX, columns?.minX ?? -Infinity), x1 = Math.min(target.maxX, columns?.maxX ?? Infinity);
+  const z0 = Math.max(target.minZ, columns?.minZ ?? -Infinity), z1 = Math.min(target.maxZ, columns?.maxZ ?? Infinity);
   const writes = [];
   const counts = { shaved: 0, foundation: 0, buried: 0, encapsulated: 0 };
 
@@ -78,8 +85,8 @@ export function adaptToTerrain({
 
   if (adaptation === 'beard_thin' || adaptation === 'beard_box') {
     const floor = Number.isFinite(floorY) ? floorY : box.minY;
-    for (let x = target.minX; x <= target.maxX; x++) {
-      for (let z = target.minZ; z <= target.maxZ; z++) {
+    for (let x = x0; x <= x1; x++) {
+      for (let z = z0; z <= z1; z++) {
         const height = surfaceY(x, z);
         if (height > floor) {
           // Shave: terrain standing above the structure's floor is removed so the structure is not buried. The
@@ -101,8 +108,8 @@ export function adaptToTerrain({
 
   if (adaptation === 'bury') {
     // From the structure's ceiling up to the terrain surface, which for an underground structure is above it.
-    for (let x = target.minX; x <= target.maxX; x++) {
-      for (let z = target.minZ; z <= target.maxZ; z++) {
+    for (let x = x0; x <= x1; x++) {
+      for (let z = z0; z <= z1; z++) {
         const height = surfaceY(x, z);
         for (let y = target.maxY + 1; y <= height; y++) push(x, y, z, terrainBlock, 'bury');
       }
@@ -112,9 +119,9 @@ export function adaptToTerrain({
 
   // encapsulate: fill the SHELL of the inflated box, so a structure's rooms are sealed off from caverns they
   // would otherwise open into. The interior is left alone, which is what distinguishes it from filling.
-  for (let x = target.minX; x <= target.maxX; x++) {
+  for (let x = x0; x <= x1; x++) {
     for (let y = target.minY; y <= target.maxY; y++) {
-      for (let z = target.minZ; z <= target.maxZ; z++) {
+      for (let z = z0; z <= z1; z++) {
         const onShell = x === target.minX || x === target.maxX
           || y === target.minY || y === target.maxY
           || z === target.minZ || z === target.maxZ;

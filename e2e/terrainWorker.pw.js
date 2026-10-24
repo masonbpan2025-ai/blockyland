@@ -40,6 +40,13 @@ async function walk(page, { dx, dz, chunks, worker }) {
         if (g.world.chunks.size > before) busy.push(ms);
       }
     };
+    // Terrain generation itself on the main thread: what the worker exists to take away.
+    const generate = g.world.generateChunkTerrain;
+    let generatingMs = 0;
+    g.world.generateChunkTerrain = function (...args) {
+      const t0 = performance.now();
+      try { return generate.apply(this, args); } finally { generatingMs += performance.now() - t0; }
+    };
     const adoptedBefore = s.stats.adopted;
     const p = g.player;
     p.gamemode = 'creative'; p.isFlying = true;
@@ -66,6 +73,7 @@ async function walk(page, { dx, dz, chunks, worker }) {
       requestAnimationFrame(step);
     });
     s.runGeneration = original;
+    g.world.generateChunkTerrain = generate;
     const sorted = [...busy].sort((a, b) => a - b);
     const gaps = frames.slice(5).sort((a, b) => a - b);
     return {
@@ -73,6 +81,7 @@ async function walk(page, { dx, dz, chunks, worker }) {
       medianMs: sorted[Math.floor(sorted.length / 2)] ?? 0,
       p90Ms: sorted[Math.floor(sorted.length * 0.9)] ?? 0,
       worstMs: sorted.at(-1) ?? 0,
+      generatingMs,
       adopted: s.stats.adopted - adoptedBefore,
       frameGapP95: gaps[Math.floor(gaps.length * 0.95)] ?? 0,
       workerState: g.terrainWorker.state,
@@ -102,7 +111,11 @@ test('the terrain worker is checked against the game and takes chunk generation 
   // The main thread's cost on the frames that brought chunks in.
   expect(withWorker.medianMs, `median ${withWorker.medianMs.toFixed(1)}ms with the worker, ${withoutWorker.medianMs.toFixed(1)}ms without`)
     .toBeLessThan(withoutWorker.medianMs * 0.5);
-  expect(withWorker.worstMs, `worst ${withWorker.worstMs.toFixed(1)}ms with the worker, ${withoutWorker.worstMs.toFixed(1)}ms without`)
-    .toBeLessThan(withoutWorker.worstMs * 0.5);
+  // Terrain generation is off the main thread. This replaced a check that the WORST chunk frame halved: that held while
+  // generating a chunk was most of such a frame, but generation is now ~4ms, and the worst frames are work every new
+  // chunk does on the main thread either way (the relight for the animal pass, a structure's villagers, water running
+  // in from a neighbour), which the worker was never meant to take.
+  expect(withWorker.generatingMs, `${withWorker.generatingMs.toFixed(0)}ms generating terrain on the main thread with the worker, ${withoutWorker.generatingMs.toFixed(0)}ms without`)
+    .toBeLessThan(withoutWorker.generatingMs * 0.1);
   expect(errors, 'no uncaught errors').toEqual([]);
 });

@@ -18,3 +18,27 @@ test('water extinguishes fire and reset clears lava/fire scheduler state',()=>{c
 test('empty buckets collect source lava only and liquid toolbar icons are square artwork',()=>{const w=world(),inv=new Inventory({});inv.hotbar[0]={id:'bucket',isBlock:false,count:1};w.setVoxel(5,1,5,BLOCKS.LAVA,2);assert.equal(useBucket(w,inv,'survival',{x:5,y:1,z:5}),false);w.setVoxel(5,1,5,BLOCKS.LAVA);const hit=traceBucket(w,new THREE.Vector3(5.5,4,5.5),new THREE.Vector3(0,-1,0),true);assert.ok(useBucket(w,inv,'survival',hit));assert.equal(inv.hotbar[0].id,'lava_bucket');for(const id of [BLOCKS.LAVA,BLOCKS.WATER])assert.ok(inv.getItemMeta({id,isBlock:true}).icon.endsWith('_icon.svg'));});
 test('fire and lava mesh together without losing any geometry attributes',()=>{const w=world();w.setVoxel(5,1,5,BLOCKS.LAVA);w.setVoxel(7,1,5,BLOCKS.FIRE);const tm={getFaceUVs:()=>({u0:0,v0:0,u1:1,v1:1})};const geo=new ChunkMesher(tm).meshChunk(w.getChunk(0,0),w).lightGeo;assert.ok(geo);assert.equal(geo.attributes.flame.count,geo.attributes.position.count);const mat=new THREE.MeshLambertMaterial();assert.doesNotThrow(()=>enableBlockEmission(mat));});
 test('lava burns player, contact damage persists briefly, and water extinguishes it',()=>{const w=world(),e=new EntityManager(new THREE.Scene(),w,{});let damage=0;const p={position:new THREE.Vector3(5.5,1,5.5),takeDamage:n=>damage+=n};w.setVoxel(5,1,5,BLOCKS.LAVA);e.updateHeat(.1,p);assert.equal(damage,4);w.setVoxel(5,1,5,BLOCKS.AIR);e.updateHeat(1,p);assert.equal(damage,5);w.setVoxel(5,1,5,BLOCKS.WATER);e.updateHeat(1,p);e.updateHeat(1,p);assert.equal(damage,5);});
+
+test('a new chunk queues only the lava that can change; lava at rest is recorded but not ticked', () => {
+  // Every lava cell was queued: a world's first 121 chunks put 41,000 cells in the queue, half a minute of lava
+  // ticks for about a hundred changes, all from the few cells that could move.
+  const world = new World();
+  for (let cx = -1; cx <= 1; cx++) for (let cz = -1; cz <= 1; cz++) world.chunks.set(`${cx},${cz}`, new Chunk(cx, cz));
+  const chunk = world.getChunk(0, 0);
+  for (let x = 2; x <= 12; x++) for (let z = 2; z <= 12; z++) for (let y = 0; y <= 6; y++) chunk.setVoxel(x, y, z, BLOCKS.STONE);
+  // A sealed lava pool (stone all round and over it), a pool open to air on top beside an air pocket, and one by water.
+  for (let x = 4; x <= 6; x++) for (let z = 4; z <= 6; z++) chunk.setVoxel(x, 3, z, BLOCKS.LAVA);
+  chunk.setVoxel(9, 6, 9, BLOCKS.LAVA); chunk.setVoxel(10, 6, 9, BLOCKS.AIR);
+  chunk.setVoxel(9, 6, 11, BLOCKS.LAVA); chunk.setVoxel(9, 6, 12, BLOCKS.WATER);
+  world.lava.pending.clear(); world.lava.lavaCells.clear();
+  world.lava.initChunk(chunk);
+  const queued = (x, y, z) => world.lava.pending.has(`${x},${y},${z}`);
+  assert.equal(world.lava.lavaCells.size, 11, 'every lava cell is recorded (fire spread reads them)');
+  for (let x = 4; x <= 6; x++) for (let z = 4; z <= 6; z++) assert.equal(queued(x, 3, z), false, 'sealed lava is not queued');
+  assert.ok(queued(9, 6, 9) && queued(10, 6, 9), 'lava beside an open block, and the block, are queued');
+  assert.ok(queued(9, 6, 11) && queued(9, 6, 12), 'lava beside water, and the water, are queued');
+  // And ticking what was queued gives the world the full queue would have: the lava by the water turns to obsidian.
+  for (let i = 0; i < 20 && world.lava.pending.size; i++) world.lava.tick();
+  assert.equal(world.getVoxel(9, 6, 11), BLOCKS.OBSIDIAN);
+  for (let x = 4; x <= 6; x++) for (let z = 4; z <= 6; z++) assert.equal(world.getVoxel(x, 3, z), BLOCKS.LAVA, 'the sealed pool is unchanged');
+});
