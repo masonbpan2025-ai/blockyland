@@ -1,13 +1,15 @@
 // Room codes and share links.
 //
-// A shared world is reached by a link and nothing else: `https://<game site>/?join=<code>`. The code is the only
-// secret, so it is long enough that nobody can guess a live one, and it is written in an alphabet with no
-// look-alike characters so it survives being read aloud or retyped.
+// A shared world is reached by its code: typed on the start screen's Join, or in a link,
+// `https://<game site>/?join=<code>`. The code is four digits, short enough to read out across a room.
+//
+// Four digits are 10,000 codes, few enough to guess. The introduction service therefore lets one address try only a
+// few wrong codes a minute (server/shareRendezvous.js, cloudflare/share), which makes running through them take most
+// of a day; and a host whose new code is already in use is given another (ShareSession.registerRoom).
 
-/** Crockford's base32: digits and letters with no I, L, O or U, so a code cannot be misread. */
-export const ROOM_ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz';
-/** 8 characters of 5 bits is 40 bits: about a trillion codes, so a guess finds nothing. */
-export const ROOM_CODE_LENGTH = 8;
+/** Digits only. */
+export const ROOM_ALPHABET = '0123456789';
+export const ROOM_CODE_LENGTH = 4;
 export const JOIN_PARAM = 'join';
 
 const CONFUSABLE = { i: '1', l: '1', o: '0' };
@@ -17,16 +19,19 @@ const CONFUSABLE = { i: '1', l: '1', o: '0' };
  * @param {(bytes: Uint8Array) => Uint8Array} [fillRandom] fills the array with random bytes; defaults to Web Crypto
  */
 export function generateRoomCode(fillRandom = (bytes) => globalThis.crypto.getRandomValues(bytes)) {
-  const bytes = fillRandom(new Uint8Array(ROOM_CODE_LENGTH));
   let code = '';
-  for (let i = 0; i < ROOM_CODE_LENGTH; i++) code += ROOM_ALPHABET[bytes[i] & 31];
-  return code;
+  // A byte below 250 is one of 25 equal runs of ten, so every digit is equally likely; a byte above is drawn again.
+  for (let draws = 0; code.length < ROOM_CODE_LENGTH && draws < 64; draws++) {
+    for (const byte of fillRandom(new Uint8Array(ROOM_CODE_LENGTH))) {
+      if (byte < 250 && code.length < ROOM_CODE_LENGTH) code += ROOM_ALPHABET[byte % 10];
+    }
+  }
+  return code.padEnd(ROOM_CODE_LENGTH, '0');
 }
 
 /**
- * The canonical form of whatever a person typed or pasted: lower case, no spaces or dashes, and the characters
- * the alphabet leaves out mapped to the ones it uses (I and L to 1, O to 0). Returns '' for anything that is
- * not a string.
+ * The canonical form of whatever a person typed or pasted: no spaces or dashes, and the letters that look like digits
+ * read as those digits (I and L as 1, O as 0). Returns '' for anything that is not a string.
  */
 export function normalizeRoomCode(value) {
   if (typeof value !== 'string') return '';

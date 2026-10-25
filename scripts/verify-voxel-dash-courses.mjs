@@ -3,7 +3,7 @@ import {createSimulation} from '../src/mods/voxel-dash/server/simulation.js';
 import {writeFile,mkdir} from 'node:fs/promises';
 const only=process.argv[2]===undefined?null:Number(process.argv[2]);
 const solutions=[];
-for(let level=0;level<5;level++){
+for(let level=0;level<LEVELS.length;level++){
   if(only!==null&&level!==only)continue;
   const course=COURSES[level],meta=COURSE_META[level],byId=new Map(course.map(o=>[o.sourceIndex,o]));
   let states=[{sim:createSimulation(course,meta),path:null,held:false}],winner;
@@ -15,7 +15,7 @@ for(let level=0;level<5;level++){
       const path={previous:node.path,held};
       if(s.phase==='complete'){winner={sim,path};break;}
       const activeUsed=s.used.filter(id=>{const o=byId.get(id);return o&&o.x+o.w>s.x-30;});
-      const key=[Math.round(s.y),Math.round(s.vy/12),s.mode,s.gravity,s.grounded,held,s.jumpQueued,activeUsed.join('.')].join('/');
+      const key=[Math.round(s.y),Math.round(s.vy/12),s.mode,s.gravity,s.grounded,held,s.jumpQueued,activeUsed.join('.'),s.scale].join('/');
       if(!unique.has(key))unique.set(key,{sim,path,held});
     }
     if(winner)break;

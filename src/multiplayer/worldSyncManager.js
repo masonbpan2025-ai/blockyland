@@ -8,10 +8,17 @@ import { RemotePlayerManager } from './remotePlayerManager.js';
 import { ShareError } from './signaling.js';
 import { serializeWorld, deserializeWorldAsync } from '../mapManager.js';
 import { BLOCKS, BLOCK_DEFS } from '../blocks.js';
-import { buildShareUrl, isLocalOnlyAddress, parseJoinCode } from './shareCode.js';
+import { buildShareUrl, isLocalOnlyAddress, parseJoinCode, normalizeRoomCode, isValidRoomCode } from './shareCode.js';
 import { escapeHtml, sanitizeName, MAX_PLAYERS } from './shareProtocol.js';
 
 const NAME_KEY = 'mc-player-name';
+/** The host's last choice about PvP, kept between sessions: 'on' or 'off'. */
+export const PVP_KEY = 'mc-share-pvp';
+
+/** Whether a host's next shared world lets players hurt each other: their last choice, or on, as Minecraft's servers default. */
+export function savedPvpChoice() {
+  try { return globalThis.localStorage?.getItem(PVP_KEY) !== 'off'; } catch { return true; }
+}
 
 /** The player's own STUN/TURN servers, from `window.MC_ICE_SERVERS` or local storage, when they have set any. */
 export function configuredIceServers() {
@@ -24,8 +31,9 @@ export function configuredIceServers() {
 export function describeShareError(error) {
   const code = error instanceof ShareError ? error.code : null;
   switch (code) {
-    case 'room_not_found': return 'That world is not being shared right now. Ask your friend to make sure they are still in it, and to send the link again.';
-    case 'bad_code': return 'That link does not contain a valid world code. Ask your friend to copy it again.';
+    case 'room_not_found': return 'No world is being shared with that code. Check the four digits with your friend, and that they are still in their world.';
+    case 'bad_code': return 'A join code is four digits. Ask your friend for the code shown on their sharing screen.';
+    case 'too_many_codes': return 'Too many wrong codes. Wait a minute, then try again.';
     case 'room_full': return `That world is full (${MAX_PLAYERS} players). Try again when someone leaves.`;
     case 'room_busy': return 'Too many people are joining at once. Try again in a moment.';
     case 'version_mismatch': return 'Your friend is on a different version of the game. Ask them to share a fresh link.';
@@ -71,6 +79,7 @@ export class WorldSyncManager {
     this.hostNoticeText = $('host-status-text');
     this.hostError = $('host-error');
     this.hostLinkSection = $('host-link-section');
+    this.hostPvpToggle = $('host-pvp-toggle');
 
     this.joinOverlay = $('join-connecting-overlay');
     this.joinOverlayTitle = $('join-overlay-title');
@@ -83,7 +92,14 @@ export class WorldSyncManager {
     this.hudText = $('hud-multiplayer-text');
 
     this.btnHostWorldPause = $('btn-host-world');
-    this.btnStartHostWorld = $('btn-start-host-world');
+    // Join, on the start screen: a friend's world by its four-digit code. Sharing your own is only offered in a world
+    // (the pause menu's Share This World), so there is no way to share from the start screen.
+    this.btnStartJoin = $('btn-start-join');
+    this.joinCodeModal = $('join-code-modal');
+    this.joinCodeInput = $('join-code-input');
+    this.joinCodeError = $('join-code-error');
+    this.btnJoinCodeConfirm = $('btn-join-code-confirm');
+    this.btnJoinCodeCancel = $('btn-join-code-cancel');
 
     this.wireClientEvents();
     this.wireUIEvents();
@@ -171,6 +187,61 @@ export class WorldSyncManager {
     this.client.on('error', ({ message }) => {
       this.chat(`<span style="color:#f59e0b;">⚠ ${escapeHtml(message)}</span>`);
     });
+
+    this.client.on('hurt', (hit) => this.takeHit(hit));
+    this.client.on('settings', ({ pvp }) => {
+      if (this.hostPvpToggle) this.hostPvpToggle.checked = pvp;
+      this.chat(pvp
+        ? '<span style="color:#f59e0b;font-weight:bold;">⚔ PvP is on: players can attack each other.</span>'
+        : '<span style="color:#10b981;font-weight:bold;">🛡 PvP is off: players cannot hurt each other.</span>');
+    });
+  }
+
+  // --- players attacking players ------------------------------------------------------------
+
+  /** The other player under the crosshair, within reach, when this world is shared. */
+  pickRemotePlayer(origin, direction, reach) {
+    if (!this.client.connected) return null;
+    return this.remotePlayers.pickPlayer(origin, direction, reach);
+  }
+
+  /**
+   * Hit another player. The host judges it (shareSession.js deliverAttack); with PvP off it is refused, and the player
+   * is told why, once every few seconds rather than on every swing.
+   * @returns {boolean} whether the hit was sent
+   */
+  attackRemotePlayer(peerId, damage) {
+    const refused = this.client.attackPlayer(peerId, damage);
+    if (refused === 'pvp_off') {
+      const now = Date.now();
+      if (!this.pvpOffNoticeAt || now - this.pvpOffNoticeAt > 4000) {
+        this.pvpOffNoticeAt = now;
+        this.chat('<span style="color:#94a3b8;">🛡 PvP is off in this world: players cannot hurt each other.</span>');
+      }
+    }
+    return refused === null;
+  }
+
+  /**
+   * Another player hit this one. Taken as a melee hit from where the attacker stood, so armour, a raised shield, the
+   * hit-invulnerability window, Creative mode and the knockback all apply as they do to a mob's hit.
+   */
+  takeHit({ attackerName, damage, from }) {
+    const player = this.game.player;
+    if (!player || player.isDead) return;
+    const source = from ? { x: from.x, y: from.y, z: from.z } : null;
+    player.takeDamage(damage, source, 'player', null);
+    this.game.ui?.updateStats?.();
+    // Minecraft's death message for a player killed by another: "<player> was slain by <player>".
+    if (player.isDead || player.health <= 0) {
+      this.chat(`<span style="color:#ef4444;">${escapeHtml(this.client.playerName)} was slain by ${escapeHtml(attackerName)}</span>`);
+    }
+  }
+
+  /** Host: the PvP switch on the sharing screen. Remembered, and sent to everyone already here. */
+  setPvp(on) {
+    try { globalThis.localStorage?.setItem(PVP_KEY, on ? 'on' : 'off'); } catch { /* storage blocked: this session only */ }
+    if (this.isHosting) this.client.setPvp(on);
   }
 
   /** Apply another player's block edit to this world, and redraw what it touches. */
@@ -201,15 +272,20 @@ export class WorldSyncManager {
       };
     }
 
-    if (this.btnStartHostWorld) {
-      this.btnStartHostWorld.onclick = async () => {
-        if (!this.game.worldGenerated) {
-          const startOverlay = document.getElementById('start-overlay');
-          if (startOverlay) startOverlay.style.display = 'none';
-          await this.game.generateNewWorld();
-        }
-        this.hostWorld();
-      };
+    if (this.btnStartJoin) this.btnStartJoin.onclick = () => this.openJoinCode();
+    if (this.btnJoinCodeCancel) this.btnJoinCodeCancel.onclick = () => this.joinCodeModal?.classList.add('hidden');
+    if (this.btnJoinCodeConfirm) this.btnJoinCodeConfirm.onclick = () => this.joinTypedCode();
+    if (this.joinCodeInput) {
+      this.joinCodeInput.addEventListener('input', () => {
+        // Digits only, as they are typed.
+        const digits = this.joinCodeInput.value.replace(/\D+/g, '').slice(0, 4);
+        if (digits !== this.joinCodeInput.value) this.joinCodeInput.value = digits;
+        this.joinCodeError?.classList.add('hidden');
+      });
+      this.joinCodeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); this.joinTypedCode(); }
+        if (e.key === 'Escape') this.joinCodeModal?.classList.add('hidden');
+      });
     }
 
     if (this.btnCopyShareLink && this.hostShareLinkInput) {
@@ -221,6 +297,10 @@ export class WorldSyncManager {
     if (this.btnDismissHostModal) this.btnDismissHostModal.onclick = closeHostModal;
     if (this.btnStopSharing) this.btnStopSharing.onclick = () => { this.leave(); closeHostModal(); };
     if (this.hudBadge) this.hudBadge.onclick = () => { if (this.isHosting) this.showHostModal(); };
+    if (this.hostPvpToggle) {
+      this.hostPvpToggle.checked = savedPvpChoice();
+      this.hostPvpToggle.onchange = () => this.setPvp(this.hostPvpToggle.checked);
+    }
 
     if (typeof window !== 'undefined') {
       // Closing the tab should tell everyone, rather than leaving them to notice the silence.
@@ -270,7 +350,8 @@ export class WorldSyncManager {
 
     if (this.hostError) this.hostError.classList.add('hidden');
     try {
-      const data = await this.client.hostRoom(this.playerName(), { seed: this.game.world.seed, worldTime: this.game.worldTime });
+      const pvp = this.hostPvpToggle ? this.hostPvpToggle.checked : savedPvpChoice();
+      const data = await this.client.hostRoom(this.playerName(), { seed: this.game.world.seed, worldTime: this.game.worldTime, settings: { pvp } });
       this.isHosting = true;
       this.roomId = data.roomId;
       this.shareUrl = data.shareUrl;
@@ -345,6 +426,32 @@ export class WorldSyncManager {
   }
 
   // --- joining --------------------------------------------------------------------------------
+
+  /** The start screen's Join: ask for the code. */
+  openJoinCode() {
+    if (!this.joinCodeModal) return;
+    this.joinCodeModal.classList.remove('hidden');
+    this.joinCodeError?.classList.add('hidden');
+    if (this.joinCodeInput) { this.joinCodeInput.value = ''; this.joinCodeInput.focus?.(); }
+  }
+
+  /**
+   * Join the world whose code was typed. A code that is not four digits is answered in the box; one that names no
+   * shared world is answered by the join screen, as a link's is.
+   * @returns {Promise<void>|null} the join, or null when the code was refused in the box
+   */
+  joinTypedCode() {
+    const code = normalizeRoomCode(this.joinCodeInput?.value ?? '');
+    if (!isValidRoomCode(code)) {
+      if (this.joinCodeError) {
+        this.joinCodeError.textContent = 'A join code is four digits.';
+        this.joinCodeError.classList.remove('hidden');
+      }
+      return null;
+    }
+    this.joinCodeModal?.classList.add('hidden');
+    return this.joinWorld(code);
+  }
 
   setJoinStatus(title, percent, text, subtext = '') {
     if (this.joinOverlay) this.joinOverlay.classList.remove('hidden');

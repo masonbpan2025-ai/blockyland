@@ -190,3 +190,28 @@ test('garbage is refused rather than crashing', async () => {
     await assert.rejects(unpackSnapshot(bad), (e) => e instanceof Error, JSON.stringify(bad));
   }
 });
+
+// --- players attacking players (PvP) ---------------------------------------------------
+
+test('an attack is a known target and a sane amount; anything else is refused', async () => {
+  const { sanitizeAttack, MAX_ATTACK_DAMAGE } = await import('../src/multiplayer/shareProtocol.js');
+  assert.deepEqual(sanitizeAttack({ target: 'p2', damage: 7, extra: 'dropped' }), { target: 'p2', damage: 7 });
+  for (const bad of [null, 'x', {}, { target: 'p2' }, { target: 'p2', damage: 0 }, { target: 'p2', damage: -3 },
+    { target: 'p2', damage: MAX_ATTACK_DAMAGE + 1 }, { target: 'p2', damage: NaN }, { target: '<b>', damage: 5 }, { target: 'x'.repeat(40), damage: 5 }]) {
+    assert.equal(sanitizeAttack(bad), null, JSON.stringify(bad));
+  }
+});
+
+test('the host lets a hit land only with PvP on, on someone else, within reach', async () => {
+  const { refuseAttack, MAX_ATTACK_REACH, sanitizeShareSettings, DEFAULT_SHARE_SETTINGS } = await import('../src/multiplayer/shareProtocol.js');
+  assert.equal(DEFAULT_SHARE_SETTINGS.pvp, true, 'on by default, as a Minecraft server\'s pvp setting');
+  assert.deepEqual(sanitizeShareSettings({ pvp: 'yes' }), { pvp: true }, 'nonsense is the default');
+  assert.deepEqual(sanitizeShareSettings({ pvp: false }), { pvp: false });
+  const here = { x: 0, y: 10, z: 0 }, near = { x: 2, y: 10, z: 1 }, far = { x: MAX_ATTACK_REACH + 1, y: 10, z: 0 };
+  const base = { settings: { pvp: true }, attackerId: 'p1', targetId: 'p2', attackerPos: here, targetPos: near };
+  assert.equal(refuseAttack(base), null);
+  assert.equal(refuseAttack({ ...base, settings: { pvp: false } }), 'pvp_off');
+  assert.equal(refuseAttack({ ...base, targetId: 'p1' }), 'bad_target', 'not oneself');
+  assert.equal(refuseAttack({ ...base, targetPos: far }), 'too_far');
+  assert.equal(refuseAttack({ ...base, targetPos: undefined }), 'unknown_position');
+});

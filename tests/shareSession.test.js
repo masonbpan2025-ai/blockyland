@@ -54,7 +54,7 @@ test('hosting registers a room and returns a link that carries only the join cod
   const { host, hosted, network, close } = await openWorld();
   assert.equal(host.isHost, true);
   assert.equal(host.connected, true);
-  assert.match(hosted.roomId, /^[0-9a-hjkmnp-tv-z]{8}$/);
+  assert.match(hosted.roomId, /^[0-9]{4}$/);
   assert.equal(parseJoinCode(hosted.shareUrl), hosted.roomId, 'the link names the room');
   assert.equal(new URL(hosted.shareUrl).origin, 'https://game.example', 'on the host\'s own address');
   assert.ok(!hosted.shareUrl.includes('debug'), 'the host\'s own query parameters are not copied into the link');
@@ -122,7 +122,7 @@ test('names are stripped of markup, control characters and excess length', async
 test('a wrong code, a malformed code and a missing host each fail with their own reason', async () => {
   const { network, hosted, close } = await openWorld();
   const stranger = sessionOn(network);
-  await assert.rejects(stranger.joinRoom('zzzzzzzz', 'X'), (e) => e.code === 'room_not_found');
+  await assert.rejects(stranger.joinRoom(hosted.roomId === '0000' ? '0001' : '0000', 'X'), (e) => e.code === 'room_not_found');
   await assert.rejects(stranger.joinRoom('nope', 'X'), (e) => e.code === 'bad_code');
   await assert.rejects(stranger.joinRoom('', 'X'), (e) => e.code === 'bad_code');
   close();
@@ -429,5 +429,108 @@ test('hosting again replaces the earlier room', async () => {
   assert.notEqual(again.roomId, hosted.roomId);
   assert.ok(!network.rooms.has(hosted.roomId), 'the old room is gone');
   assert.ok(network.rooms.has(again.roomId));
+  close();
+});
+
+// --- codes -----------------------------------------------------------------------------
+
+test('a host whose four-digit code is already being shared is given another', async () => {
+  const network = createFakeNetwork();
+  // The same draws for both hosts at first: the second's first code is taken.
+  let draws = 0;
+  const fillRandom = (bytes) => { bytes.set(draws++ < 2 ? [1, 2, 3, 4] : [5, 6, 7, 8]); return bytes; };
+  const first = await sessionOn(network, { fillRandom }).hostRoom('A');
+  draws = 0;
+  const second = await sessionOn(network, { fillRandom: (bytes) => { bytes.set(draws++ < 1 ? [1, 2, 3, 4] : [5, 6, 7, 8]); return bytes; } }).hostRoom('B');
+  assert.equal(first.roomId, '1234');
+  assert.equal(second.roomId, '5678', 'drawn again, not refused');
+});
+
+// --- players attacking players (PvP) ---------------------------------------------------
+
+/** A host and two guests standing near each other, positions known to the host. */
+async function arena(settings = {}) {
+  const network = createFakeNetwork();
+  const host = sessionOn(network);
+  const hosted = await host.hostRoom('Hana', { seed: 7, settings });
+  const join = async (name) => {
+    const g = sessionOn(network);
+    const requested = nextEvent(host, 'request_snapshot');
+    await g.joinRoom(hosted.roomId, name);
+    await requested;
+    return g;
+  };
+  const a = await join('Ann'), b = await join('Ben');
+  host.sendPlayerState({ x: 0, y: 10, z: 0 });
+  a.sendPlayerState({ x: 2, y: 10, z: 0 });
+  b.sendPlayerState({ x: 0, y: 10, z: 2 });
+  await settle();
+  return { host, a, b, close: () => { for (const s of [host, a, b]) s.disconnect(true); } };
+}
+
+test('with PvP on, a guest\'s hit reaches the guest it struck, from where the attacker stands', async () => {
+  const { host, a, b, close } = await arena({ pvp: true });
+  const hurt = nextEvent(b, 'hurt');
+  assert.equal(a.attackPlayer(b.clientId, 6), null);
+  const hit = await hurt;
+  assert.equal(hit.damage, 6);
+  assert.equal(hit.attackerName, 'Ann', 'named by the host, not by the attacker');
+  assert.deepEqual(hit.from, { x: 2, y: 10, z: 0 }, 'knocked away from the attacker');
+  // And the host can hit a guest, and be hit.
+  const hostHurt = nextEvent(host, 'hurt');
+  assert.equal(a.attackPlayer('host', 3), null);
+  assert.equal((await hostHurt).damage, 3);
+  close();
+});
+
+test('with PvP off, no hit lands: the host refuses its guests\' and its own', async () => {
+  const { host, a, b, close } = await arena({ pvp: false });
+  let hurt = 0;
+  for (const s of [host, a, b]) s.on('hurt', () => hurt++);
+  assert.equal(a.attackPlayer(b.clientId, 6), 'pvp_off', 'the guest knows PvP is off and does not send it');
+  assert.equal(host.attackPlayer(a.clientId, 6), 'pvp_off');
+  // A modified guest that sends it anyway.
+  rawSend(a, { t: 'attack', target: b.clientId, damage: 6 });
+  await settle();
+  assert.equal(hurt, 0);
+  close();
+});
+
+test('the host can turn PvP on and off while friends are playing, and everyone is told', async () => {
+  const { host, a, b, close } = await arena({ pvp: true });
+  const told = nextEvent(a, 'settings');
+  host.setPvp(false);
+  assert.deepEqual(await told, { pvp: false });
+  assert.equal(a.settings.pvp, false);
+  assert.equal(a.attackPlayer(b.clientId, 6), 'pvp_off');
+  const back = nextEvent(b, 'settings');
+  host.setPvp(true);
+  assert.equal((await back).pvp, true);
+  close();
+});
+
+test('the host refuses a hit from too far away, on oneself, on nobody, or of nonsense damage', async () => {
+  const { host, a, b, close } = await arena({ pvp: true });
+  let hurt = 0;
+  for (const s of [host, a, b]) s.on('hurt', () => hurt++);
+  a.sendPlayerState({ x: 50, y: 10, z: 0 });
+  await settle();
+  rawSend(a, { t: 'attack', target: b.clientId, damage: 6 }); // fifty blocks away
+  rawSend(a, { t: 'attack', target: a.clientId, damage: 6 }); // itself
+  rawSend(a, { t: 'attack', target: 'p99', damage: 6 }); // nobody
+  rawSend(a, { t: 'attack', target: b.clientId, damage: 1e9 });
+  rawSend(a, { t: 'attack', target: b.clientId, damage: -5 });
+  await settle();
+  assert.equal(hurt, 0);
+  close();
+});
+
+test('a guest cannot hit faster than any weapon swings', async () => {
+  const { a, b, close } = await arena({ pvp: true });
+  let hurt = 0;
+  b.on('hurt', () => hurt++);
+  for (let i = 0; i < 40; i++) rawSend(a, { t: 'attack', target: b.clientId, damage: 1 });
+  await settle();
+  assert.ok(hurt <= 6, `${hurt} of 40 hits in an instant got through`);
   close();
 });

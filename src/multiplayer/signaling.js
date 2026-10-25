@@ -42,6 +42,7 @@ const MESSAGES = {
   room_taken: 'That room code is already in use.',
   server_full: 'The sharing service is full. Try again later.',
   rate_limited: 'Too many requests. Wait a moment and try again.',
+  too_many_codes: 'Too many wrong codes. Wait a minute, then try again.',
 };
 
 export class SignalingClient {

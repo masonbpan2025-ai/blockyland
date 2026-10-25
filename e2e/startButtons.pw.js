@@ -47,13 +47,21 @@ test.describe('with WebGL', () => {
     expect(errors, 'no uncaught errors on the start screen').toEqual([]);
   });
 
-  test('Host World & Share builds a world, then shows its sharing window', async ({ page }) => {
+  test('Join asks for a four-digit code, refuses one that is not, and tries one that is', async ({ page }) => {
     test.setTimeout(300000);
     const errors = await openGame(page);
-    await page.click('#btn-start-host-world');
-    // With no share server (local runs) the window still opens, showing why sharing could not start.
-    await expect(page.locator('#host-world-modal')).toBeVisible({ timeout: 180000 });
-    expect(await page.evaluate(() => window.game.worldGenerated), 'a world was built to share').toBe(true);
+    await page.click('#btn-start-join');
+    await expect(page.locator('#join-code-modal')).toBeVisible({ timeout: 20000 });
+    await page.fill('#join-code-input', '12');
+    await page.click('#btn-join-code-confirm');
+    await expect(page.locator('#join-code-error')).toContainText('four digits');
+    await page.fill('#join-code-input', '4207');
+    await page.click('#btn-join-code-confirm');
+    // Joining starts: the join screen comes up and answers (no world has this code here, or no share server runs).
+    await expect(page.locator('#join-connecting-overlay')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#btn-join-cancel')).toBeVisible({ timeout: 60000 });
+    await page.click('#btn-join-cancel');
+    await expect(page.locator('#start-overlay')).toBeVisible();
     expect(errors).toEqual([]);
   });
 

@@ -1237,7 +1237,22 @@
       <button class="mc-btn mc-btn-large mc-btn-inspector" id="btn-start-inspector">Inspector</button>
       <a class="mc-btn mc-btn-large mc-btn-movies" id="start-movies" href="./movies.html">Movies</a>
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-packs">🎨 Packs & Skins</button>
-      <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-host-world">🌐 Host World & Share</button>
+      <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-join">🌐 Join</button>
+    </div>
+    <!-- Join a friend's world by its four-digit code. Sharing your own is in the pause menu, once you are in a world. -->
+    <div id="join-code-modal" class="game-modal hidden">
+      <div class="map-modal-card biome-modal-card" style="max-width: 360px;">
+        <div class="mc-title">Join a World</div>
+        <div class="biome-modal-subtitle">Type the 4-digit code from your friend's sharing screen.</div>
+        <input type="text" id="join-code-input" class="mc-input biome-seed-input" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+          autocomplete="off" spellcheck="false" placeholder="0000" aria-label="Join code"
+          style="font-size: 28px; letter-spacing: 10px; text-align: center; font-family: monospace; margin: 10px 0;">
+        <div id="join-code-error" class="hidden" role="alert" style="font-size: 12px; color: #fecaca; margin-bottom: 8px;"></div>
+        <div style="display: flex; gap: 8px; justify-content: center;">
+          <button type="button" class="mc-btn" id="btn-join-code-cancel">Cancel</button>
+          <button type="button" class="mc-btn mc-btn-green" id="btn-join-code-confirm">Join</button>
+        </div>
+      </div>
     </div>
     <!-- Inspector picker: one entry point on the start screen, four destinations behind it. -->
     <div id="inspector-picker-modal" class="game-modal hidden">
@@ -1280,9 +1295,16 @@
             <span id="host-status-text">Your world is live. Anyone opening the link will join it.</span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-            <span style="font-size: 12px; color: #94a3b8;">World code (the link is easier):</span>
-            <span id="host-room-id-badge" style="font-family: monospace; font-size: 14px; font-weight: bold; background: #0f172a; padding: 3px 9px; border-radius: 4px; border: 1px solid #38bdf8; color: #38bdf8; letter-spacing: 1px;">…</span>
+            <span style="font-size: 12px; color: #94a3b8;">Join code (friends type it under Join):</span>
+            <span id="host-room-id-badge" style="font-family: monospace; font-size: 22px; font-weight: bold; background: #0f172a; padding: 3px 12px; border-radius: 4px; border: 1px solid #38bdf8; color: #38bdf8; letter-spacing: 6px;">…</span>
           </div>
+          <label for="host-pvp-toggle" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 8px 10px; background: rgba(0,0,0,0.25); border-radius: 6px; cursor: pointer;">
+            <span>
+              <span style="display: block; font-size: 13px; font-weight: bold; color: #f1f5f9;">⚔ Players can attack each other (PvP)</span>
+              <span style="display: block; font-size: 11px; color: #94a3b8;">Off: players cannot hurt each other. You can change this at any time.</span>
+            </span>
+            <input type="checkbox" id="host-pvp-toggle" checked style="width: 18px; height: 18px; cursor: pointer;">
+          </label>
           <div style="border-top: 1px solid #334155; padding-top: 12px;">
             <div style="font-size: 13px; font-weight: bold; color: #f1f5f9; margin-bottom: 8px;">In this world:</div>
             <div id="host-connected-players-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto;"></div>

@@ -14,13 +14,15 @@
 //     | <---------------------------------------- welcome, snapshot -- |
 //
 // Events (same names the game already listened for): room_hosted, room_joined, peer_joined, peer_left, request_snapshot,
-// world_snapshot, player_state, block_update, chat, host_disconnected, signalling_lost, error, disconnect.
+// world_snapshot, player_state, block_update, chat, host_disconnected, signalling_lost, error, disconnect, and for PvP:
+// hurt (this player was hit by another) and settings (the host changed a setting, such as whether PvP is on).
 import { ShareError, SignalingClient, resolveSignalingUrl } from './signaling.js';
 import { PeerLink } from './peerLink.js';
 import { generateRoomCode, normalizeRoomCode, isValidRoomCode, buildShareUrl } from './shareCode.js';
 import {
   PROTOCOL_VERSION, MAX_PLAYERS, GUEST_TO_HOST, HOST_TO_GUEST, FrameReassembler, ProtocolError, encodeFrames,
   packSnapshot, unpackSnapshot, sanitizeName, sanitizeChat, sanitizePlayerState, sanitizeBlockUpdate, guestLimiters,
+  sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE,
 } from './shareProtocol.js';
 
 const HOST_ID = 'host';
@@ -66,6 +68,10 @@ export class ShareSession {
     this.peers = new Map(); // id -> { id, name, isHost }
     this.signaling = null;
     this.worldInfo = {};
+    /** The host's choices (shareProtocol.js DEFAULT_SHARE_SETTINGS): the host's own, or as the host last sent them. */
+    this.settings = sanitizeShareSettings(null);
+    /** Host: where each player last said it was, by id. The host judges every attack by these, not by what a guest claims. */
+    this.positions = new Map();
     // host side
     this.links = new Map(); // signalId -> entry (pending and ready)
     this.guests = new Map(); // peerId -> entry (ready)
@@ -150,8 +156,15 @@ export class ShareSession {
     this.isHost = true;
     this.playerName = sanitizeName(playerName, 'Host');
     this.worldInfo = worldInfo;
-    const roomId = generateRoomCode(this.options.fillRandom);
-    await this.registerRoom(roomId);
+    this.settings = sanitizeShareSettings(worldInfo?.settings);
+    // Four digits: another host may hold the code drawn, so a taken one is drawn again (shareCode.js).
+    let roomId;
+    for (let attempt = 1; ; attempt++) {
+      roomId = generateRoomCode(this.options.fillRandom);
+      try { await this.registerRoom(roomId); break; } catch (error) {
+        if (error?.code !== 'room_taken' || attempt >= 10) throw error;
+      }
+    }
     this.roomId = roomId;
     this.clientId = HOST_ID;
     this.hostId = HOST_ID;
@@ -165,8 +178,14 @@ export class ShareSession {
 
   async registerRoom(roomId) {
     const signaling = this.signalingFactory(this.signalUrl());
-    await signaling.connect();
-    await signaling.host(roomId);
+    try {
+      await signaling.connect();
+      await signaling.host(roomId);
+    } catch (error) {
+      // A refused code (taken, or the service full) leaves the connection open but useless.
+      try { signaling.close?.(); } catch { /* already closed */ }
+      throw error;
+    }
     this.signaling = signaling;
     signaling.on('signal', ({ from, data }) => this.onGuestSignal(from, data));
     signaling.on('guest_left', ({ guestId }) => {
@@ -258,6 +277,7 @@ export class ShareSession {
         if (!entry.limiters.state.take()) break;
         const state = sanitizePlayerState(msg.state);
         if (!state) { this.strike(entry); break; }
+        this.positions.set(entry.peerId, state);
         this.emit('player_state', { peerId: entry.peerId, state });
         this.broadcast({ t: 'player_state', peerId: entry.peerId, state }, entry.peerId);
         break;
@@ -277,6 +297,13 @@ export class ShareSession {
         // The sender is who the host knows this guest to be, never a name the guest claims for itself.
         this.emit('chat', { peerId: entry.peerId, sender: entry.name, text });
         this.broadcast({ t: 'chat', peerId: entry.peerId, sender: entry.name, text }, entry.peerId);
+        break;
+      }
+      case 'attack': {
+        if (!entry.limiters.attack.take()) break;
+        const attack = sanitizeAttack(msg);
+        if (!attack) { this.strike(entry); break; }
+        this.deliverAttack(entry.peerId, entry.name, attack);
         break;
       }
       default: break;
@@ -315,6 +342,7 @@ export class ShareSession {
       host: { id: HOST_ID, name: this.playerName },
       peers: [...this.peers.values()],
       worldInfo: this.worldInfo,
+      settings: this.settings,
     });
     this.broadcast({ t: 'peer_joined', peerId: entry.peerId, peerName: entry.name }, entry.peerId);
     this.emit('peer_joined', { peerId: entry.peerId, peerName: entry.name, isHost: false });
@@ -330,6 +358,7 @@ export class ShareSession {
     if (!entry.ready) return;
     this.guests.delete(entry.peerId);
     this.peers.delete(entry.peerId);
+    this.positions.delete(entry.peerId);
     this.broadcast({ t: 'peer_left', peerId: entry.peerId, peerName: entry.name });
     this.emit('peer_left', { peerId: entry.peerId, peerName: entry.name, reason });
   }
@@ -443,6 +472,7 @@ export class ShareSession {
         this.playerName = this.peers.get(this.clientId).name;
         this.connected = true;
         this.worldInfo = msg.worldInfo && typeof msg.worldInfo === 'object' ? msg.worldInfo : {};
+        this.settings = sanitizeShareSettings(msg.settings);
         const data = { roomId: this.roomId, clientId: this.clientId, hostId: this.hostId, peers: [...this.peers.values()] };
         this.emit('room_joined', data);
         this.welcomed?.(data);
@@ -489,6 +519,20 @@ export class ShareSession {
       }
       case 'ping': if (this.hostLink) void this.send(this.hostLink, { t: 'pong' }); break;
       case 'host_closing': this.hostGone('The host closed the world.'); break;
+      case 'settings': {
+        this.settings = sanitizeShareSettings(msg.settings);
+        this.emit('settings', { ...this.settings });
+        break;
+      }
+      case 'hurt': {
+        // The host has judged the hit already; this only refuses a malformed one, or one while PvP is off here.
+        if (!this.settings.pvp) break;
+        const damage = Number(msg.damage);
+        if (!(damage > 0 && damage <= MAX_ATTACK_DAMAGE)) break;
+        const from = msg.from && [msg.from.x, msg.from.y, msg.from.z].every(Number.isFinite) ? { x: msg.from.x, y: msg.from.y, z: msg.from.z } : null;
+        this.emit('hurt', { attackerId: String(msg.attackerId ?? ''), attackerName: sanitizeName(msg.attackerName), damage, from });
+        break;
+      }
       default: break;
     }
   }
@@ -540,8 +584,52 @@ export class ShareSession {
   /** Share this player's pose and held item. */
   sendPlayerState(state) {
     if (!this.connected) return;
+    if (this.isHost) this.positions.set(HOST_ID, state);
     if (this.isHost) this.broadcast({ t: 'player_state', peerId: HOST_ID, state });
     else if (this.hostLink) void this.send(this.hostLink, { t: 'player_state', state });
+  }
+
+  // --- players attacking players ------------------------------------------------------------
+
+  /**
+   * Attack another player. A guest asks the host; the host decides, for its own hits as for its guests'.
+   * @returns {string|null} why it was refused here (on a guest, only that PvP is off), or null when sent
+   */
+  attackPlayer(targetId, damage) {
+    if (!this.connected) return 'not_connected';
+    const attack = sanitizeAttack({ target: targetId, damage });
+    if (!attack) return 'bad_attack';
+    if (this.isHost) return this.deliverAttack(HOST_ID, this.playerName, attack);
+    if (!this.settings.pvp) return 'pvp_off';
+    if (this.hostLink) void this.send(this.hostLink, { t: 'attack', ...attack });
+    return null;
+  }
+
+  /**
+   * Host: judge an attack (refuseAttack) and hand a hit that lands to its target: the host's own player through the
+   * 'hurt' event, a guest by message. The attacker's position goes with it, so the target is knocked away from it.
+   * @returns {string|null} why it was refused, or null when it landed
+   */
+  deliverAttack(attackerId, attackerName, { target, damage }) {
+    if (!this.peers.has(target)) return 'bad_target';
+    const attackerPos = this.positions.get(attackerId);
+    const reason = refuseAttack({ settings: this.settings, attackerId, targetId: target, attackerPos, targetPos: this.positions.get(target) });
+    if (reason) return reason;
+    const hit = { attackerId, attackerName, damage, from: { x: attackerPos.x, y: attackerPos.y, z: attackerPos.z } };
+    if (target === HOST_ID) this.emit('hurt', hit);
+    else {
+      const entry = this.guests.get(target);
+      if (!entry) return 'bad_target';
+      void this.send(entry.link, { t: 'hurt', ...hit });
+    }
+    return null;
+  }
+
+  /** Host: turn PvP on or off, and tell everyone. */
+  setPvp(on) {
+    this.settings = { ...this.settings, pvp: Boolean(on) };
+    if (this.isHost && this.connected) this.broadcast({ t: 'settings', settings: this.settings });
+    this.emit('settings', { ...this.settings });
   }
 
   /** Share a placed or broken block. */

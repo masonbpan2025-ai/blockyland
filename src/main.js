@@ -2412,42 +2412,23 @@ class Game {
       return;
     }
 
+    // Another player in a shared world, when nearer than any mob in view (PvP; the host decides whether it lands).
+    const reach = this.player.gamemode === 'creative' ? 5 : 3;
+    const playerHit = this.worldSync?.pickRemotePlayer?.(eyePos, lookDir, reach);
+    if (playerHit && (!this.targetMob || playerHit.distance < this.camera.position.distanceTo(this.targetMob.mesh.position))) {
+      const { damage, activeItem, critical } = this.meleeHit('player');
+      if (this.worldSync.attackRemotePlayer(playerHit.peerId, damage)) {
+        if (critical) this.entities?.spawnBlockParticles?.(eyePos.clone().addScaledVector(lookDir, playerHit.distance), BLOCKS.STONE);
+        this.afterMeleeHit(activeItem);
+      }
+      this.isMouseDown = false;
+      return;
+    }
+
     // Attack mob if target mob is looked at
     if (this.targetMob) {
-      const activeItem = this.inventory.getActiveItem();
-      // A fist -- and any item without an attack modifier -- deals 1 (wiki, Damage: "Hand: 1"). It was 2 here,
-      // which made every non-weapon hit twice as hard; found by the wiki parity audit's I-ATTACK case.
-      // A fist deals the attack_damage attribute, 1 unless /attribute changed it.
-      let damage = this.player.attackAttribute ?? 1;
-      let enchantDamage = 0;
-      if (activeItem && !activeItem.isBlock) {
-        const it = ITEMS[activeItem.id];
-        if (it && it.attack) damage = it.attack;
-        // The enchantment bonuses used to be inline here, with the undead list spelled out as a literal
-        // array. They live in enchantmentEffects.js now so bane of arthropods and the durability effects
-        // have somewhere to go, and so the numbers can be asserted directly.
-        enchantDamage = attackBonus(activeItem.enchantments, this.targetMob.type);
-      }
-      // Strength and weakness change what this hit deals by a flat amount per level, as vanilla does --
-      // "+3 HP x level" -- so a hit is adjusted rather than scaled. Asked of the player rather than
-      // computed here, so the effect rules stay in one module and this call site needs no import.
-      const effectBonus = this.player?.attackDamageBonus?.() ?? 0;
-      if (effectBonus !== 0) damage = Math.max(0, damage + effectBonus);
-      // The attack cooldown (attackCooldown.js): the attribute damage scales with the square of the charge,
-      // enchantment damage with the charge itself. Every click used to deal full damage.
-      const charge = attackCharge(this.player.secondsSinceSwing ?? Infinity, activeItem && !activeItem.isBlock ? activeItem.id : null);
-      // Critical hit (Damage): "performed when a player attacks an entity while falling", +50% "after strength is
-      // applied and before enchantments", only at 84.8% charge or more, never sprinting, in water, on a ladder or vines,
-      // with Slow Falling or Blindness, riding or flying. The game had no critical hits (Combat play-test).
-      const p = this.player;
-      const onClimbable = [BLOCKS.LADDER, BLOCKS.VINE].includes(this.world.getVoxel(Math.floor(p.position.x), Math.floor(p.position.y), Math.floor(p.position.z)));
-      const critical = charge >= 0.848 && (p.fallDistance ?? 0) > 0 && !p.onGround && !p.inWater && !onClimbable && !p.isFlying && !p.isSprinting
-        && !p.hasStatusEffect?.('slow_falling') && !p.hasStatusEffect?.('blindness') && !this.riding && !p.ridingMob;
-      damage = scaleBaseDamage(damage, charge) * (critical ? 1.5 : 1) + scaleEnchantDamage(enchantDamage, charge);
-      this.player.lastAttackCritical = critical;
+      let { damage, activeItem, critical } = this.meleeHit(this.targetMob.type);
       if (critical) this.entities?.spawnBlockParticles?.(this.targetMob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), BLOCKS.STONE);
-      this.player.lastAttackCharge = charge;
-      this.player.secondsSinceSwing = 0;
       // The mace's smash attack (maceSmash.js): after a fall of 1.5 blocks or more, the fall adds damage (more with
       // Density), the fall height resets, everything within 2.5 blocks is knocked back, and Wind Burst launches the
       // wielder back up. Breach is read by damageMob, where a mob's armour is applied.
@@ -2457,18 +2438,7 @@ class Game {
       if (smash) damage += smashBonus(this.player.fallDistance, enchantLevel(activeItem.enchantments, 'density'));
       const smashTarget = this.targetMob;
       this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);
-      // Food: "Attacking an enemy" costs 0.1 exhaustion. The line that charged it had been dropped into the Player
-      // constructor, where it ran once at start-up, so fighting cost nothing.
-      this.player.addExhaustion?.(EXHAUSTION.attack);
-      // The weapon wears: 1 for a sword, mace, trident or hoe, 2 for an axe, pickaxe or shovel (toolWear.js).
-      // Nothing was charged, so a sword never wore out in a fight.
-      const hitCost = activeItem && !activeItem.isBlock && this.player.gamemode === 'survival' ? attackWear(activeItem.id) : 0;
-      if (hitCost > 0 && spendDurability(activeItem, hitCost).broke) {
-        this.inventory.consumeActiveItem?.(1);
-        this.ui?.addChatMessage?.(`<span style="color:#ef4444;">Your ${ITEMS[activeItem.id]?.name || activeItem.id} broke.</span>`);
-        this.sounds?.playBreak?.('wood');
-        this.ui?.updateHotbar?.();
-      }
+      this.afterMeleeHit(activeItem);
       if (smash) {
         this.player.fallDistance = 0;
         for (const other of this.mobs.mobs ?? []) {
@@ -2499,6 +2469,65 @@ class Game {
     // Creative mode instant block breaking
     if (this.player.gamemode === 'creative' && this.targetBlock) {
       this.breakTargetBlock();
+    }
+  }
+
+  /**
+   * What a melee hit deals, by the held item, the attack cooldown, a critical hit and strength or weakness, against a
+   * target of `targetType` (enchantments such as Smite depend on it). Starts the cooldown over. Shared by a hit on a
+   * mob and a hit on another player, so both follow the same rules.
+   * @returns {{damage: number, activeItem: object|null, critical: boolean, charge: number}}
+   */
+  meleeHit(targetType) {
+    const activeItem = this.inventory.getActiveItem();
+    // A fist -- and any item without an attack modifier -- deals 1 (wiki, Damage: "Hand: 1"). It was 2 here,
+    // which made every non-weapon hit twice as hard; found by the wiki parity audit's I-ATTACK case.
+    // A fist deals the attack_damage attribute, 1 unless /attribute changed it.
+    let damage = this.player.attackAttribute ?? 1;
+    let enchantDamage = 0;
+    if (activeItem && !activeItem.isBlock) {
+      const it = ITEMS[activeItem.id];
+      if (it && it.attack) damage = it.attack;
+      // The enchantment bonuses used to be inline here, with the undead list spelled out as a literal
+      // array. They live in enchantmentEffects.js now so bane of arthropods and the durability effects
+      // have somewhere to go, and so the numbers can be asserted directly.
+      enchantDamage = attackBonus(activeItem.enchantments, targetType);
+    }
+    // Strength and weakness change what this hit deals by a flat amount per level, as vanilla does --
+    // "+3 HP x level" -- so a hit is adjusted rather than scaled. Asked of the player rather than
+    // computed here, so the effect rules stay in one module and this call site needs no import.
+    const effectBonus = this.player?.attackDamageBonus?.() ?? 0;
+    if (effectBonus !== 0) damage = Math.max(0, damage + effectBonus);
+    // The attack cooldown (attackCooldown.js): the attribute damage scales with the square of the charge,
+    // enchantment damage with the charge itself. Every click used to deal full damage.
+    const charge = attackCharge(this.player.secondsSinceSwing ?? Infinity, activeItem && !activeItem.isBlock ? activeItem.id : null);
+    // Critical hit (Damage): "performed when a player attacks an entity while falling", +50% "after strength is
+    // applied and before enchantments", only at 84.8% charge or more, never sprinting, in water, on a ladder or vines,
+    // with Slow Falling or Blindness, riding or flying. The game had no critical hits (Combat play-test).
+    const p = this.player;
+    const onClimbable = [BLOCKS.LADDER, BLOCKS.VINE].includes(this.world.getVoxel(Math.floor(p.position.x), Math.floor(p.position.y), Math.floor(p.position.z)));
+    const critical = charge >= 0.848 && (p.fallDistance ?? 0) > 0 && !p.onGround && !p.inWater && !onClimbable && !p.isFlying && !p.isSprinting
+      && !p.hasStatusEffect?.('slow_falling') && !p.hasStatusEffect?.('blindness') && !this.riding && !p.ridingMob;
+    damage = scaleBaseDamage(damage, charge) * (critical ? 1.5 : 1) + scaleEnchantDamage(enchantDamage, charge);
+    this.player.lastAttackCritical = critical;
+    this.player.lastAttackCharge = charge;
+    this.player.secondsSinceSwing = 0;
+    return { damage, activeItem, critical, charge };
+  }
+
+  /** What landing a melee hit costs: exhaustion, and wear on the weapon. */
+  afterMeleeHit(activeItem) {
+    // Food: "Attacking an enemy" costs 0.1 exhaustion. The line that charged it had been dropped into the Player
+    // constructor, where it ran once at start-up, so fighting cost nothing.
+    this.player.addExhaustion?.(EXHAUSTION.attack);
+    // The weapon wears: 1 for a sword, mace, trident or hoe, 2 for an axe, pickaxe or shovel (toolWear.js).
+    // Nothing was charged, so a sword never wore out in a fight.
+    const hitCost = activeItem && !activeItem.isBlock && this.player.gamemode === 'survival' ? attackWear(activeItem.id) : 0;
+    if (hitCost > 0 && spendDurability(activeItem, hitCost).broke) {
+      this.inventory.consumeActiveItem?.(1);
+      this.ui?.addChatMessage?.(`<span style="color:#ef4444;">Your ${ITEMS[activeItem.id]?.name || activeItem.id} broke.</span>`);
+      this.sounds?.playBreak?.('wood');
+      this.ui?.updateHotbar?.();
     }
   }
 

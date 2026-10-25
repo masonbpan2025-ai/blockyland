@@ -4,6 +4,7 @@
 // helpers/shareFakes.js. What a real browser adds -- WebRTC, a real page, real worlds -- is covered by e2e/share.pw.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { WorldSyncManager, describeShareError } from '../src/multiplayer/worldSyncManager.js';
 import { ShareSession } from '../src/multiplayer/shareSession.js';
@@ -96,7 +97,7 @@ test('hosting shows the link, the code and who is here, and the link opens the w
   t.after(() => session.disconnect(true));
   await manager.hostWorld();
   assert.equal(manager.isHosting, true);
-  assert.match(dom.get('host-share-link-input').value, /^https:\/\/game\.example\/\?join=[0-9a-z]{8}$/);
+  assert.match(dom.get('host-share-link-input').value, /^https:\/\/game\.example\/\?join=[0-9]{4}$/);
   assert.equal(dom.get('host-room-id-badge').textContent, manager.roomId);
   assert.equal(dom.get('host-world-modal').classList.contains('hidden'), false, 'the dialog is open');
   assert.equal(dom.get('host-local-warning').classList.contains('hidden'), true, 'a public address needs no warning');
@@ -250,8 +251,8 @@ test('each way joining can fail is explained, and the guest is offered the way b
   const dom = setupMockDom(t);
   const network = createFakeNetwork();
   const guest = managerOn(network);
-  await guest.manager.joinWorld('zzzzzzzz');
-  assert.match(dom.get('join-status-text').textContent, /not being shared right now/);
+  await guest.manager.joinWorld('9999');
+  assert.match(dom.get('join-status-text').textContent, /No world is being shared with that code/);
   assert.equal(dom.get('join-progress-fill').style.background, '#ef4444');
   const back = dom.get('btn-join-cancel');
   assert.equal(back.classList.contains('hidden'), false, 'a way out is offered');
@@ -263,9 +264,9 @@ test('a link with no usable code says so, rather than doing nothing', async (t) 
   const dom = setupMockDom(t);
   const guest = managerOn(createFakeNetwork());
   await guest.manager.joinFromLink('?join=oops');
-  assert.match(dom.get('join-status-text').textContent, /does not contain a valid world code/);
+  assert.match(dom.get('join-status-text').textContent, /A join code is four digits/);
   await guest.manager.joinFromLink('?join=');
-  assert.match(dom.get('join-status-text').textContent, /valid world code/);
+  assert.match(dom.get('join-status-text').textContent, /four digits/);
 });
 
 test('a link\'s code is read from the address and joined', async (t) => {
@@ -453,7 +454,8 @@ test('the name a player goes by is remembered, and cleaned', async (t) => {
 
 test('every kind of failure has a sentence a person can act on', () => {
   const codes = {
-    room_not_found: /not being shared right now/, bad_code: /valid world code/, room_full: /full/, room_busy: /try again/i,
+    room_not_found: /No world is being shared with that code/, bad_code: /four digits/, too_many_codes: /Wait a minute/,
+    room_full: /full/, room_busy: /try again/i,
     version_mismatch: /different version/, signalling_unreachable: /sharing service/, connect_timeout: /block peer-to-peer/,
   };
   for (const [code, pattern] of Object.entries(codes)) {
@@ -464,4 +466,114 @@ test('every kind of failure has a sentence a person can act on', () => {
   assert.equal(describeShareError(new ShareError('connect_failed', 'Custom words.')), 'Custom words.');
   assert.match(describeShareError(new Error('plain')), /plain/);
   assert.match(describeShareError(null), /Something went wrong/);
+});
+
+// --- Join on the start screen ----------------------------------------------------------
+
+test('Join on the start screen joins the world whose four-digit code is typed', async (t) => {
+  const dom = setupMockDom(t);
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  await host.manager.hostWorld();
+  const code = host.session.roomId;
+  assert.match(code, /^[0-9]{4}$/);
+  assert.equal(dom.get('host-room-id-badge').textContent, code, 'the host is shown the code to read out');
+
+  const guest = managerOn(network, { name: 'Gus' });
+  guest.manager.openJoinCode();
+  assert.equal(dom.get('join-code-modal').classList.contains('hidden'), false, 'Join asks for the code');
+  dom.get('join-code-input').value = '12';
+  assert.equal(guest.manager.joinTypedCode(), null, 'two digits are not a code');
+  assert.equal(dom.get('join-code-error').classList.contains('hidden'), false);
+  assert.match(dom.get('join-code-error').textContent, /four digits/);
+
+  dom.get('join-code-input').value = code;
+  await guest.manager.joinTypedCode();
+  assert.equal(guest.manager.isJoined, true, 'joined with nothing but the code');
+  assert.equal(dom.get('join-code-modal').classList.contains('hidden'), true);
+  host.manager.leave(); guest.manager.leave();
+});
+
+test('the start screen offers Join, not sharing: a world is shared from inside it', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const start = html.slice(html.indexOf('id="start-overlay"'), html.indexOf('<!-- Share This World'));
+  assert.match(start, /id="btn-start-join"[^>]*>🌐 Join</);
+  assert.doesNotMatch(start, /btn-start-host-world|Host World/);
+  assert.match(html, /id="btn-host-world"/, 'Share This World is in the pause menu');
+});
+
+// --- PvP -------------------------------------------------------------------------------
+
+function fakeStorage(t, initial = {}) {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const store = new Map(Object.entries(initial));
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
+    getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k),
+  } });
+  t.after(() => { if (previous) Object.defineProperty(globalThis, 'localStorage', previous); else delete globalThis.localStorage; });
+  return store;
+}
+
+test('the host\'s PvP switch starts from the last choice, goes with the world, and is sent to everyone when changed', async (t) => {
+  const dom = setupMockDom(t);
+  const store = fakeStorage(t, { 'mc-share-pvp': 'off' });
+  const network = createFakeNetwork();
+  const host = managerOn(network, { name: 'Hana' });
+  assert.equal(dom.get('host-pvp-toggle').checked, false, 'remembered as off');
+  // Both managers share this one mock page, so keep the host's handler before the guest's manager replaces it.
+  const hostToggleChanged = dom.get('host-pvp-toggle').onchange;
+  await host.manager.hostWorld();
+  assert.equal(host.session.settings.pvp, false, 'the world is shared with PvP off');
+
+  const guest = managerOn(network, { name: 'Gus' });
+  await guest.manager.joinWorld(host.session.roomId);
+  assert.equal(guest.session.settings.pvp, false, 'the guest is told on joining');
+
+  const told = new Promise((resolve) => guest.session.on('settings', resolve));
+  dom.get('host-pvp-toggle').checked = true;
+  hostToggleChanged();
+  assert.equal((await told).pvp, true);
+  assert.equal(store.get('mc-share-pvp'), 'on', 'remembered for next time');
+  assert.ok(guest.game.chatLog.some((line) => /PvP is on/.test(line)), 'the guest is told in chat');
+  host.manager.leave(); guest.manager.leave();
+});
+
+test('a hit from another player is taken like a melee hit, from where they stood, and a kill is announced', (t) => {
+  setupMockDom(t);
+  const { manager, game } = managerOn(createFakeNetwork());
+  const taken = [];
+  game.player.health = 20;
+  game.player.takeDamage = (amount, source, type, attacker) => { taken.push({ amount, source, type, attacker }); game.player.health -= amount; };
+  manager.takeHit({ attackerName: 'Ann', damage: 7, from: { x: 1, y: 2, z: 3 } });
+  assert.deepEqual(taken[0], { amount: 7, source: { x: 1, y: 2, z: 3 }, type: 'player', attacker: null },
+    'through takeDamage, so armour, shields, Creative and the knockback apply');
+  manager.takeHit({ attackerName: 'Ann', damage: 20, from: { x: 1, y: 2, z: 3 } });
+  assert.ok(game.chatLog.some((line) => /was slain by Ann/.test(line)), 'Minecraft\'s death message');
+});
+
+test('a swing at a player with PvP off says so once, not on every swing', (t) => {
+  setupMockDom(t);
+  const { manager, game, session } = managerOn(createFakeNetwork());
+  session.attackPlayer = () => 'pvp_off';
+  assert.equal(manager.attackRemotePlayer('p1', 5), false);
+  assert.equal(manager.attackRemotePlayer('p1', 5), false);
+  assert.equal(game.chatLog.filter((line) => /PvP is off/.test(line)).length, 1);
+});
+
+test('the crosshair finds another player\'s avatar, nearest first, within reach', (t) => {
+  setupMockDom(t);
+  const { manager } = managerOn(createFakeNetwork());
+  manager.client.connected = true;
+  const near = manager.remotePlayers.addPeer('p1', 'Ann');
+  const far = manager.remotePlayers.addPeer('p2', 'Ben');
+  near.currentPos.set(3, 0, 0);
+  far.currentPos.set(6, 0, 0);
+  const eye = new THREE.Vector3(0, 1.6, 0);
+  assert.equal(manager.pickRemotePlayer(eye, new THREE.Vector3(1, 0, 0), 5)?.peerId, 'p1');
+  assert.ok(Math.abs(manager.pickRemotePlayer(eye, new THREE.Vector3(1, 0, 0), 5).distance - 2.7) < 1e-9, 'to the front of the box');
+  assert.equal(manager.pickRemotePlayer(eye, new THREE.Vector3(1, 0, 0), 2), null, 'out of reach');
+  assert.equal(manager.pickRemotePlayer(eye, new THREE.Vector3(0, 0, 1), 5), null, 'looking away');
+  assert.equal(manager.pickRemotePlayer(eye, new THREE.Vector3(1, 0.5, 0).normalize(), 5), null, 'over its head');
+  manager.client.connected = false;
+  assert.equal(manager.pickRemotePlayer(eye, new THREE.Vector3(1, 0, 0), 5), null, 'nobody to hit when not sharing');
 });

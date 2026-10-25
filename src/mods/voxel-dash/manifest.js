@@ -2,8 +2,8 @@
 export default {
   "formatVersion": 1,
   "id": "voxel_dash",
-  "name": "Voxel Dash • Five Biomes",
-  "version": "2.0.0",
+  "name": "Voxel Dash • Eleven Biomes",
+  "version": "2.1.0",
   "type": "game",
   "engineApi": "^1.0.0",
   "protocolVersion": 1,
@@ -18,7 +18,7 @@ export default {
     "Voxel_Dash.json"
   ],
   "saveSchemaVersion": 1,
-  "description": "Five original Geometry Dash object layouts with Minecraft biomes: Back On Track, Polargeist, Dry Out, Base After Base and Can't Let Go. Classic cube and ship controls, pads, orbs, gravity portals and secret coins.",
+  "description": "Eleven original Geometry Dash object layouts with Minecraft biomes, from Back On Track to Theory of Everything. Cube, ship, ball and UFO, mini and mirror portals, pads, orbs, saws, gravity portals and secret coins.",
   "provides": {
     "mobs": [],
     "items": [],

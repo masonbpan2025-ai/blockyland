@@ -66,8 +66,8 @@ test('all buttons declared in #start-overlay in index.html are bound or accounte
   assert.ok(matches.length >= 7, 'start overlay has buttons');
   const body = bindStartScreenBody();
   for (const btnId of matches) {
-    // btn-start-host-world is bound by WorldSyncManager when multiplayer is wired
-    if (btnId === 'btn-start-host-world') continue;
+    // Join and its code box are bound by WorldSyncManager when multiplayer is wired.
+    if (['btn-start-join', 'btn-join-code-confirm', 'btn-join-code-cancel'].includes(btnId)) continue;
     assert.ok(body.includes(`'${btnId}'`), `start overlay button #${btnId} is bound in bindStartScreen()`);
   }
 });

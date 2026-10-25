@@ -1,5 +1,10 @@
 const SIGNAL_PATH = '/ws/share';
-const ROOM_ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz';
+// Room codes are four digits (src/multiplayer/shareCode.js), so wrong codes are limited per address, as in
+// server/shareRendezvous.js: ten a minute makes running through all 10,000 take most of a day.
+const ROOM_ALPHABET = '0123456789';
+const ROOM_CODE_LENGTH = 4;
+const WRONG_CODES_PER_WINDOW = 10;
+const WRONG_CODE_WINDOW_MS = 60_000;
 const MAX_GUESTS_PER_ROOM = 16;
 const MAX_ROOMS = 1000;
 const MAX_PAYLOAD_BYTES = 64 * 1024;
@@ -21,7 +26,7 @@ function normalizeRoomCode(value) {
 
 function isValidRoomCode(value) {
   return typeof value === 'string'
-    && value.length === 8
+    && value.length === ROOM_CODE_LENGTH
     && [...value].every((character) => ROOM_ALPHABET.includes(character));
 }
 
@@ -66,6 +71,22 @@ function randomGuestId() {
 export class ShareRendezvous {
   constructor(ctx) {
     this.ctx = ctx;
+    this.wrongCodes = new Map(); // address -> { misses, until }
+  }
+
+  wrongCodeCount(address) {
+    const entry = this.wrongCodes.get(address);
+    if (entry && entry.until <= Date.now()) { this.wrongCodes.delete(address); return null; }
+    return entry ?? null;
+  }
+
+  missCode(address) {
+    const entry = this.wrongCodeCount(address) ?? { misses: 0, until: Date.now() + WRONG_CODE_WINDOW_MS };
+    entry.misses++;
+    this.wrongCodes.set(address, entry);
+    if (this.wrongCodes.size > 10000) {
+      for (const [key, value] of this.wrongCodes) if (value.until <= Date.now()) this.wrongCodes.delete(key);
+    }
   }
 
   async fetch(request) {
@@ -90,7 +111,8 @@ export class ShareRendezvous {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ role: null, room: null, guestId: null, bucket: 200, last: Date.now() });
+    const address = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+    server.serializeAttachment({ role: null, room: null, guestId: null, bucket: 200, last: Date.now(), address });
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -169,8 +191,14 @@ export class ShareRendezvous {
         return;
       }
       const room = normalizeRoomCode(messageData.room);
+      // Over its allowance, an address is refused even the right code, so a guesser learns nothing until it waits.
+      if ((this.wrongCodeCount(state.address ?? 'unknown')?.misses ?? 0) >= WRONG_CODES_PER_WINDOW) {
+        fail(socket, 'too_many_codes', 'Too many wrong codes. Wait a minute, then try again.');
+        return;
+      }
       const peers = isValidRoomCode(room) ? roomSockets(this.ctx, room) : { hosts: [], guests: [] };
       if (!peers.hosts.length) {
+        this.missCode(state.address ?? 'unknown');
         fail(socket, 'room_not_found', 'That world is not being shared right now.');
         return;
       }
@@ -232,6 +260,6 @@ export class ShareRendezvous {
       const host = peers.hosts[0];
       if (host) send(host, { type: 'guest_left', guestId: state.guestId });
     }
-    try { socket.serializeAttachment({ role: null, room: null, guestId: null, bucket: 200, last: Date.now() }); } catch { /* closing */ }
+    try { socket.serializeAttachment({ role: null, room: null, guestId: null, bucket: 200, last: Date.now(), address: state.address }); } catch { /* closing */ }
   }
 }

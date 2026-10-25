@@ -4,6 +4,32 @@ import { isValidRoomCode, normalizeRoomCode } from '../src/multiplayer/shareCode
 export const SHARE_PATH = '/ws/share';
 
 /**
+ * Wrong codes one address may try in a window. Codes are four digits (shareCode.js): at ten a minute, running through
+ * all 10,000 takes about seventeen hours, while a person who mistypes a few times is not held up.
+ */
+export const WRONG_CODES_PER_WINDOW = 10;
+export const WRONG_CODE_WINDOW_MS = 60_000;
+
+/** Counts each address's wrong codes in a fixed window. Kept small: an address's count goes when its window ends. */
+export function createGuessLimiter({ max = WRONG_CODES_PER_WINDOW, windowMs = WRONG_CODE_WINDOW_MS, now = () => Date.now() } = {}) {
+  const counts = new Map(); // address -> { misses, until }
+  const current = (address) => {
+    const entry = counts.get(address);
+    if (entry && entry.until <= now()) { counts.delete(address); return null; }
+    return entry ?? null;
+  };
+  return {
+    blocked: (address) => (current(address)?.misses ?? 0) >= max,
+    miss(address) {
+      const entry = current(address) ?? { misses: 0, until: now() + windowMs };
+      entry.misses++;
+      counts.set(address, entry);
+      if (counts.size > 10000) for (const [key, value] of counts) if (value.until <= now()) counts.delete(key);
+    },
+  };
+}
+
+/**
  * The introduction service for shared worlds.
  *
  * It does one job: a guest holding a link names a room, and the host of that room and the guest swap the small
@@ -28,8 +54,12 @@ export function createShareRendezvous({
   maxPayload = 64 * 1024,
   heartbeatMs = 30_000,
   randomId = () => Math.random().toString(36).slice(2, 10),
+  maxWrongCodes = WRONG_CODES_PER_WINDOW,
+  wrongCodeWindowMs = WRONG_CODE_WINDOW_MS,
+  now = () => Date.now(),
 } = {}) {
   const rooms = new Map(); // code -> { code, host: ws, guests: Map<guestId, ws> }
+  const guesses = createGuessLimiter({ max: maxWrongCodes, windowMs: wrongCodeWindowMs, now });
   const wss = new WebSocketServer({ noServer: true, maxPayload });
 
   const send = (ws, payload) => {
@@ -38,8 +68,11 @@ export function createShareRendezvous({
   };
   const fail = (ws, code, message) => send(ws, { type: 'error', code, message });
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
     ws.isAlive = true;
+    // Who is guessing codes: the address the connection came from (shared by everyone behind one router, which is
+    // the cost of counting by it).
+    const address = req?.socket?.remoteAddress ?? 'unknown';
     ws.on('pong', () => { ws.isAlive = true; });
     // A connection is a host of one room, or a guest of one room, never both, and never two.
     let role = null;
@@ -75,9 +108,11 @@ export function createShareRendezvous({
       if (msg.type === 'join') {
         if (role) { fail(ws, 'already_in_room', 'This connection already has a room.'); return; }
         const code = normalizeRoomCode(msg.room);
+        // Over its allowance, an address is refused even the right code, so a guesser learns nothing until it waits.
+        if (guesses.blocked(address)) { fail(ws, 'too_many_codes', 'Too many wrong codes. Wait a minute, then try again.'); return; }
         const target = isValidRoomCode(code) ? rooms.get(code) : null;
         // The same answer for a malformed code and an unknown one: a probe learns nothing about what exists.
-        if (!target) { fail(ws, 'room_not_found', 'That world is not being shared right now.'); return; }
+        if (!target) { guesses.miss(address); fail(ws, 'room_not_found', 'That world is not being shared right now.'); return; }
         if (target.guests.size >= maxGuestsPerRoom) { fail(ws, 'room_busy', 'Too many people are joining. Try again in a moment.'); return; }
         guestId = randomId();
         target.guests.set(guestId, ws);

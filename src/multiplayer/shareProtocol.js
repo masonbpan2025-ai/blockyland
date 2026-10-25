@@ -19,10 +19,54 @@ export const MAX_COORDINATE = 30_000_000;
 export const WORLD_HEIGHT = 64;
 export const MAX_BLOCK_ID = 65535;
 
-export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat']);
+export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack']);
 export const HOST_TO_GUEST = Object.freeze([
   'welcome', 'snapshot', 'peer_joined', 'peer_left', 'player_state', 'block_update', 'chat', 'ping', 'pong', 'error', 'host_closing',
+  'hurt', 'settings',
 ]);
+
+// --- players attacking players (PvP) ----------------------------------------------------------
+
+/** The host's choices for a shared world. `pvp` is Minecraft's server setting of that name, on by default there too. */
+export const DEFAULT_SHARE_SETTINGS = Object.freeze({ pvp: true });
+
+/** The settings a host sends, or the defaults for anything missing or malformed. */
+export function sanitizeShareSettings(raw) {
+  return { pvp: typeof raw?.pvp === 'boolean' ? raw.pvp : DEFAULT_SHARE_SETTINGS.pvp };
+}
+
+/**
+ * The most one hit may deal. A netherite sword's critical hit with Sharpness V is about 15; a mace's smash attack after
+ * a long fall is far more, so the bound is generous: it is there to refuse nonsense, not to balance the game.
+ */
+export const MAX_ATTACK_DAMAGE = 100;
+/**
+ * How far an attacker may be from the target, in blocks, by the host's record of where both are. A player reaches
+ * 3 blocks (Creative 5); the rest is slack for positions that are a few updates old.
+ */
+export const MAX_ATTACK_REACH = 7;
+
+/** A guest's attack, or null when it is not one. */
+export function sanitizeAttack(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.target !== 'string' || !/^[a-z0-9]{1,16}$/i.test(raw.target)) return null;
+  if (!finite(raw.damage) || raw.damage <= 0 || raw.damage > MAX_ATTACK_DAMAGE) return null;
+  return { target: raw.target, damage: raw.damage };
+}
+
+/**
+ * Whether the host lets an attack through, and if not, why. The host decides every hit, its own and its guests', so a
+ * modified client cannot hurt anyone with PvP off, from across the world, or by attacking itself.
+ * @returns {string|null} the reason it is refused, or null when it lands
+ */
+export function refuseAttack({ settings, attackerId, targetId, attackerPos, targetPos }) {
+  if (!sanitizeShareSettings(settings).pvp) return 'pvp_off';
+  if (!targetId || attackerId === targetId) return 'bad_target';
+  if (!attackerPos || !targetPos) return 'unknown_position';
+  const distance = Math.hypot(attackerPos.x - targetPos.x, attackerPos.y - targetPos.y, attackerPos.z - targetPos.z);
+  if (!(distance <= MAX_ATTACK_REACH)) return 'too_far';
+  return null;
+}
 
 // Control characters, and the characters that turn text into markup.
 const UNSAFE_NAME = /[\u0000-\u001f\u007f-\u009f<>&"'`\\]/g;
@@ -123,6 +167,8 @@ export function guestLimiters(now) {
     state: new RateLimiter({ perSecond: 40, burst: 60, now }),
     block: new RateLimiter({ perSecond: 30, burst: 90, now }),
     chat: new RateLimiter({ perSecond: 1.5, burst: 5, now }),
+    // Faster than any weapon swings at full strength; the attack cooldown makes quicker hits weak anyway.
+    attack: new RateLimiter({ perSecond: 5, burst: 5, now }),
     any: new RateLimiter({ perSecond: 150, burst: 300, now }),
   };
 }

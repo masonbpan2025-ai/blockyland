@@ -6,7 +6,8 @@ import {createHash} from 'node:crypto';
 // Usage: node scripts/import-geometry-dash-levels.mjs path/to/official_levels.json
 const input=process.argv[2];if(!input)throw new Error('Pass the original official_levels.json dataset');
 const bytes=await readFile(input),source=JSON.parse(bytes);
-const names=['Back On Track','Polargeist','Dry Out','Base After Base','Cant Let Go'];
+// Levels 2-6, then 7-12 (Jumper to Theory of Everything), in the game's own order. Stereo Madness (1) is not imported.
+const names=['Back On Track','Polargeist','Dry Out','Base After Base','Cant Let Go','Jumper','Time Machine','Cycles','xStep','Clutterfunk','Theory of Everything'];
 const levels=names.map(name=>{
   const text=gunzipSync(Buffer.from(source[name],'base64url')).toString();
   const parts=text.split(';'),header=parts.shift();

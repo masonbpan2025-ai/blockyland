@@ -49,7 +49,7 @@ test.describe('sharing a world with a link', () => {
     await host.evaluate(() => document.getElementById('btn-host-world').click());
     await expect(host.locator('#host-world-modal')).not.toHaveClass(/hidden/);
     link = await host.inputValue('#host-share-link-input');
-    expect(link, 'the link is the game\'s own address with a world code').toMatch(/^http:\/\/127\.0\.0\.1:3025\/\?join=[0-9a-z]{8}$/);
+    expect(link, 'the link is the game\'s own address with a world code').toMatch(/^http:\/\/127\.0\.0\.1:3025\/\?join=[0-9]{4}$/);
     expect(await host.textContent('#host-room-id-badge')).toBe(new URL(link).searchParams.get('join'));
     await expect(host.locator('#host-error')).toHaveClass(/hidden/);
     await expect(host.locator('#hud-multiplayer-text')).toHaveText('Sharing: 1 player');
@@ -100,9 +100,10 @@ test.describe('sharing a world with a link', () => {
   test('SHARE-03 blocks placed by either player appear for the other', async () => {
     const guest = guests[0].page;
     const [x, y, z] = await host.evaluate(() => { const [mx, , mz] = window.__marker; return [mx + 2, 41, mz + 2]; });
-    // The host places a block, through the same hook the game's own placing calls.
-    await host.evaluate(([bx, by, bz]) => { window.game.world.setVoxel(bx, by, bz, 7); window.game.worldSync.onBlockPlaced(bx, by, bz, 7); }, [x, y, z]);
-    await expect.poll(() => guest.evaluate(([bx, by, bz]) => window.game.world.getVoxel(bx, by, bz), [x, y, z]), { timeout: 10000 }).toBe(7);
+    // The host places a block, through the same hook the game's own placing calls. Cobblestone (4): it stays where it
+    // is put. This was gravel (7), in mid-air, which fell on the guest's side whenever the check came late enough.
+    await host.evaluate(([bx, by, bz]) => { window.game.world.setVoxel(bx, by, bz, 4); window.game.worldSync.onBlockPlaced(bx, by, bz, 4); }, [x, y, z]);
+    await expect.poll(() => guest.evaluate(([bx, by, bz]) => window.game.world.getVoxel(bx, by, bz), [x, y, z]), { timeout: 10000 }).toBe(4);
     // The guest breaks it.
     await guest.evaluate(([bx, by, bz]) => { window.game.world.setVoxel(bx, by, bz, 0); window.game.worldSync.onBlockBroken(bx, by, bz); }, [x, y, z]);
     await expect.poll(() => host.evaluate(([bx, by, bz]) => window.game.world.getVoxel(bx, by, bz), [x, y, z]), { timeout: 10000 }).toBe(0);
@@ -138,9 +139,9 @@ test.describe('sharing a world with a link', () => {
     await expect.poll(() => guests[0].page.evaluate(() => window.game.worldSync.remotePlayers.remotePlayers.size), { timeout: 10000 }).toBe(2);
     const names = await host.evaluate(() => [...document.getElementById('host-connected-players-list').children].map((r) => r.children[0].textContent));
     expect(names.length).toBe(3);
-    // A block placed by one friend reaches the other, through the host.
-    await guests[0].page.evaluate(() => { window.game.world.setVoxel(1, 50, 1, 9); window.game.worldSync.onBlockPlaced(1, 50, 1, 9); });
-    await expect.poll(() => second.page.evaluate(() => window.game.world.getVoxel(1, 50, 1)), { timeout: 10000 }).toBe(9);
+    // A block placed by one friend reaches the other, through the host. Oak planks (10): leaves (9) decay with no log.
+    await guests[0].page.evaluate(() => { window.game.world.setVoxel(1, 50, 1, 10); window.game.worldSync.onBlockPlaced(1, 50, 1, 10); });
+    await expect.poll(() => second.page.evaluate(() => window.game.world.getVoxel(1, 50, 1)), { timeout: 10000 }).toBe(10);
   });
 
   test('SHARE-06 a friend who leaves is gone for everyone, and the others carry on', async () => {
@@ -150,10 +151,60 @@ test.describe('sharing a world with a link', () => {
     expect(await guests[1].page.evaluate(() => window.game.worldSync.isJoined)).toBe(false);
   });
 
-  test('SHARE-07 a link to a world that is not being shared says so, and offers the way back', async ({ browser }) => {
-    const stranger = await open(browser, '/?join=zzzzzzzz');
+  test('SHARE-06b a friend types the four-digit code under Join, and is in the world', async ({ browser }) => {
+    const friend = await open(browser);
+    guests.push(friend);
+    const code = new URL(link).searchParams.get('join');
+    await friend.page.click('#btn-start-join');
+    await friend.page.fill('#join-code-input', code);
+    await friend.page.click('#btn-join-code-confirm');
+    await waitForJoined(friend.page);
+    await expect(host.locator('#hud-multiplayer-text')).toHaveText('Sharing: 3 players', { timeout: 15000 });
+    await friend.page.evaluate(() => document.getElementById('btn-title-screen').click());
+    await expect(host.locator('#hud-multiplayer-text')).toHaveText('Sharing: 2 players', { timeout: 15000 });
+  });
+
+  test('SHARE-06c with PvP on a hit hurts the other player; the host turns it off and hits do nothing', async () => {
+    const guest = guests[0].page;
+    const guestId = await guest.evaluate(() => window.game.worldSync.client.clientId);
+    // Side by side, in Survival so the hits count.
+    await guest.evaluate(() => { window.game.player.setGameMode?.('survival'); window.game.player.gamemode = 'survival'; window.game.player.health = 20; });
+    await host.evaluate(() => { window.game.player.setGameMode?.('survival'); window.game.player.gamemode = 'survival'; window.game.player.health = 20; });
+    const hostAt = await host.evaluate(() => window.game.player.position.toArray());
+    await guest.evaluate(([x, y, z]) => { window.game.player.position.set(x + 1.5, y, z); window.game.player.velocity.set(0, 0, 0); }, hostAt);
+    await expect.poll(() => host.evaluate((id) => { const p = window.game.worldSync.client.positions.get(id); const h = window.game.player.position;
+      return p ? Math.hypot(p.x - h.x, p.z - h.z) : null; }, guestId), { timeout: 10000 }).toBeLessThan(3);
+    expect(await host.evaluate(() => document.getElementById('host-pvp-toggle').checked), 'PvP starts on').toBe(true);
+
+    // The host hits the guest.
+    expect(await host.evaluate((id) => window.game.worldSync.attackRemotePlayer(id, 5), guestId)).toBe(true);
+    await expect.poll(() => guest.evaluate(() => window.game.player.health), { timeout: 10000 }).toBeLessThan(20);
+    // The guest hits back, once the hurt window has passed.
+    await guest.waitForTimeout(700);
+    expect(await guest.evaluate(() => window.game.worldSync.attackRemotePlayer('host', 4))).toBe(true);
+    await expect.poll(() => host.evaluate(() => window.game.player.health), { timeout: 10000 }).toBeLessThan(20);
+
+    // The host turns PvP off on the sharing screen; the guest is told, and no hit lands either way.
+    await host.evaluate(() => { const box = document.getElementById('host-pvp-toggle'); box.checked = false; box.dispatchEvent(new Event('change')); });
+    await expect.poll(() => guest.evaluate(() => window.game.worldSync.client.settings.pvp), { timeout: 10000 }).toBe(false);
+    await expect.poll(() => guest.evaluate(() => document.getElementById('chat-messages').textContent), { timeout: 10000 }).toContain('PvP is off');
+    const before = { guest: await guest.evaluate(() => window.game.player.health), host: await host.evaluate(() => window.game.player.health) };
+    await guest.waitForTimeout(700);
+    expect(await host.evaluate((id) => window.game.worldSync.attackRemotePlayer(id, 5), guestId)).toBe(false);
+    expect(await guest.evaluate(() => window.game.worldSync.attackRemotePlayer('host', 5))).toBe(false);
+    await guest.waitForTimeout(1000);
+    // Not lower: a Survival player with a full food bar heals meanwhile, so it may well be higher.
+    expect(await guest.evaluate(() => window.game.player.health), 'no hit reached the guest').toBeGreaterThanOrEqual(before.guest);
+    expect(await host.evaluate(() => window.game.player.health), 'no hit reached the host').toBeGreaterThanOrEqual(before.host);
+    // On again, for the rest of the suite as a host would leave it.
+    await host.evaluate(() => { const box = document.getElementById('host-pvp-toggle'); box.checked = true; box.dispatchEvent(new Event('change')); });
+  });
+
+  test('SHARE-07 a code no world is being shared with says so, and offers the way back', async ({ browser }) => {
+    const code = new URL(link).searchParams.get('join');
+    const stranger = await open(browser, `/?join=${code === '9999' ? '9998' : '9999'}`);
     guests.push(stranger);
-    await expect(stranger.page.locator('#join-status-text')).toContainText('not being shared right now', { timeout: 30000 });
+    await expect(stranger.page.locator('#join-status-text')).toContainText('No world is being shared with that code', { timeout: 30000 });
     await expect(stranger.page.locator('#btn-join-cancel')).toBeVisible();
     await expect(stranger.page.locator('#btn-join-cancel')).toHaveText('Back to Main');
   });
@@ -161,7 +212,7 @@ test.describe('sharing a world with a link', () => {
   test('SHARE-08 a link with a damaged code says so too', async ({ browser }) => {
     const broken = await open(browser, '/?join=oops');
     guests.push(broken);
-    await expect(broken.page.locator('#join-status-text')).toContainText('valid world code', { timeout: 30000 });
+    await expect(broken.page.locator('#join-status-text')).toContainText('four digits', { timeout: 30000 });
   });
 
   test('SHARE-09 when the host closes the world, the friends are told', async () => {

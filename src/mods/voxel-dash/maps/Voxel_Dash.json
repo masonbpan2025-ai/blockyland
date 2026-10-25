@@ -1,7 +1,7 @@
 {
   "format": "minecraft-web-map", "version": 2,
-  "name": "Voxel Dash • Five Biomes", "filename": "Voxel_Dash.json",
-  "description": "Dash through five Minecraft biomes. Space / click / tap to jump; hold to fly. Original Geometry Dash object layouts with Minecraft scenery.",
+  "name": "Voxel Dash • Eleven Biomes", "filename": "Voxel_Dash.json",
+  "description": "Dash through eleven Minecraft biomes, from Back On Track to Theory of Everything. Space / click / tap to jump; hold to fly. Original Geometry Dash object layouts with Minecraft scenery.",
   "worldType": "designed", "mechanism": "voxel_dash", "seed": 534796017,
   "chunks": [], "player": {"position": {"x": 0, "y": 21, "z": 0}, "gamemode": "survival"}, "modState": {}
 }

@@ -337,6 +337,29 @@ export class RemotePlayerManager {
     }
   }
 
+  /**
+   * The other player the crosshair is on, if any: a ray against each avatar's box (a player is 0.6 wide and 1.8 tall,
+   * standing on its position), nearest first.
+   * @returns {{peerId: string, name: string, distance: number}|null}
+   */
+  pickPlayer(origin, direction, maxDistance) {
+    let best = null;
+    for (const peer of this.remotePlayers.values()) {
+      const p = peer.currentPos;
+      const min = [p.x - 0.3, p.y, p.z - 0.3], max = [p.x + 0.3, p.y + (peer.isSneaking ? 1.5 : 1.8), p.z + 0.3];
+      const o = [origin.x, origin.y, origin.z], d = [direction.x, direction.y, direction.z];
+      let near = 0, far = maxDistance;
+      for (let axis = 0; axis < 3 && near <= far; axis++) {
+        if (Math.abs(d[axis]) < 1e-9) { if (o[axis] < min[axis] || o[axis] > max[axis]) near = Infinity; continue; }
+        let t1 = (min[axis] - o[axis]) / d[axis], t2 = (max[axis] - o[axis]) / d[axis];
+        if (t1 > t2) [t1, t2] = [t2, t1];
+        near = Math.max(near, t1); far = Math.min(far, t2);
+      }
+      if (near <= far && near <= maxDistance && (!best || near < best.distance)) best = { peerId: peer.peerId, name: peer.name, distance: near };
+    }
+    return best;
+  }
+
   clear() {
     for (const peerId of Array.from(this.remotePlayers.keys())) {
       this.removePeer(peerId);

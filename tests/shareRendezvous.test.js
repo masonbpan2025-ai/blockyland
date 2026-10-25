@@ -41,7 +41,7 @@ async function start(options) {
   return { rendezvous, server, url, connect, stop, port };
 }
 
-const ROOM = 'abcd2345';
+const ROOM = '4207';
 
 test('a host registers a room and a guest can then join it', async () => {
   const s = await start();
@@ -61,10 +61,10 @@ test('a host registers a room and a guest can then join it', async () => {
 test('a room code is accepted however it was typed', async () => {
   const s = await start();
   const host = await s.connect();
-  host.send({ type: 'host', room: 'ABCD-2345' });
+  host.send({ type: 'host', room: '42-07' });
   assert.equal((await host.next()).room, ROOM);
   const guest = await s.connect();
-  guest.send({ type: 'join', room: ' abcd 2345 ' });
+  guest.send({ type: 'join', room: ' 4 2 0 7 ' });
   assert.equal((await guest.next()).type, 'joined');
   await s.stop();
 });
@@ -108,7 +108,7 @@ test('a guest cannot address another guest: its messages go to the host only', a
 test('an unknown room and a malformed code give the same answer, so a probe learns nothing', async () => {
   const s = await start();
   const a = await s.connect();
-  a.send({ type: 'join', room: 'zzzzzzzz' });
+  a.send({ type: 'join', room: '9999' });
   const unknown = await a.next();
   const b = await s.connect();
   b.send({ type: 'join', room: 'x' });
@@ -126,7 +126,7 @@ test('a room can be hosted once at a time, and a connection has one role', async
   const other = await s.connect();
   other.send({ type: 'host', room: ROOM });
   assert.equal((await other.next()).code, 'room_taken');
-  host.send({ type: 'host', room: 'efgh6789' });
+  host.send({ type: 'host', room: '6789' });
   assert.equal((await host.next()).code, 'already_in_room');
   host.send({ type: 'join', room: ROOM });
   assert.equal((await host.next()).code, 'already_in_room');
@@ -224,7 +224,7 @@ test('the room fills: only so many may be joining at once', async () => {
 test('the service has a limit on rooms', async () => {
   const s = await start({ maxRooms: 1 });
   const a = await s.connect(); a.send({ type: 'host', room: ROOM }); await a.next();
-  const b = await s.connect(); b.send({ type: 'host', room: 'efgh6789' });
+  const b = await s.connect(); b.send({ type: 'host', room: '6789' });
   assert.equal((await b.next()).code, 'server_full');
   await s.stop();
 });
@@ -278,7 +278,7 @@ test('the client turns the service\'s refusals into errors a person can read', a
   const s = await start();
   const c = new SignalingClient({ url: s.url, WebSocketImpl: WebSocket });
   await c.connect();
-  await assert.rejects(c.join('zzzzzzzz'), (e) => e instanceof ShareError && e.code === 'room_not_found' && /not being shared/.test(e.message));
+  await assert.rejects(c.join('9999'), (e) => e instanceof ShareError && e.code === 'room_not_found' && /not being shared/.test(e.message));
   c.close();
   await s.stop();
 });
@@ -305,4 +305,43 @@ test('the service address is the game\'s own site unless the link names another'
   for (const hostile of ['javascript:alert(1)', 'http://meet.example/', 'not a url', 'data:text/html,x']) {
     assert.equal(resolveSignalingUrl({ protocol: 'https:', host: 'play.example', search: `?signal=${encodeURIComponent(hostile)}` }), 'wss://play.example/ws/share', `${hostile} is ignored`);
   }
+});
+
+test('an address that tries too many wrong codes is refused, even the right one, until its minute is up', async () => {
+  // Codes are four digits: without this, a script could run through all 10,000 in minutes.
+  let clock = 1_000_000;
+  const s = await start({ maxWrongCodes: 3, wrongCodeWindowMs: 60_000, now: () => clock });
+  const host = await s.connect();
+  host.send({ type: 'host', room: ROOM });
+  await host.next();
+  for (const wrong of ['0001', '0002', '0003']) {
+    const c = await s.connect();
+    c.send({ type: 'join', room: wrong });
+    assert.equal((await c.next()).code, 'room_not_found', wrong);
+  }
+  const blocked = await s.connect();
+  blocked.send({ type: 'join', room: ROOM });
+  const refusal = await blocked.next();
+  assert.equal(refusal.code, 'too_many_codes', 'the right code is refused too: a guesser learns nothing');
+  clock += 60_001;
+  const later = await s.connect();
+  later.send({ type: 'join', room: ROOM });
+  assert.equal((await later.next()).type, 'joined', 'after the minute it joins');
+  await s.stop();
+});
+
+test('a person who mistypes a code a few times still gets in', async () => {
+  const s = await start();
+  const host = await s.connect();
+  host.send({ type: 'host', room: ROOM });
+  await host.next();
+  for (const typo of ['4208', '4270']) {
+    const c = await s.connect();
+    c.send({ type: 'join', room: typo });
+    assert.equal((await c.next()).code, 'room_not_found');
+  }
+  const right = await s.connect();
+  right.send({ type: 'join', room: ROOM });
+  assert.equal((await right.next()).type, 'joined');
+  await s.stop();
 });
