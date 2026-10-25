@@ -1,11 +1,13 @@
 // SkyWars on screen: the lobby, the 3-2-1 titles, the scoreboard at the side, and the end of a match. Everything
 // lives under one root that leaves with the mod. Text is set with textContent, never HTML, since names come from
 // other players.
+import { TEMPLATES, TEMPLATE_IDS } from './templates.js';
+import { packsFor, PACKS } from './packs.js';
 
 const CSS = `
 .skywars-root { position: fixed; inset: 0; pointer-events: none; z-index: 60; font-family: 'Minecraft', 'Press Start 2P', monospace; color: #fff; }
 .skywars-root .sw-panel { pointer-events: auto; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  min-width: 340px; max-width: min(92vw, 460px); background: rgba(9, 13, 22, 0.92); border: 2px solid #38bdf8; border-radius: 10px;
+  min-width: 340px; max-width: min(92vw, 520px); max-height: 92vh; overflow-y: auto; background: rgba(9, 13, 22, 0.92); border: 2px solid #38bdf8; border-radius: 10px;
   padding: 18px 20px; box-shadow: 0 0 24px rgba(56, 189, 248, 0.35); text-align: center; }
 .skywars-root .sw-panel.sw-corner { top: 16px; left: auto; right: 16px; transform: none; min-width: 240px; }
 .skywars-root h2 { margin: 0 0 10px; color: #7dd3fc; font-size: 20px; letter-spacing: 1px; }
@@ -19,7 +21,11 @@ const CSS = `
 .skywars-root button { pointer-events: auto; font: inherit; font-size: 14px; padding: 9px 16px; border-radius: 6px; border: 2px solid #0ea5e9;
   background: #0369a1; color: #fff; cursor: pointer; }
 .skywars-root button:disabled { background: #334155; border-color: #475569; color: #94a3b8; cursor: not-allowed; }
-.skywars-root button.sw-mode[aria-pressed="true"] { background: #16a34a; border-color: #22c55e; }
+.skywars-root button.sw-mode[aria-pressed="true"], .skywars-root button.sw-map[aria-pressed="true"], .skywars-root button.sw-pack[aria-pressed="true"] { background: #16a34a; border-color: #22c55e; }
+.skywars-root .sw-label { font-size: 11px; color: #94a3b8; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.skywars-root .sw-row.sw-tight { margin-top: 4px; gap: 6px; }
+.skywars-root .sw-row.sw-tight button { font-size: 12px; padding: 6px 10px; }
+.skywars-root .sw-map-info { font-size: 11px; color: #cbd5e1; line-height: 1.5; margin: 6px 0 0; min-height: 30px; }
 .skywars-root .sw-reason { font-size: 12px; color: #fca5a5; min-height: 16px; margin-top: 6px; }
 .skywars-root .sw-title { position: absolute; top: 34%; left: 0; right: 0; text-align: center; font-size: 72px; color: #facc15;
   text-shadow: 4px 4px 0 #3f2a00; opacity: 0; transition: opacity 0.15s; }
@@ -58,6 +64,35 @@ export function createSkyWarsUi(manager) {
   const hint = el('div', 'sw-hint', 'Each player gets an island. Be the last one alive: loot your chests, bridge across, and knock the others into the void.');
   const list = el('ul', 'sw-players');
   list.id = 'skywars-players';
+  // The map: a template, then one of its data packs; New islands generates the same map again, differently.
+  const mapLabel = el('div', 'sw-label', 'Map');
+  const maps = el('div', 'sw-row sw-tight');
+  maps.id = 'skywars-maps';
+  const mapButtons = TEMPLATE_IDS.map((id) => {
+    const b = el('button', 'sw-map', TEMPLATES[id].name);
+    b.type = 'button';
+    b.dataset.template = id;
+    b.onclick = () => manager.chooseMap(id);
+    maps.append(b);
+    return b;
+  });
+  const packLabel = el('div', 'sw-label', 'Theme (data pack)');
+  const packs = el('div', 'sw-row sw-tight');
+  packs.id = 'skywars-packs';
+  let packsShownFor = null;
+  const mapInfo = el('div', 'sw-map-info');
+  mapInfo.id = 'skywars-map-info';
+  const reroll = el('button', null, 'New islands');
+  reroll.id = 'skywars-reroll';
+  reroll.type = 'button';
+  reroll.onclick = () => manager.newIslands();
+  const rerollRow = el('div', 'sw-row sw-tight');
+  rerollRow.append(reroll);
+  const mapBlock = el('div');
+  mapBlock.append(mapLabel, maps, packLabel, packs, mapInfo, rerollRow);
+  const guestMap = el('div', 'sw-hint');
+  guestMap.id = 'skywars-guest-map';
+  const modeLabel = el('div', 'sw-label', 'Loot');
   const modes = el('div', 'sw-row');
   const modeButtons = ['normal', 'insane'].map((mode) => {
     const b = el('button', 'sw-mode', mode === 'normal' ? 'Normal' : 'Insane');
@@ -75,7 +110,7 @@ export function createSkyWarsUi(manager) {
   startRow.append(start);
   const reason = el('div', 'sw-reason');
   reason.id = 'skywars-start-reason';
-  lobby.append(lobbyTitle, codeLabel, code, hint, list, modes, startRow, reason);
+  lobby.append(lobbyTitle, codeLabel, code, hint, list, mapBlock, guestMap, modeLabel, modes, startRow, reason);
 
   // Titles.
   const title = el('div', 'sw-title');
@@ -125,7 +160,7 @@ export function createSkyWarsUi(manager) {
       titleTimer = setTimeout(() => { title.classList.remove('sw-show'); subtitle.textContent = ''; }, seconds * 1000);
     },
     setCode(text) { code.textContent = text || '····'; },
-    render(state, { isHost, myId, startCheck, error }) {
+    render(state, { isHost, myId, startCheck, error, mapName = '' }) {
       const players = state?.players ?? [];
       const phase = state?.phase ?? 'lobby';
       // The lobby: a panel in the middle for the host, who starts the game; a corner card for everyone else.
@@ -134,6 +169,27 @@ export function createSkyWarsUi(manager) {
       codeLabel.classList.toggle('sw-hidden', !isHost);
       code.classList.toggle('sw-hidden', !isHost);
       modes.classList.toggle('sw-hidden', !isHost);
+      modeLabel.classList.toggle('sw-hidden', !isHost);
+      mapBlock.classList.toggle('sw-hidden', !isHost);
+      guestMap.classList.toggle('sw-hidden', isHost);
+      guestMap.textContent = mapName ? `Map: ${mapName}` : '';
+      const map = state?.map ?? {};
+      for (const b of mapButtons) b.setAttribute('aria-pressed', String(map.template === b.dataset.template));
+      if (packsShownFor !== map.template) {
+        packsShownFor = map.template;
+        packs.replaceChildren(...packsFor(map.template).map((pack) => {
+          const b = el('button', 'sw-pack', pack.name);
+          b.type = 'button';
+          b.dataset.pack = pack.id;
+          b.title = pack.description;
+          b.onclick = () => manager.chooseMap(map.template, pack.id);
+          return b;
+        }));
+      }
+      for (const b of packs.children) b.setAttribute('aria-pressed', String(map.pack === b.dataset.pack));
+      const template = TEMPLATES[map.template];
+      const pack = PACKS.get(map.pack);
+      mapInfo.textContent = template && pack ? `${template.description} ${pack.description}` : '';
       startRow.classList.toggle('sw-hidden', !isHost);
       fillPlayers(list, players);
       for (const b of modeButtons) b.setAttribute('aria-pressed', String(state?.mode === b.dataset.mode));
@@ -148,7 +204,7 @@ export function createSkyWarsUi(manager) {
         const next = state.nextRefill !== null ? `Refill in ${clock(state.nextRefill - state.elapsed)}` : `Ends in ${clock(state.timeLimit - state.elapsed)}`;
         board.replaceChildren(el('div', 'sw-board-title', 'SKYWARS'), el('div', null, `Players left: ${left}`),
           el('div', null, `Kills: ${me?.kills ?? 0}`), el('div', null, phase === 'playing' ? next : `Starting in ${state.countdown}`),
-          el('div', null, `Mode: ${state.mode === 'insane' ? 'Insane' : 'Normal'}`), el('div', null, me && !me.alive ? 'You are watching' : ''));
+          el('div', null, `Mode: ${state.mode === 'insane' ? 'Insane' : 'Normal'}`), el('div', null, mapName), el('div', null, me && !me.alive ? 'You are watching' : ''));
       }
       // The end.
       end.classList.toggle('sw-hidden', phase !== 'ended');

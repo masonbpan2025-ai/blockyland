@@ -8,7 +8,10 @@
 //   playing   -- the cages open. "The main goal is to be the last person or team alive to win" (Tutorial:SkyWars).
 //                Chests refill twice, the second time adding ender pearls (Hypixel); time running out is a draw.
 //   ended     -- the winner (or the draw) is shown; the host can play again, which rebuilds the islands.
-import { ARENA } from './arena.js';
+//
+// The map is the host's choice in the lobby: a template and a data pack (arena.js). Its seed is drawn afresh when the
+// host picks a map, asks for new islands, or plays again, so no two rounds are fought on the same islands.
+import { ARENA, DEFAULT_MAP, normalizeMap } from './arena.js';
 import { MODES } from './loot.js';
 
 export const PHASES = Object.freeze(['lobby', 'countdown', 'playing', 'ended']);
@@ -32,9 +35,11 @@ export function deathMessage(victim, killer, cause) {
 }
 
 export class SkyWarsMatch {
-  constructor({ mode = 'normal', seed = 2015 } = {}) {
+  constructor({ mode = 'normal', seed = 2015, map = null, random = Math.random } = {}) {
     this.mode = MODES.includes(mode) ? mode : 'normal';
     this.seed = seed >>> 0;
+    this.random = random;
+    this.map = normalizeMap(map ?? { ...DEFAULT_MAP, seed: this.newSeed() });
     this.phase = 'lobby';
     this.round = 1;
     /** @type {Map<string, {id:string,name:string,slot:number|null,alive:boolean,kills:number}>} */
@@ -83,6 +88,22 @@ export class SkyWarsMatch {
   setMode(by, mode) {
     if (by !== HOST_ID || this.phase !== 'lobby' || !MODES.includes(mode)) return false;
     this.mode = mode;
+    return true;
+  }
+
+  newSeed() { return Math.floor(this.random() * 0xffffffff) >>> 0; }
+
+  /** The host picks a map (a template and one of its data packs) in the lobby: freshly generated. */
+  setMap(by, { template, pack } = {}) {
+    if (by !== HOST_ID || this.phase !== 'lobby') return false;
+    this.map = normalizeMap({ template, pack, seed: this.newSeed() });
+    return true;
+  }
+
+  /** The host asks for the same map generated again, differently. */
+  newIslands(by) {
+    if (by !== HOST_ID || this.phase !== 'lobby') return false;
+    this.map = { ...this.map, seed: this.newSeed() };
     return true;
   }
 
@@ -174,6 +195,7 @@ export class SkyWarsMatch {
     if (by !== HOST_ID || this.phase !== 'ended') return false;
     this.round++;
     this.phase = 'lobby';
+    this.map = { ...this.map, seed: this.newSeed() };
     this.winner = null;
     this.endReason = null;
     this.elapsed = 0;
@@ -202,6 +224,7 @@ export class SkyWarsMatch {
       round: this.round,
       mode: this.mode,
       seed: this.seed,
+      map: { ...this.map },
       countdown: Math.ceil(this.countdown),
       elapsed: Math.floor(this.elapsed),
       refills: this.refills,

@@ -2,26 +2,27 @@
 // the shared world's game channel (shareSession.js sendGame); each browser then does its own part: its player in a
 // cage, its inventory, its spectating, the cages opening, the islands rebuilt for the next round. Chest contents
 // travel as chest updates (shareSession.js sendContainer), and a dead player's loot is claimed through the host so
-// two players cannot both pick up the same sword.
+// two players cannot both pick up the same sword. The islands are built from the match's map -- a template, a data
+// pack and a seed (arena.js) -- by every browser alike, so a new map costs one small message, not thousands of blocks.
 import * as THREE from 'three';
-import { ARENA, buildArena, arenaDifferences, cageCells, spawnPoint } from './arena.js';
+import { ARENA, buildArena, arenaDifferences, allCageCells, DEFAULT_MAP, mapKey, normalizeMap } from './arena.js';
 import { fillChests } from './loot.js';
 import { SkyWarsMatch, HOST_ID } from './rules.js';
 import { createSkyWarsUi } from './ui.js';
 import { collectDeathDrops } from '../../deathAndRespawn.js';
 import { BLOCKS } from '../../blocks.js';
 
-/** The islands are the same for everyone: the template's seed is fixed; the loot's is the host's, per round. */
-export const ARENA_SEED = 2015;
-/** Where a spectator watches from: above the middle. */
-const SPECTATOR_SPOT = { x: 0.5, y: ARENA.surfaceY + 12, z: 0.5 };
+/** The seed of the map a lobby is built on before the match names one. */
+export const ARENA_SEED = DEFAULT_MAP.seed;
 const GUEST_MESSAGES = new Set(['died', 'drop_items', 'claim', 'start', 'reset', 'mode']);
 
 export class SkyWarsManager {
   constructor(game) {
     this.game = game;
     this.active = false;
-    this.arena = buildArena(ARENA_SEED);
+    this.arena = buildArena(DEFAULT_MAP);
+    /** The map the world holds, or null before this browser has built one. */
+    this.arenaKey = null;
   }
 
   get sync() { return this.game.worldSync; }
@@ -39,6 +40,7 @@ export class SkyWarsManager {
     this.state = null;
     this.round = 0;
     this.cagedRound = 0;
+    this.arenaKey = null;
     this.lastPhase = null;
     this.error = null;
     this.drops = new Map(); // id -> { entry, item }
@@ -78,7 +80,6 @@ export class SkyWarsManager {
   // --- host ------------------------------------------------------------------------------------------------
 
   async startHosting() {
-    this.restoreArena();
     this.match = new SkyWarsMatch({ seed: Math.floor(Math.random() * 0xffffffff) });
     this.match.join(HOST_ID, this.sync?.playerName?.() ?? 'Host');
     this.applyState(this.match.snapshot());
@@ -122,6 +123,18 @@ export class SkyWarsManager {
     this.publish();
   }
 
+  /** The host picks a map: a template, and one of its data packs (the template's first when none is named). */
+  chooseMap(template, pack = null) {
+    if (!this.isHost || !this.match?.setMap(HOST_ID, { template, pack })) return;
+    this.publish();
+  }
+
+  /** The host asks for the same map, generated again. */
+  newIslands() {
+    if (!this.isHost || !this.match?.newIslands(HOST_ID)) return;
+    this.publish();
+  }
+
   requestStart() {
     if (!this.isHost || !this.match) return;
     const result = this.match.start(HOST_ID);
@@ -154,11 +167,8 @@ export class SkyWarsManager {
   hostEvent(event) {
     if (event.kind === 'start') this.fillAllChests(0);
     else if (event.kind === 'refill') this.fillAllChests(event.refill);
-    else if (event.kind === 'reset') {
-      this.restoreArena();
-      for (const c of this.arena.chests) this.game.chestManager?.setChestItems?.(c.x, c.y, c.z, [], { facing: c.facing });
-      for (const [, record] of this.dropRecords) record.taken = true;
-    }
+    // The islands of the next round are rebuilt by applyState, on every browser, from the new map.
+    else if (event.kind === 'reset') for (const [, record] of this.dropRecords) record.taken = true;
   }
 
   fillAllChests(refill) {
@@ -214,8 +224,14 @@ export class SkyWarsManager {
     if (!this.active || !state) return;
     const previous = this.state;
     this.state = state;
+    const map = normalizeMap(state.map ?? DEFAULT_MAP);
+    if (mapKey(map) !== this.arenaKey) {
+      this.switchArena(map);
+      this.cagedRound = 0;
+    } else if (state.round !== this.round && this.round !== 0) {
+      this.restoreArena({ clearChests: true });
+    }
     if (state.round !== this.round) {
-      if (this.round !== 0 && !this.isHost) this.restoreArena();
       if (this.round !== 0) for (const { entry } of this.drops.values()) this.removeDropVisual(entry);
       if (this.round !== 0) this.drops.clear();
       this.round = state.round;
@@ -248,6 +264,7 @@ export class SkyWarsManager {
     this.ui?.render(this.state, {
       isHost: this.isHost, myId: this.myId,
       startCheck: this.isHost && this.match ? this.match.canStart(HOST_ID) : null,
+      mapName: this.arena?.name ?? '',
       error: this.error,
     });
   }
@@ -282,16 +299,29 @@ export class SkyWarsManager {
 
   // --- the islands ------------------------------------------------------------------------------------------
 
-  /** Write the arena: everything that differs from the template, rebuilt where it changed. */
-  restoreArena() {
+  /**
+   * Write the arena: everything that differs from it, rebuilt where it changed. `also` is a further box to clear (the
+   * previous map's); `clearChests` empties every chest, here only, as each browser does the same.
+   */
+  restoreArena({ also = null, clearChests = false } = {}) {
     const world = this.game.world;
     if (!world) return 0;
-    const changes = arenaDifferences(this.arena, (x, y, z) => world.getVoxel(x, y, z));
+    const changes = arenaDifferences(this.arena, (x, y, z) => world.getVoxel(x, y, z), also);
     this.writeBlocks(changes);
     for (const c of this.arena.chests) {
-      if (!this.game.chestManager?.getChest?.(c.x, c.y, c.z)) this.game.chestManager?.setChestItems?.(c.x, c.y, c.z, [], { silent: true, facing: c.facing });
+      if (clearChests || !this.game.chestManager?.getChest?.(c.x, c.y, c.z)) this.game.chestManager?.setChestItems?.(c.x, c.y, c.z, [], { silent: true, facing: c.facing });
     }
     return changes.length;
+  }
+
+  /** Build another map in place of this one: its islands, with the old one's cleared away and its chests forgotten. */
+  switchArena(map) {
+    const old = this.arenaKey ? this.arena : null;
+    this.arena = buildArena(map);
+    this.arenaKey = mapKey(map);
+    const chests = this.game.chestManager?.chests;
+    if (old && chests) for (const c of old.chests) chests.delete(`${c.x},${c.y},${c.z}`);
+    return this.restoreArena({ also: old?.bounds ?? null, clearChests: true });
   }
 
   writeBlocks(changes) {
@@ -316,7 +346,7 @@ export class SkyWarsManager {
   /** The cages open for everyone at once, so this is done here rather than sent as hundreds of block changes. */
   openCages(me) {
     const changes = [];
-    for (let slot = 0; slot < ARENA.maxPlayers; slot++) for (const [x, y, z] of cageCells(slot)) changes.push([x, y, z, BLOCKS.AIR]);
+    for (const [x, y, z] of allCageCells(this.arena)) changes.push([x, y, z, BLOCKS.AIR]);
     this.writeBlocks(changes);
     const p = this.game.player;
     if (me?.alive && p) {
@@ -330,7 +360,7 @@ export class SkyWarsManager {
   enterCage(slot) {
     const p = this.game.player;
     if (!p) return;
-    const spot = spawnPoint(slot);
+    const spot = this.arena.spawns[slot];
     p.isDead = false;
     p.setGameMode('adventure');
     p.position.set(spot.x, spot.y, spot.z);
@@ -357,7 +387,8 @@ export class SkyWarsManager {
     p.isDead = false;
     p.health = p.maxHealth ?? 20;
     p.setGameMode('spectator');
-    p.position.set(SPECTATOR_SPOT.x, SPECTATOR_SPOT.y, SPECTATOR_SPOT.z);
+    const spot = this.arena.spectator;
+    p.position.set(spot.x, spot.y, spot.z);
     p.velocity?.set(0, 0, 0);
     p.fallDistance = 0;
     if (typeof document !== 'undefined') document.getElementById('death-overlay')?.classList.add('hidden');
@@ -444,7 +475,7 @@ export class SkyWarsManager {
     const me = this.me();
     // Waiting players stay in their cages, whatever moved them (the join places a guest beside the host first).
     if ((phase === 'lobby' || phase === 'countdown') && me?.slot !== null && me?.slot !== undefined && p) {
-      const spot = spawnPoint(me.slot);
+      const spot = this.arena.spawns[me.slot];
       if (Math.hypot(p.position.x - spot.x, p.position.z - spot.z) > 1.2 || Math.abs(p.position.y - spot.y) > 2.5) {
         p.position.set(spot.x, spot.y, spot.z);
         p.velocity?.set(0, 0, 0);

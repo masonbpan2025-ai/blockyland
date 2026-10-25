@@ -2,7 +2,7 @@
 // 3-2-1 start, kills and the void, refills, the time limit, and playing again.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARENA, buildArena, cageCells, spawnPoint, islandCenter, arenaDifferences, cellKey } from '../src/mods/skywars/arena.js';
+import { ARENA, buildArena, allCageCells, arenaDifferences, cellKey, DEFAULT_MAP } from '../src/mods/skywars/arena.js';
 import { rollIslandLoot, rollCenterChest, fillChests, armorPoints, MODES } from '../src/mods/skywars/loot.js';
 import { SkyWarsMatch, deathMessage, HOST_ID, COUNTDOWN_SECONDS, REFILL_TIMES, TIME_LIMIT_SECONDS, KILL_CREDIT_SECONDS } from '../src/mods/skywars/rules.js';
 import { seededRandom } from '../src/mods/skywars/arena.js';
@@ -10,32 +10,35 @@ import { BLOCKS } from '../src/blocks.js';
 import { sanitizeGameData, sanitizeContainer } from '../src/multiplayer/shareProtocol.js';
 import manifest from '../src/mods/skywars/manifest.js';
 
-const arena = buildArena(2015);
+// The default map (Classic Ring in the Meadow pack); every template and pack is checked in skywarsMaps.test.js.
+const arena = buildArena(DEFAULT_MAP);
+const spawnIslands = arena.islands.filter((i) => i.role === 'spawn');
+const centerIsland = arena.islands.find((i) => i.role === 'center');
 
 // --- the map ---------------------------------------------------------------------------------------------------
 
 test('map: "each player starts off on a separate island that is floating in the void"', () => {
-  const centers = Array.from({ length: ARENA.maxPlayers }, (_, s) => islandCenter(s));
-  assert.equal(new Set(centers.map((c) => `${c.x},${c.z}`)).size, ARENA.maxPlayers, 'one island per player');
-  for (const c of centers) {
-    assert.equal(arena.blocks.get(cellKey(c.x, ARENA.surfaceY, c.z)), BLOCKS.GRASS, 'grass on top');
+  assert.equal(spawnIslands.length, ARENA.maxPlayers, 'one island per player');
+  for (const c of spawnIslands) {
+    assert.equal(arena.blocks.get(cellKey(c.x, c.y, c.z)), BLOCKS.GRASS, 'grass on top');
     // The void: nothing at all under the island's bottom, down to the world floor.
-    let lowest = ARENA.surfaceY;
+    let lowest = c.y;
     while (arena.blocks.has(cellKey(c.x, lowest - 1, c.z))) lowest--;
     for (let y = 0; y < lowest; y++) assert.equal(arena.blocks.has(cellKey(c.x, y, c.z)), false);
     assert.ok(lowest > 10, 'floating high above the void');
   }
   // Islands are apart: open air between a spawn island and the middle that has to be bridged.
-  for (let r = ARENA.centerRadius + 1; r < ARENA.ringRadius - ARENA.spawnRadius; r++) {
-    assert.equal(arena.blocks.has(cellKey(0, ARENA.surfaceY, -r)), false, `gap at z=${-r}`);
+  const north = spawnIslands[0];
+  for (let z = north.z + north.radius + 2; z < -centerIsland.radius - 2; z++) {
+    assert.equal(arena.blocks.has(cellKey(0, ARENA.surfaceY, z)), false, `gap at z=${z}`);
   }
 });
 
 test('map: a larger middle island with an enchanting table and an anvil', () => {
-  assert.ok(ARENA.centerRadius > ARENA.spawnRadius);
-  assert.equal(arena.blocks.get(cellKey(...arena.enchantingTable)), BLOCKS.ENCHANTING_TABLE);
-  assert.equal(arena.blocks.get(cellKey(...arena.anvil)), BLOCKS.ANVIL);
-  assert.equal(arena.chests.filter((c) => c.kind === 'center').length, ARENA.centerChests);
+  assert.ok(centerIsland.radius > spawnIslands[0].radius);
+  assert.equal(arena.blocks.get(cellKey(...arena.enchantingTables[0])), BLOCKS.ENCHANTING_TABLE);
+  assert.equal(arena.blocks.get(cellKey(...arena.anvils[0])), BLOCKS.ANVIL);
+  assert.equal(arena.chests.filter((c) => c.kind === 'center').length, 4);
 });
 
 test('map: three chests on every spawn island (Hypixel), each a chest block on the island', () => {
@@ -51,7 +54,7 @@ test('map: three chests on every spawn island (Hypixel), each a chest block on t
 
 test('map: each spawn is inside a closed glass cage on its island, facing the middle', () => {
   for (let slot = 0; slot < ARENA.maxPlayers; slot++) {
-    const spot = spawnPoint(slot);
+    const spot = arena.spawns[slot];
     const x = Math.floor(spot.x), z = Math.floor(spot.z), y = spot.y;
     assert.equal(arena.blocks.has(cellKey(x, y - 1, z)), true, 'floor under the spawn');
     assert.equal(arena.blocks.has(cellKey(x, y, z)) || arena.blocks.has(cellKey(x, y + 1, z)), false, 'room to stand');
@@ -59,7 +62,7 @@ test('map: each spawn is inside a closed glass cage on its island, facing the mi
       for (const h of [0, 1]) assert.equal(arena.blocks.get(cellKey(x + dx, y + h, z + dz)), BLOCKS.GLASS, 'walled in');
     }
     assert.equal(arena.blocks.get(cellKey(x, y + 3, z)), BLOCKS.GLASS, 'roofed');
-    assert.ok(cageCells(slot).every(([cx, cy, cz]) => arena.blocks.get(cellKey(cx, cy, cz)) === BLOCKS.GLASS));
+    assert.ok(arena.cages[slot].every(([cx, cy, cz]) => arena.blocks.get(cellKey(cx, cy, cz)) === BLOCKS.GLASS));
     // Facing the middle: forward is (-sin yaw, -cos yaw).
     const forward = [-Math.sin(spot.yaw), -Math.cos(spot.yaw)];
     assert.ok(forward[0] * -spot.x + forward[1] * -spot.z > 0, `slot ${slot} faces the middle`);
@@ -67,21 +70,24 @@ test('map: each spawn is inside a closed glass cage on its island, facing the mi
 });
 
 test('map: two players start on opposite islands, north and south, so a straight bridge meets in the middle', () => {
-  assert.deepEqual(islandCenter(0), { x: 0, z: -ARENA.ringRadius });
-  assert.deepEqual(islandCenter(1), { x: 0, z: ARENA.ringRadius });
+  const [a, b] = [arena.spawns[0], arena.spawns[1]];
+  assert.ok(Math.abs(a.x - 0.5) < 1e-9 && a.z < -20, 'slot 0 due north');
+  assert.ok(Math.abs(b.x - 0.5) < 1e-9 && b.z > 20, 'slot 1 due south');
+  assert.equal(a.z, 1 - b.z, 'as far out as each other');
 });
 
 test('map: the arena is the same for every seed\'s host and guest, and a changed world is found and restored', () => {
-  assert.deepEqual([...buildArena(2015).blocks], [...buildArena(2015).blocks]);
+  assert.deepEqual([...buildArena(DEFAULT_MAP).blocks], [...buildArena(DEFAULT_MAP).blocks]);
   const world = new Map(arena.blocks);
   const get = (x, y, z) => world.get(cellKey(x, y, z)) ?? BLOCKS.AIR;
   assert.equal(arenaDifferences(arena, get).length, 0);
-  world.set(cellKey(0, ARENA.surfaceY + 1, -10), BLOCKS.OAK_PLANKS); // a bridge block
+  world.set(cellKey(0, ARENA.surfaceY + 1, -14), BLOCKS.OAK_PLANKS); // a bridge block
   world.delete(cellKey(0, ARENA.surfaceY, 0)); // a broken block
-  for (const cell of cageCells(0)) world.delete(cellKey(...cell)); // an opened cage
+  for (const cell of arena.cages[0]) world.delete(cellKey(...cell)); // an opened cage
   const diff = arenaDifferences(arena, get);
-  assert.equal(diff.length, 2 + cageCells(0).length);
-  assert.deepEqual(diff.find(([x, y, z]) => x === 0 && y === ARENA.surfaceY + 1 && z === -10), [0, ARENA.surfaceY + 1, -10, BLOCKS.AIR]);
+  assert.equal(diff.length, 2 + arena.cages[0].length);
+  assert.deepEqual(diff.find(([x, y, z]) => x === 0 && y === ARENA.surfaceY + 1 && z === -14), [0, ARENA.surfaceY + 1, -14, BLOCKS.AIR]);
+  assert.equal(allCageCells(arena).length, 8 * arena.cages[0].length);
 });
 
 // --- loot ------------------------------------------------------------------------------------------------------
@@ -124,7 +130,7 @@ test('loot: planks and stone, 8 to 16 in a slot -- enough on every island to bri
       assert.ok(stacks.length >= 2);
       assert.ok(stacks.every((s) => s.count >= 8 && s.count <= 16));
       const total = stacks.reduce((n, s) => n + s.count, 0);
-      assert.ok(total >= ARENA.ringRadius - ARENA.spawnRadius - ARENA.centerRadius, `only ${total} blocks`);
+      assert.ok(total >= 16, `only ${total} blocks`); // the widest gap on any map is checked against this (skywarsMaps.test.js)
     }
   }
 });

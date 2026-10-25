@@ -13,9 +13,14 @@
 //   variants of items like the knockback rod, and increased quantities of items such as ender pearls and golden apples".
 // Refills (Hypixel): "all chests on the map will refill. A later second chest refill will also place ender pearls in
 //   every chest."
+// Connector and sector islands (Mineplex's "semi middle islands -- 1 chest"; Desserted Islands' "middle chest" on each
+//   slice) hold a lighter share of the middle's loot.
+// On top of all this, the map's data pack (packs.js) may add its own vanilla loot tables: per spawn island, per
+//   connector chest and per middle chest.
 import { BLOCKS } from '../../blocks.js';
 import { enchantmentEntry } from '../../enchanting.js';
-import { seededRandom } from './arena.js';
+import { seededRandom } from './generator.js';
+import { PACKS, rollLootTable } from './packs.js';
 
 export const MODES = Object.freeze(['normal', 'insane']);
 const SLOTS = 27;
@@ -81,7 +86,7 @@ export function rollIslandLoot(mode, random) {
 }
 
 /** One middle chest. */
-export function rollCenterChest(mode, random) {
+export function rollCenterChest(mode, random, { picks = null } = {}) {
   const between = (lo, hi) => lo + Math.floor(random() * (hi - lo + 1));
   const insane = mode === 'insane';
   const prot = () => ['protection', insane ? between(2, 3) : between(1, 2)];
@@ -95,13 +100,16 @@ export function rollCenterChest(mode, random) {
       () => enchanted('stick', [['knockback', 1]]), () => item('diamond_sword'), () => [item('bow'), item('arrow', 16)], () => item('iron_axe')];
   const out = [];
   const choices = [...pool];
-  for (let n = between(3, 5); n > 0 && choices.length; n--) {
+  for (let n = picks ? between(...picks) : between(3, 5); n > 0 && choices.length; n--) {
     const [roll] = choices.splice(Math.floor(random() * choices.length), 1);
     out.push(...[].concat(roll()));
   }
   out.push(block(random() < 0.5 ? BLOCKS.OAK_PLANKS : BLOCKS.STONE, between(8, 16)));
   return out;
 }
+
+/** One connector or sector chest: two or three of the middle's items, and blocks to build on with. */
+export const rollMidChest = (mode, random) => rollCenterChest(mode, random, { picks: [2, 3] });
 
 /** Spread stacks over `chests` chests of 27 slots, in random slots. */
 export function scatter(stacks, chests, random) {
@@ -122,15 +130,18 @@ export function scatter(stacks, chests, random) {
  */
 export function fillChests(arena, { mode = 'normal', seed = 1, refill = 0 } = {}) {
   const random = seededRandom((seed ^ Math.imul(refill + 1, 0x9E3779B1)) >>> 0);
+  const packLoot = PACKS.get(arena.pack)?.loot ?? {};
+  const extra = (kind) => (packLoot[kind] ? rollLootTable(packLoot[kind], random) : []);
   const result = new Array(arena.chests.length);
   const bySlot = new Map();
   arena.chests.forEach((c, i) => { if (c.kind === 'island') { if (!bySlot.has(c.slot)) bySlot.set(c.slot, []); bySlot.get(c.slot).push(i); } });
   for (const [, indices] of bySlot) {
-    const lists = scatter(rollIslandLoot(mode, random), indices.length, random);
+    const lists = scatter([...rollIslandLoot(mode, random), ...extra('island')], indices.length, random);
     indices.forEach((index, n) => { result[index] = lists[n]; });
   }
   arena.chests.forEach((c, i) => {
-    if (c.kind === 'center') result[i] = scatter(rollCenterChest(mode, random), 1, random)[0];
+    if (c.kind === 'center') result[i] = scatter([...rollCenterChest(mode, random), ...extra('center')], 1, random)[0];
+    else if (c.kind === 'mid') result[i] = scatter([...rollMidChest(mode, random), ...extra('mid')], 1, random)[0];
   });
   if (refill >= 2) {
     for (const list of result) {

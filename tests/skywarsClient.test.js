@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { ShareSession } from '../src/multiplayer/shareSession.js';
 import { ChestManager } from '../src/chest.js';
 import { SkyWarsManager } from '../src/mods/skywars/client.js';
-import { ARENA, cellKey, buildArena } from '../src/mods/skywars/arena.js';
+import { ARENA, cellKey, buildArena, arenaDifferences } from '../src/mods/skywars/arena.js';
 import { BLOCKS } from '../src/blocks.js';
 import { createFakeNetwork, nextEvent, settle } from './helpers/shareFakes.js';
 
@@ -90,7 +90,7 @@ test('lobby: the host builds the islands, waits alone, and the guest who joins i
   await tick([host, guest], 1.1);
   assert.equal(host.match.players.size, 2);
   assert.equal(guest.me()?.slot, 1);
-  const spawn = buildArena(2015).spawns[1];
+  const spawn = host.arena.spawns[1];
   assert.ok(Math.abs(guestGame.player.position.z - spawn.z) < 0.01);
   assert.equal(guestGame.player.gamemode, 'adventure');
   assert.equal(hostGame.player.gamemode, 'adventure');
@@ -98,6 +98,36 @@ test('lobby: the host builds the islands, waits alone, and the guest who joins i
   guest.session.sendGame({ type: 'start' });
   await tick([host, guest], 0.5);
   assert.equal(host.match.phase, 'lobby');
+});
+
+test('lobby: the host switches the map -- both worlds become the new arena, the old one is gone, everyone is caged again', async (t) => {
+  const { host, guest, hostGame, guestGame } = await pair(t);
+  await tick([host, guest], 1.1);
+  const before = host.arena;
+  host.chooseMap('archipelago', 'tropical_atoll');
+  await tick([host, guest], 1.1);
+  assert.equal(host.arena.template, 'archipelago');
+  assert.equal(guest.arena.template, 'archipelago', 'the guest built it from the state');
+  assert.equal(guest.arena.seed, host.arena.seed);
+  for (const g of [hostGame, guestGame]) {
+    const diff = arenaDifferences(host.arena, (x, y, z) => g.world.getVoxel(x, y, z), before.bounds);
+    assert.equal(diff.length, 0, 'exactly the new arena, nothing of the old one left');
+  }
+  assert.equal(hostGame.world.getVoxel(0, ARENA.surfaceY, 0), BLOCKS.SAND, 'the Tropical Atoll middle');
+  const spawn = host.arena.spawns[1];
+  assert.ok(Math.hypot(guestGame.player.position.x - spawn.x, guestGame.player.position.z - spawn.z) < 0.01, 'the guest is in its new cage');
+  assert.equal(hostGame.chestManager.getChest(before.chests[0].x, before.chests[0].y, before.chests[0].z)?.x === before.chests[0].x
+    && !host.arena.chests.some((c) => c.x === before.chests[0].x && c.y === before.chests[0].y && c.z === before.chests[0].z), false, 'the old chests are forgotten');
+  // New islands: the same map, generated again.
+  const seed = host.arena.seed;
+  host.newIslands();
+  await tick([host, guest], 1.1);
+  assert.notEqual(guest.arena.seed, seed);
+  assert.equal(guest.arena.pack, 'tropical_atoll');
+  // A guest cannot change the map.
+  guest.session.sendGame({ type: 'map', template: 'citadel' });
+  await tick([host, guest], 0.5);
+  assert.equal(host.match.map.template, 'archipelago');
 });
 
 test('start: the cages open for both, chests the host fills reach the guest, and only the living fight', async (t) => {
@@ -109,7 +139,7 @@ test('start: the cages open for both, chests the host fills reach the guest, and
   assert.equal(guest.phase, 'playing');
   for (const g of [hostGame, guestGame]) {
     assert.equal(g.player.gamemode, 'survival');
-    const s = buildArena(2015).spawns[1];
+    const s = host.arena.spawns[1];
     assert.equal(g.world.getVoxel(Math.floor(s.x) + 1, s.y, Math.floor(s.z)), BLOCKS.AIR, 'cage open');
   }
   const chest = host.arena.chests.find((c) => c.slot === 1);
