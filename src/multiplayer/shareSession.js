@@ -22,7 +22,7 @@ import { generateRoomCode, normalizeRoomCode, isValidRoomCode, buildShareUrl } f
 import {
   PROTOCOL_VERSION, MAX_PLAYERS, GUEST_TO_HOST, HOST_TO_GUEST, FrameReassembler, ProtocolError, encodeFrames,
   packSnapshot, unpackSnapshot, sanitizeName, sanitizeChat, sanitizePlayerState, sanitizeBlockUpdate, guestLimiters,
-  sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE, sanitizeGameData, sanitizeContainer,
+  sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE, sanitizeGameData, sanitizeContainer, sanitizeSkin,
 } from './shareProtocol.js';
 
 const HOST_ID = 'host';
@@ -72,6 +72,10 @@ export class ShareSession {
     this.settings = sanitizeShareSettings(null);
     /** Host: where each player last said it was, by id. The host judges every attack by these, not by what a guest claims. */
     this.positions = new Map();
+    /** Each player's skin, by id (`{png, model}`): the host keeps everyone's, so a newcomer sees them all at once. */
+    this.skins = new Map();
+    /** This player's own skin, sent when connected and whenever it changes. */
+    this.mySkin = this.mySkin ?? null;
     // host side
     this.links = new Map(); // signalId -> entry (pending and ready)
     this.guests = new Map(); // peerId -> entry (ready)
@@ -331,6 +335,15 @@ export class ShareSession {
         this.broadcast({ t: 'container', ...container }, entry.peerId);
         break;
       }
+      case 'skin': {
+        if (!entry.limiters.skin.take()) break;
+        const skin = sanitizeSkin(msg);
+        if (!skin) { this.strike(entry); break; }
+        this.skins.set(entry.peerId, skin);
+        this.emit('skin', { peerId: entry.peerId, ...skin });
+        this.broadcast({ t: 'skin', peerId: entry.peerId, ...skin }, entry.peerId);
+        break;
+      }
       default: break;
     }
   }
@@ -370,6 +383,9 @@ export class ShareSession {
       settings: this.settings,
     });
     this.broadcast({ t: 'peer_joined', peerId: entry.peerId, peerName: entry.name }, entry.peerId);
+    // The skins of everyone already here, the host's included.
+    if (this.mySkin) void this.send(entry.link, { t: 'skin', peerId: HOST_ID, ...this.mySkin });
+    for (const [peerId, skin] of this.skins) if (peerId !== entry.peerId) void this.send(entry.link, { t: 'skin', peerId, ...skin });
     this.emit('peer_joined', { peerId: entry.peerId, peerName: entry.name, isHost: false });
     this.emit('request_snapshot', { targetPeerId: entry.peerId, peerName: entry.name });
   }
@@ -384,6 +400,7 @@ export class ShareSession {
     this.guests.delete(entry.peerId);
     this.peers.delete(entry.peerId);
     this.positions.delete(entry.peerId);
+    this.skins.delete(entry.peerId);
     this.broadcast({ t: 'peer_left', peerId: entry.peerId, peerName: entry.name });
     this.emit('peer_left', { peerId: entry.peerId, peerName: entry.name, reason });
   }
@@ -548,6 +565,14 @@ export class ShareSession {
       case 'player_state': {
         const state = sanitizePlayerState(msg.state);
         if (state && typeof msg.peerId === 'string') this.emit('player_state', { peerId: msg.peerId, state });
+        break;
+      }
+      case 'skin': {
+        const skin = sanitizeSkin(msg);
+        if (skin && typeof msg.peerId === 'string' && msg.peerId !== this.clientId) {
+          this.skins.set(msg.peerId, skin);
+          this.emit('skin', { peerId: msg.peerId, ...skin });
+        }
         break;
       }
       case 'block_update': {
@@ -762,6 +787,21 @@ export class ShareSession {
     if (!container) return false;
     if (this.isHost) this.broadcast({ t: 'container', ...container });
     else if (this.hostLink) void this.send(this.hostLink, { t: 'container', ...container });
+    return true;
+  }
+
+  /**
+   * This player's skin, for everyone else: a guest tells the host, which tells the rest (and every later arrival).
+   * Kept, so it can be sent again when this player connects. `skin` is `{png, model}` (shareProtocol.js sanitizeSkin).
+   * @returns {boolean} whether it went
+   */
+  sendSkin(skin) {
+    const clean = sanitizeSkin(skin);
+    if (!clean) return false;
+    this.mySkin = clean;
+    if (!this.connected) return false;
+    if (this.isHost) this.broadcast({ t: 'skin', peerId: HOST_ID, ...clean });
+    else if (this.hostLink) void this.send(this.hostLink, { t: 'skin', ...clean });
     return true;
   }
 

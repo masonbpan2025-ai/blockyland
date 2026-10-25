@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HURT_OVERLAY_SECONDS } from '../pvpCombat.js';
 import { BLOCK_DEFS, BLOCKS } from '../blocks.js';
+import { createPlayerModel } from '../playerModel.js';
 
 /** Java's hurt overlay: the model's colours multiplied towards red. */
 const HURT_TINT = new THREE.Color(1.0, 0.3, 0.3);
@@ -59,117 +60,33 @@ function createNametagSprite(name, isHost = false) {
 }
 
 /**
- * Builds a Minecraft Steve-style 3D avatar with articulated limbs.
+ * Another player's avatar: the game's own player model (playerModel.js), wearing the skin that player shares
+ * (shareProtocol.js sanitizeSkin), or Steve until it arrives -- never this player's own skin.
  */
-function createPlayerAvatar(name, isHost = false) {
-  const group = new THREE.Group();
-  group.name = `remote_player_${name}`;
+function createPlayerAvatar(name, isHost = false, skin = null) {
+  const model = createPlayerModel({ skinDataUrl: skin?.png ?? null, modelType: skin?.model ?? 'default', followEquippedSkin: false });
+  model.name = `remote_player_${name}`;
 
-  // Materials
-  const skinMat = new THREE.MeshLambertMaterial({ color: 0xcd8c64 }); // Steve skin
-  const hairMat = new THREE.MeshLambertMaterial({ color: 0x4a3219 }); // Dark brown hair
-  const shirtMat = new THREE.MeshLambertMaterial({ color: isHost ? 0x0284c7 : 0x0ea5e9 }); // Cyan / Sky blue
-  const pantsMat = new THREE.MeshLambertMaterial({ color: 0x1d4ed8 }); // Blue jeans
-  const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  const eyePupilMat = new THREE.MeshBasicMaterial({ color: 0x2563eb });
-
-  // 1. Head (0.5 x 0.5 x 0.5)
-  const headGroup = new THREE.Group();
-  headGroup.position.set(0, 1.45, 0);
-
-  const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
-  headGroup.add(headMesh);
-
-  // Hair cap
-  const hairMesh = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.52), hairMat);
-  hairMesh.position.set(0, 0.20, 0);
-  headGroup.add(hairMesh);
-
-  // Hair back (Steve dark brown hair on back of head)
-  const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.36, 0.12), hairMat);
-  hairBack.name = 'hairBack';
-  hairBack.position.set(0, 0.08, 0.21);
-  headGroup.add(hairBack);
-
-  // Eyes on face (-Z)
-  const leftEyeW = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeWhiteMat);
-  leftEyeW.name = 'leftEyeW';
-  leftEyeW.position.set(-0.12, 0.02, -0.26);
-  headGroup.add(leftEyeW);
-  const leftEyeP = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.025), eyePupilMat);
-  leftEyeP.name = 'leftEyeP';
-  leftEyeP.position.set(-0.10, 0.02, -0.262);
-  headGroup.add(leftEyeP);
-
-  const rightEyeW = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeWhiteMat);
-  rightEyeW.name = 'rightEyeW';
-  rightEyeW.position.set(0.12, 0.02, -0.26);
-  headGroup.add(rightEyeW);
-  const rightEyeP = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.025), eyePupilMat);
-  rightEyeP.name = 'rightEyeP';
-  rightEyeP.position.set(0.10, 0.02, -0.262);
-  headGroup.add(rightEyeP);
-
-  group.add(headGroup);
-
-  // 2. Torso (0.5 x 0.75 x 0.25)
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.25), shirtMat);
-  torso.position.set(0, 0.85, 0);
-  group.add(torso);
-
-  // 3. Left Arm (Pivoting at shoulder)
-  const leftArmGroup = new THREE.Group();
-  leftArmGroup.position.set(-0.38, 1.15, 0);
-  const leftArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.72, 0.24), shirtMat);
-  leftArmMesh.position.set(0, -0.32, 0);
-  leftArmGroup.add(leftArmMesh);
-  group.add(leftArmGroup);
-
-  // 4. Right Arm (Pivoting at shoulder)
-  const rightArmGroup = new THREE.Group();
-  rightArmGroup.position.set(0.38, 1.15, 0);
-  const rightArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.72, 0.24), shirtMat);
-  rightArmMesh.position.set(0, -0.32, 0);
-  rightArmGroup.add(rightArmMesh);
-
-  // Hand item slot (forward along -Z)
+  // Hand item slot, at the end of the right arm (forward along -Z).
   const handSlot = new THREE.Group();
-  handSlot.position.set(0, -0.65, -0.15);
-  rightArmGroup.add(handSlot);
+  handSlot.position.set(0, -0.7, -0.15);
+  model.rightArm.add(handSlot);
 
-  group.add(rightArmGroup);
-
-  // 5. Left Leg (Pivoting at hip)
-  const leftLegGroup = new THREE.Group();
-  leftLegGroup.position.set(-0.13, 0.48, 0);
-  const leftLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.72, 0.23), pantsMat);
-  leftLegMesh.position.set(0, -0.36, 0);
-  leftLegGroup.add(leftLegMesh);
-  group.add(leftLegGroup);
-
-  // 6. Right Leg (Pivoting at hip)
-  const rightLegGroup = new THREE.Group();
-  rightLegGroup.position.set(0.13, 0.48, 0);
-  const rightLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.72, 0.23), pantsMat);
-  rightLegMesh.position.set(0, -0.36, 0);
-  rightLegGroup.add(rightLegMesh);
-  group.add(rightLegGroup);
-
-  // 7. Floating Billboard Nametag
+  // Floating billboard nametag, above the head (the model is 2 blocks tall to the top of its head).
   const nametag = createNametagSprite(name, isHost);
-  nametag.position.set(0, 2.05, 0);
-  group.add(nametag);
+  nametag.position.set(0, 2.3, 0);
+  model.add(nametag);
 
   return {
-    mesh: group,
-    head: headGroup,
-    torso,
-    leftArm: leftArmGroup,
-    rightArm: rightArmGroup,
-    leftLeg: leftLegGroup,
-    rightLeg: rightLegGroup,
+    mesh: model,
+    head: model.head,
+    torso: model.torso,
+    leftArm: model.leftArm,
+    rightArm: model.rightArm,
+    leftLeg: model.leftLeg,
+    rightLeg: model.rightLeg,
     handSlot,
-    nametag
+    nametag,
   };
 }
 
@@ -178,6 +95,24 @@ export class RemotePlayerManager {
     this.game = game;
     this.scene = game.scene;
     this.remotePlayers = new Map(); // peerId -> { peerId, name, avatar, targetPos, currentPos, targetYaw, targetPitch, ... }
+    /** Each player's shared skin, by id, kept even before their avatar exists. */
+    this.skins = new Map();
+  }
+
+  /** Another player's skin (`{png, model}`), now and from here on. */
+  setSkin(peerId, skin) {
+    if (!skin?.png) return;
+    this.skins.set(peerId, skin);
+    const peer = this.remotePlayers.get(peerId);
+    if (peer) this.applySkin(peer, skin);
+  }
+
+  applySkin(peer, skin) {
+    const model = peer.avatar?.mesh;
+    if (!model) return;
+    peer.skin = skin;
+    model.updateSkin?.(skin.png);
+    model.updateModelType?.(skin.model);
   }
 
   addPeer(peerId, name, isHost = false) {
@@ -185,7 +120,8 @@ export class RemotePlayerManager {
       this.removePeer(peerId);
     }
 
-    const avatar = createPlayerAvatar(name, isHost);
+    const skin = this.skins.get(peerId) ?? null;
+    const avatar = createPlayerAvatar(name, isHost, skin);
     this.scene.add(avatar.mesh);
 
     const peerData = {
@@ -206,7 +142,8 @@ export class RemotePlayerManager {
       walkPhase: 0,
       heldItemBlockId: null,
       heldItemMesh: null,
-      lastMoveTime: Date.now()
+      lastMoveTime: Date.now(),
+      skin,
     };
 
     avatar.mesh.position.copy(peerData.currentPos);
@@ -427,5 +364,6 @@ export class RemotePlayerManager {
     for (const peerId of Array.from(this.remotePlayers.keys())) {
       this.removePeer(peerId);
     }
+    this.skins.clear();
   }
 }

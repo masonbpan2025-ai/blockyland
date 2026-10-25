@@ -4,7 +4,7 @@ import { defineConfig } from '@playwright/test';
 // game's own dev server, and a link. Its own port, so a stale server from another suite cannot answer it.
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['share.pw.js', 'shareDiagnostics.pw.js', 'sharePvp.pw.js', 'shareRelay.pw.js', 'pvpBots.pw.js', 'skywarsBots.pw.js'],
+  testMatch: ['share.pw.js', 'shareDiagnostics.pw.js', 'sharePvp.pw.js', 'shareRelay.pw.js', 'pvpBots.pw.js', 'skywarsBots.pw.js', 'shareSkins.pw.js'],
   // A cold dependency cache makes the first page load take a couple of minutes while Vite bundles; later loads are quick.
   timeout: 600000,
   workers: 1,

@@ -603,15 +603,19 @@ test("peer_hurt: another player's hit shows the red overlay and the hurt sound, 
   assert.deepEqual(shown, [{ kind: 'crit', count: 48 }, { kind: 'damage_indicator', count: 4 }]);
 });
 
-test('avatar eyes are positioned facing forward (-Z)', (t) => {
+test('avatar faces forward (-Z): the skin\'s face is on the front of its head', (t) => {
   setupMockDom(t);
   const { manager } = managerOn(createFakeNetwork());
   const peer = manager.remotePlayers.addPeer('p1', 'Ann');
-  const head = peer.avatar?.head;
-  assert.ok(head, 'avatar has head');
-  const eyes = head.children.filter((c) => c.name?.includes('Eye'));
-  assert.ok(eyes.length >= 2, 'has eyes');
-  for (const eye of eyes) {
-    assert.ok(eye.position.z < 0, `eye ${eye.name} must face forward (-Z), was ${eye.position.z}`);
+  const head = peer.avatar?.head?.children[0];
+  assert.ok(head?.geometry, 'the avatar is the textured player model');
+  // The skin's face is the 8x8 square at (8, 8) of the 64x64 skin; it must be on the head's -Z side.
+  const { uv, normal } = head.geometry.attributes;
+  for (let face = 0; face < 6; face++) {
+    if (normal.getZ(face * 4) !== -1) continue;
+    const us = [0, 1, 2, 3].map((k) => uv.getX(face * 4 + k) * 64), vs = [0, 1, 2, 3].map((k) => (1 - uv.getY(face * 4 + k)) * 64);
+    assert.deepEqual([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)], [8, 16, 8, 16]);
+    return;
   }
+  assert.fail('no -Z face');
 });

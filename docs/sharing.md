@@ -68,8 +68,8 @@ needs `https` and `wss` together, which tunnels provide.
 
 ## What is shared, and what is not
 
-Shared live: **block placing and breaking**, **where each player is, how they are moving and what they hold**, **chat**,
-and who joins and leaves. The world a friend joins with is a copy of the host's, taken at the moment they join.
+Shared live: **block placing and breaking**, **where each player is, how they are moving and what they hold**, **each
+player's skin** (changed in the Packs window, it changes on everyone's screen at once), **chat**, and who joins and leaves. The world a friend joins with is a copy of the host's, taken at the moment they join.
 
 Not shared, and running separately on each player's computer: **mobs, items on the ground, redstone, fluids, crops and
 growth, the clock and the weather, containers (chests, furnaces), and each player's inventory and health.** Two players can
@@ -91,6 +91,9 @@ client, or simply have a bug. The host (`src/multiplayer/shareProtocol.js` and `
 - clamps positions, angles and held-item ids, drops any field the game does not use, and refuses a pose that has no real position;
 - limits each guest's messages per second (movement, block edits, chat, and all traffic), and **drops a guest that keeps
   sending nonsense**;
+- accepts a skin only as a PNG image of at most 64 KB, sent as data (never a link to fetch), at most a few changes in a
+  row; each browser redraws its own skin as a standard 64x64 PNG before sending it (`skinShare.js`), so an imported or
+  HD skin works too;
 - accepts only the message types a guest may send, and only from a guest that has said hello;
 - refuses a guest on a different protocol version, with a message that says so;
 - bounds every message a peer can make it assemble, and caps how far a received world may expand, so a hostile peer cannot
@@ -141,7 +144,8 @@ directly). The dialog says that nobody new can join, and the game reconnects the
 | `src/multiplayer/resilientPeerLink.js` | WebRTC first; a same-browser channel or the relay when it cannot connect. |
 | `src/multiplayer/shareSession.js` | The host and guest roles: admitting, relaying, validating, keeping everyone in step. |
 | `src/multiplayer/worldSyncManager.js` | The game's side: dialogs, joining from a link, applying edits and movement. |
-| `src/multiplayer/remotePlayerManager.js` | The other players' avatars. |
+| `src/multiplayer/remotePlayerManager.js` | The other players' avatars: the game's player model, in each player's own skin. |
+| `src/multiplayer/skinShare.js` | This player's skin as the others receive it: a 64x64 PNG and the arm model. |
 | `server/shareRendezvous.js` | The introduction service. |
 | `server/shareVite.js`, `server/shareServer.js`, `server/shareInfo.js` | The dev-server plugin, the standalone server, and LAN address lookup. |
 

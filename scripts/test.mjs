@@ -61,7 +61,7 @@ export const AREAS = {
   // --- building and inventory ---
   build: ['creativeInventory', 'chest', 'furnace', 'armor', 'armor_ui', 'enchanting', 'item_icons', 'spawnEggCatalogue', 'workstations_functional', 'beaconManager', 'smithing', 'smithingParity', 'trimVisuals', 'bed'],
   // --- sharing a world with friends ---
-  sharing: ['shareCode', 'shareProtocol', 'peerLink', 'resilientPeerLink', 'shareRelay', 'shareWorker', 'shareGameChannel', 'shareSession', 'shareRendezvous', 'shareServer', 'worldSyncManager', 'worldTeardown', 'pvpMechanics', 'pvpParity'],
+  sharing: ['shareCode', 'shareProtocol', 'peerLink', 'resilientPeerLink', 'shareRelay', 'shareWorker', 'shareGameChannel', 'shareSkins', 'shareSession', 'shareRendezvous', 'shareServer', 'worldSyncManager', 'worldTeardown', 'pvpMechanics', 'pvpParity'],
   // --- combat, skills, progression ---
   combat: ['arrows', 'skills', 'tournament', 'dungeonMode', 'farming', 'pvpMechanics', 'pvpParity'],
   // --- rendering and effects ---

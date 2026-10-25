@@ -8,7 +8,7 @@
 // Pure functions only, so the same rules run in the browser and in the tests.
 
 // 2: a relay through the introduction service, a world's own game channel (`game`), and shared chest contents (`container`).
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** Host and guests together. "A small number of players": the host plus seven friends. */
 export const MAX_PLAYERS = 8;
@@ -20,10 +20,10 @@ export const MAX_COORDINATE = 30_000_000;
 export const WORLD_HEIGHT = 64;
 export const MAX_BLOCK_ID = 65535;
 
-export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container']);
+export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container', 'skin']);
 export const HOST_TO_GUEST = Object.freeze([
   'welcome', 'snapshot', 'peer_joined', 'peer_left', 'player_state', 'block_update', 'chat', 'ping', 'pong', 'error', 'host_closing',
-  'hurt', 'settings', 'time_sync', 'peer_hurt', 'game', 'container',
+  'hurt', 'settings', 'time_sync', 'peer_hurt', 'game', 'container', 'skin',
 ]);
 
 // --- players attacking players (PvP) ----------------------------------------------------------
@@ -93,6 +93,25 @@ export function sanitizeGameData(raw) {
   if (typeof text !== 'string' || text.length > MAX_GAME_DATA_CHARS) return null;
   const copy = JSON.parse(text, (key, value) => (key === '__proto__' || key === 'constructor' || key === 'prototype' ? undefined : value));
   return copy && typeof copy === 'object' && typeof copy.type === 'string' && copy.type.length <= 40 ? copy : null;
+}
+
+// --- skins ---------------------------------------------------------------------------------------
+
+/** A shared skin is a 64x64 PNG as a data URL; a real one is a few kilobytes, this leaves room for a busy one. */
+export const MAX_SKIN_CHARS = 64 * 1024;
+const SKIN_PNG = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
+export const SKIN_MODELS = Object.freeze(['default', 'slim']);
+
+/**
+ * A player's skin (`{t:'skin', png, model}`): a PNG image as a data URL -- never a link to fetch, never another kind of
+ * file -- and the arm model, classic (4 px) or slim (3 px).
+ * @returns {{png: string, model: 'default'|'slim'}|null}
+ */
+export function sanitizeSkin(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const { png, model } = raw;
+  if (typeof png !== 'string' || png.length > MAX_SKIN_CHARS || !SKIN_PNG.test(png)) return null;
+  return { png, model: SKIN_MODELS.includes(model) ? model : 'default' };
 }
 
 /** Slots in one chest. A double chest is two chests, sent one at a time. */
@@ -236,6 +255,8 @@ export function guestLimiters(now) {
     // A world's own game (a mod's lobby, deaths, item claims) and chest contents: a few a second at most.
     game: new RateLimiter({ perSecond: 20, burst: 40, now }),
     container: new RateLimiter({ perSecond: 20, burst: 40, now }),
+    // A skin is changed by hand, now and then.
+    skin: new RateLimiter({ perSecond: 0.5, burst: 3, now }),
     any: new RateLimiter({ perSecond: 150, burst: 300, now }),
   };
 }

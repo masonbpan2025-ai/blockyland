@@ -66,9 +66,11 @@ function createSkinBox(w, h, d, texX, texY, texW, texH, texD, material, expand =
  * @param {Object} [options]
  * @param {string} [options.skinDataUrl] Optional skin data URL or texture override.
  * @param {'default'|'slim'} [options.modelType] 'default' (4px arms, Steve) or 'slim' (3px arms, Alex).
+ * @param {boolean} [options.followEquippedSkin] wear this player's chosen skin and change with it; false for another
+ *   player's model, which wears the skin it is given (updateSkin) and Steve until then.
  * @returns {THREE.Group}
  */
-export function createPlayerModel({ skinDataUrl = null, modelType = 'default' } = {}) {
+export function createPlayerModel({ skinDataUrl = null, modelType = 'default', followEquippedSkin = true } = {}) {
   const group = new THREE.Group();
 
   // 1. Prepare Skin Texture & Materials
@@ -78,7 +80,7 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default' } 
     || typeof Image === 'undefined';
 
   if (!isHeadless) {
-    const skin = skinManager.getEquippedSkin();
+    const skin = followEquippedSkin ? skinManager.getEquippedSkin() : null;
     const sourceUrl = skinDataUrl || skin?.dataUrl || '/assets/entity/player/wide/steve.png';
 
     const loader = new THREE.TextureLoader();
@@ -387,7 +389,7 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default' } 
   };
 
   // Wire skin manager listener to automatically update character skin
-  if (!isHeadless) {
+  if (!isHeadless && followEquippedSkin) {
     skinManager.onChange((mgr) => {
       const skin = mgr.getEquippedSkin();
       if (skin?.dataUrl) {

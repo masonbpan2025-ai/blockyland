@@ -5,6 +5,8 @@
 import { ShareSession } from './shareSession.js';
 import { parseIceServers, ICE_STORAGE_KEY } from './peerLink.js';
 import { RemotePlayerManager } from './remotePlayerManager.js';
+import { shareableSkin } from './skinShare.js';
+import { skinManager } from '../skinManager.js';
 import { ShareError } from './signaling.js';
 import { serializeWorld, deserializeWorldAsync } from '../mapManager.js';
 import { BLOCKS, BLOCK_DEFS } from '../blocks.js';
@@ -159,6 +161,7 @@ export class WorldSyncManager {
 
     this.client.on('peer_left', ({ peerId, peerName }) => {
       this.remotePlayers.removePeer(peerId);
+      this.remotePlayers.skins.delete(peerId);
       this.chat(`<span style="color:#ef4444;">✦ ${escapeHtml(peerName)} left the world.</span>`);
       this.refreshPeople();
     });
@@ -166,6 +169,10 @@ export class WorldSyncManager {
     this.client.on('player_state', ({ peerId, state }) => {
       this.remotePlayers.updatePeerState(peerId, state);
     });
+
+    // Skins: everyone else's, as they arrive; this player's own, sent again whenever it is changed.
+    this.client.on('skin', ({ peerId, png, model }) => this.remotePlayers.setSkin(peerId, { png, model }));
+    this.offSkinChange = skinManager.onChange?.(() => { if (this.isHosting || this.isJoined) void this.shareMySkin(); });
 
     this.client.on('block_update', ({ x, y, z, blockId }) => this.applyRemoteBlock(x, y, z, blockId));
 
@@ -393,6 +400,7 @@ export class WorldSyncManager {
       const pvp = typeof forcePvp === 'boolean' ? forcePvp : this.hostPvpToggle ? this.hostPvpToggle.checked : savedPvpChoice();
       const data = await this.client.hostRoom(this.playerName(), { seed: this.game.world.seed, worldTime: this.game.worldTime, settings: { pvp } });
       this.isHosting = true;
+      void this.shareMySkin();
       this.roomId = data.roomId;
       this.shareUrl = data.shareUrl;
       this.presentLink(data);
@@ -596,6 +604,7 @@ export class WorldSyncManager {
       mark('connected');
       this.roomId = joined.roomId;
       this.isJoined = true;
+      void this.shareMySkin();
       this.setJoinStatus('🌐 Joining a shared world', 45, 'Connected to the host. Receiving the world…', 'This can take a few seconds for a large world.');
 
       const { snapshot: data, bytes } = await snapshot;
@@ -651,6 +660,16 @@ export class WorldSyncManager {
       this.showJoinFailure(describeShareError(error));
     } finally {
       offSnapshot();
+    }
+  }
+
+  /** Send this player's skin to the others (skinShare.js); a skin that cannot be read is simply not shared. */
+  async shareMySkin() {
+    try {
+      const skin = await shareableSkin(skinManager.getEquippedSkin());
+      if (skin) this.client.sendSkin(skin);
+    } catch (error) {
+      console.warn('[Sharing] could not share the skin:', error?.message ?? error);
     }
   }
 
