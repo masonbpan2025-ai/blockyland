@@ -6,6 +6,7 @@ import { baseBlockDrop } from './blockDrops.js';
 import { BotSurvival, SURVIVAL_ACTIONS, validateSurvivalAction, itemId } from './playerBotSurvival.js';
 import { buildCommandContext, runCommand, permissionRefusal } from './commandRunner.js';
 import { cooldownSeconds } from './attackCooldown.js';
+import { modeRules } from './gameModeRules.js';
 
 const key = p => `${p.x},${p.y},${p.z}`;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -81,6 +82,9 @@ export function parsePlayerCommand(prompt) {
   if (m) return { type: 'goto', position: m.slice(1).map(Number) };
   m = text.match(/^(mine|dig|collect|harvest|gather|test mining)\s+(?:(\d+)\s+|some\s+|a\s+|an\s+)?(.+?)(?:\s+for me)?$/);
   if (m) return { type: m[1] === 'test mining' ? 'test' : 'mine', test: 'mining', block: m[3].replace(/\s+ores$/, ' ore').replace(/\s+blocks$/, ''), count: Number(m[2] || (m[1] === 'test mining' ? 1 : 3)) };
+  // Another player in a shared world: `fight player`, `fight player Ann with crits`, `attack player 5 hits with sprint hits`.
+  m = text.match(/^(?:fight|attack|kill|hit)\s+(?:the\s+|a\s+|another\s+)?player(?:\s+(?!with\b)(?!\d+\s+hits?\b)([^\s].*?))?(?:\s+(\d+)\s+hits?)?(?:\s+(?:with|using)\s+(crits?|critical hits?|sprint(?:\s+hits?)?|w-?taps?|plain hits?))?$/);
+  if (m) return { type: 'pvp', player: m[1] ? m[1].trim() : null, hits: Number(m[2] || 5), style: /^crit/.test(m[3] || '') ? 'crit' : /^(sprint|w)/.test(m[3] || '') ? 'sprint' : 'plain' };
   m = text.match(/^(follow|attack|kill|look at)\s+(?:the\s+|a\s+|an\s+)?(.+)$/);
   if (m) return { type: m[1] === 'kill' ? 'attack' : m[1] === 'look at' ? 'look' : m[1], mob: m[2].replace(/\s+/g, '_') };
   m = text.match(/^(?:equip|hold|select)\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
@@ -120,7 +124,7 @@ export function validatePlayerCommand(command) {
     const control = String(command.command).trim().replace(/^\//, '').split(/\s+/)[0].toLowerCase();
     command = { type: control === 'cancel' ? 'stop' : control };
   }
-  if (!command || !['mine','goto','jump','equip','follow','attack','look','feed','test','stop','status','command','pillar','bridge','shield','shoot','acquire',...SURVIVAL_ACTIONS].includes(command.type)) throw new Error('Unknown player command. Try "mine some iron ore", "go to 10 64 10", or "test movement".');
+  if (!command || !['mine','goto','jump','equip','follow','attack','look','feed','test','stop','status','command','pillar','bridge','shield','shoot','acquire','pvp',...SURVIVAL_ACTIONS].includes(command.type)) throw new Error('Unknown player command. Try "mine some iron ore", "go to 10 64 10", or "test movement".');
   if (command.type === 'command') {
     if (typeof command.command !== 'string' || !command.command.trim()) throw new Error('Command action needs a command string.');
     const cmdStr = command.command.trim();
@@ -149,6 +153,11 @@ export function validatePlayerCommand(command) {
   if (command.type === 'shoot') {
     if (!command.position && !command.mob) throw new Error('Shoot requires a target position or mob.');
     if (command.position && (!Array.isArray(command.position) || command.position.length !== 3)) throw new Error('Shoot position needs 3 coordinates.');
+  }
+  if (command.type === 'pvp') {
+    if (!Number.isInteger(command.hits ?? 5) || (command.hits ?? 5) < 1 || (command.hits ?? 5) > 100) throw new Error('Fight for between 1 and 100 hits.');
+    if (!['plain', 'crit', 'sprint'].includes(command.style ?? 'plain')) throw new Error('Fight with plain hits, crits or sprint hits.');
+    if (command.player != null && (typeof command.player !== 'string' || command.player.length > 40)) throw new Error('Name the player to fight.');
   }
   if (command.type === 'acquire') {
     if (!Number.isInteger(command.count ?? 1) || (command.count ?? 1) < 1) throw new Error('Acquire count must be positive.');
@@ -244,7 +253,8 @@ export class PlayerBot {
     if (command.type === 'craft') {
       try { const result=this.survival.craft(command); this.lastResult=result; return Promise.resolve(result); } catch(e) { return Promise.reject(e); }
     }
-    if (!['mine', 'goto', 'jump', 'equip', 'follow', 'attack', 'look', 'feed', 'pillar', 'bridge', 'shield', 'shoot', ...SURVIVAL_ACTIONS].includes(command.type)) return Promise.reject(new Error('Unsupported player command.'));
+    if (!['mine', 'goto', 'jump', 'equip', 'follow', 'attack', 'look', 'feed', 'pillar', 'bridge', 'shield', 'shoot', 'pvp', ...SURVIVAL_ACTIONS].includes(command.type)) return Promise.reject(new Error('Unsupported player command.'));
+    if (command.type === 'pvp' && !this.game.worldSync?.client?.connected) return Promise.reject(new Error('Fighting a player needs a shared world.'));
     if (command.type === 'equip') {
       let found = this.equip(item => this.survival.sameItem(item.id, itemId(command.item)));
       if (!found && this.game.player.gamemode === 'creative') {
@@ -653,6 +663,17 @@ export class PlayerBot {
     }
     return 'walk';
   }
+  /**
+   * Put a block down as a placement does: in the world, redrawn, and -- in a shared world -- sent to the other players,
+   * who would otherwise never see a bot's bridge or pillar.
+   */
+  placeBlock(x, y, z, blockId) {
+    this.game.world.setVoxel(x, y, z, blockId);
+    const chunk = this.game.world.getChunk?.(Math.floor(x / 16), Math.floor(z / 16));
+    if (chunk) this.game.rebuildChunkMesh?.(chunk);
+    this.game.worldSync?.onBlockPlaced?.(x, y, z, blockId);
+    this.game.sounds?.playPlace?.('stone');
+  }
   lookAt(pos) {
     const p = this.game.player, dx = pos.x - p.position.x, dz = pos.z - p.position.z;
     p.yaw = Math.atan2(-dx, -dz);
@@ -692,7 +713,7 @@ export class PlayerBot {
         t.pillared ??= 0;
         if (p.position.y >= t.targetY + 1.05) {
           const px = Math.floor(p.position.x), pz = Math.floor(p.position.z);
-          this.game.world.setVoxel(px, t.targetY, pz, blockId);
+          this.placeBlock(px, t.targetY, pz, blockId);
           if (p.gamemode !== 'creative') this.survival.remove(id, 1);
           t.pillared++;
           t.targetY++;
@@ -712,6 +733,7 @@ export class PlayerBot {
         const item = t.command.item || 'cobblestone';
         const id = itemId(item);
         const blockId = typeof id === 'number' ? id : (ITEMS[id]?.blockId ?? BLOCKS[String(id).toUpperCase()]);
+        if (!modeRules(p.gamemode).placeBlocks) throw new Error(`Blocks cannot be placed in ${p.gamemode} mode.`);
         if (p.gamemode !== 'creative' && this.survival.count(id) < 1) {
           throw new Error(`Out of ${item} for bridging.`);
         }
@@ -743,7 +765,7 @@ export class PlayerBot {
         const nextY = t.currentBridgeY;
         const nextZ = t.currentBridgeZ + t.bridgeDz;
         this.lookAt({ x: nextX + 0.5, y: nextY + 0.5, z: nextZ + 0.5 });
-        this.game.world.setVoxel(nextX, nextY, nextZ, blockId);
+        this.placeBlock(nextX, nextY, nextZ, blockId);
         if (p.gamemode !== 'creative') this.survival.remove(id, 1);
         p.position.x = nextX + 0.5;
         p.position.y = nextY + 1.0;
@@ -823,6 +845,7 @@ export class PlayerBot {
         }
         return;
       }
+      if (t.command.type === 'pvp') { this.tickPvp(t, dt); return; }
       if (['follow', 'attack', 'look', 'feed'].includes(t.command.type)) mobTask: {
         if (t.command.type === 'attack') t.dropsBefore ??= new Set(this.game.entities?.droppedItems || []);
         if (t.command.type === 'feed') {
@@ -1006,7 +1029,60 @@ export class PlayerBot {
       else t.phase='start';
     } catch(e) { this.finish(false,e.message); }
   }
+  /**
+   * Fight another player in a shared world through the real attack path: walk up, aim at the chest, and swing at a
+   * full charge (attackCooldown.js) -- jumping first for a critical hit, or sprinting in for a sprint-knockback hit and
+   * letting go of forward afterwards (the W-tap), as Tutorial:PvP describes. It counts the swings that reached the
+   * other player; the host decides what each does.
+   */
+  tickPvp(t, dt) {
+    const p = this.game.player, sync = this.game.worldSync;
+    const peers = [...(sync?.remotePlayers?.remotePlayers?.values() ?? [])];
+    const wanted = t.command.player?.toLowerCase();
+    const target = peers.filter((peer) => !wanted || peer.name?.toLowerCase() === wanted)
+      .sort((a, b) => distance(a.currentPos, p.position) - distance(b.currentPos, p.position))[0];
+    if (!target) throw new Error(wanted ? `${t.command.player} is not here.` : 'No other player is here.');
+    t.landed ??= 0; t.swings ??= 0; t.waitForward ??= 0;
+    if (t.landed >= (t.command.hits ?? 5)) { this.finish(true, `Landed ${t.landed} hits on ${target.name}.`); return; }
+    const best = this.findBestWeapon();
+    if (best) this.equip((i) => i === best);
+    const at = target.currentPos;
+    this.lookAt({ x: at.x, y: at.y + 1.2, z: at.z });
+    const range = Math.hypot(at.x - p.position.x, at.z - p.position.z);
+    const held = this.game.inventory?.getActiveItem?.();
+    const charged = (p.secondsSinceSwing ?? Infinity) >= cooldownSeconds(held && !held.isBlock ? held.id : null);
+    const style = t.command.style ?? 'plain';
+    // The W-tap: after a sprint hit, forward is let go for a moment so the next sprint can start.
+    if (t.waitForward > 0) { t.waitForward -= dt; return; }
+    if (range > 2.4) {
+      p.botControls.KeyW = true;
+      if (style === 'sprint' || range > 6) p.botControls.ControlLeft = true;
+      return;
+    }
+    if (style === 'sprint') { p.botControls.KeyW = range > 1.2; p.botControls.ControlLeft = true; }
+    if (!charged) return;
+    if (style === 'crit') {
+      // Swing on the way down from a jump.
+      if (p.onGround) { p.botControls.Space = true; return; }
+      if (!(p.velocity.y < 0)) return;
+    }
+    if (style === 'sprint' && !p.isSprinting) { p.botControls.KeyW = true; return; }
+    t.pvpSwing = target.peerId;
+  }
   afterRaycast() {
+    if (this.task?.pvpSwing) {
+      const p = this.game.player, before = p.secondsSinceSwing;
+      const wasSprinting = p.isSprinting;
+      if (this.game.handleLeftClick) this.game.handleLeftClick();
+      this.task.swings++;
+      // handleLeftClick restarts the cooldown only when the swing reached a player.
+      if (p.secondsSinceSwing === 0 && before !== 0) {
+        this.task.landed++;
+        if (wasSprinting) this.task.waitForward = 0.15;
+      }
+      this.task.pvpSwing = null;
+      return;
+    }
     if (this.task && SURVIVAL_ACTIONS.includes(this.task.command.type)) {
       try { this.survival.afterRaycast(this.task); } catch(e) { this.finish(false,e.message); }
       return;

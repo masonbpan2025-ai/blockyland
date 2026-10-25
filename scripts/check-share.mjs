@@ -22,8 +22,7 @@ const fail = (name, detail = '') => { steps.push({ name, ok: false }); console.l
 const browser = await chromium.launch({
   channel: 'chrome',
   headless: true,
-  // On one machine the two browsers connect over loopback. Over the internet they use STUN as a player's would.
-  args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--allow-loopback-in-peer-connection'],
+  // Keep normal WebRTC address masking/policies; special loopback flags can hide real joining failures.
 });
 const errors = [];
 const open = async (url) => {
@@ -42,15 +41,14 @@ try {
   if (health?.ok) ok('the sharing service answers', `${health.rooms} rooms`); else fail('the sharing service answers', 'no reply from /api/share/health: is this the share server?');
 
   const host = await open(base);
-  await host.page.evaluate(async () => {
-    const g = window.game;
-    g.applyWorldSettings({ gameMode: 'creative' });
-    g.world.reseed(1234, 'plains');
-    await g.generateNewWorld();
-    document.getElementById('start-overlay').style.display = 'none';
-  });
+  await host.page.click('#btn-start-new-world');
+  await host.page.click('#world-mode-creative');
+  await host.page.click('#btn-create-world-confirm');
+  await host.page.waitForFunction(() => window.game.worldReady && window.game.lifecycle?.phase === 'ready', null, { timeout: 180000 });
   ok('the host started a world');
-  await host.page.evaluate(() => document.getElementById('btn-host-world').click());
+  await host.page.evaluate(() => document.exitPointerLock?.());
+  await host.page.keyboard.press('Escape');
+  await host.page.click('#btn-host-world');
   await host.page.waitForFunction(() => window.game.worldSync.isHosting || !document.getElementById('host-error').classList.contains('hidden'), null, { timeout: 30000 });
   const hostError = await host.page.evaluate(() => (document.getElementById('host-error').classList.contains('hidden') ? '' : document.getElementById('host-error').textContent));
   if (hostError) { fail('the host started sharing', hostError); throw new Error('cannot continue'); }
@@ -67,10 +65,14 @@ try {
     async () => {
       const message = await guest.page.textContent('#join-status-text').catch(() => '');
       fail('the friend opened the link and joined', message.trim());
+      console.log('  connection details', JSON.stringify(await guest.page.evaluate(() => window.game?.worldSync?.client?.lastJoinDiagnostics)));
       throw new Error('cannot continue');
     });
   const connection = await guest.page.evaluate(() => window.game.worldSync.client.hostLink?.pc?.connectionState);
-  if (connection === 'connected') ok('the connection is direct (WebRTC)'); else fail('the connection is direct (WebRTC)', String(connection));
+  const transport = await guest.page.evaluate(() => window.game.worldSync.client.hostLink?.mode ?? 'webrtc');
+  if (transport === 'local') ok('the connection uses the local-tab fallback');
+  else if (connection === 'connected') ok('the connection is direct (WebRTC)');
+  else fail('the connection is open', String(connection));
   const timings = await guest.page.evaluate(() => window.game.worldSync.joinTimings);
   console.log(`  note the world was ${Math.round((timings.snapshotBytes ?? 0) / 1024)} KB; connected after ${timings.connected} ms, received after ${timings.received} ms, built after ${timings.built} ms`);
 

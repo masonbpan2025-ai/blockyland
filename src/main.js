@@ -9,6 +9,8 @@ import { rollStructureLoot } from './structureLoot.js';
 import { runFunction, allRecipeIds, recipeIdOf } from './advancedCommands.js';
 import { modeRules, playerAsSeenByWorld } from './gameModeRules.js';
 import { attackCharge, scaleBaseDamage, scaleEnchantDamage } from './attackCooldown.js';
+import { bridgeTarget } from './bedrockBridging.js';
+import { classifyAttack, reachFor, hitParticles, extraKnockbackLevel, sweepVictims, SPRINT_HIT_SLOWDOWN, SWEEP_DAMAGE } from './pvpCombat.js';
 import { packsModal } from './packsModal.js';
 import { resourcePackManager } from './resourcePackManager.js';
 import { placeBonusChest } from './bonusChest.js';
@@ -2413,12 +2415,42 @@ class Game {
     }
 
     // Another player in a shared world, when nearer than any mob in view (PvP; the host decides whether it lands).
-    const reach = this.player.gamemode === 'creative' ? 5 : 3;
-    const playerHit = this.worldSync?.pickRemotePlayer?.(eyePos, lookDir, reach);
+    // Java's rules are in pvpCombat.js: 3 blocks of reach (5 in Creative), critical, sprint-knockback and sweep hits.
+    const playerHit = this.worldSync?.pickRemotePlayer?.(eyePos, lookDir, reachFor(this.player.gamemode));
     if (playerHit && (!this.targetMob || playerHit.distance < this.camera.position.distanceTo(this.targetMob.mesh.position))) {
-      const { damage, activeItem, critical } = this.meleeHit('player');
-      if (this.worldSync.attackRemotePlayer(playerHit.peerId, damage)) {
-        if (critical) this.entities?.spawnBlockParticles?.(eyePos.clone().addScaledVector(lookDir, playerHit.distance), BLOCKS.STONE);
+      const { damage, activeItem, critical, enchantDamage, kind } = this.meleeHit('player');
+      const weapon = activeItem && !activeItem.isBlock ? activeItem.id : null;
+      const knockbackLevel = extraKnockbackLevel(enchantLevel(activeItem?.enchantments, 'knockback'), kind.sprintKnockback);
+      const fireAspect = enchantLevel(activeItem?.enchantments, 'fire_aspect');
+      if (this.worldSync.attackRemotePlayer(playerHit.peerId, damage, { isCritical: critical, isSprint: kind.sprintKnockback, weapon, knockbackLevel, fireAspect })) {
+        this.sounds?.playAttack?.(kind.sound);
+        const target = this.worldSync.remotePlayers?.remotePlayers?.get(playerHit.peerId)?.currentPos;
+        const facing = new THREE.Vector3(lookDir.x, 0, lookDir.z).normalize();
+        if (target) {
+          this.entities?.combatParticles?.spawnHit({ x: target.x, y: target.y, z: target.z },
+            hitParticles({ critical, enchanted: enchantDamage > 0, damage, sweep: kind.sweep }),
+            { attacker: this.player.position, facing });
+        }
+        this.worldSync.remotePlayers?.triggerHurt?.(playerHit.peerId);
+        if (kind.sprintKnockback) {
+          // "doing one cancels the sprint", and the attacker's own speed drops to 60% (pvpCombat.js).
+          this.player.isSprinting = false;
+          this.player.sprintKeyToggled = false;
+          this.player.sprintResetPending = true;
+          this.player.velocity.x *= SPRINT_HIT_SLOWDOWN;
+          this.player.velocity.z *= SPRINT_HIT_SLOWDOWN;
+        }
+        if (kind.sweep && target) {
+          // A sweep catches the other players beside the target: 1 damage, more with Sweeping Edge.
+          const edge = enchantLevel(activeItem?.enchantments, 'sweeping_edge');
+          const sweepDamage = SWEEP_DAMAGE + (edge > 0 ? (edge / (edge + 1)) * damage : 0);
+          const players = [...(this.worldSync.remotePlayers?.remotePlayers?.values() ?? [])]
+            .map((peer) => ({ id: peer.peerId, x: peer.currentPos.x, y: peer.currentPos.y, z: peer.currentPos.z }));
+          const me = { id: 'me', x: this.player.position.x, y: this.player.position.y, z: this.player.position.z };
+          for (const victim of sweepVictims({ attacker: me, target: { id: playerHit.peerId, x: target.x, y: target.y, z: target.z }, players })) {
+            this.worldSync.attackRemotePlayer(victim.id, sweepDamage, { weapon });
+          }
+        }
         this.afterMeleeHit(activeItem);
       }
       this.isMouseDown = false;
@@ -2427,8 +2459,14 @@ class Game {
 
     // Attack mob if target mob is looked at
     if (this.targetMob) {
-      let { damage, activeItem, critical } = this.meleeHit(this.targetMob.type);
-      if (critical) this.entities?.spawnBlockParticles?.(this.targetMob.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), BLOCKS.STONE);
+      let { damage, activeItem, critical, enchantDamage, kind } = this.meleeHit(this.targetMob.type);
+      this.sounds?.playAttack?.(kind.sound);
+      // Crit stars and blue enchanted-hit stars around the mob (combatParticles.js), not block fragments.
+      if (critical || enchantDamage > 0) {
+        const at = this.targetMob.mesh.position;
+        this.entities?.combatParticles?.spawnHit({ x: at.x, y: at.y, z: at.z, width: this.targetMob.width ?? 0.8, height: this.targetMob.height ?? 1.4 },
+          hitParticles({ critical, enchanted: enchantDamage > 0 }));
+      }
       // The mace's smash attack (maceSmash.js): after a fall of 1.5 blocks or more, the fall adds damage (more with
       // Density), the fall height resets, everything within 2.5 blocks is knocked back, and Wind Burst launches the
       // wielder back up. Breach is read by damageMob, where a mob's armour is applied.
@@ -2504,15 +2542,24 @@ class Game {
     // Critical hit (Damage): "performed when a player attacks an entity while falling", +50% "after strength is
     // applied and before enchantments", only at 84.8% charge or more, never sprinting, in water, on a ladder or vines,
     // with Slow Falling or Blindness, riding or flying. The game had no critical hits (Combat play-test).
+    // "84.8% charge" is 84.8% of full damage, a charge of 0.9 (attackCooldown.js STRONG_ATTACK_CHARGE); the rule for
+    // which kind of hit this is lives in pvpCombat.js, shared with hits on other players.
     const p = this.player;
     const onClimbable = [BLOCKS.LADDER, BLOCKS.VINE].includes(this.world.getVoxel(Math.floor(p.position.x), Math.floor(p.position.y), Math.floor(p.position.z)));
-    const critical = charge >= 0.848 && (p.fallDistance ?? 0) > 0 && !p.onGround && !p.inWater && !onClimbable && !p.isFlying && !p.isSprinting
-      && !p.hasStatusEffect?.('slow_falling') && !p.hasStatusEffect?.('blindness') && !this.riding && !p.ridingMob;
-    damage = scaleBaseDamage(damage, charge) * (critical ? 1.5 : 1) + scaleEnchantDamage(enchantDamage, charge);
+    const kind = classifyAttack({
+      charge, sprinting: Boolean(p.isSprinting), onGround: Boolean(p.onGround), fallDistance: p.fallDistance ?? 0,
+      inWater: Boolean(p.inWater), climbing: onClimbable, blind: Boolean(p.hasStatusEffect?.('blindness')),
+      slowFalling: Boolean(p.hasStatusEffect?.('slow_falling')), riding: Boolean(this.riding || p.ridingMob), flying: Boolean(p.isFlying),
+      itemId: activeItem && !activeItem.isBlock ? activeItem.id : null,
+      horizontalSpeed: Math.hypot(p.velocity?.x ?? 0, p.velocity?.z ?? 0), walkSpeed: p.walkSpeed ?? 4.3,
+    });
+    const critical = kind.critical;
+    const enchantPart = scaleEnchantDamage(enchantDamage, charge);
+    damage = scaleBaseDamage(damage, charge) * (critical ? 1.5 : 1) + enchantPart;
     this.player.lastAttackCritical = critical;
     this.player.lastAttackCharge = charge;
     this.player.secondsSinceSwing = 0;
-    return { damage, activeItem, critical, charge };
+    return { damage, activeItem, critical, charge, enchantDamage: enchantPart, kind };
   }
 
   /** What landing a melee hit costs: exhaustion, and wear on the weapon. */
@@ -3011,6 +3058,12 @@ class Game {
     // An eye of ender is thrown unless it is going into an end portal frame (Eye of Ender). It used to be thrown only
     // with no block targeted, after this very return, so it was never thrown at all (Tutorial:Locating a stronghold).
     if (this.inventory.getActiveItem()?.id === 'ender_eye' && this.targetBlock?.blockId !== BLOCKS.END_PORTAL_FRAME) { this.throwEnderEye(); return; }
+    if (!this.targetBlock && this.bridgeTarget) {
+      const { support, normal } = this.bridgeTarget;
+      this.targetBlock = { ...support, normal, blockId: this.world.getVoxel(support.x, support.y, support.z), point: null };
+      try { this.placeBlockOnFace(activeItem); } finally { this.targetBlock = null; }
+      return;
+    }
     if (!this.targetBlock) return;
 
     const bX = this.targetBlock.x;
@@ -3583,6 +3636,13 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
       return;
     }
 
+    this.placeBlockOnFace(activeItem);
+  }
+
+  /** Place the held block against the targeted face. Returns whether a block was placed. */
+  placeBlockOnFace(activeItem) {
+    const canPlace = modeRules(this.player.gamemode).placeBlocks;
+    const bX = this.targetBlock.x, bY = this.targetBlock.y, bZ = this.targetBlock.z;
     // Place Block on adjacent targeted face
     if (canPlace && activeItem && (activeItem.isBlock || BLOCK_DEFS[activeItem.id] || ITEMS[activeItem.id]?.isBlock) && this.targetBlock.normal) {
       const placeX = bX + this.targetBlock.normal.x;
@@ -3668,8 +3728,10 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
         const cz = Math.floor(placeZ / 16);
         const chunk = this.world.getChunk(cx, cz);
         if (chunk) this.rebuildChunkMesh(chunk);
+        return true;
       }
     }
+    return false;
   }
 
   /**
@@ -4173,6 +4235,23 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
       this.targetBlock = null;
       this.targetBoxMesh.visible = false;
       this.breakOverlayMesh.visible = false;
+    }
+    this.bridgeTarget = null;
+    // Bedrock's simple bridging (bedrockBridging.js), where the world asks for it: looking at the empty place beside the
+    // block underfoot targets that place.
+    if (!hit && !this.targetMob && this.modRuntime?.bedrockBridging?.()) {
+      const isSolid = (bx, by, bz) => this.player.isBlockSolid(bx, by, bz);
+      const target = bridgeTarget({
+        origin: camPos, direction: camDir, reach: maxDist, position: this.player.position, width: this.player.width,
+        onGround: this.player.onGround, yaw: this.player.yaw, isSolid,
+        isReplaceable: (bx, by, bz) => { const id = this.world.getVoxel(bx, by, bz); return id === BLOCKS.AIR || id === BLOCKS.WATER; },
+      });
+      if (target) {
+        this.bridgeTarget = target;
+        this.targetBoxMesh.scale.set(1, 1, 1);
+        this.targetBoxMesh.position.set(target.x + 0.5, target.y + 0.5, target.z + 0.5);
+        this.targetBoxMesh.visible = true;
+      }
     }
   }
 

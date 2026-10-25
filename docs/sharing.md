@@ -44,10 +44,17 @@ needs `https` and `wss` together, which tunnels provide.
 
 - **The host is the server.** It holds the world, accepts guests, gives each an identity, checks every message and passes
   the good ones on. Guests connect only to the host, never to each other, so there is one authority and one set of rules.
-- **The introduction service** (`server/shareRendezvous.js`) lets two browsers that cannot yet reach each other swap the
-  few messages WebRTC needs to connect. It then steps out of the way. It never carries gameplay, never sees the world, keeps
-  no record, offers no list of rooms, and a room exists only while its host is connected. It is built into the dev and
-  preview servers and into `server/shareServer.js`.
+- **The introduction service** (`server/shareRendezvous.js`, deployed as `cloudflare/share/src/index.js`) lets two browsers
+  that cannot yet reach each other swap the few messages WebRTC needs to connect. It then steps out of the way. It keeps no
+  record, offers no list of rooms, and a room exists only while its host is connected. It is built into the dev and preview
+  servers and into `server/shareServer.js`.
+- **The relay.** Some networks and browser settings block every peer-to-peer route (an office or school firewall, a phone
+  network, a privacy extension that hides local addresses), so WebRTC can never connect. The guest then asks for the relay
+  (`src/multiplayer/resilientPeerLink.js`): after a direct connection fails, or has not opened within 5 seconds, the game's
+  frames go through the introduction service's WebSocket, which both browsers already hold. The service passes them on
+  without reading them, under their own allowance (`RELAY_LIMITS`: 800 frames and 4 MB a second, after a burst large enough
+  for a world). The game is otherwise identical; it is a little slower than a direct link. No TURN server or key is needed.
+  Two tabs of the same browser can also connect through a `BroadcastChannel` without any network.
 - **STUN servers** tell a browser the address the outside world sees it at. The defaults are Google's public STUN servers
   (they carry no game data). To use your own, or to add a TURN relay for networks that block direct connections, store a
   list in the browser: `localStorage['mc-ice-servers'] = '[{"urls":"turn:turn.example","username":"u","credential":"c"}]'`.
@@ -55,8 +62,9 @@ needs `https` and `wss` together, which tunnels provide.
 - **The world** is sent once, when a friend joins: gzipped (about 36 times smaller on typical terrain), cut into small
   frames, and sent over the channel with back-pressure so a slow connection is not flooded. A friend joining a default world
   receives about half a megabyte, then spends several seconds building it (the same time as loading a saved world).
-- **Codes** are 8 characters from an alphabet with no look-alikes (40 bits), so a code cannot be guessed. They are typed
-  forgivingly: case, spaces, dashes, and I/L/O are all fine.
+- **Codes** are 4 digits, easy to read out and type in the start screen's **Join** box. A taken code is drawn again. Guessing
+  is slowed instead: one address may try 10 wrong codes a minute, so running through all 10,000 takes most of a day.
+  Spaces and dashes are ignored, and I/L/O read as 1/1/0.
 
 ## What is shared, and what is not
 
@@ -98,7 +106,13 @@ is full), and a guest in the world can build and break blocks anywhere in it, in
 stop sharing (which ends the world for everyone) and share again for a new code.
 
 **Privacy.** WebRTC lets the players in a world learn each other's network addresses, which is inherent to connecting
-browsers directly. The STUN servers see the address a browser connects from. No gameplay passes through any server.
+browsers directly. The STUN servers see the address a browser connects from. Gameplay passes through a server only for a
+pair of browsers that could not connect directly, through the relay, which does not read or keep it.
+
+**Chests and a world's own game.** Chest contents are shared: a change one player makes is sent to the host, which passes it
+on (`container`, 27 validated slots). A designed world's game -- SkyWars -- talks over a small validated data channel
+(`game`, at most 8 KB of plain data a message); the host's game may also refuse hits (`attackPolicy`: nobody fights in a lobby)
+and hears of each hit that lands (`attack_landed`).
 
 ## When joining fails
 
@@ -111,7 +125,7 @@ The join screen says what went wrong and offers **Back to Main**.
 | That world is full (8 players) | | Try when someone leaves. |
 | Your friend is on a different version of the game | The wire protocol changed between versions. | Ask them to share again. |
 | Could not reach the sharing service | The page was not opened from the game's server, or the server is down. | Open the link in a normal browser tab; check the host's server. |
-| Could not make a direct connection to the host | A network is blocking peer-to-peer connections (some offices, schools and mobile networks). | Try another network, or give both sides a TURN server. |
+| Could not make a direct connection to the host | Neither a direct connection nor the relay could be opened (the relay needs the introduction service, so this usually means it was unreachable too). | Check the connection to the game's site; try again. |
 
 If the introduction service drops while you are hosting, friends already in the world are unaffected (they talk to you
 directly). The dialog says that nobody new can join, and the game reconnects the same room by itself, so the link keeps working.
@@ -124,6 +138,7 @@ directly). The dialog says that nobody new can join, and the game reconnects the
 | `src/multiplayer/shareProtocol.js` | The rules above: validators, rate limits, framing and compressed snapshots. |
 | `src/multiplayer/signaling.js` | The client of the introduction service. |
 | `src/multiplayer/peerLink.js` | One WebRTC connection with a data channel, and ICE server configuration. |
+| `src/multiplayer/resilientPeerLink.js` | WebRTC first; a same-browser channel or the relay when it cannot connect. |
 | `src/multiplayer/shareSession.js` | The host and guest roles: admitting, relaying, validating, keeping everyone in step. |
 | `src/multiplayer/worldSyncManager.js` | The game's side: dialogs, joining from a link, applying edits and movement. |
 | `src/multiplayer/remotePlayerManager.js` | The other players' avatars. |
@@ -136,8 +151,8 @@ version is then told to ask for a fresh link instead of misreading messages.
 ## Tests
 
 ```sh
-node scripts/test.mjs sharing        # the unit tests
-npm run test:share:browser           # two real browsers join one world through a link
+node scripts/test.mjs sharing        # the unit tests (the relay, the deployed worker, chests and the game channel too)
+npm run test:share:browser           # real browsers: join through a link, the relay, PvP bots and a SkyWars match
 ```
 
 The unit tests run the whole protocol in memory (`tests/helpers/shareFakes.js` stands in for the introduction service and the

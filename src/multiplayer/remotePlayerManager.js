@@ -1,5 +1,9 @@
 import * as THREE from 'three';
+import { HURT_OVERLAY_SECONDS } from '../pvpCombat.js';
 import { BLOCK_DEFS, BLOCKS } from '../blocks.js';
+
+/** Java's hurt overlay: the model's colours multiplied towards red. */
+const HURT_TINT = new THREE.Color(1.0, 0.3, 0.3);
 
 /**
  * Creates an authentic 2D billboard canvas nametag for a player avatar.
@@ -81,19 +85,29 @@ function createPlayerAvatar(name, isHost = false) {
   hairMesh.position.set(0, 0.20, 0);
   headGroup.add(hairMesh);
 
-  // Eyes
+  // Hair back (Steve dark brown hair on back of head)
+  const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.36, 0.12), hairMat);
+  hairBack.name = 'hairBack';
+  hairBack.position.set(0, 0.08, 0.21);
+  headGroup.add(hairBack);
+
+  // Eyes on face (-Z)
   const leftEyeW = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeWhiteMat);
-  leftEyeW.position.set(-0.12, 0.02, 0.26);
+  leftEyeW.name = 'leftEyeW';
+  leftEyeW.position.set(-0.12, 0.02, -0.26);
   headGroup.add(leftEyeW);
   const leftEyeP = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.025), eyePupilMat);
-  leftEyeP.position.set(-0.10, 0.02, 0.262);
+  leftEyeP.name = 'leftEyeP';
+  leftEyeP.position.set(-0.10, 0.02, -0.262);
   headGroup.add(leftEyeP);
 
   const rightEyeW = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeWhiteMat);
-  rightEyeW.position.set(0.12, 0.02, 0.26);
+  rightEyeW.name = 'rightEyeW';
+  rightEyeW.position.set(0.12, 0.02, -0.26);
   headGroup.add(rightEyeW);
   const rightEyeP = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.025), eyePupilMat);
-  rightEyeP.position.set(0.10, 0.02, 0.262);
+  rightEyeP.name = 'rightEyeP';
+  rightEyeP.position.set(0.10, 0.02, -0.262);
   headGroup.add(rightEyeP);
 
   group.add(headGroup);
@@ -118,9 +132,9 @@ function createPlayerAvatar(name, isHost = false) {
   rightArmMesh.position.set(0, -0.32, 0);
   rightArmGroup.add(rightArmMesh);
 
-  // Hand item slot
+  // Hand item slot (forward along -Z)
   const handSlot = new THREE.Group();
-  handSlot.position.set(0, -0.65, 0.15);
+  handSlot.position.set(0, -0.65, -0.15);
   rightArmGroup.add(handSlot);
 
   group.add(rightArmGroup);
@@ -216,15 +230,29 @@ export class RemotePlayerManager {
       peer = this.addPeer(peerId, state.playerName || 'Player', !!state.isHost);
     }
 
+    const isFirstUpdate = !peer.hasInitialPos;
     if (state.x !== undefined && state.y !== undefined && state.z !== undefined) {
       peer.targetPos.set(state.x, state.y, state.z);
+      if (isFirstUpdate) {
+        peer.currentPos.copy(peer.targetPos);
+        peer.avatar.mesh.position.copy(peer.currentPos);
+      }
     }
     if (state.yaw !== undefined) {
       peer.targetYaw = state.yaw;
+      if (isFirstUpdate) {
+        peer.currentYaw = peer.targetYaw;
+        peer.avatar.mesh.rotation.y = peer.currentYaw;
+      }
     }
     if (state.pitch !== undefined) {
       peer.targetPitch = state.pitch;
+      if (isFirstUpdate) {
+        peer.currentPitch = peer.targetPitch;
+        peer.avatar.head.rotation.x = peer.currentPitch;
+      }
     }
+    if (isFirstUpdate) peer.hasInitialPos = true;
     if (state.isSneaking !== undefined) {
       peer.isSneaking = !!state.isSneaking;
     }
@@ -265,6 +293,30 @@ export class RemotePlayerManager {
     peer.heldItemMesh = itemMesh;
   }
 
+  /**
+   * Another player was hit: Java shows the red hurt overlay on them for their hurt time, 10 ticks (pvpCombat.js). It
+   * does not bounce or shift the model -- the knockback itself arrives as the player's own movement.
+   */
+  triggerHurt(peerId) {
+    const peer = this.remotePlayers.get(peerId);
+    if (!peer || !peer.avatar?.mesh) return;
+    peer.hurtDuration = HURT_OVERLAY_SECONDS;
+    peer.hurtTime = peer.hurtDuration;
+    // Each material's own colour is kept once, so a second hit while red cannot make red the colour to restore.
+    if (!peer.hurtMaterials) {
+      peer.hurtMaterials = [];
+      peer.avatar.mesh.traverse((child) => {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const mat of materials) {
+          if (!mat?.color || mat === peer.avatar.nametag?.material) continue;
+          if (peer.hurtMaterials.some((entry) => entry.mat === mat)) continue;
+          peer.hurtMaterials.push({ mat, color: mat.color.clone() });
+        }
+      });
+    }
+    for (const entry of peer.hurtMaterials) entry.mat.color.copy(entry.color).multiply(HURT_TINT);
+  }
+
   update(dt) {
     for (const peer of this.remotePlayers.values()) {
       const { avatar } = peer;
@@ -275,14 +327,23 @@ export class RemotePlayerManager {
       peer.currentPos.lerp(peer.targetPos, Math.min(1.0, dt * 14));
       avatar.mesh.position.copy(peer.currentPos);
 
-      // Sneaking height adjustment
+      // Sneaking height adjustment (leaning forward along -Z)
       if (peer.isSneaking) {
         avatar.mesh.position.y -= 0.15;
-        avatar.torso.position.z = 0.06;
-        avatar.head.position.z = 0.08;
+        avatar.torso.position.z = -0.06;
+        avatar.head.position.z = -0.08;
       } else {
         avatar.torso.position.z = 0;
         avatar.head.position.z = 0;
+      }
+
+      // The red hurt overlay, then each material's own colour again.
+      if (peer.hurtTime > 0) {
+        peer.hurtTime = Math.max(0, peer.hurtTime - dt);
+        if (peer.hurtTime === 0 && peer.hurtMaterials) {
+          for (const entry of peer.hurtMaterials) entry.mat.color.copy(entry.color);
+          peer.hurtMaterials = null;
+        }
       }
 
       // 2. Smooth rotation interpolation
@@ -338,16 +399,17 @@ export class RemotePlayerManager {
   }
 
   /**
-   * The other player the crosshair is on, if any: a ray against each avatar's box (a player is 0.6 wide and 1.8 tall,
-   * standing on its position), nearest first.
+   * The other player the crosshair is on, if any: a ray from the eyes against each avatar's box (a player is 0.6 wide
+   * and 1.8 tall, 1.5 sneaking, standing on its position), nearest first. Java tests the exact box -- a player's pick
+   * radius is 0 -- and from the eyes in third person too, so neither margin nor camera ray is added here.
    * @returns {{peerId: string, name: string, distance: number}|null}
    */
   pickPlayer(origin, direction, maxDistance) {
     let best = null;
+    const o = [origin.x, origin.y, origin.z], d = [direction.x, direction.y, direction.z];
     for (const peer of this.remotePlayers.values()) {
       const p = peer.currentPos;
       const min = [p.x - 0.3, p.y, p.z - 0.3], max = [p.x + 0.3, p.y + (peer.isSneaking ? 1.5 : 1.8), p.z + 0.3];
-      const o = [origin.x, origin.y, origin.z], d = [direction.x, direction.y, direction.z];
       let near = 0, far = maxDistance;
       for (let axis = 0; axis < 3 && near <= far; axis++) {
         if (Math.abs(d[axis]) < 1e-9) { if (o[axis] < min[axis] || o[axis] > max[axis]) near = Infinity; continue; }
@@ -359,6 +421,7 @@ export class RemotePlayerManager {
     }
     return best;
   }
+
 
   clear() {
     for (const peerId of Array.from(this.remotePlayers.keys())) {

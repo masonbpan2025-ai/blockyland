@@ -10,6 +10,29 @@ export const SHARE_PATH = '/ws/share';
 export const WRONG_CODES_PER_WINDOW = 10;
 export const WRONG_CODE_WINDOW_MS = 60_000;
 
+/**
+ * What one connection may push through the relay (resilientPeerLink.js), for browsers that cannot connect directly:
+ * a burst large enough for a world being sent, then a steady game's worth. Counted apart from the introductions.
+ */
+export const RELAY_LIMITS = Object.freeze({ burst: 4000, perSecond: 800, burstBytes: 16 * 1024 * 1024, bytesPerSecond: 4 * 1024 * 1024 });
+
+/** A token bucket of messages and of bytes, for the relay. */
+export function createRelayAllowance({ burst, perSecond, burstBytes, bytesPerSecond } = RELAY_LIMITS, now = () => Date.now()) {
+  let messages = burst, bytes = burstBytes, last = now();
+  return {
+    take(size) {
+      const t = now(), seconds = Math.max(0, (t - last) / 1000);
+      last = t;
+      messages = Math.min(burst, messages + seconds * perSecond);
+      bytes = Math.min(burstBytes, bytes + seconds * bytesPerSecond);
+      if (messages < 1 || bytes < size) return false;
+      messages -= 1;
+      bytes -= size;
+      return true;
+    },
+  };
+}
+
 /** Counts each address's wrong codes in a fixed window. Kept small: an address's count goes when its window ends. */
 export function createGuessLimiter({ max = WRONG_CODES_PER_WINDOW, windowMs = WRONG_CODE_WINDOW_MS, now = () => Date.now() } = {}) {
   const counts = new Map(); // address -> { misses, until }
@@ -34,14 +57,18 @@ export function createGuessLimiter({ max = WRONG_CODES_PER_WINDOW, windowMs = WR
  *
  * It does one job: a guest holding a link names a room, and the host of that room and the guest swap the small
  * messages two browsers need to connect to each other directly. After that the two talk peer to peer and this
- * service is no longer involved. It never carries gameplay, never sees the world, and keeps no record: a room
- * exists only while its host is connected.
+ * service is no longer involved, unless their networks block a direct connection: then it relays their game frames
+ * without reading them. It keeps no record: a room exists only while its host is connected.
  *
  * Wire protocol (JSON text frames):
  *
  *   host  -> { type: 'host', room }          <- { type: 'hosted', room }
  *   guest -> { type: 'join', room }          <- { type: 'joined', room, guestId }
  *   either-> { type: 'signal', to?, data }   -> peer gets { type: 'signal', from, data }
+ *   either-> { type: 'relay', to?, data }    -> peer gets { type: 'relay', from, data }
+ *
+ * `relay` carries game frames (a string each) for two browsers whose networks will not let them connect directly.
+ * The service passes them on without reading them, under a larger allowance than the introductions'.
  *   server-> { type: 'guest_left', guestId } (to the host), { type: 'host_left' } (to the guests)
  *   server-> { type: 'error', code, message }
  *
@@ -57,6 +84,7 @@ export function createShareRendezvous({
   maxWrongCodes = WRONG_CODES_PER_WINDOW,
   wrongCodeWindowMs = WRONG_CODE_WINDOW_MS,
   now = () => Date.now(),
+  relayLimits = RELAY_LIMITS,
 } = {}) {
   const rooms = new Map(); // code -> { code, host: ws, guests: Map<guestId, ws> }
   const guesses = createGuessLimiter({ max: maxWrongCodes, windowMs: wrongCodeWindowMs, now });
@@ -81,8 +109,22 @@ export function createShareRendezvous({
     // Introductions are small and few; a stream of them is an attack, not a join.
     let bucket = 200;
     let last = Date.now();
+    const relayAllowance = createRelayAllowance(relayLimits, now);
 
     ws.on('message', (raw) => {
+      // Relayed game frames have their own, larger allowance, so they are told apart before the introductions' one.
+      if (role && room && raw.length <= maxPayload && raw.toString('utf8', 0, 16).startsWith('{"type":"relay"')) {
+        let msg;
+        try { msg = JSON.parse(raw.toString()); } catch { fail(ws, 'bad_json', 'Messages must be JSON.'); return; }
+        if (typeof msg?.data !== 'string') { fail(ws, 'bad_message', 'A relayed frame must be text.'); return; }
+        if (!relayAllowance.take(raw.length)) { fail(ws, 'rate_limited', 'Too many messages.'); ws.close(1008); return; }
+        if (role === 'guest') send(room.host, { type: 'relay', from: guestId, data: msg.data });
+        else {
+          const guest = room.guests.get(String(msg.to));
+          if (guest) send(guest, { type: 'relay', from: 'host', data: msg.data });
+        }
+        return;
+      }
       const now = Date.now();
       bucket = Math.min(200, bucket + ((now - last) / 1000) * 20);
       last = now;

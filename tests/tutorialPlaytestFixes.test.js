@@ -36,7 +36,8 @@ test('attack cooldown: the wiki formula, clamped, with enchantments scaled linea
 test('attack cooldown: the game and the bot use it', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.match(main, /const charge = attackCharge\(this\.player\.secondsSinceSwing \?\? Infinity/);
-  assert.match(main, /damage = scaleBaseDamage\(damage, charge\) \* \(critical \? 1\.5 : 1\) \+ scaleEnchantDamage\(enchantDamage, charge\);/);
+  assert.match(main, /const enchantPart = scaleEnchantDamage\(enchantDamage, charge\);/);
+  assert.match(main, /damage = scaleBaseDamage\(damage, charge\) \* \(critical \? 1\.5 : 1\) \+ enchantPart;/);
   assert.match(main, /this\.player\.secondsSinceSwing = 0;/);
   const bot = readFileSync(new URL('../src/playerBot.js', import.meta.url), 'utf8');
   assert.match(bot, /t\.attackTimer = cooldownSeconds\(/, 'the bot waits for a full charge');
@@ -160,9 +161,13 @@ test('milk clears every effect and gives the bucket back', () => {
 // there), so it ran once at start-up and fighting never cost hunger. Found by The second day's "60 blows" check.
 test('a landed attack costs 0.1 exhaustion, charged where the hit lands', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  // A landed hit -- on a mob or on another player -- goes through afterMeleeHit, which charges it.
   const at = main.indexOf('this.mobs.damageMob(this.targetMob, damage, this.player.position, false, this.player);');
   assert.ok(at > 0);
-  assert.match(main.slice(at, at + 400), /this\.player\.addExhaustion\?\.\(EXHAUSTION\.attack\);/);
+  assert.match(main.slice(at, at + 400), /this\.afterMeleeHit\(activeItem\);/);
+  const after = main.indexOf('  afterMeleeHit(activeItem) {');
+  assert.ok(after > 0);
+  assert.match(main.slice(after, after + 600), /this\.player\.addExhaustion\?\.\(EXHAUSTION\.attack\);/);
   const player = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
   const ctor = player.slice(player.indexOf('constructor('), player.indexOf('\n  }\n', player.indexOf('constructor(')));
   assert.doesNotMatch(ctor, /addExhaustion\(EXHAUSTION\.attack\)/, 'not at construction');
@@ -285,7 +290,7 @@ test('respawn checks the bed block, not the stand spot beside it', () => {
 // 22-block fall (19 damage) measured nearly 23 and killed.
 test('a landing does not count the step that went below the ground', () => {
   const player = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
-  assert.match(player, /const overshoot = Math\.ceil\(newPos\.y\) - newPos\.y;\n\s*this\.fallDistance = Math\.max\(0, this\.fallDistance - overshoot\);/);
+  assert.match(player, /const overshoot = Math\.ceil\(newPos\.y\) - newPos\.y;\r?\n\s*this\.fallDistance = Math\.max\(0, this\.fallDistance - overshoot\);/);
 });
 
 // Shelter types: "digging 3 blocks straight down and then capping off the hole" is the fastest shelter -- and a spider
@@ -304,9 +309,18 @@ test('a melee mob cannot reach through the ground or across a wall', async () =>
 
 // Combat: critical hits ("while falling", x1.5 of the base damage after Strength, at 84.8% charge, not sprinting, in
 // water, on a ladder, with Slow Falling or Blindness, riding or flying) did not exist.
-test('a falling, fully charged hit is a critical hit', () => {
+test('a falling, fully charged hit is a critical hit', async () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  assert.match(main, /const critical = charge >= 0\.848 && \(p\.fallDistance \?\? 0\) > 0 && !p\.onGround && !p\.inWater && !onClimbable && !p\.isFlying && !p\.isSprinting/);
+  assert.match(main, /const kind = classifyAttack\(\{/);
+  assert.match(main, /const critical = kind\.critical;/);
+  // "84.8%" is of full damage: a charge of 0.9 (attackCooldown.js), so a 0.85 charge is not yet strong enough.
+  const { classifyAttack } = await import('../src/pvpCombat.js');
+  const falling = { onGround: false, fallDistance: 0.4 };
+  assert.equal(classifyAttack({ charge: 1, ...falling }).critical, true);
+  assert.equal(classifyAttack({ charge: 0.85, ...falling }).critical, false);
+  for (const not of [{ sprinting: true }, { inWater: true }, { climbing: true }, { flying: true }, { slowFalling: true }, { blind: true }, { riding: true }]) {
+    assert.equal(classifyAttack({ charge: 1, ...falling, ...not }).critical, false, JSON.stringify(not));
+  }
 });
 
 test('a golden pickaxe harvests like wood: no diamonds, iron or gold ore drops, but stone and coal do', async () => {

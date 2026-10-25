@@ -560,7 +560,7 @@ test('a swing at a player with PvP off says so once, not on every swing', (t) =>
   assert.equal(game.chatLog.filter((line) => /PvP is off/.test(line)).length, 1);
 });
 
-test('the crosshair finds another player\'s avatar, nearest first, within reach', (t) => {
+test("the crosshair finds another player\'s avatar, nearest first, within reach", (t) => {
   setupMockDom(t);
   const { manager } = managerOn(createFakeNetwork());
   manager.client.connected = true;
@@ -576,4 +576,42 @@ test('the crosshair finds another player\'s avatar, nearest first, within reach'
   assert.equal(manager.pickRemotePlayer(eye, new THREE.Vector3(1, 0.5, 0).normalize(), 5), null, 'over its head');
   manager.client.connected = false;
   assert.equal(manager.pickRemotePlayer(eye, new THREE.Vector3(1, 0, 0), 5), null, 'nobody to hit when not sharing');
+});
+
+test('world time sync updates game worldTime and sky', (t) => {
+  setupMockDom(t);
+  const { manager, game } = managerOn(createFakeNetwork());
+  let skyTime = null;
+  game.sky = { setTime: (time) => { skyTime = time; } };
+  manager.client.emit('time_sync', { worldTime: 18000 });
+  assert.equal(game.worldTime, 18000);
+  assert.equal(skyTime, 18000);
+});
+
+test("peer_hurt: another player's hit shows the red overlay and the hurt sound, with crit stars and damage hearts", (t) => {
+  setupMockDom(t);
+  const { manager, game } = managerOn(createFakeNetwork());
+  let hurtPlayed = false;
+  game.sounds = { playHurt: () => { hurtPlayed = true; } };
+  const shown = [];
+  game.entities = { combatParticles: { spawnHit: (at, list) => shown.push(...list) }, spawnBlockParticles: () => assert.fail('no block fragments') };
+  const peer = manager.remotePlayers.addPeer('p1', 'Ann');
+  assert.equal(peer.hurtTime ?? 0, 0);
+  manager.client.emit('peer_hurt', { peerId: 'p1', attackerName: 'Ben', isCritical: true, damage: 9 });
+  assert.equal(peer.hurtTime, 0.5, "Java's 10-tick hurt overlay");
+  assert.ok(hurtPlayed, 'hurt sound played');
+  assert.deepEqual(shown, [{ kind: 'crit', count: 48 }, { kind: 'damage_indicator', count: 4 }]);
+});
+
+test('avatar eyes are positioned facing forward (-Z)', (t) => {
+  setupMockDom(t);
+  const { manager } = managerOn(createFakeNetwork());
+  const peer = manager.remotePlayers.addPeer('p1', 'Ann');
+  const head = peer.avatar?.head;
+  assert.ok(head, 'avatar has head');
+  const eyes = head.children.filter((c) => c.name?.includes('Eye'));
+  assert.ok(eyes.length >= 2, 'has eyes');
+  for (const eye of eyes) {
+    assert.ok(eye.position.z < 0, `eye ${eye.name} must face forward (-Z), was ${eye.position.z}`);
+  }
 });

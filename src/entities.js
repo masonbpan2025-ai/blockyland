@@ -7,6 +7,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { isDestroyedByExplosion, explosionBlocks, TNT_EXPLOSION_POWER } from './blockHarvestData.js';
 import { addPlayerExperience } from './experience.js';
 import { isFireproof } from './smithing.js';
+import { CombatParticles } from './combatParticles.js';
 
 /** Item (entity): 6000 game ticks. */
 export const ITEM_DESPAWN_SECONDS = 300;
@@ -27,6 +28,8 @@ export class EntityManager {
     this.droppedItems = [];
     this.tntEntities = [];
     this.particles = [];
+    // Crit stars, damage hearts and sweeps of melee hits (combatParticles.js).
+    this.combatParticles = new CombatParticles(scene);
     this.fireworkRockets = [];
     this.xpOrbs = [];
   }
@@ -421,6 +424,7 @@ export class EntityManager {
   }
 
   update(dt, player, inventory) {
+    this.combatParticles?.update(dt);
     dt = Math.min(dt, 0.1);
     this.blastLife = Math.max(0, this.blastLife - dt);
     this.blastLight.intensity = 12 * (this.blastLife / 0.3) ** 2;
@@ -485,6 +489,12 @@ export class EntityManager {
       // A dead player picks nothing up: the death drop used to fly straight back into the corpse's inventory a second
       // later, so "return to where you died" had nothing to find (Beginner's guide play-test).
       if (dist < 1.6 && item.age > item.pickupDelay && !player.isDead && !(player.health <= 0)) {
+        // An item every player in a shared game can see is not taken here: `claim` asks whoever owns it (the host),
+        // and the answer adds it to the inventory and removes it everywhere. Asked again after a while if unanswered.
+        if (typeof item.claim === 'function') {
+          if (!(item.claimedAt > item.age - 2)) { item.claimedAt = item.age; item.claim(item); }
+          continue;
+        }
         // Collect into inventory
         let added = 0;
         // Single-item transactions avoid duplicating a partially accepted stack.

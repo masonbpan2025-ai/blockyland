@@ -7,6 +7,7 @@ import { damageTakenMultiplier, attackDamageBonus, tickEffect, speedMultiplier, 
 import { thornsReflect, depthStriderMultiplier, protectionPoints } from './enchantmentEffects.js';
 import { spendDurability } from './durability.js';
 import { shieldWear } from './toolWear.js';
+import { hurtWindow, hitKnockback } from './pvpCombat.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -491,7 +492,7 @@ export class Player {
 
     // Invulnerability timer countdown
     if (this.invulnerableTimer > 0) {
-      this.invulnerableTimer -= dt;
+      this.invulnerableTimer = Math.max(0, this.invulnerableTimer - dt);
     }
 
     // Breath and drowning, before the effects tick so `water_breathing` this frame is honoured.
@@ -576,9 +577,14 @@ export class Player {
     }
 
     // Validate shield blocking state
+    if (this.shieldDisabledTimer > 0) {
+      this.shieldDisabledTimer = Math.max(0, this.shieldDisabledTimer - dt);
+      if (this.shieldDisabledTimer < 1e-4) this.shieldDisabledTimer = 0;
+      this.isBlocking = false;
+    }
     const hasShield = (this.inventory?.getOffhandItem()?.id === 'shield') ||
                       (this.inventory?.getActiveItem()?.id === 'shield');
-    if (this.isBlocking && !hasShield) {
+    if (this.isBlocking && (!hasShield || this.shieldDisabledTimer > 0)) {
       this.isBlocking = false;
     }
 
@@ -588,7 +594,10 @@ export class Player {
     // hunger points, which is what makes a sprint cost something.
     const wantsSprint = !!this.keys['ControlLeft'] || this.sprintKeyToggled;
     const canSprint = this.gamemode === 'creative' || typeof this.hunger !== 'number' || this.hunger > 6;
-    this.isSprinting = !controlsDisabled && wantsSprint && canSprint && !this.isSneaking && !this.isBlocking;
+    // A sprint-knockback hit ends the sprint (pvpCombat.js). It starts again only once forward or the sprint key is
+    // let go and pressed again -- the "W-tap" of Tutorial:PvP -- not by holding them.
+    if (this.sprintResetPending && (!this.keys['KeyW'] || !wantsSprint)) this.sprintResetPending = false;
+    this.isSprinting = !controlsDisabled && wantsSprint && canSprint && !this.isSneaking && !this.isBlocking && !this.sprintResetPending;
 
     // Sprint-swimming (Swimming article): started by sprinting while moving forward with the head under water,
     // refused at 6 hunger or below and under Blindness, and ended by the same conditions or by leaving the water.
@@ -967,9 +976,18 @@ export class Player {
     this.position.copy(newPos);
   }
 
+  /**
+   * Sneaking stops at an edge only once the whole 0.6-wide box would be over air, as Java's does: a sneaking player
+   * leans 0.3 blocks past the edge. Checking the centre alone stopped them with their eyes above the edge block,
+   * where its side face cannot be seen, so a bridge could not be built.
+   */
   hasGroundAhead(x, z) {
     const yBelow = Math.floor(this.position.y - 0.2);
-    return this.isBlockSolid(x, yBelow, z);
+    const hw = (this.width ?? 0.6) / 2 - 1e-3;
+    for (const dx of [-hw, hw]) for (const dz of [-hw, hw]) {
+      if (this.isBlockSolid(x + dx, yBelow, z + dz)) return true;
+    }
+    return false;
   }
 
   getBlockBelowSound() {
@@ -1267,7 +1285,7 @@ export class Player {
     return before - this.health;
   }
 
-  takeDamage(amount, sourcePos = null, damageType = 'generic', attacker = null) {
+  takeDamage(amount, sourcePos = null, damageType = 'generic', attacker = null, options = {}) {
     // Taking damage is tiring in vanilla, at 0.1 exhaustion per instance.
     if (isSurvivalLike(this.gamemode) && amount > 0) this.addExhaustion(EXHAUSTION.damage);
 
@@ -1281,14 +1299,25 @@ export class Player {
     // tick, and the Wither boss's 0.5 s skull cadence was eaten the same way.
     // Void damage too: it applies "irrespective of ... invulnerability" (Void).
     const effectDamage = damageType === 'wither' || damageType === 'magic' || damageType === 'void';
-    if (this.invulnerableTimer > 0 && !effectDamage) return;
+    // A hit from another player follows Java's hurt window (pvpCombat.js): inside it only a harder hit counts, for
+    // what it adds over the last one, and it does not knock back or restart the window. Other damage keeps the plain
+    // window.
+    let freshHit = true;
+    if (this.invulnerableTimer > 0 && !effectDamage) {
+      if (damageType !== 'player') return;
+      const window = hurtWindow({ timer: this.invulnerableTimer, lastAmount: this.lastHurtAmount }, amount);
+      if (window.amount <= 0) return;
+      this.lastHurtAmount = amount;
+      amount = window.amount;
+      freshHit = false;
+    } else if (damageType === 'player') this.lastHurtAmount = amount;
 
     if (this.hasStatusEffect('fire_resistance') && ['fire', 'lava', 'burn'].includes(damageType)) return;
 
-    // Shield blocking check: 100% deflection within frontal 180° cone
+    // Shield blocking check: 100% deflection within frontal 180° cone (unless disabled by axe)
     const hasShield = (this.inventory?.getOffhandItem()?.id === 'shield') ||
                       (this.inventory?.getActiveItem()?.id === 'shield');
-    if (this.isBlocking && hasShield && !['fall','starvation','void','wither','drowning','suffocation'].includes(damageType)) {
+    if (this.isBlocking && hasShield && (this.shieldDisabledTimer ?? 0) <= 0 && !['fall','starvation','void','wither','drowning','suffocation'].includes(damageType)) {
       let blocked = true;
       if (sourcePos) {
         const toSource = new THREE.Vector3(sourcePos.x - this.position.x, 0, sourcePos.z - this.position.z).normalize();
@@ -1300,18 +1329,19 @@ export class Player {
       }
 
       if (blocked) {
-        this.sounds.playShieldBlock?.();
+        this.sounds?.playShieldBlock?.();
         if (['arrow', 'projectile', 'trident', 'fireball', 'snowball', 'egg', 'wind_charge'].includes(damageType)) advancementEvent('deflect');
         this.invulnerableTimer = 0.2;
+
+        // Java Edition PvP: An axe disables the shield for 5 seconds
+        if (options.weapon && /axe/i.test(options.weapon)) {
+          this.shieldDisabledTimer = 5.0;
+          this.isBlocking = false;
+          this.sounds?.playBreak?.('wood');
+          this.ui?.addChatMessage?.('<span style="color:#f59e0b;">🛡 Shield disabled by axe! (5s)</span>');
+        }
+
         // Blocking costs the shield a point of durability.
-        //
-        // The shield was registered as durable -- `FIXED_DURABILITY` gives it 336 -- and nothing ever spent
-        // any of it, so a shield was permanent. That is the same gap tool durability and armour durability
-        // each had, and the third and last piece of it.
-        //
-        // Durability: "When the shield blocks an attack dealing more than 3 HP, it takes damage equal to the
-        // strength of the attack (rounded down) plus 1" -- and nothing for a weaker one (toolWear.js). This charged a
-        // flat point per blocked hit.
         const shieldCost = shieldWear(amount);
         if (this.gamemode === 'survival' && shieldCost > 0) {
           const shield = this.inventory?.getOffhandItem?.()?.id === 'shield'
@@ -1390,11 +1420,22 @@ export class Player {
     this.health = Math.max(0, this.health - amount);
     // Effect damage does not open a window of its own: two wither ticks are two hits, and Wither III ticks
     // every 0.5 s precisely because it is meant to hurt.
-    if (!effectDamage) this.invulnerableTimer = 0.5;
-    if (sourcePos && Number.isFinite(sourcePos.x) && this.health > 0) {
-      const push = this.position.clone().sub(sourcePos).setY(0).normalize();
-      this.velocity.addScaledVector(push, 3);
-      this.velocity.y = Math.max(this.velocity.y, 2.5);
+    if (!effectDamage && freshHit) this.invulnerableTimer = 0.5;
+    if (sourcePos && Number.isFinite(sourcePos.x) && this.health > 0 && freshHit) {
+      if (damageType === 'player') {
+        // Java's knockback (pvpCombat.js): 0.4 blocks/tick away from the attacker, lifting a grounded player, then a
+        // further level along the attacker's facing for a sprint hit and for each level of Knockback.
+        const v = hitKnockback(this.velocity, {
+          position: this.position, from: sourcePos, fromYaw: options.fromYaw, onGround: this.onGround,
+          extraLevel: options.knockbackLevel ?? (options.isSprint ? 1 : 0), resistance: this.knockbackResistance ?? 0,
+        });
+        this.velocity.set(v.x, v.y, v.z);
+        if (v.y > 0) this.onGround = false;
+      } else {
+        const push = this.position.clone().sub(sourcePos).setY(0).normalize();
+        this.velocity.addScaledVector(push, 3);
+        this.velocity.y = Math.max(this.velocity.y, 2.5);
+      }
     }
     // Guarded like the other hurt-sound call above: a caller may supply a partial sounds object (the
     // terminal-controls test does), and a missing beep must not break the damage itself.

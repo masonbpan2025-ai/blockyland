@@ -102,11 +102,11 @@ test('the server runs the introduction service and says what it is', async () =>
     assert.ok(Array.isArray(info.lan));
     const reply = await new Promise((resolve, reject) => {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/share`);
-      ws.on('open', () => ws.send(JSON.stringify({ type: 'host', room: 'abcd2345' })));
+      ws.on('open', () => ws.send(JSON.stringify({ type: 'host', room: '4207' })));
       ws.on('message', (raw) => { resolve(JSON.parse(raw.toString())); ws.close(); });
       ws.on('error', reject);
     });
-    assert.deepEqual(reply, { type: 'hosted', room: 'abcd2345' });
+    assert.deepEqual(reply, { type: 'hosted', room: '4207' });
   });
 });
 

@@ -1165,6 +1165,36 @@ export class SoundEngine {
   }
 
   // Minecraft Shield Block (heavy wooden impact and metallic ring)
+  /**
+   * A player's melee swing, by kind (pvpCombat.js classifyAttack): Java's entity.player.attack.weak, .strong, .crit,
+   * .knockback and .sweep, and .nodamage for a hit that did nothing.
+   */
+  playAttack(kind = 'strong') {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const thud = (from, to, length, gain, type = 'triangle') => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(from, now);
+      osc.frequency.exponentialRampToValueAtTime(to, now + length);
+      g.gain.setValueAtTime(gain, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + length);
+      osc.connect(g);
+      g.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + length);
+    };
+    if (kind === 'weak') { this.noiseBurst(0.09, 900, 0.8, 0.12); return; }
+    if (kind === 'nodamage') { thud(220, 160, 0.06, 0.12); return; }
+    if (kind === 'sweep') { this.noiseBurst(0.22, 2400, 0.6, 0.22); thud(300, 120, 0.12, 0.12); return; }
+    if (kind === 'crit') { this.noiseBurst(0.08, 3600, 2.5, 0.3); thud(520, 180, 0.12, 0.25, 'square'); return; }
+    if (kind === 'knockback') { this.noiseBurst(0.12, 700, 1.2, 0.3); thud(150, 45, 0.2, 0.42); return; }
+    this.noiseBurst(0.1, 1500, 1.4, 0.24);
+    thud(240, 70, 0.14, 0.3);
+  }
+
   playShieldBlock() {
     this.ensureContext();
     if (!this.soundEnabled || !this.ctx) return;

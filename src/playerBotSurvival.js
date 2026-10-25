@@ -347,18 +347,20 @@ export class BotSurvival {
       throw new Error(`Not enough ${c.item} in chest (found ${available}).`);
     }
     let remaining = count;
+    // The stacks as they were in the chest, enchantments and all: a looted Sharpness sword stays one.
+    const taken = [];
     for (let i = 0; i < items.length && remaining > 0; i++) {
       const s = items[i];
       if (s && this.sameItem(s.id, id)) {
         const take = Math.min(remaining, s.count);
-        s.count -= take;
+        taken.push({ ...s, count: take });
         remaining -= take;
-        if (s.count <= 0) cm.setCombinedSlot(c.position[0], c.position[1], c.position[2], i, null);
-        else cm.setCombinedSlot(c.position[0], c.position[1], c.position[2], i, s);
+        if (s.count - take <= 0) cm.setCombinedSlot(c.position[0], c.position[1], c.position[2], i, null);
+        else cm.setCombinedSlot(c.position[0], c.position[1], c.position[2], i, { ...s, count: s.count - take });
       }
     }
     const isBlock = typeof id === 'number' || (BLOCKS[String(c.item).toUpperCase()] !== undefined);
-    this.inventory.addItem(c.item, isBlock, count);
+    for (const stack of taken) this.inventory.addItem(stack.id, stack.isBlock ?? isBlock, stack.count, stack.enchantments ?? null);
     this.inventory.updateHotbar?.();
     return this.bot.finish(true, `Withdrew ${count} ${c.item} from chest at ${c.position}.`);
   }

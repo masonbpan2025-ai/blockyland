@@ -68,6 +68,21 @@ export function createFakeNetwork({ latencyMs = 0 } = {}) {
       return true;
     }
 
+    /** A game frame carried by the service, as server/shareRendezvous.js relays it. */
+    relay(text, to) {
+      if (this.closed || typeof text !== 'string') return false;
+      log.relayed = (log.relayed ?? 0) + 1;
+      const target = rooms.get(this.room);
+      if (!target) return false;
+      later(() => {
+        if (this.role === 'guest') target.host.emit('relay', { from: this.guestId, data: text });
+        else target.guests.get(to)?.emit('relay', { from: 'host', data: text });
+      });
+      return true;
+    }
+
+    bufferedAmount() { return 0; }
+
     close() {
       if (this.closed) return;
       this.closed = true;

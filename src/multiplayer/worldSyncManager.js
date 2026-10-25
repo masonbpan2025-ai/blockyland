@@ -10,6 +10,9 @@ import { serializeWorld, deserializeWorldAsync } from '../mapManager.js';
 import { BLOCKS, BLOCK_DEFS } from '../blocks.js';
 import { buildShareUrl, isLocalOnlyAddress, parseJoinCode, normalizeRoomCode, isValidRoomCode } from './shareCode.js';
 import { escapeHtml, sanitizeName, MAX_PLAYERS } from './shareProtocol.js';
+import { hitParticles } from '../pvpCombat.js';
+import { igniteActor } from '../heat.js';
+import { fireAspectSeconds } from '../enchantmentEffects.js';
 
 const NAME_KEY = 'mc-player-name';
 /** The host's last choice about PvP, kept between sessions: 'on' or 'off'. */
@@ -138,6 +141,7 @@ export class WorldSyncManager {
             mapData,
             hostPos: { x: Number(p.position.x.toFixed(3)), y: Number(p.position.y.toFixed(3)), z: Number(p.position.z.toFixed(3)) },
             hostYaw: Number(p.yaw.toFixed(3)),
+            worldTime: typeof this.game.worldTime === 'number' ? Math.round(this.game.worldTime) : 6000,
           });
           this.snapshotTimings.totalMs = Math.round(performance.now() - t0);
           console.info(`[Sharing] sent the world to ${peerName}`, this.snapshotTimings);
@@ -189,6 +193,33 @@ export class WorldSyncManager {
     });
 
     this.client.on('hurt', (hit) => this.takeHit(hit));
+    // Chest contents another player changed.
+    this.client.on('container', ({ x, y, z, items }) => {
+      if (!this.game.chestManager?.setChestItems) return;
+      this.game.chestManager.setChestItems(x, y, z, items, { silent: true });
+    });
+    // This player's chest changes, for everyone else.
+    if (this.game.chestManager) {
+      this.game.chestManager.onContentsChanged = (chest) => {
+        if (this.client.connected) this.client.sendContainer(chest.x, chest.y, chest.z, chest.items);
+      };
+    }
+    // Someone else was hit: their avatar flashes red, with crit stars and damage hearts (pvpCombat.js), as Java shows a
+    // hit between two other players. The hurt sound comes from the player who was hit.
+    this.client.on('peer_hurt', ({ peerId, isCritical, damage }) => {
+      this.remotePlayers.triggerHurt(peerId);
+      const peer = this.remotePlayers.remotePlayers?.get(peerId);
+      if (!peer) return;
+      this.game.sounds?.playHurt?.();
+      const at = peer.currentPos;
+      this.game.entities?.combatParticles?.spawnHit({ x: at.x, y: at.y, z: at.z }, hitParticles({ critical: isCritical, damage }));
+    });
+    this.client.on('time_sync', ({ worldTime }) => {
+      if (typeof worldTime === 'number') {
+        this.game.worldTime = worldTime;
+        this.game.sky?.setTime?.(worldTime);
+      }
+    });
     this.client.on('settings', ({ pvp }) => {
       if (this.hostPvpToggle) this.hostPvpToggle.checked = pvp;
       this.chat(pvp
@@ -210,8 +241,8 @@ export class WorldSyncManager {
    * is told why, once every few seconds rather than on every swing.
    * @returns {boolean} whether the hit was sent
    */
-  attackRemotePlayer(peerId, damage) {
-    const refused = this.client.attackPlayer(peerId, damage);
+  attackRemotePlayer(peerId, damage, options = {}) {
+    const refused = this.client.attackPlayer(peerId, damage, options);
     if (refused === 'pvp_off') {
       const now = Date.now();
       if (!this.pvpOffNoticeAt || now - this.pvpOffNoticeAt > 4000) {
@@ -226,11 +257,16 @@ export class WorldSyncManager {
    * Another player hit this one. Taken as a melee hit from where the attacker stood, so armour, a raised shield, the
    * hit-invulnerability window, Creative mode and the knockback all apply as they do to a mob's hit.
    */
-  takeHit({ attackerName, damage, from }) {
+  takeHit({ attackerName, damage, from, weapon, isSprint, isCritical, knockbackLevel = 0, fireAspect = 0 }) {
     const player = this.game.player;
     if (!player || player.isDead) return;
     const source = from ? { x: from.x, y: from.y, z: from.z } : null;
-    player.takeDamage(damage, source, 'player', null);
+    const before = player.health;
+    player.takeDamage(damage, source, 'player', null, {
+      weapon, isSprint, isCritical, fromYaw: from?.yaw, knockbackLevel: knockbackLevel || (isSprint ? 1 : 0),
+    });
+    // Fire Aspect sets the player alight when the hit got through: 4 seconds a level.
+    if (fireAspect > 0 && player.health < before) igniteActor(player, fireAspectSeconds(fireAspect));
     this.game.ui?.updateStats?.();
     // Minecraft's death message for a player killed by another: "<player> was slain by <player>".
     if (player.isDead || player.health <= 0) {
@@ -339,29 +375,50 @@ export class WorldSyncManager {
 
   // --- hosting --------------------------------------------------------------------------------
 
-  /** Start sharing this world, or show the link again when it is already shared. */
-  async hostWorld() {
+  /**
+   * Start sharing this world, or show the link again when it is already shared. A world's own game (a mod's lobby)
+   * passes `{ quiet: true }` to share without the sharing window, and shows the code itself.
+   * @returns {Promise<{roomId: string, shareUrl: string}|null>}
+   */
+  async hostWorld({ quiet = false, pvp: forcePvp } = {}) {
     if (!this.game.worldGenerated) {
       await this.game.generateNewWorld();
       const startOverlay = document.getElementById('start-overlay');
       if (startOverlay) startOverlay.style.display = 'none';
     }
-    if (this.isHosting) { this.showHostModal(); return; }
+    if (this.isHosting) { if (!quiet) this.showHostModal(); return { roomId: this.roomId, shareUrl: this.shareUrl }; }
 
     if (this.hostError) this.hostError.classList.add('hidden');
     try {
-      const pvp = this.hostPvpToggle ? this.hostPvpToggle.checked : savedPvpChoice();
+      const pvp = typeof forcePvp === 'boolean' ? forcePvp : this.hostPvpToggle ? this.hostPvpToggle.checked : savedPvpChoice();
       const data = await this.client.hostRoom(this.playerName(), { seed: this.game.world.seed, worldTime: this.game.worldTime, settings: { pvp } });
       this.isHosting = true;
       this.roomId = data.roomId;
       this.shareUrl = data.shareUrl;
       this.presentLink(data);
-      this.showHostModal();
+      if (!quiet) this.showHostModal();
       this.refreshPeople();
-      this.chat('<span style="color:#10b981;font-weight:bold;">🌐 Your world is shared. Send the link to friends; keep this tab open while they play.</span>');
+      if (this.game.player) {
+        const p = this.game.player;
+        this.client.sendPlayerState({
+          x: Number(p.position.x.toFixed(3)),
+          y: Number(p.position.y.toFixed(3)),
+          z: Number(p.position.z.toFixed(3)),
+          yaw: Number(p.yaw.toFixed(3)),
+          pitch: Number(p.pitch.toFixed(3)),
+          isSneaking: Boolean(p.isSneaking),
+          isSprinting: Boolean(p.isSprinting),
+          isSwinging: false,
+          activeItem: this.game.inventory?.getActiveItem()?.id || null,
+        });
+      }
+      if (!quiet) this.chat('<span style="color:#10b981;font-weight:bold;">🌐 Your world is shared. Send the link to friends; keep this tab open while they play.</span>');
+      return data;
     } catch (error) {
       console.error('[Sharing] could not start sharing:', error);
+      if (quiet) throw error;
       this.showHostError(describeShareError(error));
+      return null;
     }
   }
 
@@ -539,7 +596,7 @@ export class WorldSyncManager {
       mark('connected');
       this.roomId = joined.roomId;
       this.isJoined = true;
-      this.setJoinStatus('🌐 Joining a shared world', 45, 'Connected directly to the host. Receiving the world…', 'This can take a few seconds for a large world.');
+      this.setJoinStatus('🌐 Joining a shared world', 45, 'Connected to the host. Receiving the world…', 'This can take a few seconds for a large world.');
 
       const { snapshot: data, bytes } = await snapshot;
       mark('received');
@@ -553,9 +610,30 @@ export class WorldSyncManager {
         this.game.player.position.set(data.hostPos.x + 1.2, data.hostPos.y, data.hostPos.z + 1.2);
         this.game.player.yaw = data.hostYaw || 0;
       }
+      if (typeof data.worldTime === 'number') {
+        this.game.worldTime = data.worldTime;
+        this.game.sky?.setTime?.(data.worldTime);
+      } else if (typeof this.client.worldInfo?.worldTime === 'number') {
+        this.game.worldTime = this.client.worldInfo.worldTime;
+        this.game.sky?.setTime?.(this.client.worldInfo.worldTime);
+      }
       this.game.worldGenerated = true;
       this.game.worldReady = true;
       this.game.worldType = 'shared';
+      if (this.game.player) {
+        const p = this.game.player;
+        this.client.sendPlayerState({
+          x: Number(p.position.x.toFixed(3)),
+          y: Number(p.position.y.toFixed(3)),
+          z: Number(p.position.z.toFixed(3)),
+          yaw: Number(p.yaw.toFixed(3)),
+          pitch: Number(p.pitch.toFixed(3)),
+          isSneaking: Boolean(p.isSneaking),
+          isSprinting: Boolean(p.isSprinting),
+          isSwinging: false,
+          activeItem: this.game.inventory?.getActiveItem()?.id || null,
+        });
+      }
       mark('built');
       console.info('[Sharing] joined in', this.joinTimings);
 
@@ -646,6 +724,17 @@ export class WorldSyncManager {
 
   update(dt) {
     this.remotePlayers.update(dt);
+    // Periodically sync world time from host to guests
+    if (this.isHosting && this.client.peers.size > 1 && typeof this.game.worldTime === 'number') {
+      this.timeSyncTimer = (this.timeSyncTimer || 0) + dt;
+      const currentTime = Math.round(this.game.worldTime);
+      const jumped = Math.abs(currentTime - (this.lastSyncedTime ?? currentTime)) > 200;
+      if (this.timeSyncTimer >= 1.5 || jumped) {
+        this.timeSyncTimer = 0;
+        this.lastSyncedTime = currentTime;
+        this.client.sendTimeSync(currentTime);
+      }
+    }
     // With nobody else here there is nobody to tell.
     if (!this.client.connected || !this.game.player || this.client.peers.size < 2) return;
     this.broadcastTimer += dt;

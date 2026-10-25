@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sharing connection check · Blockyland</title>
+  <style>
+    :root{color-scheme:dark;font:16px/1.6 system-ui;background:#0b1020;color:#e2e8f0}
+    body{max-width:850px;margin:40px auto;padding:0 24px}h1{line-height:1.2}
+    button,input,a{font:inherit}button,input{padding:10px;border:1px solid #64748b;border-radius:6px}
+    button{background:#164e63;color:white;cursor:pointer}input{width:100px;background:#111827;color:white}
+    a{color:#67e8f9}.actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:20px 0}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;border:1px solid #334155;padding:16px}
+    #status{color:#fde68a}small{color:#94a3b8}
+  </style>
+</head>
+<body>
+  <a href="./">← Back to game</a>
+  <h1>Sharing connection check</h1>
+  <p>Test the same connection the game uses, without loading a world. Run this in the Chrome profile where joining fails.</p>
+  <div class="actions"><button id="host">1. Start host test</button><a id="guest-link" target="_blank" rel="noopener" hidden>2. Open guest test tab</a></div>
+  <p>Or join a connection test already open on another device:</p>
+  <div class="actions"><input id="room" placeholder="4-digit code" maxlength="4" aria-label="Test room code"><button id="join">Join test</button><button id="copy">Copy report</button></div>
+  <p id="status" role="status">Ready. This creates a temporary test room; it does not share your saved worlds.</p>
+  <pre id="report"></pre>
+  <small>Reports contain connection states, candidate types, and error codes. They exclude IP addresses, server credentials, world data, and chat.</small>
+  <script type="module" src="/src/multiplayer/shareDebug.js"></script>
+</body>
+</html>

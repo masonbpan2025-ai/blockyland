@@ -155,6 +155,24 @@ test('a connection that cannot be made times out with advice about the network',
   close();
 });
 
+test('a failed join retains connection diagnostics before cleaning up the link', async () => {
+  const { network, hosted, close } = await openWorld();
+  network.linksBlocked = true;
+  const diagnostics = { connectionState: 'failed', turnConfigured: false, localCandidates: { host: 1 } };
+  const g = sessionOn(network, {
+    peerFactory: (options) => {
+      const link = network.peerFactory(options);
+      link.getDiagnostics = () => diagnostics;
+      return link;
+    },
+    timeouts: { connectMs: 60 },
+  });
+  await assert.rejects(g.joinRoom(hosted.roomId), (e) => e.code === 'connect_timeout');
+  assert.equal(g.lastJoinDiagnostics, diagnostics);
+  assert.equal(g.hostLink, null);
+  close();
+});
+
 test('the world is full at eight players, and the ninth is turned away', async () => {
   const { host, guest, network, hosted, close } = await openWorld();
   for (let i = 1; i < MAX_PLAYERS; i++) await guest(`Guest${i}`);
@@ -475,7 +493,8 @@ test('with PvP on, a guest\'s hit reaches the guest it struck, from where the at
   const hit = await hurt;
   assert.equal(hit.damage, 6);
   assert.equal(hit.attackerName, 'Ann', 'named by the host, not by the attacker');
-  assert.deepEqual(hit.from, { x: 2, y: 10, z: 0 }, 'knocked away from the attacker');
+  const { x, y, z } = hit.from;
+  assert.deepEqual({ x, y, z }, { x: 2, y: 10, z: 0 }, 'knocked away from the attacker');
   // And the host can hit a guest, and be hit.
   const hostHurt = nextEvent(host, 'hurt');
   assert.equal(a.attackPlayer('host', 3), null);

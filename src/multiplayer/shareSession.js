@@ -2,7 +2,7 @@
 //
 // The host's browser IS the server. It holds the world, accepts guests, assigns each an identity, checks what they send,
 // and passes it on to the others. Guests connect only to the host, never to each other, so there is exactly one
-// authority and one set of rules. The two sides talk over a direct WebRTC data channel; the introduction service
+// authority and one set of rules. The two sides use WebRTC, with a BroadcastChannel fallback for local tabs; the introduction service
 // (server/shareRendezvous.js) is used once, to set the connection up, and is not involved after that.
 //
 //   guest                      introduction service                 host
@@ -17,12 +17,12 @@
 // world_snapshot, player_state, block_update, chat, host_disconnected, signalling_lost, error, disconnect, and for PvP:
 // hurt (this player was hit by another) and settings (the host changed a setting, such as whether PvP is on).
 import { ShareError, SignalingClient, resolveSignalingUrl } from './signaling.js';
-import { PeerLink } from './peerLink.js';
+import { ResilientPeerLink } from './resilientPeerLink.js';
 import { generateRoomCode, normalizeRoomCode, isValidRoomCode, buildShareUrl } from './shareCode.js';
 import {
   PROTOCOL_VERSION, MAX_PLAYERS, GUEST_TO_HOST, HOST_TO_GUEST, FrameReassembler, ProtocolError, encodeFrames,
   packSnapshot, unpackSnapshot, sanitizeName, sanitizeChat, sanitizePlayerState, sanitizeBlockUpdate, guestLimiters,
-  sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE,
+  sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE, sanitizeGameData, sanitizeContainer,
 } from './shareProtocol.js';
 
 const HOST_ID = 'host';
@@ -54,7 +54,7 @@ export class ShareSession {
     this.now = options.now ?? (() => Date.now());
     this.listeners = new Map();
     this.signalingFactory = options.signalingFactory ?? ((url) => new SignalingClient({ url }));
-    this.peerFactory = options.peerFactory ?? ((o) => new PeerLink({ ...o, ...(options.iceServers ? { iceServers: options.iceServers } : {}) }));
+    this.peerFactory = options.peerFactory ?? ((o) => new ResilientPeerLink({ ...o, ...(options.iceServers ? { iceServers: options.iceServers } : {}) }));
     this.resetState();
   }
 
@@ -82,6 +82,7 @@ export class ShareSession {
     this.hostLastSeen = 0;
     this.heartbeat = null;
     this.resignalTimer = null;
+    this.lastJoinDiagnostics = null;
     this.stopping = false;
   }
 
@@ -157,6 +158,7 @@ export class ShareSession {
     this.playerName = sanitizeName(playerName, 'Host');
     this.worldInfo = worldInfo;
     this.settings = sanitizeShareSettings(worldInfo?.settings);
+    this.emit('settings', { ...this.settings });
     // Four digits: another host may hold the code drawn, so a taken one is drawn again (shareCode.js).
     let roomId;
     for (let attempt = 1; ; attempt++) {
@@ -188,10 +190,13 @@ export class ShareSession {
     }
     this.signaling = signaling;
     signaling.on('signal', ({ from, data }) => this.onGuestSignal(from, data));
+    // Frames of guests whose networks could not connect directly come through the service (resilientPeerLink.js).
+    signaling.on('relay', ({ from, data }) => this.links.get(from)?.link.receiveRelay?.(data));
     signaling.on('guest_left', ({ guestId }) => {
-      // A guest that never finished connecting is simply dropped; one that did is handled by its link closing.
+      // A guest that never finished connecting is simply dropped; one that did is handled by its link closing --
+      // except a relayed one, whose link is this service.
       const entry = this.links.get(guestId);
-      if (entry && !entry.ready) this.dropGuest(entry, 'left');
+      if (entry && (!entry.ready || entry.link.mode === 'relay')) this.dropGuest(entry, 'left');
     });
     signaling.on('close', () => this.onSignalingClosed(roomId));
   }
@@ -224,7 +229,7 @@ export class ShareSession {
     if (this.stopping || !data || typeof data !== 'object') return;
     let entry = this.links.get(signalId);
     if (!entry) {
-      if (data.kind !== 'offer') return;
+      if (data.kind !== 'offer' && data.kind !== 'local_offer' && data.kind !== 'relay_request') return;
       if (this.peers.size + this.links.size - this.guests.size >= MAX_PLAYERS) {
         this.signaling?.signal({ kind: 'reject', code: 'room_full' }, signalId);
         return;
@@ -238,7 +243,11 @@ export class ShareSession {
     const entry = {
       signalId, peerId: null, name: null, ready: false, strikes: 0,
       limiters: guestLimiters(this.now), frames: new FrameReassembler(), lastSeen: this.now(), timer: null,
-      link: this.peerFactory({ initiator: false, onSignal: (data) => this.signaling?.signal(data, signalId) }),
+      link: this.peerFactory({
+        initiator: false,
+        onSignal: (data) => this.signaling?.signal(data, signalId),
+        relay: { send: (text) => this.signaling?.relay?.(text, signalId) ?? false, bufferedAmount: () => this.signaling?.bufferedAmount?.() ?? 0 },
+      }),
     };
     entry.link.onmessage = (frame) => this.onGuestFrame(entry, frame);
     entry.link.onclose = (reason) => this.dropGuest(entry, reason);
@@ -304,6 +313,22 @@ export class ShareSession {
         const attack = sanitizeAttack(msg);
         if (!attack) { this.strike(entry); break; }
         this.deliverAttack(entry.peerId, entry.name, attack);
+        break;
+      }
+      case 'game': {
+        // For the world's own game (a mod), which decides what the data means. It is not passed on.
+        if (!entry.limiters.game.take()) break;
+        const data = sanitizeGameData(msg.data);
+        if (!data) { this.strike(entry); break; }
+        this.emit('game', { peerId: entry.peerId, data });
+        break;
+      }
+      case 'container': {
+        if (!entry.limiters.container.take()) break;
+        const container = sanitizeContainer(msg);
+        if (!container) { this.strike(entry); break; }
+        this.emit('container', { peerId: entry.peerId, ...container });
+        this.broadcast({ t: 'container', ...container }, entry.peerId);
         break;
       }
       default: break;
@@ -398,7 +423,11 @@ export class ShareSession {
     try {
       await signaling.connect();
       await signaling.join(room);
-      const link = this.peerFactory({ initiator: true, onSignal: (data) => signaling.signal(data) });
+      const link = this.peerFactory({
+        initiator: true,
+        onSignal: (data) => signaling.signal(data),
+        relay: { send: (text) => signaling.relay?.(text) ?? false, bufferedAmount: () => signaling.bufferedAmount?.() ?? 0 },
+      });
       this.hostLink = link;
       this.hostFrames = new FrameReassembler();
 
@@ -410,8 +439,16 @@ export class ShareSession {
         if (data?.kind === 'reject') fail(new ShareError(data.code ?? 'rejected', data.code === 'room_full' ? 'This world is full.' : 'The host did not accept the connection.'));
         else link.handleSignal(data).catch(() => fail(new ShareError('connect_failed', 'The connection to the host could not be set up.')));
       });
-      signaling.on('host_left', () => { if (!this.connected) fail(new ShareError('room_not_found', 'The host closed the world before you could join.')); });
-      signaling.on('close', () => { if (!this.connected) fail(new ShareError('signalling_unreachable', 'The connection to the sharing service was lost.')); });
+      signaling.on('relay', ({ data }) => link.receiveRelay?.(data));
+      // After joining, the service matters only to a relayed link, which goes when it goes.
+      signaling.on('host_left', () => {
+        if (!this.connected) fail(new ShareError('room_not_found', 'The host closed the world before you could join.'));
+        else if (link.mode === 'relay') this.hostGone('The host closed the world.');
+      });
+      signaling.on('close', () => {
+        if (!this.connected) fail(new ShareError('signalling_unreachable', 'The connection to the sharing service was lost.'));
+        else if (link.mode === 'relay') this.hostGone('Lost the connection to the host.');
+      });
       link.onmessage = (frame) => this.onHostFrame(frame, fail);
       link.onopen = () => { void this.send(link, { t: 'hello', protocol: PROTOCOL_VERSION, name: this.playerName }); };
       link.onclose = (reason) => {
@@ -427,15 +464,20 @@ export class ShareSession {
       try {
         await link.start();
         const data = await Promise.race([welcome, failed]);
-        // From here the two browsers talk directly; the introduction service is not needed any more.
-        signaling.close();
-        this.signaling = null;
+        // From here two browsers that connected directly do not need the introduction service any more. A relayed
+        // link still goes through it.
+        if (link.mode !== 'relay') {
+          signaling.close();
+          this.signaling = null;
+        }
         this.startHeartbeat();
         return data;
       } finally {
         clearTimeout(timer);
       }
     } catch (error) {
+      this.lastJoinDiagnostics = this.hostLink?.finalDiagnostics ?? this.hostLink?.getDiagnostics?.() ?? null;
+      if (this.lastJoinDiagnostics) console.info('[Sharing] connection diagnostics', this.lastJoinDiagnostics);
       this.cleanupFailedJoin();
       throw error instanceof ShareError ? error : new ShareError('connect_failed', error?.message ?? 'Could not join that world.');
     }
@@ -473,6 +515,7 @@ export class ShareSession {
         this.connected = true;
         this.worldInfo = msg.worldInfo && typeof msg.worldInfo === 'object' ? msg.worldInfo : {};
         this.settings = sanitizeShareSettings(msg.settings);
+        this.emit('settings', { ...this.settings });
         const data = { roomId: this.roomId, clientId: this.clientId, hostId: this.hostId, peers: [...this.peers.values()] };
         this.emit('room_joined', data);
         this.welcomed?.(data);
@@ -524,13 +567,57 @@ export class ShareSession {
         this.emit('settings', { ...this.settings });
         break;
       }
+      case 'game': {
+        const data = sanitizeGameData(msg.data);
+        if (data) this.emit('game', { peerId: this.hostId, data });
+        break;
+      }
+      case 'container': {
+        const container = sanitizeContainer(msg);
+        if (container) this.emit('container', { peerId: this.hostId, ...container });
+        break;
+      }
+      case 'time_sync': {
+        const time = Number(msg.worldTime);
+        if (Number.isFinite(time)) {
+          this.emit('time_sync', { worldTime: ((time % 24000) + 24000) % 24000 });
+        }
+        break;
+      }
+      case 'peer_hurt': {
+        if (typeof msg.peerId === 'string') {
+          const from = msg.from && [msg.from.x, msg.from.y, msg.from.z].every(Number.isFinite) ? { x: msg.from.x, y: msg.from.y, z: msg.from.z } : null;
+          const damage = Number(msg.damage);
+          this.emit('peer_hurt', {
+            peerId: msg.peerId,
+            attackerName: sanitizeName(msg.attackerName),
+            from,
+            isCritical: Boolean(msg.isCritical),
+            isSprint: Boolean(msg.isSprint),
+            damage: damage > 0 && damage <= MAX_ATTACK_DAMAGE ? damage : 0,
+          });
+        }
+        break;
+      }
       case 'hurt': {
         // The host has judged the hit already; this only refuses a malformed one, or one while PvP is off here.
         if (!this.settings.pvp) break;
         const damage = Number(msg.damage);
         if (!(damage > 0 && damage <= MAX_ATTACK_DAMAGE)) break;
-        const from = msg.from && [msg.from.x, msg.from.y, msg.from.z].every(Number.isFinite) ? { x: msg.from.x, y: msg.from.y, z: msg.from.z } : null;
-        this.emit('hurt', { attackerId: String(msg.attackerId ?? ''), attackerName: sanitizeName(msg.attackerName), damage, from });
+        const from = msg.from && [msg.from.x, msg.from.y, msg.from.z].every(Number.isFinite)
+          ? { x: msg.from.x, y: msg.from.y, z: msg.from.z, ...(Number.isFinite(msg.from.yaw) ? { yaw: msg.from.yaw } : {}) } : null;
+        const level = (v, max) => (Number.isInteger(v) && v > 0 ? Math.min(max, v) : 0);
+        this.emit('hurt', {
+          knockbackLevel: level(msg.knockbackLevel, 3),
+          fireAspect: level(msg.fireAspect, 2),
+          attackerId: String(msg.attackerId ?? ''),
+          attackerName: sanitizeName(msg.attackerName),
+          damage,
+          from,
+          isCritical: Boolean(msg.isCritical),
+          isSprint: Boolean(msg.isSprint),
+          weapon: typeof msg.weapon === 'string' ? msg.weapon : null,
+        });
         break;
       }
       default: break;
@@ -595,9 +682,9 @@ export class ShareSession {
    * Attack another player. A guest asks the host; the host decides, for its own hits as for its guests'.
    * @returns {string|null} why it was refused here (on a guest, only that PvP is off), or null when sent
    */
-  attackPlayer(targetId, damage) {
+  attackPlayer(targetId, damage, options = {}) {
     if (!this.connected) return 'not_connected';
-    const attack = sanitizeAttack({ target: targetId, damage });
+    const attack = sanitizeAttack({ target: targetId, damage, ...options });
     if (!attack) return 'bad_attack';
     if (this.isHost) return this.deliverAttack(HOST_ID, this.playerName, attack);
     if (!this.settings.pvp) return 'pvp_off';
@@ -610,18 +697,39 @@ export class ShareSession {
    * 'hurt' event, a guest by message. The attacker's position goes with it, so the target is knocked away from it.
    * @returns {string|null} why it was refused, or null when it landed
    */
-  deliverAttack(attackerId, attackerName, { target, damage }) {
+  deliverAttack(attackerId, attackerName, attack) {
+    const { target, damage } = attack;
     if (!this.peers.has(target)) return 'bad_target';
     const attackerPos = this.positions.get(attackerId);
-    const reason = refuseAttack({ settings: this.settings, attackerId, targetId: target, attackerPos, targetPos: this.positions.get(target) });
+    const reason = refuseAttack({ settings: this.settings, attackerId, targetId: target, attackerPos, targetPos: this.positions.get(target) })
+      // The world's own game may refuse more: nobody fights in a lobby, and a spectator neither hits nor is hit.
+      ?? this.attackPolicy?.(attackerId, target) ?? null;
     if (reason) return reason;
-    const hit = { attackerId, attackerName, damage, from: { x: attackerPos.x, y: attackerPos.y, z: attackerPos.z } };
+    const hit = {
+      attackerId,
+      attackerName,
+      damage,
+      // Where the attacker stood and faced: a hit pushes away from it, and a sprint or Knockback hit along its facing.
+      from: { x: attackerPos.x, y: attackerPos.y, z: attackerPos.z, ...(Number.isFinite(attackerPos.yaw) ? { yaw: attackerPos.yaw } : {}) },
+      isCritical: Boolean(attack.isCritical),
+      isSprint: Boolean(attack.isSprint),
+      weapon: attack.weapon || null,
+      knockbackLevel: attack.knockbackLevel ?? 0,
+      fireAspect: attack.fireAspect ?? 0,
+    };
+    this.emit('attack_landed', { attackerId, targetId: target, damage });
     if (target === HOST_ID) this.emit('hurt', hit);
     else {
       const entry = this.guests.get(target);
       if (!entry) return 'bad_target';
       void this.send(entry.link, { t: 'hurt', ...hit });
     }
+    // Everyone else sees the hit land: the red flash and the damage hearts (the attacker shows its own at once).
+    const seen = { peerId: target, attackerId, attackerName, from: hit.from, isCritical: hit.isCritical, isSprint: hit.isSprint, damage };
+    for (const [peerId, entry] of this.guests) {
+      if (peerId !== target && peerId !== attackerId) void this.send(entry.link, { t: 'peer_hurt', ...seen });
+    }
+    if (target !== HOST_ID && attackerId !== HOST_ID) this.emit('peer_hurt', seen);
     return null;
   }
 
@@ -630,6 +738,37 @@ export class ShareSession {
     this.settings = { ...this.settings, pvp: Boolean(on) };
     if (this.isHost && this.connected) this.broadcast({ t: 'settings', settings: this.settings });
     this.emit('settings', { ...this.settings });
+  }
+
+  /**
+   * A message of the world's own game (a mod). The host sends to one guest (`to`) or to all; a guest always to the
+   * host. Data only, and small (shareProtocol.js sanitizeGameData).
+   * @returns {boolean} whether it went
+   */
+  sendGame(data, to = null) {
+    if (!this.connected) return false;
+    const clean = sanitizeGameData(data);
+    if (!clean) return false;
+    if (!this.isHost) { if (this.hostLink) void this.send(this.hostLink, { t: 'game', data: clean }); return Boolean(this.hostLink); }
+    if (to) { const entry = this.guests.get(to); if (!entry) return false; void this.send(entry.link, { t: 'game', data: clean }); return true; }
+    this.broadcast({ t: 'game', data: clean });
+    return true;
+  }
+
+  /** One chest's new contents, for everyone else: a guest tells the host, which tells the rest. */
+  sendContainer(x, y, z, items) {
+    if (!this.connected) return false;
+    const container = sanitizeContainer({ x, y, z, items });
+    if (!container) return false;
+    if (this.isHost) this.broadcast({ t: 'container', ...container });
+    else if (this.hostLink) void this.send(this.hostLink, { t: 'container', ...container });
+    return true;
+  }
+
+  /** Host: broadcast current world time to all guests. */
+  sendTimeSync(worldTime) {
+    if (!this.connected || !this.isHost) return;
+    this.broadcast({ t: 'time_sync', worldTime: Number(worldTime) });
   }
 
   /** Share a placed or broken block. */

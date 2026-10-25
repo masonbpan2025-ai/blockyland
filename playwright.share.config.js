@@ -4,7 +4,7 @@ import { defineConfig } from '@playwright/test';
 // game's own dev server, and a link. Its own port, so a stale server from another suite cannot answer it.
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'share.pw.js',
+  testMatch: ['share.pw.js', 'shareDiagnostics.pw.js', 'sharePvp.pw.js', 'shareRelay.pw.js', 'pvpBots.pw.js', 'skywarsBots.pw.js'],
   // A cold dependency cache makes the first page load take a couple of minutes while Vite bundles; later loads are quick.
   timeout: 600000,
   workers: 1,
@@ -14,8 +14,8 @@ export default defineConfig({
     headless: true,
     baseURL: 'http://127.0.0.1:3025',
     launchOptions: {
-      // Two browsers on one machine find each other over loopback, so the test needs no STUN server and no internet.
-      args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--allow-loopback-in-peer-connection', '--no-proxy-server', '--proxy-bypass-list=*'],
+      // Keep the same WebRTC address masking and networking behavior as a normal Chrome session.
+      args: [],
     },
   },
   webServer: {

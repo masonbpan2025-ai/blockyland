@@ -70,13 +70,30 @@ export class PeerLink {
     this.drainWaiters = new Set();
     this.haveRemote = false;
     this.disconnectTimer = null;
+    // Counts and states only: never retain SDP, addresses, TURN credentials, or server URLs in a report.
+    this.localCandidates = {};
+    this.remoteCandidates = {};
+    this.localMdnsCandidates = 0;
+    this.remoteMdnsCandidates = 0;
+    this.iceErrors = new Set();
+    this.rejectedCandidates = 0;
+    this.closeReason = null;
+    this.turnConfigured = iceServers.some((server) => (Array.isArray(server.urls) ? server.urls : [server.urls])
+      .some((url) => /^turns?:/i.test(url)));
     /** @type {(() => void)|null} */ this.onopen = null;
     /** @type {((text: string) => void)|null} */ this.onmessage = null;
     /** @type {((reason: string) => void)|null} */ this.onclose = null;
 
     this.pc = createConnection({ iceServers });
     this.pc.onicecandidate = (event) => {
-      if (event.candidate) this.onSignal({ kind: 'candidate', candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate });
+      if (event.candidate) {
+        countCandidate(this.localCandidates, event.candidate);
+        if (isMdnsCandidate(event.candidate)) this.localMdnsCandidates++;
+        this.onSignal({ kind: 'candidate', candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate });
+      }
+    };
+    this.pc.onicecandidateerror = (event) => {
+      if (Number.isInteger(event.errorCode)) this.iceErrors.add(event.errorCode);
     };
     this.pc.onconnectionstatechange = () => this.connectionChanged();
     this.pc.ondatachannel = (event) => this.attach(event.channel);
@@ -138,15 +155,41 @@ export class PeerLink {
       this.haveRemote = true;
       await this.flushCandidates();
     } else if (data.kind === 'candidate' && data.candidate) {
+      countCandidate(this.remoteCandidates, data.candidate);
+      if (isMdnsCandidate(data.candidate)) this.remoteMdnsCandidates++;
       if (!this.haveRemote) this.queuedCandidates.push(data.candidate);
-      else await this.pc.addIceCandidate(data.candidate).catch(() => {});
+      else await this.addCandidate(data.candidate);
     }
   }
 
   async flushCandidates() {
     const queued = this.queuedCandidates;
     this.queuedCandidates = [];
-    for (const candidate of queued) await this.pc.addIceCandidate(candidate).catch(() => {});
+    for (const candidate of queued) await this.addCandidate(candidate);
+  }
+
+  async addCandidate(candidate) {
+    try { await this.pc.addIceCandidate(candidate); } catch { this.rejectedCandidates++; }
+  }
+
+  /** A shareable report for failures in the player's actual browser profile, without private network data. */
+  getDiagnostics() {
+    return {
+      connectionState: this.pc.connectionState,
+      iceConnectionState: this.pc.iceConnectionState ?? 'unknown',
+      iceGatheringState: this.pc.iceGatheringState ?? 'unknown',
+      channelState: this.channel?.readyState ?? 'none',
+      remoteDescriptionReceived: this.haveRemote,
+      turnConfigured: this.turnConfigured,
+      localCandidates: { ...this.localCandidates },
+      remoteCandidates: { ...this.remoteCandidates },
+      localMdnsCandidates: this.localMdnsCandidates,
+      remoteMdnsCandidates: this.remoteMdnsCandidates,
+      iceTransportPolicy: this.pc.getConfiguration?.().iceTransportPolicy ?? 'unknown',
+      iceErrorCodes: [...this.iceErrors].sort((a, b) => a - b),
+      rejectedCandidates: this.rejectedCandidates,
+      closeReason: this.closeReason,
+    };
   }
 
   get isOpen() {
@@ -173,6 +216,9 @@ export class PeerLink {
 
   close(reason = 'closed') {
     if (this.closed) return;
+    // Closing the browser connection overwrites the failed/checking state, so preserve it first.
+    this.closeReason = reason;
+    this.finalDiagnostics = this.getDiagnostics();
     this.closed = true;
     clearTimeout(this.disconnectTimer);
     // A sender waiting for the channel to drain must not wait forever on a link that is gone.
@@ -181,4 +227,14 @@ export class PeerLink {
     try { this.pc.close(); } catch { /* already closed */ }
     this.onclose?.(reason);
   }
+}
+
+function countCandidate(counts, candidate) {
+  const type = candidate.type ?? /\btyp\s+(host|srflx|prflx|relay)\b/.exec(candidate.candidate ?? '')?.[1];
+  const key = ['host', 'srflx', 'prflx', 'relay'].includes(type) ? type : 'unknown';
+  counts[key] = (counts[key] ?? 0) + 1;
+}
+
+function isMdnsCandidate(candidate) {
+  return /\.local$/i.test(candidate.address ?? '') || /\s[^\s]+\.local\s/i.test(candidate.candidate ?? '');
 }

@@ -394,6 +394,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         game: path.resolve('index.html'),
+        shareDebug: path.resolve('share-debug.html'),
         mobDebug: path.resolve('mob-debug.html'),
         itemDebug: path.resolve('item-debug.html'),
         fishingDebug: path.resolve('fishing-debug.html'),

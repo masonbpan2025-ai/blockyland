@@ -145,6 +145,49 @@ test('local candidates are passed on as they are found', () => {
   assert.deepEqual(signals, [{ kind: 'candidate', candidate: { candidate: 'cand-1' } }]);
 });
 
+test('connection reports contain candidate types and error codes, never addresses or credentials', async () => {
+  const { l, pc } = link({ iceServers: [{ urls: 'turn:private.example', username: 'secret-user', credential: 'secret-password' }] });
+  pc.iceConnectionState = 'checking';
+  pc.iceGatheringState = 'complete';
+  pc.onicecandidate({ candidate: { type: 'relay', candidate: 'candidate:1 1 udp 1 192.168.1.55 1234 typ relay', toJSON() { return { candidate: this.candidate }; } } });
+  await l.handleSignal({ kind: 'candidate', candidate: { candidate: 'candidate:2 1 udp 1 203.0.113.7 4567 typ host' } });
+  pc.onicecandidateerror({ errorCode: 701, url: 'turn:private.example', errorText: '192.168.1.55 could not connect' });
+  pc.onicecandidateerror({ errorCode: 701 });
+  const report = l.getDiagnostics();
+  assert.equal(report.turnConfigured, true);
+  assert.deepEqual(report.localCandidates, { relay: 1 });
+  assert.deepEqual(report.remoteCandidates, { host: 1 });
+  assert.deepEqual(report.iceErrorCodes, [701]);
+  assert.equal(report.iceConnectionState, 'checking');
+  assert.equal(report.remoteDescriptionReceived, false);
+  assert.doesNotMatch(JSON.stringify(report), /192\.168|203\.0|private\.example|secret-/);
+  report.localCandidates.relay = 100;
+  assert.equal(l.getDiagnostics().localCandidates.relay, 1, 'reports do not mutate live counters');
+  pc.onicecandidate({ candidate: { type: 'host', address: 'private-hostname.local', candidate: 'candidate:1 1 udp 1 private-hostname.local 1234 typ host' } });
+  await l.handleSignal({ kind: 'candidate', candidate: { candidate: 'candidate:2 1 udp 1 another-hostname.local 1234 typ host' } });
+  assert.equal(l.getDiagnostics().localMdnsCandidates, 1);
+  assert.equal(l.getDiagnostics().remoteMdnsCandidates, 1);
+  assert.doesNotMatch(JSON.stringify(l.getDiagnostics()), /private-hostname|another-hostname/);
+  l.close();
+});
+
+test('failed ICE state is retained before closing, and rejected remote candidates are counted', async () => {
+  const { l, pc } = link();
+  pc.addIceCandidate = async () => { throw new Error('Invalid remote address'); };
+  await l.handleSignal({ kind: 'candidate', candidate: { candidate: 'candidate:1 1 udp 1 203.0.113.7 1 typ srflx' } });
+  await l.handleSignal({ kind: 'answer', sdp: 'ANSWER' });
+  assert.equal(l.getDiagnostics().rejectedCandidates, 1);
+  pc.connectionState = 'failed';
+  pc.iceConnectionState = 'failed';
+  pc.close = () => { pc.connectionState = 'closed'; pc.iceConnectionState = 'closed'; };
+  pc.onconnectionstatechange();
+  assert.equal(l.finalDiagnostics.connectionState, 'failed');
+  assert.equal(l.finalDiagnostics.iceConnectionState, 'failed');
+  assert.equal(l.finalDiagnostics.closeReason, 'ice_failed');
+  assert.equal(l.finalDiagnostics.turnConfigured, false);
+  assert.equal(l.finalDiagnostics.remoteDescriptionReceived, true);
+});
+
 test('the link reports opening, passes text up and ignores anything that is not text', () => {
   const { l, pc } = link();
   const log = [];

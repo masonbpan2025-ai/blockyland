@@ -85,6 +85,8 @@ export function teardownWorld(game) {
       rocket.mesh?.geometry?.dispose?.();
     }
     entities.fireworkRockets = [];
+    // Hit particles of the last fight; their shared textures stay for the next world.
+    for (let i = (entities.combatParticles?.live.length ?? 0) - 1; i >= 0; i--) entities.combatParticles.remove(i);
   });
 
   step('paintings', () => game.paintings?.clear?.());

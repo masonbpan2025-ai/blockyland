@@ -333,13 +333,14 @@ export class ChestManager {
     if (!chest.isDouble || !chest.partnerPos) {
       if (slotIdx >= 0 && slotIdx < 27) {
         chest.items[slotIdx] = item;
+        this.onContentsChanged?.(chest);
       }
       return;
     }
 
     const partner = this.getChest(...chest.partnerPos);
     if (!partner) {
-      if (slotIdx >= 0 && slotIdx < 27) chest.items[slotIdx] = item;
+      if (slotIdx >= 0 && slotIdx < 27) { chest.items[slotIdx] = item; this.onContentsChanged?.(chest); }
       return;
     }
 
@@ -348,9 +349,28 @@ export class ChestManager {
 
     if (slotIdx < 27) {
       primary.items[slotIdx] = item;
+      this.onContentsChanged?.(primary);
     } else if (slotIdx < 54) {
       secondary.items[slotIdx - 27] = item;
+      this.onContentsChanged?.(secondary);
     }
+  }
+
+  /**
+   * Replace one chest's 27 slots: a world's game filling its chests, or another player's change arriving in a shared
+   * world. `silent` leaves `onContentsChanged` (the sharing hook) out, so a change that came from elsewhere is not
+   * sent back. A chest block with no record yet gets one.
+   */
+  setChestItems(x, y, z, items, { silent = false, facing = 0 } = {}) {
+    const chest = this.getChest(x, y, z) ?? this.adoptChest([x, y, z], facing);
+    for (let slot = 0; slot < 27; slot++) chest.items[slot] = items?.[slot] ? { ...items[slot] } : null;
+    if (!silent) this.onContentsChanged?.(chest);
+    const [ox, oy, oz] = this.openChestPos ?? [];
+    const partner = chest.partnerPos ?? [];
+    if ((ox === chest.x && oy === chest.y && oz === chest.z) || (ox === partner[0] && oy === partner[1] && oz === partner[2])) {
+      this.game?.ui?.renderChestGrids?.();
+    }
+    return chest;
   }
 
   getCombinedSlot(x, y, z, slotIdx) {

@@ -1,0 +1,23 @@
+// Generated from mod.json by scripts/generate-mod-catalog.mjs.
+export default {
+  "id": "skywars",
+  "name": "SkyWars",
+  "version": "1.0.0",
+  "description": "Every player on an island floating in the void: loot your chests, bridge across, and be the last one alive. Host a lobby, share the 4-digit code, start when a friend has joined.",
+  "entrypoint": "./index.js",
+  "mechanism": "skywars",
+  "maps": [
+    "SkyWars.json"
+  ],
+  "provides": {
+    "managers": [
+      {
+        "id": "skywars",
+        "name": "SkyWars Match"
+      }
+    ],
+    "features": [
+      "hasSkyWarsLobby"
+    ]
+  }
+};

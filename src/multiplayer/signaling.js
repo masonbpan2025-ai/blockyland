@@ -2,7 +2,7 @@
 //
 // A guest and a host cannot open a connection to each other from nothing: each browser is behind its own router and
 // neither knows the other's address. They need to swap a few messages first. This talks to the service that carries
-// them, and nothing else -- once the two browsers are connected they stop using it.
+// them -- and, when the two browsers cannot connect directly, the game's own frames too (`relay`).
 import { normalizeRoomCode } from './shareCode.js';
 
 /** A failure with a code the interface can turn into a sentence. */
@@ -116,6 +116,7 @@ export class SignalingClient {
       return;
     }
     if (msg.type === 'signal') this.emit('signal', { from: msg.from, data: msg.data });
+    else if (msg.type === 'relay' && typeof msg.data === 'string') this.emit('relay', { from: msg.from, data: msg.data });
     else if (msg.type === 'guest_left') this.emit('guest_left', { guestId: msg.guestId });
     else if (msg.type === 'host_left') this.emit('host_left');
   }
@@ -144,6 +145,21 @@ export class SignalingClient {
     if (!this.ws || this.ws.readyState !== 1) return false;
     this.ws.send(JSON.stringify({ type: 'signal', ...(to ? { to } : {}), data }));
     return true;
+  }
+
+  /**
+   * Send one game frame through the service, for a pair of browsers that cannot connect directly
+   * (resilientPeerLink.js): to a guest when hosting, to the host when joining.
+   */
+  relay(text, to) {
+    if (!this.ws || this.ws.readyState !== 1 || typeof text !== 'string') return false;
+    this.ws.send(JSON.stringify({ type: 'relay', ...(to ? { to } : {}), data: text }));
+    return true;
+  }
+
+  /** Bytes the socket has queued but not sent yet. */
+  bufferedAmount() {
+    return this.ws?.bufferedAmount ?? 0;
   }
 
   close() {

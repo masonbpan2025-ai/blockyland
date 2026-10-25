@@ -1,0 +1,7 @@
+{
+  "format": "minecraft-web-map", "version": 2,
+  "name": "SkyWars", "filename": "SkyWars.json",
+  "description": "Floating islands in the void, one per player, around a middle island with better loot. Host a lobby and share the code; start once a friend has joined. Last one alive wins.",
+  "worldType": "designed", "mechanism": "skywars", "seed": 2015, "generationMode": "authored", "worldTime": 6000,
+  "chunks": [], "player": {"position": {"x": 0.5, "y": 31, "z": -23.5}, "yaw": 3.14159, "pitch": 0, "gamemode": "adventure"}, "modState": {}
+}

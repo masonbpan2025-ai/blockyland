@@ -9,6 +9,9 @@ const MAX_GUESTS_PER_ROOM = 16;
 const MAX_ROOMS = 1000;
 const MAX_PAYLOAD_BYTES = 64 * 1024;
 const RENDEZVOUS_ID = 'all-shared-world-rooms';
+// Relayed game frames, for browsers that cannot connect directly (src/multiplayer/resilientPeerLink.js). The same
+// allowance as server/shareRendezvous.js RELAY_LIMITS, counted apart from the introductions.
+const RELAY_LIMITS = { burst: 4000, perSecond: 800, burstBytes: 16 * 1024 * 1024, bytesPerSecond: 4 * 1024 * 1024 };
 
 export default {
   async fetch(request, env) {
@@ -72,6 +75,54 @@ export class ShareRendezvous {
   constructor(ctx) {
     this.ctx = ctx;
     this.wrongCodes = new Map(); // address -> { misses, until }
+    // In memory only: after the object hibernates an allowance starts full again, and the lookup is rebuilt.
+    this.relayAllowances = new WeakMap(); // socket -> { messages, bytes, last }
+    this.relayTargets = new Map(); // `${room}/${guestId or 'host'}` -> socket
+  }
+
+  takeRelayAllowance(socket, size) {
+    const now = Date.now();
+    const a = this.relayAllowances.get(socket) ?? { messages: RELAY_LIMITS.burst, bytes: RELAY_LIMITS.burstBytes, last: now };
+    const seconds = Math.max(0, (now - a.last) / 1000);
+    a.last = now;
+    a.messages = Math.min(RELAY_LIMITS.burst, a.messages + seconds * RELAY_LIMITS.perSecond);
+    a.bytes = Math.min(RELAY_LIMITS.burstBytes, a.bytes + seconds * RELAY_LIMITS.bytesPerSecond);
+    this.relayAllowances.set(socket, a);
+    if (a.messages < 1 || a.bytes < size) return false;
+    a.messages -= 1;
+    a.bytes -= size;
+    return true;
+  }
+
+  /** The socket of the host of `room` (`who` 'host') or of one of its guests, without scanning every socket each frame. */
+  relayTarget(room, who) {
+    const key = `${room}/${who}`;
+    const known = this.relayTargets.get(key);
+    if (known?.readyState === 1) {
+      const state = attachment(known);
+      if (state.room === room && (who === 'host' ? state.role === 'host' : state.guestId === who)) return known;
+    }
+    this.relayTargets.delete(key);
+    const peers = roomSockets(this.ctx, room);
+    const found = who === 'host' ? peers.hosts[0] : peers.guests.find((guest) => guest.guestId === who)?.socket;
+    if (found) {
+      if (this.relayTargets.size > 5000) this.relayTargets.clear();
+      this.relayTargets.set(key, found);
+    }
+    return found ?? null;
+  }
+
+  relay(socket, state, text, size) {
+    let messageData;
+    try { messageData = JSON.parse(text); } catch { fail(socket, 'bad_json', 'Messages must be JSON.'); return; }
+    if (typeof messageData?.data !== 'string') { fail(socket, 'bad_message', 'A relayed frame must be text.'); return; }
+    if (!this.takeRelayAllowance(socket, size)) {
+      fail(socket, 'rate_limited', 'Too many messages.');
+      socket.close(1008, 'Too many messages');
+      return;
+    }
+    if (state.role === 'guest') send(this.relayTarget(state.room, 'host'), { type: 'relay', from: state.guestId, data: messageData.data });
+    else send(this.relayTarget(state.room, String(messageData.to)), { type: 'relay', from: 'host', data: messageData.data });
   }
 
   wrongCodeCount(address) {
@@ -118,13 +169,19 @@ export class ShareRendezvous {
 
   async webSocketMessage(socket, message) {
     const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
-    if (new TextEncoder().encode(text).byteLength > MAX_PAYLOAD_BYTES) {
+    const size = new TextEncoder().encode(text).byteLength;
+    if (size > MAX_PAYLOAD_BYTES) {
       fail(socket, 'bad_message', 'Messages must be no larger than 64 KiB.');
       socket.close(1009, 'Message too large');
       return;
     }
 
     const state = attachment(socket);
+    // Relayed game frames have their own, larger allowance, so they are told apart before the introductions' one.
+    if (state.role && state.room && text.startsWith('{"type":"relay"')) {
+      this.relay(socket, state, text, size);
+      return;
+    }
     const now = Date.now();
     const bucket = Math.min(200, (state.bucket ?? 200) + ((now - (state.last ?? now)) / 1000) * 20) - 1;
     state.bucket = bucket;

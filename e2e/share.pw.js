@@ -34,19 +34,21 @@ test.describe('sharing a world with a link', () => {
 
   test('SHARE-01 a host starts sharing from the pause menu and gets a link', async ({ browser }) => {
     ({ page: host, context: hostContext } = await open(browser));
-    await host.evaluate(async () => {
+    await host.click('#btn-start-new-world');
+    await host.click('#world-mode-creative');
+    await host.click('#btn-create-world-confirm');
+    await host.waitForFunction(() => window.game.worldReady && window.game.lifecycle?.phase === 'ready', null, { timeout: 180000 });
+    await host.evaluate(() => {
       const g = window.game;
-      g.applyWorldSettings({ gameMode: 'creative' });
-      g.world.reseed(4242, 'plains');
-      await g.generateNewWorld();
-      document.getElementById('start-overlay').style.display = 'none';
       // A block the guest should find, placed near where the host stands.
       const p = g.player.position;
       window.__marker = [Math.floor(p.x) + 3, 40, Math.floor(p.z) + 3];
       g.world.setVoxel(...window.__marker, 5);
     });
     // The pause menu button, as a player would press it.
-    await host.evaluate(() => document.getElementById('btn-host-world').click());
+    await host.evaluate(() => document.exitPointerLock?.());
+    await host.keyboard.press('Escape');
+    await host.click('#btn-host-world');
     await expect(host.locator('#host-world-modal')).not.toHaveClass(/hidden/);
     link = await host.inputValue('#host-share-link-input');
     expect(link, 'the link is the game\'s own address with a world code').toMatch(/^http:\/\/127\.0\.0\.1:3025\/\?join=[0-9]{4}$/);

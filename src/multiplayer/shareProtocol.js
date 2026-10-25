@@ -7,7 +7,8 @@
 //
 // Pure functions only, so the same rules run in the browser and in the tests.
 
-export const PROTOCOL_VERSION = 1;
+// 2: a relay through the introduction service, a world's own game channel (`game`), and shared chest contents (`container`).
+export const PROTOCOL_VERSION = 2;
 
 /** Host and guests together. "A small number of players": the host plus seven friends. */
 export const MAX_PLAYERS = 8;
@@ -19,10 +20,10 @@ export const MAX_COORDINATE = 30_000_000;
 export const WORLD_HEIGHT = 64;
 export const MAX_BLOCK_ID = 65535;
 
-export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack']);
+export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container']);
 export const HOST_TO_GUEST = Object.freeze([
   'welcome', 'snapshot', 'peer_joined', 'peer_left', 'player_state', 'block_update', 'chat', 'ping', 'pong', 'error', 'host_closing',
-  'hurt', 'settings',
+  'hurt', 'settings', 'time_sync', 'peer_hurt', 'game', 'container',
 ]);
 
 // --- players attacking players (PvP) ----------------------------------------------------------
@@ -49,9 +50,16 @@ export const MAX_ATTACK_REACH = 7;
 /** A guest's attack, or null when it is not one. */
 export function sanitizeAttack(raw) {
   if (!raw || typeof raw !== 'object') return null;
-  if (typeof raw.target !== 'string' || !/^[a-z0-9]{1,16}$/i.test(raw.target)) return null;
+  if (typeof raw.target !== 'string' || !/^[a-z0-9_-]{1,32}$/i.test(raw.target)) return null;
   if (!finite(raw.damage) || raw.damage <= 0 || raw.damage > MAX_ATTACK_DAMAGE) return null;
-  return { target: raw.target, damage: raw.damage };
+  const attack = { target: raw.target, damage: raw.damage };
+  if (raw.isCritical) attack.isCritical = true;
+  if (raw.isSprint) attack.isSprint = true;
+  if (typeof raw.weapon === 'string' && /^[a-z0-9_:-]{1,64}$/i.test(raw.weapon)) attack.weapon = raw.weapon;
+  // Knockback levels: the enchantment (II at most) plus one for a sprint hit; Fire Aspect II at most.
+  if (Number.isInteger(raw.knockbackLevel) && raw.knockbackLevel > 0) attack.knockbackLevel = Math.min(3, raw.knockbackLevel);
+  if (Number.isInteger(raw.fireAspect) && raw.fireAspect > 0) attack.fireAspect = Math.min(2, raw.fireAspect);
+  return attack;
 }
 
 /**
@@ -66,6 +74,62 @@ export function refuseAttack({ settings, attackerId, targetId, attackerPos, targ
   const distance = Math.hypot(attackerPos.x - targetPos.x, attackerPos.y - targetPos.y, attackerPos.z - targetPos.z);
   if (!(distance <= MAX_ATTACK_REACH)) return 'too_far';
   return null;
+}
+
+// --- a world's own game, and chest contents ---------------------------------------------------------
+
+/** The largest `game` message, as JSON: a mod's lobby state or event, never a world. */
+export const MAX_GAME_DATA_CHARS = 8192;
+
+/**
+ * A mod's game message (`{t:'game', data}`): a plain object of data, small. The mod checks what it means; this only
+ * makes sure it is data -- no prototype tricks, nothing large.
+ * @returns {object|null} a fresh copy, or null
+ */
+export function sanitizeGameData(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  let text;
+  try { text = JSON.stringify(raw); } catch { return null; }
+  if (typeof text !== 'string' || text.length > MAX_GAME_DATA_CHARS) return null;
+  const copy = JSON.parse(text, (key, value) => (key === '__proto__' || key === 'constructor' || key === 'prototype' ? undefined : value));
+  return copy && typeof copy === 'object' && typeof copy.type === 'string' && copy.type.length <= 40 ? copy : null;
+}
+
+/** Slots in one chest. A double chest is two chests, sent one at a time. */
+export const CONTAINER_SLOTS = 27;
+const ITEM_ID = /^[a-z0-9_:]{1,64}$/;
+
+function sanitizeStack(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'object') return undefined;
+  const id = typeof raw.id === 'string' ? (ITEM_ID.test(raw.id) ? raw.id : undefined)
+    : Number.isInteger(raw.id) && raw.id > 0 && raw.id <= MAX_BLOCK_ID ? raw.id : undefined;
+  if (id === undefined) return undefined;
+  if (!Number.isInteger(raw.count) || raw.count < 1 || raw.count > 64) return undefined;
+  const stack = { id, count: raw.count, isBlock: Boolean(raw.isBlock) };
+  if (finite(raw.durability) && raw.durability >= 0 && raw.durability <= 100000) stack.durability = raw.durability;
+  if (Array.isArray(raw.enchantments)) {
+    const list = raw.enchantments.slice(0, 12)
+      .filter((e) => e && typeof e.id === 'string' && /^[a-z_]{1,40}$/.test(e.id) && Number.isInteger(e.level) && e.level >= 1 && e.level <= 10)
+      .map((e) => ({ id: e.id, level: e.level, ...(typeof e.name === 'string' ? { name: e.name.slice(0, 40) } : {}) }));
+    if (list.length) stack.enchantments = list;
+  }
+  return stack;
+}
+
+/**
+ * One chest's contents (`{t:'container', x, y, z, items}`): whole-block coordinates in the world and 27 stacks or
+ * empty slots. A malformed stack refuses the whole message.
+ * @returns {{x:number,y:number,z:number,items:(object|null)[]}|null}
+ */
+export function sanitizeContainer(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const { x, y, z } = raw;
+  if (![x, y, z].every(Number.isInteger) || Math.abs(x) > MAX_COORDINATE || Math.abs(z) > MAX_COORDINATE || y < 0 || y >= WORLD_HEIGHT) return null;
+  if (!Array.isArray(raw.items) || raw.items.length !== CONTAINER_SLOTS) return null;
+  const items = raw.items.map(sanitizeStack);
+  if (items.includes(undefined)) return null;
+  return { x, y, z, items };
 }
 
 // Control characters, and the characters that turn text into markup.
@@ -169,6 +233,9 @@ export function guestLimiters(now) {
     chat: new RateLimiter({ perSecond: 1.5, burst: 5, now }),
     // Faster than any weapon swings at full strength; the attack cooldown makes quicker hits weak anyway.
     attack: new RateLimiter({ perSecond: 5, burst: 5, now }),
+    // A world's own game (a mod's lobby, deaths, item claims) and chest contents: a few a second at most.
+    game: new RateLimiter({ perSecond: 20, burst: 40, now }),
+    container: new RateLimiter({ perSecond: 20, burst: 40, now }),
     any: new RateLimiter({ perSecond: 150, burst: 300, now }),
   };
 }
