@@ -153,3 +153,16 @@ test('Player 3D Armor Visuals - Player updateCameraAndModel syncs armor with inv
   assert.equal(player.model.hasArmor('head'), false, 'helmet is removed from 3D player model when unequipped');
   assert.equal(player.model.head.children.length, 2);
 });
+
+test('no flicker at the neck or between the legs: the head wins its depth ties, and the two trouser layers differ in size', () => {
+  // The head turns about the neck, so its underside and the top of the body meet in a wedge of near-equal depth; and
+  // the legs touch, so trouser layers of one size shared their front, back and bottom faces. Both flickered as the
+  // view moved (found by drawing each part in its own colour from views 0.0001 rad apart).
+  const model = createPlayerModel({ followEquippedSkin: false });
+  const headBase = model.head.children[0];
+  assert.equal(headBase.material, model.headMaterial);
+  assert.ok(model.headMaterial.polygonOffset && model.headMaterial.polygonOffsetFactor < 0 && model.headMaterial.polygonOffsetUnits < 0);
+  assert.ok(model.torso.children[0].material.polygonOffset !== true, 'the body is not biased');
+  const size = (mesh) => { mesh.geometry.computeBoundingBox(); return mesh.geometry.boundingBox.max.z; };
+  assert.notEqual(size(model.leftLeg.children[1]), size(model.rightLeg.children[1]));
+});

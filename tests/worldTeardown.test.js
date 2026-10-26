@@ -214,3 +214,27 @@ test('Create World hides the title screen after the load only if the world is st
   assert.match(after, /if \(this\.startOverlay && this\.game\.worldReady\) this\.startOverlay\.style\.display = 'none';/);
   assert.doesNotMatch(after, /if \(this\.startOverlay\) this\.startOverlay\.style\.display = 'none';/);
 });
+
+test('a new world does not inherit the last one\'s player: inventory, health, hunger, effects, experience and spawn points go', () => {
+  // The bug: items collected in one world were all in the hotbar of the next "Generate New World". Java keeps player
+  // data per world, so a new world starts with nothing.
+  const { game } = runningGame();
+  let hotbarDrawn = false;
+  game.ui = { updateHotbar: () => { hotbarDrawn = true; } };
+  game.inventory = {
+    hotbar: [{ id: 'diamond_sword', count: 1 }], storage: [{ id: 'arrow', count: 32 }], armor: { head: { id: 'iron_helmet' } },
+    clearAll() { this.hotbar = new Array(9).fill(null); this.storage = new Array(27).fill(null); this.armor = { head: null }; },
+  };
+  Object.assign(game.player, {
+    maxHealth: 20, health: 7, hunger: 4, saturation: 0, absorption: 4, exp: 0.5, level: 12, isDead: true,
+    statusEffects: new Map([['poison', { duration: 100 }]]), fireTicks: 40,
+    bedSpawnPosition: { x: 1 }, bedBlockPosition: { x: 1 }, anchorSpawn: { x: 2 }, commandSpawnPosition: { x: 3 },
+  });
+  teardownWorld(game);
+  assert.ok(game.inventory.hotbar.every((s) => s === null) && game.inventory.storage.every((s) => s === null));
+  assert.equal(game.inventory.armor.head, null);
+  assert.ok(hotbarDrawn, 'the hotbar is drawn empty');
+  const p = game.player;
+  assert.deepEqual([p.health, p.hunger, p.absorption, p.exp, p.level, p.isDead, p.fireTicks, p.statusEffects.size], [20, 20, 0, 0, 0, false, 0, 0]);
+  assert.deepEqual([p.bedSpawnPosition, p.bedBlockPosition, p.anchorSpawn, p.commandSpawnPosition], [null, null, null, null]);
+});

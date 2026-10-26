@@ -109,6 +109,14 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default', f
         side: THREE.DoubleSide,
       });
 
+  // The head turns up and down about the neck, so its underside and the top of the body meet in a thin wedge where
+  // the two are all but the same depth: drawn as they are, the neck flickers between them as the view moves. The
+  // head's skin is drawn a hair nearer, so it always wins there.
+  const headMaterial = baseMaterial.clone();
+  headMaterial.polygonOffset = true;
+  headMaterial.polygonOffsetFactor = -1;
+  headMaterial.polygonOffsetUnits = -1;
+
   const armW = modelType === 'slim' ? 0.1875 : 0.25;
   const armTexW = modelType === 'slim' ? 3 : 4;
   const armOffsetX = modelType === 'slim' ? 0.34 : 0.38;
@@ -118,7 +126,7 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default', f
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 1.5, 0);
 
-  const headMesh = createSkinBox(0.5, 0.5, 0.5, 0, 0, 8, 8, 8, baseMaterial);
+  const headMesh = createSkinBox(0.5, 0.5, 0.5, 0, 0, 8, 8, 8, headMaterial);
   headMesh.position.set(0, 0.25, 0);
   headGroup.add(headMesh);
 
@@ -180,8 +188,9 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default', f
   leftLegMesh.position.set(0, -0.375, 0);
   leftLegGroup.add(leftLegMesh);
 
-  // Left Pants Overlay
-  const leftPantsMesh = createSkinBox(0.24, 0.75, 0.24, 0, 48, 4, 12, 4, overlayMaterial, 0.02);
+  // Left Pants Overlay (a little thicker than the right: the legs touch in the middle, and two layers of one size
+  // would share their front, back and bottom faces there and flicker)
+  const leftPantsMesh = createSkinBox(0.24, 0.75, 0.24, 0, 48, 4, 12, 4, overlayMaterial, 0.0225);
   leftPantsMesh.position.set(0, -0.375, 0);
   leftLegGroup.add(leftPantsMesh);
 
@@ -211,6 +220,7 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default', f
   group.rightLeg = rightLegGroup;
 
   group.baseMaterial = baseMaterial;
+  group.headMaterial = headMaterial;
   group.overlayMaterial = overlayMaterial;
 
   // Armor visual pieces tracking
@@ -353,6 +363,9 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default', f
       baseMaterial.map = newTexture;
       baseMaterial.needsUpdate = true;
 
+      headMaterial.map = newTexture;
+      headMaterial.needsUpdate = true;
+
       overlayMaterial.map = newTexture;
       overlayMaterial.needsUpdate = true;
     });
@@ -376,7 +389,7 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default', f
     applyBoxUVs(leftArmMesh.geometry, 32, 48, newArmTexW, 12, 4);
 
     leftSleeveMesh.geometry.dispose();
-    leftSleeveMesh.geometry = new THREE.BoxGeometry(newArmW, 0.75, 0.25);
+    leftSleeveMesh.geometry = new THREE.BoxGeometry(newArmW + 0.04, 0.79, 0.29);
     applyBoxUVs(leftSleeveMesh.geometry, 48, 48, newArmTexW, 12, 4);
 
     rightArmMesh.geometry.dispose();
@@ -384,7 +397,7 @@ export function createPlayerModel({ skinDataUrl = null, modelType = 'default', f
     applyBoxUVs(rightArmMesh.geometry, 40, 16, newArmTexW, 12, 4);
 
     rightSleeveMesh.geometry.dispose();
-    rightSleeveMesh.geometry = new THREE.BoxGeometry(newArmW, 0.75, 0.25);
+    rightSleeveMesh.geometry = new THREE.BoxGeometry(newArmW + 0.04, 0.79, 0.29);
     applyBoxUVs(rightSleeveMesh.geometry, 40, 32, newArmTexW, 12, 4);
   };
 

@@ -6,6 +6,7 @@
 // emptied, with the simulation still running. It also left the chunk streamer believing the old chunk coordinates were
 // loaded, so the new world's chunks were never built -- the overlaid, error-filled world. This releases all of it.
 import { reset as resetLifecycle } from './worldLifecycle.js';
+import { resetSurvivalState } from './deathAndRespawn.js';
 
 /**
  * Tear the running world down.
@@ -120,6 +121,28 @@ export function teardownWorld(game) {
     player.botControls = null;
     player.isSleeping = false;
     player.isSwimming = false;
+  });
+  // What the player carried and was belongs to the world they were in, as in Java, where each world keeps its own
+  // player data: a new world starts with nothing, at full health, no experience and no spawn point of its own. A
+  // saved world puts its own back when it loads.
+  step('player data', () => {
+    const player = game.player;
+    if (!player) return;
+    resetSurvivalState(player);
+    player.invulnerableTimer = 0;
+    player.health = player.maxHealth = 20;
+    player.exp = 0;
+    player.level = 0;
+    player.deathDropsDone = false;
+    player.bedSpawnPosition = null;
+    player.bedBlockPosition = null;
+    player.anchorSpawn = null;
+    player.commandSpawnPosition = null;
+  });
+  step('inventory', () => {
+    game.inventory?.clearAll?.();
+    game.ui?.updateHotbar?.();
+    game.ui?.updateStats?.();
   });
 
   return { released };
