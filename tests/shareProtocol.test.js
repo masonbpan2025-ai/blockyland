@@ -44,7 +44,9 @@ test('escaping makes text inert as HTML', () => {
 
 test('a pose is clamped, typed and stripped to what the game uses', () => {
   const s = sanitizePlayerState({ x: 1.5, y: 64, z: -2, yaw: 3, pitch: 0.2, isSneaking: true, isSprinting: 1, isSwinging: 'yes', activeItem: 'diamond_sword', health: 999, op: true });
-  assert.deepEqual(s, { x: 1.5, y: 64, z: -2, yaw: 3, pitch: 0.2, isSneaking: true, isSprinting: false, isSwinging: false, activeItem: 'diamond_sword' });
+  assert.deepEqual(s, { x: 1.5, y: 64, z: -2, yaw: 3, pitch: 0.2, isSneaking: true, isSprinting: false, isSwinging: false, activeItem: 'diamond_sword', dead: false });
+  assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, dead: true }).dead, true, 'dead, until the player respawns');
+  assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, dead: 'yes' }).dead, false);
 });
 
 test('a pose with no real position is refused, and extremes are held within the world', () => {
@@ -59,9 +61,9 @@ test('a pose with no real position is refused, and extremes are held within the 
   assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, pitch: 'up', yaw: null }).yaw, 0);
 });
 
-test('a held item must look like an item id', () => {
-  for (const ok of ['stick', 'diamond_sword', 'minecraft:stone', 'a.b-c']) assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, activeItem: ok }).activeItem, ok);
-  for (const bad of ['<script>', 'a b', '', 'x'.repeat(65), 5, {}, null]) assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, activeItem: bad }).activeItem, null, String(bad));
+test('a held item must look like an item id, or be a block\'s number', () => {
+  for (const ok of ['stick', 'diamond_sword', 'minecraft:stone', 'a.b-c', 5, 10, 65535]) assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, activeItem: ok }).activeItem, ok);
+  for (const bad of ['<script>', 'a b', '', 'x'.repeat(65), 0, -3, 1.5, 70000, {}, null]) assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, activeItem: bad }).activeItem, null, String(bad));
 });
 
 test('a block edit must be whole numbers inside the world and name a real block', () => {

@@ -1422,7 +1422,8 @@ export class Player {
     // every 0.5 s precisely because it is meant to hurt.
     if (!effectDamage && freshHit) this.invulnerableTimer = 0.5;
     if (sourcePos && Number.isFinite(sourcePos.x) && this.health > 0 && freshHit) {
-      if (damageType === 'player') {
+      // Another player's hit, or their arrow, snowball or egg (fromPlayer): Java's knockback, as a player's.
+      if (damageType === 'player' || options.fromPlayer) {
         // Java's knockback (pvpCombat.js): 0.4 blocks/tick away from the attacker, lifting a grounded player, then a
         // further level along the attacker's facing for a sprint hit and for each level of Knockback.
         const v = hitKnockback(this.velocity, {
@@ -1572,7 +1573,9 @@ export class Player {
     const inv = this.inventory;
     const drops = collectDeathDrops(inv);
     const origin = this.position?.clone ? this.position.clone() : this.position;
-    for (const stack of drops) {
+    // In a shared world the others see the drops too, and the host gives each to the first to reach it.
+    const shared = drops.length > 0 && this.game?.worldSync?.shareDeathDrops?.(origin, drops);
+    if (!shared) for (const stack of drops) {
       this.game?.entities?.spawnDroppedItem?.(origin, stack.id, stack.isBlock, stack.count);
     }
 

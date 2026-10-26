@@ -7,9 +7,12 @@ import { ShareSession } from '../src/multiplayer/shareSession.js';
 import { sanitizeAttack } from '../src/multiplayer/shareProtocol.js';
 import { WorldSyncManager } from '../src/multiplayer/worldSyncManager.js';
 
-// Setup minimal mock DOM
+// Setup minimal mock DOM. What it adds is taken away again by this file's last test: the test files share one
+// process, and a later file must not find a half-made document.
+const addedGlobals = new Set();
 function setupMockDom() {
   if (typeof globalThis.document === 'undefined') {
+    addedGlobals.add('document');
     globalThis.document = {
       createElement: () => ({
         // Every 2D drawing call is a no-op. The test files share one process, so this stub is what later files see
@@ -25,9 +28,11 @@ function setupMockDom() {
     };
   }
   if (typeof globalThis.localStorage === 'undefined') {
+    addedGlobals.add('localStorage');
     globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   }
   if (typeof globalThis.window === 'undefined') {
+    addedGlobals.add('window');
     globalThis.window = {
       location: { href: 'http://localhost/' },
       addEventListener: () => {},
@@ -379,4 +384,9 @@ test('14. Attacks from the flank or rear bypass shield block completely', () => 
   // Attacker attacks from right side (+X): dot product is 0, on boundary
   player.takeDamage(5, { x: 4, y: 0, z: 0 }, 'player', null);
   assert.equal(player.health, 15, 'boundary dot == 0 is within 180-degree frontal semicircle');
+});
+
+test('the mock page is taken down again, so the next test file starts without it', () => {
+  for (const key of addedGlobals) delete globalThis[key];
+  addedGlobals.clear();
 });

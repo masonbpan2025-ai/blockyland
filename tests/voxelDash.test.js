@@ -219,3 +219,64 @@ test('each level has its own soundtrack, in its own style, at its own tempo',asy
   const leads=LEVELS.map((l,i)=>JSON.stringify(Array.from({length:64},(_,s)=>songFor(l,i).at(s+64).notes.filter(n=>n.part==='lead').map(n=>n.midi))));
   assert.equal(new Set(leads).size,LEVELS.length);
 });
+
+// Coyote time (Geometry Dash 2.2/2.201): a cube that walks off a ledge may still jump while it has turned no more than 30
+// degrees -- PHYSICS.coyoteTilt -- since leaving it; after that, or after a jump, a pad or an orb, a press in the air does nothing.
+/** A cube running along a block whose top is at 60 and whose end is at x 200; stepped to the first tick in the air. */
+function offTheEdge(extra=[]){
+  const s=createSimulation([block(-100,0,300,60),...extra],{length:5000},{x:0,y:60,grounded:true});
+  for(let i=0;i<400&&s.snapshot().grounded;i++)s.advance(1/240);
+  assert.equal(s.snapshot().grounded,false,'walked off the edge');
+  return s;
+}
+const tilt=(s)=>Math.abs(s.snapshot().angle-s.snapshot().coyote)*180/Math.PI;
+test('coyote jump: just off the edge, a press still jumps',()=>{
+  const s=offTheEdge();
+  advance(s,6/240);
+  assert.ok(tilt(s)<30,`tilted ${tilt(s).toFixed(1)} degrees`);
+  const before=s.snapshot().y;
+  s.jump(true);s.advance(1/240);
+  assert.ok(s.snapshot().vy>500,'launched with a full jump');
+  advance(s,.15);
+  assert.ok(s.snapshot().y>before+40,'and rose above the ledge');
+});
+test('coyote jump: the window is 30 degrees of turn -- 1/15 s at the cube\'s 450 degrees a second',()=>{
+  assert.equal(PHYSICS.coyoteTilt,Math.PI/6);
+  let last=0;
+  for(let ticks=0;ticks<30;ticks++){
+    const s=offTheEdge();advance(s,ticks/240);
+    const open=s.snapshot().coyote!==null;
+    s.jump(true);s.advance(1/240);
+    if(s.snapshot().vy>500){assert.ok(open);last=ticks;}
+    else assert.equal(open,false,`no jump at ${ticks} ticks while the window was open`);
+  }
+  // 30 degrees at 2.5 pi rad/s is 1/15 s: 16 ticks of 240.
+  assert.ok(last>=14&&last<=16,`last coyote jump after ${last} ticks`);
+});
+test('coyote jump: once tilted past 30 degrees, a press does nothing',()=>{
+  const s=offTheEdge();advance(s,30/240);
+  assert.equal(s.snapshot().coyote,null);
+  s.jump(true);s.advance(1/240);
+  assert.ok(s.snapshot().vy<0,'still falling');
+});
+test('coyote jump: only after walking off -- not after a jump, a pad or an orb, and only once',()=>{
+  // After a jump the cube is in the air but has no coyote time.
+  const jumped=createSimulation([],{length:5000});jumped.jump(true);jumped.advance(1/240);jumped.jump(false);
+  advance(jumped,2/240);assert.equal(jumped.snapshot().coyote,null);
+  jumped.jump(true);const vy=jumped.snapshot().vy;jumped.advance(1/240);assert.ok(jumped.snapshot().vy<vy,'no second jump in the air');
+  // A pad launch is not walking off.
+  const pad={type:'pad',sourceIndex:5,x:10,y:0,w:30,h:4,pad:'yellow'};
+  const padded=createSimulation([pad],{length:5000});advance(padded,6/240);
+  assert.ok(padded.snapshot().vy>0);assert.equal(padded.snapshot().coyote,null);
+  // The coyote jump is used up: a second press in the air does not jump again.
+  const s=offTheEdge();advance(s,4/240);s.jump(true);s.advance(1/240);s.jump(false);s.advance(1/240);
+  assert.equal(s.snapshot().coyote,null);
+  const rising=s.snapshot().vy;s.jump(true);s.advance(1/240);assert.ok(s.snapshot().vy<rising);
+});
+test('coyote time survives a practice checkpoint (fork) and only the cube has it',()=>{
+  const s=offTheEdge();advance(s,3/240);
+  const copy=s.fork();assert.equal(copy.snapshot().coyote,s.snapshot().coyote);
+  copy.jump(true);copy.advance(1/240);assert.ok(copy.snapshot().vy>500);
+  const ship=createSimulation([block(-100,0,300,60)],{length:5000},{mode:'ship',x:0,y:60,grounded:true});
+  advance(ship,1);assert.equal(ship.snapshot().coyote,null);
+});

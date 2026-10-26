@@ -1,11 +1,12 @@
 import { defineConfig } from '@playwright/test';
 // Graphics and mob performance in a real browser: Performance Mode and the render distance button
-// (e2e/graphicsSettings.pw.js), and mob level of detail in a village crowd (e2e/mobCrowd.pw.js).
+// (e2e/graphicsSettings.pw.js), mob level of detail in a village crowd (e2e/mobCrowd.pw.js), and Voxel Dash drawing
+// every frame smoothly with a jump at once (e2e/voxelDash.pw.js).
 // PW_CHANNEL picks the installed browser (default chrome); set it to "chromium" where only Playwright's own is installed.
 const channel = process.env.PW_CHANNEL === 'chromium' ? undefined : (process.env.PW_CHANNEL ?? 'chrome');
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['graphicsSettings.pw.js', 'mobCrowd.pw.js'],
+  testMatch: ['graphicsSettings.pw.js', 'mobCrowd.pw.js', 'voxelDash.pw.js'],
   timeout: 600000,
   workers: 1,
   reporter: [['list']],

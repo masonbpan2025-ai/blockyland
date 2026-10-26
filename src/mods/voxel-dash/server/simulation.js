@@ -5,7 +5,10 @@ export const PHYSICS=Object.freeze({tick:1/240,size:30,cubeGravity:2799.36,jump:
   // Ball and UFO (levels 7-12). Gravity scales and the mini factors are measured (RESEARCH.md); the flip, flap and
   // pink-orb impulses are adapter values.
   ballGravity:.6,ballPad:.6,ballOrb:.7,ballFlip:.3,ufoGravity:.6,ufoFlap:378,ufoFallLimit:345.6,
-  pinkOrb:.7,miniScale:.6,miniImpulse:.8,ballCorridor:300,flightCorridor:300});
+  pinkOrb:.7,miniScale:.6,miniImpulse:.8,ballCorridor:300,flightCorridor:300,
+  // Coyote time (Geometry Dash 2.2/2.201: "Coyote time has been added for jumping off platforms"): a cube that walks off
+  // an edge can still jump while it has turned at most 30 degrees since leaving it -- 1/15 s at its 450 degrees a second.
+  coyoteTilt:Math.PI/6});
 export function createSimulation(course,{speed=311.58,length=26000,maxObjectWidth=Math.max(0,...course.map(o=>o.w))}={},saved=null) {
   let x=saved?.x??0,y=saved?.y??0,vy=saved?.vy??0,angle=saved?.angle??0,
     gravity=saved?.gravity??1,mode=saved?.mode??'cube',phase='play',time=saved?.time??0,
@@ -14,7 +17,9 @@ export function createSimulation(course,{speed=311.58,length=26000,maxObjectWidt
     held=saved?.controls?.held??false,queued=saved?.controls?.queued??false,
     accumulator=saved?.controls?.accumulator??0,coins=saved?.coins??0,deathBy=null,
     // When gravity last flipped: for 0.1 s after, a block's side re-seats the player instead of killing (RESEARCH.md).
-    flipAt=saved?.flipAt??-Infinity;
+    flipAt=saved?.flipAt??-Infinity,
+    // The cube's angle when it walked off an edge, while a late press may still jump (coyote time); otherwise null.
+    coyote=saved?.coyote??null;
   const used=new Set(saved?.used??[]);
   // The player's box: 30 units, or 18 when mini, centred on x+15 and standing on y.
   const half=()=>15*scale,left=()=>x+15-half(),bottomY=()=>y,size=()=>30*scale;
@@ -30,16 +35,18 @@ export function createSimulation(course,{speed=311.58,length=26000,maxObjectWidt
   }
   function tick() {
     const d=PHYSICS.tick,oldY=y;x+=speed*d;time+=d;
+    // Whether the cube stood on something, and how it was turned, coming into this tick; whether anything launched it.
+    const wasGrounded=grounded,groundAngle=angle;let launched=false;
     let lo=0,hi=course.length;
     while(lo<hi){const mid=(lo+hi)>>>1;if(course[mid].x<x-maxObjectWidth-60)lo=mid+1;else hi=mid;}
     const near=[];for(let i=lo;i<course.length&&course[i].x<x+60;i++)if(course[i].x+course[i].w>x-60)near.push(course[i]);
     // Coin-route gravity portals must only activate when actually touched.
     for(const o of near)if(o.type==='portal'&&!used.has(o.sourceIndex)&&intersects(o)){
       used.add(o.sourceIndex);
-      if(o.gravity){if(gravity!==o.gravity)flipAt=time;gravity=o.gravity;vy*=.5;grounded=false;}
+      if(o.gravity){if(gravity!==o.gravity)flipAt=time;gravity=o.gravity;vy*=.5;grounded=false;launched=true;}
       if(o.size){scale=o.size;}
       if(o.mirror!==undefined)mirrored=o.mirror;
-      if(o.mode){mode=o.mode;angle=0;grounded=false;
+      if(o.mode){mode=o.mode;angle=0;grounded=false;launched=true;coyote=null;
         if(mode==='ship'){
           floor=Math.max(0,Math.round((o.cy-15)/30)*30-150);ceiling=floor+300;
           y=Math.max(floor,Math.min(ceiling-30,y));vy=Math.max(-345.6,Math.min(432,vy));
@@ -49,7 +56,9 @@ export function createSimulation(course,{speed=311.58,length=26000,maxObjectWidt
       }
     }
     if(mode==='cube') {
-      if(grounded&&held){vy=PHYSICS.jump*impulse()*gravity;grounded=false;queued=false;}
+      // On the ground, or just off an edge and turned no more than coyoteTilt: the press is a jump.
+      const coyoteJump=!grounded&&coyote!==null&&Math.abs(angle-coyote)<=PHYSICS.coyoteTilt;
+      if((grounded||coyoteJump)&&held){vy=PHYSICS.jump*impulse()*gravity;grounded=false;queued=false;launched=true;coyote=null;}
       vy-=PHYSICS.cubeGravity*gravity*d;
       vy=gravity===1?Math.max(-PHYSICS.fallLimit,vy):Math.min(PHYSICS.fallLimit,vy);
     }else if(mode==='ball') {
@@ -97,13 +106,13 @@ export function createSimulation(course,{speed=311.58,length=26000,maxObjectWidt
       const modeScale=mode==='ball'?PHYSICS.ballPad:1;
       // A gravity pad fires only for a player falling onto it: a floor pad for normal gravity, a ceiling pad upside down.
       if(o.type==='pad'&&!used.has(key)&&intersects(o,1)&&(o.pad!=='gravity'||(o.inverted?gravity===-1:gravity===1))){
-        used.add(key);grounded=false;
+        used.add(key);grounded=false;launched=true;
         // Flipped, and launched towards the new down: away from the pad.
         if(o.pad==='gravity'){gravity*=-1;flipAt=time;vy=-PHYSICS.jump*.5*impulse()*gravity;}
         else vy=(o.pad==='pink'?PHYSICS.pinkPad:PHYSICS.yellowPad)*modeScale*impulse()*(o.inverted?-1:1);
       }
       if(o.type==='ring'&&queued&&!used.has(key)&&intersects(o,6)){
-        used.add(key);grounded=false;queued=false;
+        used.add(key);grounded=false;queued=false;launched=true;
         const orbScale=(mode==='ball'?PHYSICS.ballOrb:1)*impulse();
         if(o.orb==='blue'){gravity*=-1;flipAt=time;vy=-PHYSICS.jump*.5*orbScale*gravity;}
         else vy=PHYSICS.yellowOrb*(o.orb==='pink'?PHYSICS.pinkOrb:1)*orbScale*gravity;
@@ -129,10 +138,16 @@ export function createSimulation(course,{speed=311.58,length=26000,maxObjectWidt
     else if(mode==='ball')angle+=gravity*speed*d/(15*scale);
     else if(grounded)angle=Math.round(angle/(Math.PI/2))*(Math.PI/2);
     else angle+=gravity*d*Math.PI*2.5;
+    // Coyote time: opened by walking off an edge (not by a jump, pad, orb or portal), closed on landing or past the tilt.
+    if(mode!=='cube'||grounded||launched)coyote=null;
+    else if(wasGrounded)coyote=groundAngle;
+    else if(coyote!==null&&Math.abs(angle-coyote)>PHYSICS.coyoteTilt)coyote=null;
     if(y>1500||y<-300){die();return;}
     if(x>=length){x=length;phase='complete';held=false;}
   }
-  const snapshot=()=>({phase,x,y,vy,angle,gravity,mode,grounded,floor,ceiling,coins,time,jumpQueued:queued,used:[...used],scale,mirrored,deathBy,flipAt});
+  const snapshot=()=>({phase,x,y,vy,angle,gravity,mode,grounded,floor,ceiling,coins,time,jumpQueued:queued,used:[...used],scale,mirrored,deathBy,flipAt,coyote,
+    // Time not yet spent on a whole physics tick: drawing carries the motion on by it, so the course moves evenly at any frame rate.
+    lag:accumulator,speed});
   return {jump(down){if(down&&!held)queued=true;if(!down)queued=false;held=down;},
     release(){held=false;queued=false;},
     advance(dt){if(!Number.isFinite(dt)||dt<=0||dt>.25||phase!=='play')return;accumulator+=dt;while(accumulator+1e-9>=PHYSICS.tick&&phase==='play'){accumulator-=PHYSICS.tick;tick();}},

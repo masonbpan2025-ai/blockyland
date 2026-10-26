@@ -107,7 +107,7 @@ export class SkyWarsManager {
   fromGuest(peerId, data) {
     if (!this.match || !GUEST_MESSAGES.has(data?.type)) return;
     if (data.type === 'died') {
-      const cause = ['void', 'fall', 'player', 'other'].includes(data.cause) ? data.cause : 'other';
+      const cause = ['void', 'fall', 'player', 'arrow', 'other'].includes(data.cause) ? data.cause : 'other';
       this.match.eliminate(peerId, cause);
       this.publish();
     } else if (data.type === 'drop_items') {
@@ -410,7 +410,7 @@ export class SkyWarsManager {
       this.game.inventory?.clearCarried?.();
       this.game.ui?.updateHotbar?.();
       const at = { x: p.position.x, y: p.position.y, z: p.position.z };
-      const cause = this.lastDamageType === 'player' ? 'player' : this.lastDamageType === 'fall' ? 'fall' : p.position.y < ARENA.voidY ? 'void' : 'other';
+      const cause = ['player', 'arrow', 'fall'].includes(this.lastDamageType) ? this.lastDamageType : p.position.y < ARENA.voidY ? 'void' : 'other';
       this.report(cause, at, items);
     }
     this.becomeSpectator();

@@ -9,6 +9,7 @@ import { shareableSkin } from './skinShare.js';
 import { skinManager } from '../skinManager.js';
 import { ShareError } from './signaling.js';
 import { serializeWorld, deserializeWorldAsync } from '../mapManager.js';
+import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from '../blocks.js';
 import { buildShareUrl, isLocalOnlyAddress, parseJoinCode, normalizeRoomCode, isValidRoomCode } from './shareCode.js';
 import { escapeHtml, sanitizeName, MAX_PLAYERS } from './shareProtocol.js';
@@ -170,6 +171,11 @@ export class WorldSyncManager {
       this.remotePlayers.updatePeerState(peerId, state);
     });
 
+    // A dead player's drops, for everyone; the host gives each to the first who walks over it.
+    this.sharedDrops = new Map(); // id -> dropped-item entry
+    this.client.on('drops', ({ drops }) => this.spawnSharedDrops(drops));
+    this.client.on('taken', (taken) => this.dropTaken(taken));
+
     // Skins: everyone else's, as they arrive; this player's own, sent again whenever it is changed.
     this.client.on('skin', ({ peerId, png, model }) => this.remotePlayers.setSkin(peerId, { png, model }));
     this.offSkinChange = skinManager.onChange?.(() => { if (this.isHosting || this.isJoined) void this.shareMySkin(); });
@@ -264,21 +270,115 @@ export class WorldSyncManager {
    * Another player hit this one. Taken as a melee hit from where the attacker stood, so armour, a raised shield, the
    * hit-invulnerability window, Creative mode and the knockback all apply as they do to a mob's hit.
    */
-  takeHit({ attackerName, damage, from, weapon, isSprint, isCritical, knockbackLevel = 0, fireAspect = 0 }) {
+  takeHit({ attackerName, damage, from, weapon, isSprint, isCritical, knockbackLevel = 0, fireAspect = 0, projectile = null, flame = false }) {
     const player = this.game.player;
     if (!player || player.isDead) return;
     const source = from ? { x: from.x, y: from.y, z: from.z } : null;
     const before = player.health;
-    player.takeDamage(damage, source, 'player', null, {
-      weapon, isSprint, isCritical, fromYaw: from?.yaw, knockbackLevel: knockbackLevel || (isSprint ? 1 : 0),
+    // An arrow is a projectile hit -- a raised shield and Projectile Protection answer it; a snowball or an egg deals
+    // nothing and only knocks back. Either way the push is a player's (fromPlayer), not a mob's.
+    const damageType = projectile === 'arrow' ? 'arrow' : 'player';
+    player.takeDamage(damage, source, damageType, null, {
+      weapon, isSprint, isCritical, fromYaw: from?.yaw, knockbackLevel: knockbackLevel || (isSprint ? 1 : 0), fromPlayer: true,
     });
-    // Fire Aspect sets the player alight when the hit got through: 4 seconds a level.
+    // Fire Aspect sets the player alight when the hit got through: 4 seconds a level; a Flame arrow for 5 (Flame).
     if (fireAspect > 0 && player.health < before) igniteActor(player, fireAspectSeconds(fireAspect));
+    if (flame && player.health < before) igniteActor(player, 5);
     this.game.ui?.updateStats?.();
-    // Minecraft's death message for a player killed by another: "<player> was slain by <player>".
+    // Minecraft's death messages for a player killed by another: "was slain by", "was shot by".
     if (player.isDead || player.health <= 0) {
-      this.chat(`<span style="color:#ef4444;">${escapeHtml(this.client.playerName)} was slain by ${escapeHtml(attackerName)}</span>`);
+      const verb = projectile === 'arrow' ? 'was shot by' : projectile ? 'was pummeled by' : 'was slain by';
+      this.chat(`<span style="color:#ef4444;">${escapeHtml(this.client.playerName)} ${verb} ${escapeHtml(attackerName)}</span>`);
     }
+  }
+
+  /**
+   * A projectile this player fired moved from `from` to `to` this step: if it passed through another player, that is a
+   * hit, judged by the host as a melee hit is (with a longer range). Arrows, snowballs and eggs call this.
+   * @param {{kind:'arrow'|'snowball'|'egg', damage?:number, flame?:boolean}} shot
+   * @returns {boolean} whether it hit someone, so the projectile stops there
+   */
+  projectileHit(from, to, { kind, damage = 0, flame = false } = {}) {
+    if (!this.client.connected || !from || !to) return false;
+    const dir = new THREE.Vector3(to.x - from.x, to.y - from.y, to.z - from.z);
+    const length = dir.length();
+    if (!(length > 1e-6)) return false;
+    dir.divideScalar(length);
+    // A projectile is not a point: an arrow's box is half a block (Arrow), a snowball's a quarter.
+    const pad = kind === 'arrow' ? 0.25 : 0.125;
+    const hit = this.remotePlayers.pickPlayer(from, dir, length, { pad });
+    if (!hit) return false;
+    const peer = this.remotePlayers.remotePlayers.get(hit.peerId);
+    if (peer?.dead || peer?.avatar?.mesh?.visible === false) return false;
+    const refused = this.client.attackPlayer(hit.peerId, damage, { projectile: kind, ...(flame ? { flame: true } : {}) });
+    // With PvP off the shot passes on, as it does in Java with pvp=false.
+    if (refused === 'pvp_off') return false;
+    if (refused === null) {
+      if (kind === 'arrow') this.game.sounds?.playArrowHit?.() ?? this.game.sounds?.playHit?.();
+      if (damage > 0) this.remotePlayers.triggerHurt?.(hit.peerId);
+      const at = peer?.currentPos;
+      if (at && damage > 0) this.game.entities?.combatParticles?.spawnHit?.({ x: at.x, y: at.y, z: at.z }, hitParticles({ damage }), {});
+    }
+    return true;
+  }
+
+  // --- a dead player's drops -------------------------------------------------------------------
+
+  /**
+   * This player died in a shared world: what it carried drops for everyone, as in Java, not only in this world.
+   * `stacks` are deathAndRespawn.js collectDeathDrops stacks.
+   * @returns {boolean} whether the drops were shared (then the caller drops nothing itself)
+   */
+  shareDeathDrops(origin, stacks) {
+    if (!this.client.connected || !stacks?.length || !origin) return false;
+    const items = stacks.map((s) => {
+      const stack = s.item ?? s;
+      return { id: stack.id, count: stack.count, isBlock: Boolean(stack.isBlock),
+        ...(Array.isArray(stack.enchantments) ? { enchantments: stack.enchantments } : {}),
+        ...(Number.isFinite(stack.durability) ? { durability: stack.durability } : {}) };
+    });
+    return this.client.dropItems(origin.x, origin.y, origin.z, items);
+  }
+
+  /** Drops the host announced: shown here, and claimed through the host when this player walks over one. */
+  spawnSharedDrops(drops) {
+    const entities = this.game.entities;
+    if (!entities?.spawnDroppedItem) return;
+    for (const drop of drops) {
+      if (this.sharedDrops.has(drop.id)) continue;
+      const scatter = new THREE.Vector3((Math.random() - 0.5) * 2, 2 + Math.random(), (Math.random() - 0.5) * 2);
+      const entry = entities.spawnDroppedItem(new THREE.Vector3(drop.x, drop.y + 0.5, drop.z), drop.item.id, drop.item.isBlock, drop.item.count, {
+        velocity: scatter,
+        ...(drop.item.enchantments ? { enchantments: drop.item.enchantments } : {}),
+        ...(Number.isFinite(drop.item.durability) ? { durability: drop.item.durability } : {}),
+      });
+      if (!entry) continue;
+      entry.claim = () => this.client.claimDrop(drop.id);
+      entry.sharedDropId = drop.id;
+      this.sharedDrops.set(drop.id, entry);
+    }
+  }
+
+  /** A drop was picked up: gone for everyone, and in the inventory of whoever got it. */
+  dropTaken({ id, by, item }) {
+    const entry = this.sharedDrops.get(id);
+    if (entry) {
+      const entities = this.game.entities;
+      const index = entities?.droppedItems?.indexOf(entry) ?? -1;
+      if (index >= 0) entities.droppedItems.splice(index, 1);
+      entities?.itemVisuals?.release?.(entry.group);
+      this.sharedDrops.delete(id);
+    }
+    const me = this.client.isHost ? 'host' : this.client.clientId;
+    if (by !== me || !item) return;
+    const added = this.game.inventory?.addItem?.(item.id, item.isBlock, item.count, item.enchantments ?? null);
+    if (added === false) {
+      // A full inventory: it lands at this player's feet, as this player's own.
+      const p = this.game.player?.position;
+      if (p) this.game.entities?.spawnDroppedItem?.(p.clone(), item.id, item.isBlock, item.count);
+    }
+    this.game.sounds?.playPop?.() ?? this.game.sounds?.playClick?.();
+    this.game.ui?.updateHotbar?.();
   }
 
   /** Host: the PvP switch on the sharing screen. Remembered, and sent to everyone already here. */
@@ -770,6 +870,7 @@ export class WorldSyncManager {
       isSprinting: Boolean(p.isSprinting),
       isSwinging: Boolean(this.game.isMouseDown),
       activeItem: this.game.inventory?.getActiveItem()?.id || null,
+      dead: Boolean(p.isDead || p.health <= 0),
     });
   }
 }

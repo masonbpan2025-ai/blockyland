@@ -50,6 +50,8 @@ Cube/ship portal centers, in original world units:
 
 Elevated coin-route portals activate only on contact, so passing below one does not incorrectly reverse gravity. Pads launch automatically. Ground jumping consumes buffered orb input; airborne orb activation needs a fresh press, which can be held until touching the orb. Practice checkpoints can be placed in flight and retain position, mode, gravity and momentum.
 
+**Coyote time.** Geometry Dash added it in the 2.2 series (Update 2.2 page: "Coyote time has been added for jumping off platforms in Platformer mode"; the 2.201 release thread); speedrun guides use it to "fall off of the ledge slightly, then jump mid-air". No frame count is published, so the window here is measured in the cube's own turn: a cube that walks off an edge may still jump until it has turned 30 degrees from where it left (`PHYSICS.coyoteTilt`), 1/15 s at its 450 degrees a second, 16 ticks of 240. A jump, a pad, an orb, a portal or a gravity flip gives no coyote time; landing or passing 30 degrees ends it; one coyote jump per edge. Cube only.
+
 ## Explicit limits
 
 The coordinates match the archived source data. Physics is a documented browser implementation of the normal cube and ship mechanics, not a binary-identical port of RobTop's engine. Rectangular solid bounds, slab thicknesses, orb impulse and portal corridor placement are adapter definitions; no native-game frame-by-frame parity is claimed. Decoration/color/enter-effect/trail triggers from the original visual theme are replaced by Minecraft scenery. A 600-unit empty finish runout follows the furthest imported object; this is an adapter choice, not decoded official finish timing. The music is original synthesis, not the official songs.

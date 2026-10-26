@@ -23,6 +23,7 @@ import {
   PROTOCOL_VERSION, MAX_PLAYERS, GUEST_TO_HOST, HOST_TO_GUEST, FrameReassembler, ProtocolError, encodeFrames,
   packSnapshot, unpackSnapshot, sanitizeName, sanitizeChat, sanitizePlayerState, sanitizeBlockUpdate, guestLimiters,
   sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE, sanitizeGameData, sanitizeContainer, sanitizeSkin,
+  sanitizeDeathDrops, isDropId, PROJECTILES,
 } from './shareProtocol.js';
 
 const HOST_ID = 'host';
@@ -74,6 +75,9 @@ export class ShareSession {
     this.positions = new Map();
     /** Each player's skin, by id (`{png, model}`): the host keeps everyone's, so a newcomer sees them all at once. */
     this.skins = new Map();
+    /** Host: what each shared drop is and whether someone has it, by id (dropItems). */
+    this.dropRecords = new Map();
+    this.dropSeq = 0;
     /** This player's own skin, sent when connected and whenever it changes. */
     this.mySkin = this.mySkin ?? null;
     // host side
@@ -335,6 +339,22 @@ export class ShareSession {
         this.broadcast({ t: 'container', ...container }, entry.peerId);
         break;
       }
+      case 'death_drops': {
+        if (!entry.limiters.drops.take()) break;
+        const drops = sanitizeDeathDrops(msg);
+        if (!drops) { this.strike(entry); break; }
+        // Where this guest last said it was: drops appear where it died, not wherever it says.
+        const at = this.positions.get(entry.peerId);
+        if (!at || Math.hypot(at.x - drops.x, at.y - drops.y, at.z - drops.z) > 16) break;
+        this.shareDrops(entry.peerId, drops);
+        break;
+      }
+      case 'claim': {
+        if (!entry.limiters.claim.take()) break;
+        if (!isDropId(msg.id)) { this.strike(entry); break; }
+        this.grantDrop(entry.peerId, msg.id);
+        break;
+      }
       case 'skin': {
         if (!entry.limiters.skin.take()) break;
         const skin = sanitizeSkin(msg);
@@ -567,6 +587,22 @@ export class ShareSession {
         if (state && typeof msg.peerId === 'string') this.emit('player_state', { peerId: msg.peerId, state });
         break;
       }
+      case 'drops': {
+        const list = Array.isArray(msg.drops) ? msg.drops.slice(0, 64) : [];
+        const drops = [];
+        for (const d of list) {
+          const one = isDropId(d?.id) ? sanitizeDeathDrops({ x: d.x, y: d.y, z: d.z, items: [d.item] }) : null;
+          if (one) drops.push({ id: d.id, x: one.x, y: one.y, z: one.z, item: one.items[0] });
+        }
+        if (drops.length) this.emit('drops', { drops });
+        break;
+      }
+      case 'taken': {
+        if (!isDropId(msg.id) || typeof msg.by !== 'string') break;
+        const item = msg.item ? sanitizeDeathDrops({ x: 0, y: 0, z: 0, items: [msg.item] })?.items[0] ?? null : null;
+        this.emit('taken', { id: msg.id, by: msg.by, item });
+        break;
+      }
       case 'skin': {
         const skin = sanitizeSkin(msg);
         if (skin && typeof msg.peerId === 'string' && msg.peerId !== this.clientId) {
@@ -628,7 +664,10 @@ export class ShareSession {
         // The host has judged the hit already; this only refuses a malformed one, or one while PvP is off here.
         if (!this.settings.pvp) break;
         const damage = Number(msg.damage);
-        if (!(damage > 0 && damage <= MAX_ATTACK_DAMAGE)) break;
+        // Shot by an arrow, a snowball or an egg; a snowball or an egg hurts nothing and only knocks back.
+        const projectile = PROJECTILES.includes(msg.projectile) ? msg.projectile : null;
+        const harmless = projectile === 'snowball' || projectile === 'egg';
+        if (!(harmless ? damage === 0 : damage > 0 && damage <= MAX_ATTACK_DAMAGE)) break;
         const from = msg.from && [msg.from.x, msg.from.y, msg.from.z].every(Number.isFinite)
           ? { x: msg.from.x, y: msg.from.y, z: msg.from.z, ...(Number.isFinite(msg.from.yaw) ? { yaw: msg.from.yaw } : {}) } : null;
         const level = (v, max) => (Number.isInteger(v) && v > 0 ? Math.min(max, v) : 0);
@@ -642,6 +681,8 @@ export class ShareSession {
           isCritical: Boolean(msg.isCritical),
           isSprint: Boolean(msg.isSprint),
           weapon: typeof msg.weapon === 'string' ? msg.weapon : null,
+          projectile,
+          flame: projectile === 'arrow' && msg.flame === true,
         });
         break;
       }
@@ -726,7 +767,7 @@ export class ShareSession {
     const { target, damage } = attack;
     if (!this.peers.has(target)) return 'bad_target';
     const attackerPos = this.positions.get(attackerId);
-    const reason = refuseAttack({ settings: this.settings, attackerId, targetId: target, attackerPos, targetPos: this.positions.get(target) })
+    const reason = refuseAttack({ settings: this.settings, attackerId, targetId: target, attackerPos, targetPos: this.positions.get(target), projectile: attack.projectile ?? null })
       // The world's own game may refuse more: nobody fights in a lobby, and a spectator neither hits nor is hit.
       ?? this.attackPolicy?.(attackerId, target) ?? null;
     if (reason) return reason;
@@ -741,6 +782,9 @@ export class ShareSession {
       weapon: attack.weapon || null,
       knockbackLevel: attack.knockbackLevel ?? 0,
       fireAspect: attack.fireAspect ?? 0,
+      // Shot, not struck: an arrow (Flame sets the target alight), a snowball or an egg.
+      projectile: attack.projectile ?? null,
+      flame: Boolean(attack.flame),
     };
     this.emit('attack_landed', { attackerId, targetId: target, damage });
     if (target === HOST_ID) this.emit('hurt', hit);
@@ -756,6 +800,52 @@ export class ShareSession {
     }
     if (target !== HOST_ID && attackerId !== HOST_ID) this.emit('peer_hurt', seen);
     return null;
+  }
+
+  // --- what a dead player drops ------------------------------------------------------------------
+
+  /**
+   * This player died and dropped `items` at (x, y, z), for everyone to see and one to pick up: a guest tells the host,
+   * which names each stack and tells everyone (shareDrops).
+   * @returns {boolean} whether the drops were shared (false when not connected: they stay this player's own)
+   */
+  dropItems(x, y, z, items) {
+    if (!this.connected) return false;
+    const drops = sanitizeDeathDrops({ x, y, z, items });
+    if (!drops) return false;
+    if (this.isHost) this.shareDrops(HOST_ID, drops);
+    else if (this.hostLink) void this.send(this.hostLink, { t: 'death_drops', ...drops });
+    else return false;
+    return true;
+  }
+
+  /** Host: name each stack of a death's drops, and show them to everyone, the host included. */
+  shareDrops(from, { x, y, z, items }) {
+    const drops = items.map((item) => {
+      const id = `d${++this.dropSeq}`;
+      this.dropRecords.set(id, { item, taken: false, from });
+      return { id, x, y, z, item };
+    });
+    this.broadcast({ t: 'drops', drops });
+    this.emit('drops', { drops });
+  }
+
+  /** Walking over a shared drop: ask the host for it. Only the first to ask gets it. */
+  claimDrop(id) {
+    if (!this.connected || !isDropId(id)) return;
+    if (this.isHost) this.grantDrop(HOST_ID, id);
+    else if (this.hostLink) void this.send(this.hostLink, { t: 'claim', id });
+  }
+
+  /** Host: give a drop to the first who claims it, and tell everyone it is gone (and the taker what it was). */
+  grantDrop(by, id) {
+    const record = this.dropRecords.get(id);
+    if (!record || record.taken) return false;
+    record.taken = true;
+    const message = { t: 'taken', id, by, item: record.item };
+    this.broadcast(message);
+    this.emit('taken', { id, by, item: record.item });
+    return true;
   }
 
   /** Host: turn PvP on or off, and tell everyone. */

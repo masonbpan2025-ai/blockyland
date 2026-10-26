@@ -194,6 +194,8 @@ export function updateSnowballs(manager, dt) {
         manager.entities?.spawnDroppedItem?.(pos.clone(),BLOCKS.CHORUS_FLOWER,true,1);hit=true;
       }
       hit ||= manager.isBlockSolid(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z));
+      // This player's snowball through another player in a shared world: no damage, a knockback (Snowball).
+      if (!hit && p.owner === manager.game?.player && manager.game?.worldSync?.projectileHit?.(from, pos, { kind: 'snowball' })) hit = true;
       if (!hit) for(const mob of manager.mobs) {
         if(mob.health<=0)continue;
         const dims=manager.getMobDimensions(mob.type), w=(mob.width || dims.width)/2+.09, h=mob.height || dims.height;

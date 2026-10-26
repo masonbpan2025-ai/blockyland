@@ -30,6 +30,7 @@ export function deathMessage(victim, killer, cause) {
   if (cause === 'void') return killer ? `${victim} was knocked into the void by ${killer}` : `${victim} fell into the void`;
   if (cause === 'fall') return killer ? `${victim} hit the ground too hard whilst trying to escape ${killer}` : `${victim} hit the ground too hard`;
   if (cause === 'left') return `${victim} left the game`;
+  if (cause === 'arrow') return killer ? `${victim} was shot by ${killer}` : `${victim} was shot`;
   if (killer) return `${victim} was slain by ${killer}`;
   return `${victim} died`;
 }

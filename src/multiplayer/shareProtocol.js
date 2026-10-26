@@ -8,7 +8,7 @@
 // Pure functions only, so the same rules run in the browser and in the tests.
 
 // 2: a relay through the introduction service, a world's own game channel (`game`), and shared chest contents (`container`).
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** Host and guests together. "A small number of players": the host plus seven friends. */
 export const MAX_PLAYERS = 8;
@@ -20,10 +20,10 @@ export const MAX_COORDINATE = 30_000_000;
 export const WORLD_HEIGHT = 64;
 export const MAX_BLOCK_ID = 65535;
 
-export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container', 'skin']);
+export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container', 'skin', 'death_drops', 'claim']);
 export const HOST_TO_GUEST = Object.freeze([
   'welcome', 'snapshot', 'peer_joined', 'peer_left', 'player_state', 'block_update', 'chat', 'ping', 'pong', 'error', 'host_closing',
-  'hurt', 'settings', 'time_sync', 'peer_hurt', 'game', 'container', 'skin',
+  'hurt', 'settings', 'time_sync', 'peer_hurt', 'game', 'container', 'skin', 'drops', 'taken',
 ]);
 
 // --- players attacking players (PvP) ----------------------------------------------------------
@@ -46,13 +46,24 @@ export const MAX_ATTACK_DAMAGE = 100;
  * 3 blocks (Creative 5); the rest is slack for positions that are a few updates old.
  */
 export const MAX_ATTACK_REACH = 7;
+/** Projectiles one player can hit another with, and how far, in blocks, a shot may come from: an arrow flies about 100. */
+export const PROJECTILES = Object.freeze(['arrow', 'snowball', 'egg']);
+export const MAX_PROJECTILE_RANGE = 128;
+/** A snowball or an egg deals no damage to a player, but knocks back (Snowball, Egg). */
+const HARMLESS_PROJECTILES = new Set(['snowball', 'egg']);
 
 /** A guest's attack, or null when it is not one. */
 export function sanitizeAttack(raw) {
   if (!raw || typeof raw !== 'object') return null;
   if (typeof raw.target !== 'string' || !/^[a-z0-9_-]{1,32}$/i.test(raw.target)) return null;
-  if (!finite(raw.damage) || raw.damage <= 0 || raw.damage > MAX_ATTACK_DAMAGE) return null;
-  const attack = { target: raw.target, damage: raw.damage };
+  const projectile = PROJECTILES.includes(raw.projectile) ? raw.projectile : null;
+  if (raw.projectile !== undefined && raw.projectile !== null && !projectile) return null;
+  const harmless = projectile && HARMLESS_PROJECTILES.has(projectile);
+  if (!finite(raw.damage) || (harmless ? raw.damage < 0 : raw.damage <= 0) || raw.damage > MAX_ATTACK_DAMAGE) return null;
+  const attack = { target: raw.target, damage: harmless ? 0 : raw.damage };
+  if (projectile) attack.projectile = projectile;
+  // A Flame bow's arrow sets the player alight.
+  if (projectile === 'arrow' && raw.flame === true) attack.flame = true;
   if (raw.isCritical) attack.isCritical = true;
   if (raw.isSprint) attack.isSprint = true;
   if (typeof raw.weapon === 'string' && /^[a-z0-9_:-]{1,64}$/i.test(raw.weapon)) attack.weapon = raw.weapon;
@@ -67,12 +78,12 @@ export function sanitizeAttack(raw) {
  * modified client cannot hurt anyone with PvP off, from across the world, or by attacking itself.
  * @returns {string|null} the reason it is refused, or null when it lands
  */
-export function refuseAttack({ settings, attackerId, targetId, attackerPos, targetPos }) {
+export function refuseAttack({ settings, attackerId, targetId, attackerPos, targetPos, projectile = null }) {
   if (!sanitizeShareSettings(settings).pvp) return 'pvp_off';
   if (!targetId || attackerId === targetId) return 'bad_target';
   if (!attackerPos || !targetPos) return 'unknown_position';
   const distance = Math.hypot(attackerPos.x - targetPos.x, attackerPos.y - targetPos.y, attackerPos.z - targetPos.z);
-  if (!(distance <= MAX_ATTACK_REACH)) return 'too_far';
+  if (!(distance <= (projectile ? MAX_PROJECTILE_RANGE : MAX_ATTACK_REACH))) return 'too_far';
   return null;
 }
 
@@ -135,6 +146,31 @@ function sanitizeStack(raw) {
   }
   return stack;
 }
+
+/** One stack of items, or null when it is not one the game could hold. */
+export function sanitizeItemStack(raw) {
+  return sanitizeStack(raw) ?? null;
+}
+
+/** The most stacks one death drops: the 36 carried, 4 worn, the off hand and the one on the cursor. */
+export const MAX_DEATH_STACKS = 42;
+
+/**
+ * What a player dropped dying (`{t:'death_drops', x, y, z, items}`): where, inside the world, and real stacks only.
+ * @returns {{x:number,y:number,z:number,items:object[]}|null}
+ */
+export function sanitizeDeathDrops(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const { x, y, z } = raw;
+  if (![x, y, z].every(finite) || Math.abs(x) > MAX_COORDINATE || Math.abs(z) > MAX_COORDINATE || y < -128 || y > 512) return null;
+  if (!Array.isArray(raw.items) || raw.items.length === 0 || raw.items.length > MAX_DEATH_STACKS) return null;
+  const items = raw.items.map(sanitizeStack);
+  if (items.some((s) => !s)) return null;
+  return { x, y, z, items };
+}
+
+/** A drop's name, as the host gives it. */
+export const isDropId = (id) => typeof id === 'string' && /^d[0-9]{1,9}$/.test(id);
 
 /**
  * One chest's contents (`{t:'container', x, y, z, items}`): whole-block coordinates in the world and 27 stacks or
@@ -199,7 +235,11 @@ export function sanitizePlayerState(raw) {
   state.isSneaking = raw.isSneaking === true;
   state.isSprinting = raw.isSprinting === true;
   state.isSwinging = raw.isSwinging === true;
-  state.activeItem = typeof raw.activeItem === 'string' && /^[a-z0-9_:.\-]{1,64}$/i.test(raw.activeItem) ? raw.activeItem : null;
+  // What is in the hand: an item's name, or a block's number (blocks are held by their id).
+  state.activeItem = typeof raw.activeItem === 'string' && /^[a-z0-9_:.\-]{1,64}$/i.test(raw.activeItem) ? raw.activeItem
+    : Number.isInteger(raw.activeItem) && raw.activeItem > 0 && raw.activeItem <= MAX_BLOCK_ID ? raw.activeItem : null;
+  // Dead, between dying and respawning: the others see the death and then nobody there.
+  state.dead = raw.dead === true;
   return state;
 }
 
@@ -257,6 +297,9 @@ export function guestLimiters(now) {
     container: new RateLimiter({ perSecond: 20, burst: 40, now }),
     // A skin is changed by hand, now and then.
     skin: new RateLimiter({ perSecond: 0.5, burst: 3, now }),
+    // A player dies now and then; walking over drops claims them quickly.
+    drops: new RateLimiter({ perSecond: 0.2, burst: 2, now }),
+    claim: new RateLimiter({ perSecond: 20, burst: 40, now }),
     any: new RateLimiter({ perSecond: 150, burst: 300, now }),
   };
 }

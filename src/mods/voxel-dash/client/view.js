@@ -1,5 +1,5 @@
-import { ModClientSession } from '../../../engine/modClientSession.js';
 import { LEVELS } from '../levels.js';
+import { createGame } from '../server/game.js';
 import css from './style.css?raw';
 import { createPainter } from './painter.js';
 import { createScore } from './audio.js';
@@ -24,10 +24,31 @@ export function createDashView(api) {
   let savedBest=LEVELS.map(()=>0),savedDone=LEVELS.map(()=>false);
   try{const saved=JSON.parse(localStorage.getItem('voxel_dash:original-records'));if(saved){savedBest=LEVELS.map((_,i)=>Math.max(0,Math.min(100,Number(saved.best?.[i])||0)));savedDone=LEVELS.map((_,i)=>saved.done?.[i]===true);}}catch{}
   const status=message=>{root.querySelector('.status').textContent=message;};
-  const session=new ModClientSession('voxel_dash',{},frame=>{state=frame.state;sync();},status);
-  const send=id=>{score.unlock();session.input({type:'button',id});};
+  // The run is played here, on the page, not in a worker 30 times a second. A dash game is timing: the course moves
+  // every displayed frame, and a press counts at the moment it happens. The game advances by real elapsed time -- every
+  // frame, and again at each press, before the press -- in its own 240 Hz physics ticks (simulation.js), so a jump
+  // is never held back to the next frame or the next worker tick (Geometry Dash 2.206's "click between frames").
+  const game=createGame();let lastAdvance=performance.now();
+  function advance(){
+    const now=performance.now();let dt=Math.min(.25,Math.max(0,(now-lastAdvance)/1000));lastAdvance=now;
+    while(dt>1e-6){const stepDt=Math.min(dt,.1);game.update(stepDt);dt-=stepDt;}
+  }
+  const input=intent=>{advance();game.input(0,intent);state=game.snapshot();sync();};
+  const send=id=>{score.unlock();input({type:'button',id});};
+  state=game.snapshot();
+  // The page around the run is rewritten only when what it shows changes: the progress bar every percent, the rest
+  // on a new phase, level, attempt, coin, mode or record. Rewriting it every frame cost more than drawing the course.
+  const hud={};
+  let shownKey='',shownPercent=-1;
   function sync() {
     if(disposed||!state)return;
+    const percentNow=Math.floor(state.x/LEVELS[state.levelIndex].length*100);
+    const key=[state.phase,state.levelIndex,state.practice,state.attempt,state.coins,state.mode,state.scale,state.gravity,state.checkpoint,state.best.join(),state.completed.join()].join('|');
+    if(key===shownKey){
+      if(percentNow!==shownPercent){shownPercent=percentNow;(hud.bar??=root.querySelector('.progress i')).style.width=`${percentNow}%`;(hud.percent??=root.querySelector('.percent')).textContent=`${percentNow}%`;}
+      return;
+    }
+    shownKey=key;shownPercent=percentNow;
     const l=LEVELS[state.levelIndex],menu=state.phase==='menu',modal=['dead','paused','complete'].includes(state.phase),percent=Math.floor(state.x/l.length*100);
     container.style.setProperty('--accent',l.color);
     root.querySelector('.shell').hidden=!menu;root.querySelector('.shade').hidden=!menu;root.querySelector('.hud').hidden=menu;root.querySelector('.dialog').hidden=!modal;
@@ -47,21 +68,23 @@ export function createDashView(api) {
   }
   root.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;
     if(button.classList.contains('sound')){score.unlock();const on=score.toggle();for(const b of root.querySelectorAll('.sound'))b.textContent=`SOUND ${on?'ON':'OFF'}`;return;}
-    if(button.dataset.level!==undefined){session.input({type:'select',level:Number(button.dataset.level)});return;}
+    if(button.dataset.level!==undefined){input({type:'select',level:Number(button.dataset.level)});return;}
     const action=button.dataset.action;if(action==='exit'){const title=document.getElementById('btn-title-screen');if(title)title.click();else{api.loader.closeWorld();location.assign('/');}return;}if(action)send(action);
   },{signal:abort.signal});
-  root.querySelector('canvas').addEventListener('pointerdown',event=>{if(state?.phase!=='play')return;score.unlock();event.preventDefault();heldPointer=event.pointerId;event.target.setPointerCapture(event.pointerId);session.input({type:'jump',down:true});},{signal:abort.signal});
-  for(const type of ['pointerup','pointercancel','lostpointercapture'])root.querySelector('canvas').addEventListener(type,event=>{if(event.pointerId===heldPointer){session.input({type:'jump',down:false});heldPointer=null;}},{signal:abort.signal});
+  root.querySelector('canvas').addEventListener('pointerdown',event=>{if(state?.phase!=='play')return;score.unlock();event.preventDefault();heldPointer=event.pointerId;event.target.setPointerCapture(event.pointerId);input({type:'jump',down:true});},{signal:abort.signal});
+  for(const type of ['pointerup','pointercancel','lostpointercapture'])root.querySelector('canvas').addEventListener(type,event=>{if(event.pointerId===heldPointer){input({type:'jump',down:false});heldPointer=null;}},{signal:abort.signal});
   for(const type of ['keydown','keyup'])window.addEventListener(type,event=>{
     if(!['Space','ArrowUp','KeyW','KeyP','Escape','KeyR','KeyC','Enter'].includes(event.code))return;
     event.preventDefault();event.stopImmediatePropagation();if(event.repeat)return;
-    const down=type==='keydown';if(['Space','ArrowUp','KeyW'].includes(event.code)){score.unlock();if(down&&state?.phase==='menu')send('start');else session.input({type:'jump',down});}
+    const down=type==='keydown';if(['Space','ArrowUp','KeyW'].includes(event.code)){score.unlock();if(down&&state?.phase==='menu')send('start');else input({type:'jump',down});}
     else if(down){if(['KeyP','Escape'].includes(event.code))send('pause');if(event.code==='KeyR')send('retry');if(event.code==='KeyC')send('checkpoint');if(event.code==='Enter')send(state?.phase==='menu'?'start':state?.phase==='paused'?'pause':'retry');}
   },{signal:abort.signal,capture:true});
-  const blur=()=>{session.release(0);if(state?.phase==='play')session.input({type:'button',id:'pause'});};
+  const blur=()=>{advance();game.release(0);if(state?.phase==='play')input({type:'button',id:'pause'});};
   window.addEventListener('blur',blur,{signal:abort.signal});document.addEventListener('visibilitychange',()=>{if(document.hidden)blur();},{signal:abort.signal});
-  function dispose(){if(disposed)return;disposed=true;abort.abort();session.dispose();score.dispose();container.remove();}
+  function dispose(){if(disposed)return;disposed=true;abort.abort();painter.dispose?.();score.dispose();container.remove();}
   api.onDispose(dispose);
-  return {exclusiveSimulation:true,dispose,session,get state(){return state;},isModalOpen:()=>state?.phase!=='play',update(dt){visualTime+=Math.min(dt,.05);score.update(state??{phase:'menu'});},render(){painter.render(state,visualTime);}};
+  sync();
+  return {exclusiveSimulation:true,dispose,session:null,game,get state(){return state;},isModalOpen:()=>state?.phase!=='play',
+    update(dt){visualTime+=Math.min(dt,.05);advance();state=game.snapshot();sync();score.update(state);},render(){painter.render(state,visualTime);}};
 }
 

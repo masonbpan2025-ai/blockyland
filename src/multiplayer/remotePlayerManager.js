@@ -5,6 +5,13 @@ import { createPlayerModel } from '../playerModel.js';
 
 /** Java's hurt overlay: the model's colours multiplied towards red. */
 const HURT_TINT = new THREE.Color(1.0, 0.3, 0.3);
+/**
+ * A dying player, as Java draws one (LivingEntityRenderer, LivingEntity.tickDeath): it tips onto its side, red, over
+ * about 12 ticks -- the angle is sqrt(deathTime / 20 x 1.6) of 90 degrees -- and at 20 ticks it is gone in a puff of
+ * smoke (the "poof" particles). It stays gone until the player respawns.
+ */
+export const DEATH_SECONDS = 1;
+export const deathTilt = (seconds) => Math.min(1, Math.sqrt(Math.max(0, seconds * 20 - 1) / 20 * 1.6)) * (Math.PI / 2);
 
 /**
  * Creates an authentic 2D billboard canvas nametag for a player avatar.
@@ -165,7 +172,12 @@ export class RemotePlayerManager {
     let peer = this.remotePlayers.get(peerId);
     if (!peer) {
       peer = this.addPeer(peerId, state.playerName || 'Player', !!state.isHost);
+      // Already dead when first seen (joining while someone lies dead): nobody there, without the animation.
+      if (state.dead) { peer.dead = true; peer.deathTime = DEATH_SECONDS; peer.avatar.mesh.visible = false; }
     }
+    if (state.dead === true && !peer.dead) this.die(peer);
+    else if (state.dead === false && peer.dead) this.revive(peer);
+    if (peer.dead) return;
 
     const isFirstUpdate = !peer.hasInitialPos;
     if (state.x !== undefined && state.y !== undefined && state.z !== undefined) {
@@ -205,29 +217,71 @@ export class RemotePlayerManager {
     }
   }
 
+  /**
+   * What the other player holds, drawn in their right hand as the game draws a dropped one (itemVisuals.js): a block as
+   * a small block, an item -- a sword, a bow -- as its picture, held upright and pointing forward as in third person.
+   * Blocks travel as their numeric id, items as their name.
+   */
   updateHeldItem(peer, activeItem) {
     if (!peer?.avatar?.handSlot) return;
     const handSlot = peer.avatar.handSlot;
-
-    // Check if item changed
-    const itemId = activeItem?.id || (typeof activeItem === 'string' ? activeItem : null);
+    const itemId = activeItem?.id ?? (typeof activeItem === 'string' || Number.isInteger(activeItem) ? activeItem : null);
     if (peer.heldItemBlockId === itemId) return;
     peer.heldItemBlockId = itemId;
-
-    // Remove existing held item
     while (handSlot.children.length > 0) {
-      handSlot.remove(handSlot.children[0]);
+      const child = handSlot.children[0];
+      if (this.game?.entities?.itemVisuals?.release) this.game.entities.itemVisuals.release(child);
+      else handSlot.remove(child);
     }
-
-    if (!itemId) return;
-
-    // Create mini voxel item cube for held item
-    const miniGeo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
-    const miniMat = new THREE.MeshLambertMaterial({ color: 0x854d0e });
-    const itemMesh = new THREE.Mesh(miniGeo, miniMat);
-    itemMesh.rotation.set(0.4, 0.4, 0);
+    peer.heldItemMesh = null;
+    if (itemId === null || itemId === undefined) return;
+    const isBlock = typeof itemId === 'number';
+    const visuals = this.game?.entities?.itemVisuals;
+    let itemMesh;
+    if (visuals?.create) {
+      itemMesh = visuals.create(itemId, isBlock, isBlock ? 0.3 : 0.62);
+      if (isBlock) itemMesh.rotation.set(0.3, Math.PI / 4, 0);
+      else {
+        // One picture rather than the drop's two crossed ones, edge-on to the arm, the tip forward and up.
+        if (itemMesh.children?.length > 1) itemMesh.remove(itemMesh.children[1]);
+        itemMesh.rotation.set(-Math.PI / 4, Math.PI / 2, 0);
+        itemMesh.position.set(0, 0.12, -0.12);
+      }
+    } else {
+      itemMesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.25), new THREE.MeshLambertMaterial({ color: 0x854d0e }));
+    }
+    itemMesh.name = 'held_item';
+    itemMesh.userData.itemId = itemId;
     handSlot.add(itemMesh);
     peer.heldItemMesh = itemMesh;
+  }
+
+  /** The other player died: tip over, red, then gone in a puff of smoke (update), until they respawn. */
+  die(peer) {
+    peer.dead = true;
+    peer.deathTime = 0;
+    peer.isSwinging = false;
+    this.triggerHurt(peer.peerId);
+    peer.hurtTime = DEATH_SECONDS;
+  }
+
+  /** The other player respawned: standing again, wherever they are now. */
+  revive(peer) {
+    peer.dead = false;
+    peer.deathTime = 0;
+    const mesh = peer.avatar?.mesh;
+    if (mesh) { mesh.visible = true; mesh.rotation.z = 0; }
+    peer.hasInitialPos = false;
+  }
+
+  /** The "poof" of a death: a burst of white smoke where the player was. */
+  poof(position) {
+    const entities = this.game?.entities;
+    if (!entities?.spawnSmoke) return;
+    for (let i = 0; i < 20; i++) {
+      const at = position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.2 + Math.random() * 1.4, (Math.random() - 0.5) * 0.8));
+      entities.spawnSmoke(at, 0.08 + Math.random() * 0.08, 0.6 + Math.random() * 0.5);
+    }
   }
 
   /**
@@ -258,6 +312,19 @@ export class RemotePlayerManager {
     for (const peer of this.remotePlayers.values()) {
       const { avatar } = peer;
       if (!avatar) continue;
+      if (peer.dead) {
+        // Tipping onto its side, then the poof, then nobody.
+        if (peer.deathTime < DEATH_SECONDS) {
+          peer.deathTime = Math.min(DEATH_SECONDS, peer.deathTime + dt);
+          avatar.mesh.rotation.z = deathTilt(peer.deathTime);
+          if (peer.deathTime >= DEATH_SECONDS) {
+            avatar.mesh.visible = false;
+            this.poof(avatar.mesh.position);
+            if (peer.hurtMaterials) { for (const entry of peer.hurtMaterials) entry.mat.color.copy(entry.color); peer.hurtMaterials = null; }
+          }
+        }
+        continue;
+      }
 
       // 1. Smooth position interpolation (Lerp)
       const prevPos = peer.currentPos.clone();
@@ -341,12 +408,15 @@ export class RemotePlayerManager {
    * radius is 0 -- and from the eyes in third person too, so neither margin nor camera ray is added here.
    * @returns {{peerId: string, name: string, distance: number}|null}
    */
-  pickPlayer(origin, direction, maxDistance) {
+  pickPlayer(origin, direction, maxDistance, { pad = 0 } = {}) {
     let best = null;
     const o = [origin.x, origin.y, origin.z], d = [direction.x, direction.y, direction.z];
     for (const peer of this.remotePlayers.values()) {
+      // Nobody to hit where a player lies dead, or where the world's game has hidden one (a spectator).
+      if (peer.dead || peer.avatar?.mesh?.visible === false) continue;
       const p = peer.currentPos;
-      const min = [p.x - 0.3, p.y, p.z - 0.3], max = [p.x + 0.3, p.y + (peer.isSneaking ? 1.5 : 1.8), p.z + 0.3];
+      // `pad`: a projectile's own half-size, which a melee pick does not have.
+      const min = [p.x - 0.3 - pad, p.y - pad, p.z - 0.3 - pad], max = [p.x + 0.3 + pad, p.y + (peer.isSneaking ? 1.5 : 1.8) + pad, p.z + 0.3 + pad];
       let near = 0, far = maxDistance;
       for (let axis = 0; axis < 3 && near <= far; axis++) {
         if (Math.abs(d[axis]) < 1e-9) { if (o[axis] < min[axis] || o[axis] > max[axis]) near = Infinity; continue; }

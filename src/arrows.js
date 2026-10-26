@@ -73,7 +73,10 @@ export function updateArrows(manager,dt,player){
         }
         arrow.anchor=next.clone();arrow.mesh.position.copy(next);arrow.stuck=true;arrow.life=60;arrow.orientation=arrow.mesh.quaternion.clone();arrow.trail.visible=false;break;
       }
+      const prev=arrow.mesh.position.clone();
       arrow.mesh.position.copy(next);
+      // This player's arrow through another player in a shared world: the host judges the hit (worldSyncManager.js).
+      if(arrow.shooter==='player'&&!arrow.target&&manager.game?.worldSync?.projectileHit?.(prev,next,{kind:'arrow',damage:arrow.damage,flame:arrow.flaming})){removeArrow(manager,arrow);removed=true;break;}
       const targets=arrow.target ? (arrow.target.health > 0 ? [arrow.target] : []) : arrow.shooter==='player'?manager.mobs.filter(m=>m.health>0&&!m.dying):[player];
       for(const target of targets){
         const pos=target.mesh?.position??target.position;

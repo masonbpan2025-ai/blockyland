@@ -68,8 +68,12 @@ needs `https` and `wss` together, which tunnels provide.
 
 ## What is shared, and what is not
 
-Shared live: **block placing and breaking**, **where each player is, how they are moving and what they hold**, **each
-player's skin** (changed in the Packs window, it changes on everyone's screen at once), **chat**, and who joins and leaves. The world a friend joins with is a copy of the host's, taken at the moment they join.
+Shared live: **block placing and breaking**, **where each player is, how they are moving and what they hold** (the sword,
+bow or block is drawn in their hand), **each player's skin** (changed in the Packs window, it changes on everyone's screen
+at once), **chat**, and who joins and leaves. With PvP on, **swords, arrows, snowballs and eggs** hit other players (an
+arrow as an arrow -- shields and Projectile Protection answer it, "was shot by"; a snowball or an egg knocks back and hurts
+nothing). **A player who dies** is seen to tip over and vanish in a puff of smoke, as in Java, until they respawn; what they
+carried **drops for everyone**, and each stack goes to the first player to reach it. The world a friend joins with is a copy of the host's, taken at the moment they join.
 
 Not shared, and running separately on each player's computer: **mobs, items on the ground, redstone, fluids, crops and
 growth, the clock and the weather, containers (chests, furnaces), and each player's inventory and health.** Two players can
@@ -91,6 +95,9 @@ client, or simply have a bug. The host (`src/multiplayer/shareProtocol.js` and `
 - clamps positions, angles and held-item ids, drops any field the game does not use, and refuses a pose that has no real position;
 - limits each guest's messages per second (movement, block edits, chat, and all traffic), and **drops a guest that keeps
   sending nonsense**;
+- judges every hit itself, a shot as a swing: PvP must be on, a swing must come from within reach, a shot from within
+  128 blocks, and only an arrow may do damage;
+- shows a death's drops only where that player last was, at most what a player can carry, and gives each to one player;
 - accepts a skin only as a PNG image of at most 64 KB, sent as data (never a link to fetch), at most a few changes in a
   row; each browser redraws its own skin as a standard 64x64 PNG before sending it (`skinShare.js`), so an imported or
   HD skin works too;

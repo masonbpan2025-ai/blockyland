@@ -914,8 +914,17 @@ export class AnimalBehaviors {
         if (p.isEgg) {
           p.age = (p.age || 0) + dt;
           p.velocity.y -= 18.0 * dt;
+          const before = p.position.clone();
           p.position.addScaledVector(p.velocity, dt);
           if (p.mesh) p.mesh.position.copy(p.position);
+          // Through another player in a shared world: no damage, a knockback (Egg); it breaks there.
+          if (this.mobManager?.game?.worldSync?.projectileHit?.(before, p.position, { kind: 'egg' })) {
+            this.sounds?.playPop?.();
+            this.mobManager.spawnParticleBurst?.(p.position, 0xf5f5dc, 6);
+            if (p.mesh) this.mobManager.scene.remove(p.mesh);
+            this.mobManager.customProjectiles.splice(i, 1);
+            continue;
+          }
 
           const block = this.world?.getVoxel(p.position.x, p.position.y, p.position.z);
           if (p.position.y <= 0 || p.age > 4.0 || (block && block !== BLOCKS.AIR && block !== BLOCKS.WATER)) {
