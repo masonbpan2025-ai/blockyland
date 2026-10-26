@@ -23,3 +23,9 @@ See [RESEARCH.md](RESEARCH.md) for sources, reproducible import, object mappings
 Rules run in the shared authoritative worker, at fixed 240-Hz physics steps. The engine owns the view lifetime and frame loop. Exiting disposes worker, audio, DOM and listeners.
 
 Validation: `node --test --test-isolation=none tests/voxelDash.test.js`, `npm run test:mods`, `npm run build`. Course search/replay, every level or one by index: `node scripts/verify-voxel-dash-courses.mjs [index]`. To reimport: `node scripts/import-geometry-dash-levels.mjs path/to/official_levels.json`.
+
+3D view: on the level page, beside Play, VIEW picks the side view (always where the page opens) or a 3D view (V there too). Choosing 3D opens a small preview beside the button: drag (or arrow keys, Page Up/Down) to turn the camera round the player, scroll (or + and -) to zoom; the angle is remembered and is the one the run is played from
+(`client/painter3d.js`). The run is the same simulation; the course is laid along a fixed, winding path through a
+blocky world (`client/track3d.js`), with a chase camera behind and beside the creeper head, as Minecraft's Sonic the
+Hedgehog DLC runs its player along a set route. Course distance becomes distance along the path, height stays height,
+and the 3-block-wide track is never crossed. The 3D world is lit by a sun that follows the player and casts its shadow on the track, a rim light in the level colour, and a light the player carries; spikes are bright and outlined in black, and glowing things bloom. The glow switches itself off where it would cost the frame rate (below 45 fps, or with no graphics chip).
