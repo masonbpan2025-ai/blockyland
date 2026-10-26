@@ -6,7 +6,28 @@ import { edgeAntialiasFunctions, edgeAntialiasFragment } from './edgeAntialiasin
 export const SHADER_STORAGE_KEY='minecraft-lite-shader';
 // Keep normal 1080p views sharp; only larger displays downsample the world.
 // Bloom remains quarter resolution and shadow budgets remain unchanged.
-export function shaderTargetSize(width,height){const scale=Math.min(1,1920/Math.max(1,width),Math.sqrt(2073600/Math.max(1,width*height)));return {width:Math.max(1,Math.round(width*scale)),height:Math.max(1,Math.round(height*scale))};}
+// `renderScale` draws the world below that, to be upscaled and sharpened in the composite (see RenderScaleGovernor).
+export function shaderTargetSize(width,height,renderScale=1){const scale=Math.min(1,1920/Math.max(1,width),Math.sqrt(2073600/Math.max(1,width*height)))*Math.min(1,Math.max(.25,renderScale));return {width:Math.max(1,Math.round(width*scale)),height:Math.max(1,Math.round(height*scale))};}
+/**
+ * The render scale, held to the frame rate, after Luxium's "Luxium Spatial Resolution": the world and the effects are
+ * drawn at a lower resolution when the frame rate falls, and upscaled with adaptive sharpening; the HUD and menus are
+ * page elements and stay sharp. Steps of a tenth between MIN and 1, judged on each second's average frame time: down a
+ * step when frames take longer than SLOW (below 50 a second), up a step after UP_AFTER seconds in a row under FAST --
+ * and, after stepping down from a scale, longer before trying it again, so it settles rather than see-saws.
+ * Pure: `frame(ms)` with each frame's time, and `scale`.
+ */
+export class RenderScaleGovernor {
+ static MIN=.7;static SLOW=1000/50;static FAST=1000/57;static UP_AFTER=3;
+ constructor(){this.scale=1;this.sum=0;this.count=0;this.elapsed=0;this.goodSeconds=0;this.patience=new Map();}
+ /** One frame of `ms`; returns true when the scale changed. A frame over a quarter second is a pause, not a slow frame. */
+ frame(ms){if(!(ms>0)||ms>250)return false;this.sum+=ms;this.count++;this.elapsed+=ms;if(this.elapsed<1000)return false;
+  const average=this.sum/this.count;this.sum=this.count=this.elapsed=0;const G=RenderScaleGovernor;
+  if(average>G.SLOW&&this.scale>G.MIN+1e-6){this.patience.set(this.key(),(this.patience.get(this.key())??G.UP_AFTER)*2);this.scale=Math.max(G.MIN,+(this.scale-.1).toFixed(2));this.goodSeconds=0;return true;}
+  if(average<G.FAST&&this.scale<1){const up=+(Math.min(1,this.scale+.1)).toFixed(2);if(++this.goodSeconds>=(this.patience.get(String(up))??G.UP_AFTER)){this.scale=up;this.goodSeconds=0;return true;}}
+  else this.goodSeconds=0;
+  return false;}
+ key(){return String(this.scale);}
+}
 const vertexShader='varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}';
 export const glowFragment=`varying vec2 vUv;uniform sampler2D sceneColor,sceneDepth;uniform vec2 texel,sunUv;uniform float sunVisible;
 void main(){
@@ -26,25 +47,39 @@ void main(){
  float radial=exp(-length(sunUv-vUv)*3.0);
  gl_FragColor=vec4(bloom,shafts/12.0*radial*sunVisible*step(.9998,texture2D(sceneDepth,clamp(sunUv,0.0,1.0)).r));
 }`;
-export const compositeFragment=`varying vec2 vUv;uniform sampler2D sceneColor,sceneDepth,glow;uniform vec2 glowTexel,sceneTexel;uniform vec3 fogColor,sunColor,eye,sunDirection;uniform mat4 inverseViewProjection;uniform float rain,underwater,twilight,time,waterSurfaceY,sunUp;
+export const compositeFragment=`varying vec2 vUv;uniform sampler2D sceneColor,sceneDepth,glow;uniform vec2 glowTexel,sceneTexel;uniform vec3 fogColor,sunColor,eye,sunDirection;uniform mat4 inverseViewProjection;uniform float rain,underwater,twilight,time,waterSurfaceY,sunUp,sharpen;
 ${edgeAntialiasFunctions}
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),f.x),f.y);}
 // The same net of light the water surface throws on the bottom, seen from inside the water.
 float caustics(vec2 p){p*=.85;float t=time*.55,c=0.0;for(int i=0;i<3;i++){float fi=float(i);vec2 q=p+vec2(sin(t+p.y*1.4+fi*2.1),cos(t*.9+p.x*1.2-fi*1.7))*.55;c+=1.0/(1.0+26.0*abs(sin(q.x*2.2+fi)*sin(q.y*2.2-fi)));p=p*1.37+vec2(1.7,-.9);}float net=smoothstep(.2,.8,c/3.0);return net*net*net;}
-void main(){vec3 color=ApplyFXAA(sceneColor,sceneTexel,vUv).rgb;vec4 light=texture2D(glow,vUv)*.4;
+void main(){vec3 color=ApplyFXAA(sceneColor,sceneTexel,vUv).rgb;
+ // Contrast-adaptive sharpening (after AMD's CAS), as Luxium sharpens its upscaled world: each pixel pushed away from
+ // its four neighbours, by less where the neighbourhood already spans the range, so edges crisp up without ringing.
+ // Only when the world is drawn below the screen's resolution, and the more the further below.
+ if(sharpen>0.0){vec3 n=texture2D(sceneColor,vUv+vec2(0.0,sceneTexel.y)).rgb,so=texture2D(sceneColor,vUv-vec2(0.0,sceneTexel.y)).rgb,e=texture2D(sceneColor,vUv+vec2(sceneTexel.x,0.0)).rgb,w=texture2D(sceneColor,vUv-vec2(sceneTexel.x,0.0)).rgb;
+  vec3 lo=min(color,min(min(n,so),min(e,w))),hi=max(color,max(max(n,so),max(e,w)));
+  vec3 amount=sqrt(clamp(min(lo,1.0-hi)/max(hi,vec3(1e-4)),0.0,1.0))*(-1.0/mix(8.0,5.0,sharpen));
+  color=clamp((color+(n+so+e+w)*amount)/(1.0+4.0*amount),0.0,1.0);}
+ vec4 light=texture2D(glow,vUv)*.4;
  light+=(texture2D(glow,vUv+vec2(glowTexel.x,0.0))+texture2D(glow,vUv-vec2(glowTexel.x,0.0))+texture2D(glow,vUv+vec2(0.0,glowTexel.y))+texture2D(glow,vUv-vec2(0.0,glowTexel.y)))*.15;
  float depth=texture2D(sceneDepth,vUv).r;
  vec4 world=inverseViewProjection*vec4(vUv*2.0-1.0,depth*2.0-1.0,1.0);world/=world.w;
- float distanceToEye=length(world.xyz-eye);float lowMist=exp(-max(world.y-eye.y,0.0)*.07);
- float fog=(1.0-exp(-distanceToEye*(.00015+rain*.0015)))*lowMist*(1.0-underwater)*step(depth,.9998);
- color=mix(color,fogColor,clamp(fog,0.0,.22));
+ float distanceToEye=length(world.xyz-eye);vec3 ray=(world.xyz-eye)/max(distanceToEye,1e-4);
+ // Mist settles low, and more of it at dawn and dusk.
+ float lowMist=exp(-max(world.y-eye.y,0.0)*.07)*(1.0+twilight*1.4);
+ float fog=(1.0-exp(-distanceToEye*(.0002+rain*.0015+twilight*.00025)))*lowMist*(1.0-underwater)*step(depth,.9998);
+ // The haze is lit by the sun: towards it, the air glows in the sun's colour (forward scattering); away, it keeps the
+ // sky's. One dot product on the ray the fog already uses.
+ float toSun=max(dot(ray,sunDirection),0.0);
+ vec3 haze=mix(fogColor,sunColor*1.15,(toSun*toSun*toSun*toSun*.35+pow(toSun,24.0)*.45)*sunUp);
+ color=mix(color,haze,clamp(fog,0.0,.28));
  if(underwater>.5){
   // Caustics on whatever lies below the surface, fading with depth below it and with distance from the eye.
   if(depth<.9998&&world.y<waterSurfaceY-.05){float below=waterSurfaceY-world.y;color*=1.0+caustics(world.xz)*1.1*sunUp*exp(-below*.06)*exp(-distanceToEye*.05);}
   // Light shafts: six samples along the view ray, each lit where the column above it lines up with a bright patch
   // of the moving surface. Short, faded and bounded, so the cost is fixed per pixel.
-  vec3 ray=normalize(world.xyz-eye);float reach=min(distanceToEye,18.0),shafts=0.0;
+  float reach=min(distanceToEye,18.0),shafts=0.0;
   for(int i=0;i<6;i++){float t=(float(i)+.5)/6.0*reach;vec3 at=eye+ray*t;if(at.y>waterSurfaceY)continue;
    vec2 q=at.xz+sunDirection.xz*(waterSurfaceY-at.y)/max(sunDirection.y,.25);
    shafts+=smoothstep(.58,.95,vnoise(q*.33+vec2(time*.07,time*.05)))*exp(-t*.075);}
@@ -63,7 +98,9 @@ export class LightweightShader {
   this.quadScene=new THREE.Scene();this.quadCamera=new THREE.Camera();this.quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2));this.quad.material.dispose();this.quad.frustumCulled=false;this.quadScene.add(this.quad);
   this.glowMaterial=new THREE.ShaderMaterial({vertexShader,fragmentShader:glowFragment,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:null},sceneDepth:{value:null},texel:{value:new THREE.Vector2()},sunUv:{value:new THREE.Vector2()},sunVisible:{value:0}}});
   this.compositeMaterial=new THREE.ShaderMaterial({vertexShader,fragmentShader:compositeFragment,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:null},sceneDepth:{value:null},glow:{value:null},glowTexel:{value:new THREE.Vector2()},fogColor:{value:new THREE.Color()},sunColor:{value:new THREE.Color()},eye:{value:new THREE.Vector3()},sunDirection:{value:new THREE.Vector3(0,1,0)},inverseViewProjection:{value:this.inverse},rain:{value:0},underwater:{value:0},twilight:{value:0},time:{value:0},waterSurfaceY:{value:0},sunUp:{value:0}}});
-  this.compositeMaterial.uniforms.sceneTexel={value:new THREE.Vector2(1,1)};
+  this.compositeMaterial.uniforms.sceneTexel={value:new THREE.Vector2(1,1)};this.compositeMaterial.uniforms.sharpen={value:0};
+  // The render scale: held to the frame rate unless set (setRenderScale); see RenderScaleGovernor.
+  this.governor=new RenderScaleGovernor();this.fixedScale=null;this.lastFrameAt=0;
   this.edgeAntialiasing=true;this.edgeTarget=null;
   this.edgeMaterial=new THREE.ShaderMaterial({vertexShader,fragmentShader:edgeAntialiasFragment,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:null},sceneTexel:{value:new THREE.Vector2(1,1)}}});
   this.reducedMotion=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches||false;
@@ -89,6 +126,12 @@ export class LightweightShader {
   if(persist)try{this.storage?.setItem(SHADER_STORAGE_KEY,this.enabled?'on':'off');}catch{}
   this.updateButton();
  }
+ /** The fraction of the screen's resolution the world is drawn at now. */
+ get renderScale(){return this.fixedScale??this.governor.scale;}
+ /** Hold the render scale at `scale` (0.25 to 1), or null to let it follow the frame rate again. */
+ setRenderScale(scale){this.fixedScale=scale==null?null:Math.min(1,Math.max(.25,Number(scale)||1));}
+ /** Each frame's time, to the governor; a changed scale takes effect at the next ensureTargets. */
+ judgeFrame(){const now=globalThis.performance?.now?.()??Date.now(),ms=this.lastFrameAt?now-this.lastFrameAt:0;this.lastFrameAt=now;if(this.fixedScale==null)this.governor.frame(ms);}
  releaseTargets(){if(this.targets){this.targets.scene.dispose();this.targets.glow.dispose();this.targets=null;}}
  releaseEdgeTarget(){this.edgeTarget?.dispose();this.edgeTarget=null;}
  ensureEdgeTarget(){
@@ -100,7 +143,9 @@ export class LightweightShader {
   this.edgeMaterial.uniforms.sceneColor.value=this.edgeTarget.texture;
   this.edgeMaterial.uniforms.sceneTexel.value.set(1/width,1/height);
  }
- ensureTargets(){const r=this.game.renderer;r.getDrawingBufferSize(this.size);const {width,height}=shaderTargetSize(this.size.x,this.size.y);if(this.targets?.scene.width===width&&this.targets?.scene.height===height)return;
+ ensureTargets(){const r=this.game.renderer;r.getDrawingBufferSize(this.size);const scale=this.renderScale,{width,height}=shaderTargetSize(this.size.x,this.size.y,scale);
+  // Sharpened only when upscaled, more the further below the screen's resolution: at full scale it costs nothing.
+  this.compositeMaterial.uniforms.sharpen.value=scale<.999?Math.min(.8,.35+(1-scale)*1.4):0;if(this.targets?.scene.width===width&&this.targets?.scene.height===height)return;
   this.releaseTargets();const scene=new THREE.WebGLRenderTarget(width,height,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:true,stencilBuffer:true});scene.depthTexture=new THREE.DepthTexture(width,height,THREE.UnsignedInt248Type);scene.depthTexture.format=THREE.DepthStencilFormat;
   const glow=new THREE.WebGLRenderTarget(Math.max(1,Math.ceil(width/4)),Math.max(1,Math.ceil(height/4)),{depthBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});this.targets={scene,glow};
   this.glowMaterial.uniforms.sceneColor.value=scene.texture;this.glowMaterial.uniforms.sceneDepth.value=scene.depthTexture;this.glowMaterial.uniforms.texel.value.set(1/width,1/height);
@@ -113,7 +158,7 @@ export class LightweightShader {
    this.quad.material=this.edgeMaterial;r.setRenderTarget(null);r.clear();r.render(this.quadScene,this.quadCamera);return;
   }
   try{
-   this.ensureTargets();this.updateShadows(dt);
+   this.judgeFrame();this.ensureTargets();this.updateShadows(dt);
    c.updateMatrixWorld();this.inverse.multiplyMatrices(c.projectionMatrix,c.matrixWorldInverse).invert();
    const sun=g.sky.sunDirection;this.sunPoint.copy(c.position).addScaledVector(sun,100).project(c);c.getWorldDirection(this.viewDirection);
    const u=this.glowMaterial.uniforms;u.sunUv.value.set(this.sunPoint.x*.5+.5,this.sunPoint.y*.5+.5);u.sunVisible.value=sun.y>-.03&&this.viewDirection.dot(sun)>.05?1:0;
