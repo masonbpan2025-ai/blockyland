@@ -83,6 +83,9 @@ export function serializeMobState(mob, game = null) {
     state[field] = (player && value === player) ? PLAYER_REFERENCE : null;
   }
 
+  // Its status effects (mobEffects.js), as `[name, seconds left, level]`.
+  if (mob.effects?.size) state.effects = [...mob.effects].map(([name, data]) => [name, Math.max(0, data.duration), data.level]);
+
   return Object.keys(state).length ? state : null;
 }
 
@@ -120,6 +123,9 @@ export function restoreMobState(mob, state, { player = null, applyAppearance = n
   if (typeof mob.health === 'number' && typeof mob.maxHealth === 'number') {
     mob.health = Math.min(mob.health, mob.maxHealth);
   }
+
+  // Put back when the mob is next given its effects (mobEffects.js installMobEffects).
+  if (Array.isArray(state.effects)) mob.savedEffects = state.effects.filter((e) => Array.isArray(e) && typeof e[0] === 'string' && e[1] > 0);
 
   if (applyAppearance) applyAppearance(mob);
   return mob;

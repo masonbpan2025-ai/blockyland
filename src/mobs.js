@@ -8,6 +8,7 @@ import { createWitherSkeletonModel } from './witherSkeletonModel.js';
 import { exposedToRain } from './weatherRules.js';
 import { initializeWitherSkeleton, updateWitherSkeleton, hurtWitherSkeleton, dropWitherSkeletonLoot, updateWitherSkeletonSpawning, updateWolfWitherHunt } from './witherSkeleton.js';
 import { updateMobWither } from './witherEffect.js';
+import { installMobEffects, updateMobEffects, mobMeleeDamage, mobDamageTaken, scaleMobMotion, onMobHurt, onMobDeath } from './mobEffects.js';
 import { isSquid, spawnSquid, updateSquid, hurtSquid, dropSquidLoot, updateSquidSpawning, updateSquidPredator } from './squidBehavior.js';
 import {createZombifiedPiglinModel} from './zombifiedPiglinModel.js';
 import {initializeZombified,isZombifiedPiglin,hurtZombified,dropZombifiedLoot,mountZombified,updateZombified} from './zombifiedPiglin.js';
@@ -81,6 +82,7 @@ import { ILLUSIONER_HEALTH, ILLUSIONER_DIMENSIONS, ILLUSIONER_SPEED, ILLUSIONER_
 import { SNOW_GOLEM_HEALTH, SNOW_GOLEM_DIMENSIONS, SNOW_GOLEM_SPEED, SNOW_GOLEM_RANGE, SNOW_GOLEM_THROW_SECONDS, SNOWBALL_DAMAGE, SNOW_GOLEM_HEAT, SNOW_GOLEM_HOT_BIOMES, SNOW_GOLEM_TRAITS, SNOW_GOLEM_TRAIL, SNOW_GOLEM_SHEAR_DROP, SNOW_GOLEM_PUMPKIN, SNOW_GOLEM_COLORS, isSnowGolem, snowGolemDimensions, isHotBiome, snowGolemTakesHeatDamage, updateSnowGolemHeat, snowballDamageFor, snowGolemTargets, SNOW_GOLEM_HOSTILES, SNOW_GOLEM_NEVER_TARGETS, findSnowGolemTarget, snowGolemThrow, updateSnowGolemThrow, snowGolemTrailAt, shearSnowGolem, snowGolemXp, createSnowGolemModel, poseSnowGolem } from './snowGolemBehavior.js';
 import { CREAKING_HEALTH, CREAKING_DIMENSIONS, CREAKING_SPEED, CREAKING_DAMAGE, CREAKING_VIEW, CREAKING_ALERT_RANGE, CREAKING_DETECT_RANGE, CREAKING_HEART_RADIUS, CREAKING_SOFTLOCK_SECONDS, CREAKING_DESPAWN_AT_DAY, CREAKING_FLEEING_MOBS, CREAKING_TERROR_RANGE, CREAKING_IGNORED_BLOCKS, CREAKING_FIRE_RESISTANT, CREAKING_DROPS, CREAKING_COLORS, isCreaking, creakingDimensions, creakingDamageFor, creakingInView, creakingFrozenBy, creakingIsInvulnerable, creakingIsLinked, updateCreakingAlert, creakingCanMove, creakingAttack, updateCreakingHeartLink, creakingClampToHeart, updateCreakingDespawn, creakingIsNight, mobFleesFromCreaking, createCreakingModel, poseCreaking } from './creakingBehavior.js';
 import { camelFleeVelocity, CAMEL_HEALTH, CAMEL_DIMENSIONS, CAMEL_SITTING_DIMENSIONS, CAMEL_BABY_DIMENSIONS, CAMEL_BABY_SCALE, CAMEL_STEP_HEIGHT, CAMEL_FALL, CAMEL_DASH, CAMEL_SPEED, CAMEL_SIT, CAMEL_STAND_CLEARANCE, CAMEL_CACTUS_HEAL, CAMEL_REGEN_CHANCE, CAMEL_BABY_GROWTH_SECONDS, CAMEL_CACTUS_GROWTH_SECONDS, CAMEL_FOLLOW_RANGE, CAMEL_BREEDING_FOOD, CAMEL_SEATS, CAMEL_EQUIPMENT, CAMEL_COLORS, isCamel, camelDimensions, camelCanBeRidden, camelCanBeControlled, camelCanSeat, equipCamelSaddle, removeCamelSaddle, camelCanStand, camelSit, camelStand, updateCamelSitting, rollCamelStandDelay, camelDash, updateCamelDash, camelFallDamage, updateCamelRegen, feedCamelCactus, updateCamelGrowth, accelerateCamelGrowth, camelFollows, isCamelBreedingFood, camelDrops, camelXp, camelBreedingXp, createCamelModel, poseCamel, camelProtectsRiderFrom } from './camelBehavior.js';
+import { witchPotionDrop } from './witchPotions.js';
 import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
 import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
 import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
@@ -756,6 +758,10 @@ function applyVariantIdentity(mob, variant, options = {}) {
 export class MobManager {
   constructor(scene, world, sounds, entities = null) {
     this.entities = entities;
+    // A mob can be given an effect from the moment it exists, not from its first update (mobEffects.js); mobs made
+    // any other way get theirs at the next update.
+    const spawn = this.spawnMob;
+    this.spawnMob = (...args) => installMobEffects(this, spawn.apply(this, args));
     // The world counts job sites placed, so villagers that found none know to look again (villager update below).
     if (world) world.jobSiteBlocks = JOB_SITE_BLOCKS;
     // Far mobs update ~12 times a second and unseen mobs are not re-posed (mobLod.js); the game turns both on.
@@ -9847,6 +9853,8 @@ export class MobManager {
       return true;
     }
     if (mob.health <= 0 || mob.dying) return false;
+    // Resistance takes 20% a level off the hit, and an Infested mob may shed silverfish when hurt (mobEffects.js).
+    if (mob.effects?.size) { amount *= mobDamageTaken(mob); if (amount > 0) onMobHurt(this, mob); }
     if (!isPunch && mob.hitCooldown > 0) return false;
     // A wolf's armour takes the hit while it lasts (wolfBehavior.js): the damage reaching the wolf is zero, and the
     // rest of this path still runs, so it "still turns red" as the wiki says.
@@ -10256,6 +10264,9 @@ export class MobManager {
         const n = roll(0, 2) + roll(0, looting);
         if (n > 0) witchRows.push([id, false, n, n]);
       }
+      // The potion it was drinking, 8.5% (+1% a Looting level) when a player gets the kill (witchPotions.js).
+      const potion = witchPotionDrop(mob, random);
+      if (potion) witchRows.push([potion, false, 1, 1]);
     }
     // Wiki: a frog drops no items; its loot is what it leaves when it eats something.
     const frogRows = isFrog(mob) ? frogDrops(mob) : [];
@@ -10337,6 +10348,8 @@ export class MobManager {
     return BLOCK_NAMES_BY_ID.get(id) ?? null;
   }
   updateDeath(mob, dt) {
+    // What its effects leave behind -- Oozing's slimes, Weaving's cobwebs, Wind Charged's burst -- once (mobEffects.js).
+    if (mob.effects?.size && !mob.deathEffectsDone) onMobDeath(this, mob);
     // Killed by a zombie: by difficulty, it rises as a zombie villager keeping its profession (zombieVillagers.js).
     if (!mob.dying && mob.type === 'villager' && !mob.converted && convertsOnDeath(mob.lastHurtByType, this.game?.difficulty)) {
       mob.converted = true;
@@ -10809,6 +10822,8 @@ export class MobManager {
     // still call `spawnSquid`, `spawnNaturalStrider`, `spawnWitherSkeleton` directly), but nothing
     // drives them from the tick loop any more.
     updateMobWither(this,dt);
+    // Every other effect a mob can hold: potions, tipped arrows, stings (mobEffects.js).
+    updateMobEffects(this, dt);
     updateArrows(this, dt, player);
     // Wiki: breezes deflect every projectile that hits them except another wind charge, and their own
     // wind charges burst on impact. Both run here so they see the arrows after the arrow pass moved
@@ -10840,9 +10855,9 @@ export class MobManager {
       const dt = this.farMobThrottle ? mobStep(mob, frameDt, playerPosition, this.lodFrame) : frameDt;
       if (dt === 0) continue;
       const animate = !view || view.sees(mob);
-      let motionStartX, motionStartZ;
+      let motionStartX, motionStartY, motionStartZ;
       try {
-        motionStartX = mob.mesh.position.x; motionStartZ = mob.mesh.position.z;
+        motionStartX = mob.mesh.position.x; motionStartY = mob.mesh.position.y; motionStartZ = mob.mesh.position.z;
         // Every mover reads the push as a Vector3. A plain {x, z} (a goat's ram once left one) turned the mob's height
         // into NaN and stopped its update with an error, so one is made a Vector3 before anything reads it.
         if (mob.knockback) mob.knockback = knockbackVector(mob.knockback);
@@ -10988,6 +11003,8 @@ export class MobManager {
         this.brokenMobs.add(mob);
         this.reportMobError(err, mob);
       } finally {
+        // Speed and Slowness on how far it moved this step, Slow Falling on how far it fell (mobEffects.js).
+        if (!this.brokenMobs.has(mob) && mob.effects?.size) try { scaleMobMotion(this.world, mob, motionStartX, motionStartY, motionStartZ, dt); } catch (err) { this.brokenMobs.add(mob); this.reportMobError(err, mob); }
         // Species AI may return early for a pose, a ride or aquatic motion. Articulate
         // every surviving quadruped after that path, while preserving its special action.
         if (animate && !this.brokenMobs.has(mob) && quadrupedMode(mob)) try {
@@ -11105,7 +11122,7 @@ export class MobManager {
         if (mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
         else {
           mob.burnTick = (mob.burnTick ?? 1) - dt;
-          if (mob.burnTick <= 0) { mob.burnTick = 1; this.damageMob(mob, 1, null, false, null, true); }
+          if (mob.burnTick <= 0) { mob.burnTick = 1; if (!mob.effects?.has('fire_resistance')) this.damageMob(mob, 1, null, false, null, true); }
         }
       }
     }
@@ -12305,7 +12322,7 @@ export class MobManager {
         if (mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
         else {
           mob.burnTick = (mob.burnTick ?? 1) - dt;
-          if (mob.burnTick <= 0) { mob.burnTick = 1; this.damageMob(mob, 1, null, false, null, true); }
+          if (mob.burnTick <= 0) { mob.burnTick = 1; if (!mob.effects?.has('fire_resistance')) this.damageMob(mob, 1, null, false, null, true); }
         }
       }
 
@@ -13347,7 +13364,7 @@ export class MobManager {
         mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
         if (distToPlayer < 1.4 && mob.attackCooldown <= 0 && meleeCanReach(this.world, mob, player)) {
           if (!camelProtectsRiderFrom(mob, player)) {
-            player.takeDamage(meleeDamage(mob.type, this.game?.difficulty, 3), mob.mesh.position, mob.type);
+            player.takeDamage(mobMeleeDamage(mob, meleeDamage(mob.type, this.game?.difficulty, 3)), mob.mesh.position, mob.type);
           }
           mob.attackCooldown = 1.0;
         }
@@ -14529,7 +14546,7 @@ export class MobManager {
         mob.attackCooldown = Math.max(0, (mob.attackCooldown || 0) - dt);
         if (distToPlayer < 1.7 && mob.attackCooldown <= 0 && meleeCanReach(this.world, mob, player)) {
           if (!camelProtectsRiderFrom(mob, player)) {
-            player.takeDamage(mob.attackDamage, mob.mesh.position, mob.type);
+            player.takeDamage(mobMeleeDamage(mob, mob.attackDamage), mob.mesh.position, mob.type);
           }
           mob.attackCooldown = 1.0;
           if (mob.leftArm && mob.rightArm) {
@@ -14648,7 +14665,7 @@ export class MobManager {
 
       // Strike player with dive swoop
       if (dist < 3.2) {
-        player.takeDamage(mob.attackDamage || 15, mob.mesh.position, mob.type);
+        player.takeDamage(mobMeleeDamage(mob, mob.attackDamage || 15), mob.mesh.position, mob.type);
         const knock = mob.velocity.clone().normalize();
         if (player.velocity) {
           player.velocity.x += knock.x * 14;

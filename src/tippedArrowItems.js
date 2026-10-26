@@ -23,6 +23,8 @@ export const TIPPED_ARROWS = [
   { id: 'tipped_arrow_weaving', name: 'Arrow of Weaving', potion: 'potion_of_weaving' },
   { id: 'tipped_arrow_wind_charging', name: 'Arrow of Wind Charging', potion: 'potion_of_wind_charging' },
   { id: 'tipped_arrow_infestation', name: 'Arrow of Infestation', potion: 'potion_of_infestation' },
+  // Java's Arrow of Luck, from a lingering Potion of Luck (which only Creative and commands give).
+  { id: 'tipped_arrow_luck', name: 'Arrow of Luck', potion: 'potion_of_luck' },
   // Java only: "If crafted with a water bottle, the arrow is called an arrow of Splashing", and it "behave[s] like
   // regular arrows" -- water carries no effect, so tippedArrowEffect gives it none.
   { id: 'tipped_arrow_splashing', name: 'Arrow of Splashing', potion: 'water_bottle' },

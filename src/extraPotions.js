@@ -140,9 +140,12 @@ export const POTION_ITEMS = {
   potion_of_infestation: { name: 'Potion of Infestation', icon: '/assets/items/potion_of_infestation.png', type: 'potion', stackSize: 1 },
   splash_potion_of_infestation: { name: 'Splash Potion of Infestation', icon: '/assets/items/potion_of_infestation.png', type: 'potion', stackSize: 1 },
   lingering_potion_of_infestation: { name: 'Lingering Potion of Infestation', icon: '/assets/items/potion_of_infestation.png', type: 'potion', stackSize: 1 },
+  potion_of_luck: { name: 'Potion of Luck', icon: '/assets/items/potion_of_luck.png', type: 'potion', stackSize: 1 },
+  splash_potion_of_luck: { name: 'Splash Potion of Luck', icon: '/assets/items/potion_of_luck.png', type: 'potion', stackSize: 1 },
+  lingering_potion_of_luck: { name: 'Lingering Potion of Luck', icon: '/assets/items/potion_of_luck.png', type: 'potion', stackSize: 1 },
 };
 
-export const POTION_ITEM_COUNT = 131;
+export const POTION_ITEM_COUNT = 134;
 
 /** The potion id each item is a form of, so a consumer can reach POTION_DATA without parsing prefixes. */
 export const POTION_ITEM_BASE = {
@@ -277,4 +280,7 @@ export const POTION_ITEM_BASE = {
   potion_of_infestation: 'potion_of_infestation',
   splash_potion_of_infestation: 'potion_of_infestation',
   lingering_potion_of_infestation: 'potion_of_infestation',
+  potion_of_luck: 'potion_of_luck',
+  splash_potion_of_luck: 'potion_of_luck',
+  lingering_potion_of_luck: 'potion_of_luck',
 };

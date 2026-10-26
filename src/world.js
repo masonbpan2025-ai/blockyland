@@ -610,6 +610,16 @@ export class World {
       this.game?.signText?.refresh?.();
       return true;
     }
+    // A brewing stand a structure stocks (the End ship's two potions of Healing II), in its bottle slots, once.
+    if (request.id === BLOCKS.BREWING_STAND && request.extraItems?.length) {
+      const brewing = this.game?.ui?.brewingManager ?? this.game?.brewingManager;
+      if (!brewing) return false;
+      if (!brewing.getStand(request.x, request.y, request.z)) {
+        const stand = brewing.getOrCreateStand(request.x, request.y, request.z);
+        request.extraItems.slice(0, stand.bottles.length).forEach((item, i) => { stand.bottles[i] = { id: item.id, count: 1, isBlock: false }; });
+      }
+      return true;
+    }
     const index = { east: 0, west: 1, south: 2, north: 3 }[request.facing];
     if (index === undefined) return true;
     const def = BLOCK_DEFS[request.id];

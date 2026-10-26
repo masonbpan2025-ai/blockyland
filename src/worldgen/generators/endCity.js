@@ -131,6 +131,8 @@ export function buildEndCity({ seed, x, y, z }) {
         // Two potions of Healing in the brewing stand; elytra with the treasure (no item frames here).
         const chest = [...canvas.cells.values()].find((c) => c.name === 'chest' && box.contains(c.x, c.y, c.z));
         if (chest) chest.nbt = { ...chest.nbt, extra: [{ id: 'elytra', count: 1 }] };
+        const stand = [...canvas.cells.values()].find((c) => c.name === 'brewing_stand' && box.contains(c.x, c.y, c.z));
+        if (stand) stand.nbt = { ...stand.nbt, extra: [{ id: 'potion_of_healing_2', count: 1 }, { id: 'potion_of_healing_2', count: 1 }] };
       }
       return;
     }

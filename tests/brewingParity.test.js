@@ -22,7 +22,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BrewingStand, BrewingManager, BREW_DURATION, MAX_FUEL, BOTTLE_SLOTS,
-  BASE_BREWING_RECIPES, POTION_DATA, getBrewingResult, potionDataFor, potionCoreFor,
+  BASE_BREWING_RECIPES, POTION_DATA, getBrewingResult, potionDataFor, potionCoreFor, UNBREWABLE_POTIONS,
 } from '../src/brewing.js';
 import { EFFECTS, effectsFor, compoundEffects, isKnownEffect } from '../src/statusEffects.js';
 import { INSTANT_EFFECTS } from '../src/potionUse.js';
@@ -329,7 +329,8 @@ test('referential integrity holds in both directions', () => {
     const lingering = getBrewingResult(splash, 'dragon_breath');
     if (lingering) producible.add(lingering);
   }
-  const unreachable = Object.keys(POTION_DATA).filter(id => id !== 'water_bottle' && !producible.has(id));
+  // The Potion of Luck is the one vanilla potion no recipe makes (UNBREWABLE_POTIONS): Creative and commands only.
+  const unreachable = Object.keys(POTION_DATA).filter(id => id !== 'water_bottle' && !UNBREWABLE_POTIONS.includes(id) && !producible.has(id));
   assert.deepEqual(unreachable, [], 'these potions exist but nothing can produce them');
 });
 
@@ -382,9 +383,9 @@ test('the researched duration constants hold', () => {
   assert.equal(POTION_DATA.potion_of_weakness_long.duration, 240);
   assert.equal(POTION_DATA.potion_of_slowness_long.duration, 240);
   assert.equal(POTION_DATA.potion_of_slow_falling_long.duration, 240);
-  // Amplified forms of the short potions are halved, not quartered.
-  assert.equal(POTION_DATA.potion_of_regeneration_2.duration, 22, 'regeneration II is 0:22');
-  assert.equal(POTION_DATA.potion_of_poison_2.duration, 21, 'poison II is 0:21');
+  // Amplified forms of the short potions are halved, not quartered -- to Java's exact ticks (the Potion page).
+  assert.equal(POTION_DATA.potion_of_regeneration_2.duration, 22.5, 'regeneration II is 0:22.5 (450 ticks)');
+  assert.equal(POTION_DATA.potion_of_poison_2.duration, 21.6, 'poison II is 0:21.6 (432 ticks)');
   assert.equal(POTION_DATA.potion_of_slowness_2.duration, 20, 'slowness IV is 0:20');
   assert.equal(POTION_DATA.potion_of_slowness_2.level, 4, 'and it is level IV, not II');
 });

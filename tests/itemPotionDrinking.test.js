@@ -208,7 +208,7 @@ test('a duration effect is stored with its own duration and level', () => {
 
   const levelTwo = stubPlayer();
   applyPotionEffect(POTION_DATA.potion_of_regeneration_2, levelTwo);
-  assert.deepEqual(levelTwo.applied, [{ effect: 'regeneration', duration: 22, level: 2 }]);
+  assert.deepEqual(levelTwo.applied, [{ effect: 'regeneration', duration: 22.5, level: 2 }]);
 });
 
 // --- the two effects that had no reader --------------------------------------
@@ -290,8 +290,10 @@ test('the drink hook is wired into the use chain', () => {
     'main.js should import the drinker');
   assert.doesNotMatch(source, /from '\.\/potions\.js'/, 'and there should be no second drinker to clash with it');
 
-  const call = source.indexOf('drinkPotion(potionItem.id');
-  assert.ok(call > 0, 'main.js should call drinkPotion in the use chain');
+  // The use chain starts the drink (it takes 32 ticks of holding use, eating.js); finishDrinking drinks it.
+  const call = source.indexOf('this.eating.start(potionItem');
+  assert.ok(call > 0, 'main.js should start drinking in the use chain');
+  assert.match(source, /finishDrinking\(potionItem\) \{[\s\S]{0,200}drinkPotion\(potionItem\.id/, 'and drink it when the time is up');
 
   // Ordering that matters: the drink must be decided before the block-placement fallthrough, or a
   // potion could be placed on the ground instead of drunk. It is deliberately checked before the

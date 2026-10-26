@@ -33,6 +33,7 @@ import { useBarterPotion } from './barterItems.js';
 import { launchFirework } from './fireworks.js';
 import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
+import { LingeringClouds, isLingeringPotion } from './lingeringPotion.js';
 import { POTION_DATA } from './brewing.js';
 import { dragonEggDestination, makeEggPlacementCheck } from './dragonEgg.js';
 import { createLifecycle, beginLoading, markReady, markFailed, allowsSimulationForPhase, rendersWorldForPhase, clampDelta } from './worldLifecycle.js';
@@ -494,6 +495,8 @@ class Game {
     this.heldItemRenderer = new HeldItemRenderer(this.camera, this.textures);
     this.bow = new BowController(this);
     this.eating = new EatingController(this);
+    // Thrown lingering potions' clouds (lingeringPotion.js).
+    this.lingeringClouds = new LingeringClouds(this);
     this.advancements = new AdvancementTracker(this);
     this.zombieSiege = new ZombieSiege(this);
     // The fishing rod: another use-item feature with a state machine, so it sits with the bow.
@@ -2578,8 +2581,19 @@ class Game {
     }
   }
 
+  /** The end of drinking a potion (eating.js): it takes effect, and the bottle comes back (potionUse.js). */
+  finishDrinking(potionItem) {
+    if (this.inventory.getActiveItem() !== potionItem) return false;
+    const result = drinkPotion(potionItem.id, this.player, this.inventory, { gamemode: this.player.gamemode });
+    if (!result.drunk) return false;
+    this.ui?.updateHotbar?.();
+    this.ui?.updateStats?.();
+    return true;
+  }
+
   /** The end of eating (eating.js): the held food is consumed. Re-checked, since hunger may have changed meanwhile. */
   finishEating(activeItem) {
+    if (activeItem && isDrinkablePotion(activeItem.id)) return this.finishDrinking(activeItem);
     const it = ITEMS[activeItem?.id];
     if (!it || it.type !== 'food' || this.inventory.getActiveItem() !== activeItem) return false;
     if (!canEat(activeItem.id, this.player.hunger, { creative: this.player.gamemode === 'creative', maxHunger: this.player.maxHunger })) return false;
@@ -2806,19 +2820,32 @@ class Game {
       return;
     }
 
+    // Lingering potions: thrown the same way, they leave a cloud on the ground that gives their effect to whatever
+    // stands in it (lingeringPotion.js). They brewed and could not be used.
+    if (isLingeringPotion(splashItem?.id)) {
+      if (this.player.gamemode !== 'creative') {
+        this.inventory.consumeActiveItem(1);
+        this.ui.updateHotbar();
+      }
+      this.sounds?.playBow?.();
+      const landing = this.player.position.clone()
+        .add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
+      this.lingeringClouds.throw(landing, splashItem.id);
+      const tint = POTION_DATA[splashItem.id.slice('lingering_'.length)]?.color;
+      this.mobs?.spawnParticleBurst?.(landing, tint ? parseInt(tint.slice(1), 16) : 0x4a044e, 16);
+      this.sounds?.playPotionSplash?.();
+      return;
+    }
+
     // Potion drinking. `potionUse.js` owns what a potion does; this only decides that the player is
     // using one. A splash or lingering potion is refused there rather than consumed with no effect.
+    // Wiki (Potion): a potion is drunk by holding use for its consumption time, 32 ticks (1.6 s), as food is eaten
+    // (eating.js); `finishEating` drinks it when the time is up. It used to be drunk on the click.
     const potionItem = this.inventory.getActiveItem();
     if (potionItem && isDrinkablePotion(potionItem.id)) {
-      const result = drinkPotion(potionItem.id, this.player, this.inventory, { gamemode: this.player.gamemode });
-      if (result.drunk) {
-        // There is no dedicated potion sound, so the milk-drink one is the fallback; picking the first
-        // that exists rather than chaining `??` avoids calling both when the first returns undefined.
-        (this.sounds?.playPotionDrink ?? this.sounds?.playMilk)?.();
-        this.ui?.updateHotbar?.();
-        this.ui?.updateStats?.();
-        return;
-      }
+      // The drink sound, called on the sound manager (a detached method loses it): the potion one, else the milk one.
+      this.eating.start(potionItem, { sound: () => { const sounds = this.sounds; if (sounds?.playPotionDrink) sounds.playPotionDrink(); else sounds?.playMilk?.(); } });
+      return;
     }
 
     const bucketItem = this.inventory.getActiveItem();
@@ -4989,6 +5016,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     if (this.riding) this.updateRiding();
     this.bow.update(dt);
     this.eating.update(dt);
+    this.lingeringClouds?.update(dt);
     this.advancements?.update(dt);
     // Zombie sieges (zombieSiege.js): the midnight roll, the start in a village, twenty spawn attempts.
     if (this.worldGenerated && this.gamerules?.doMobSpawning !== false) this.zombieSiege?.update(dt);

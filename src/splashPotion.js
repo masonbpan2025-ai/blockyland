@@ -17,7 +17,7 @@
 // The effect is read from `POTION_DATA` by stripping the `splash_` prefix, so a potion and its splash form
 // cannot disagree and anything the brewing stand can produce is throwable by construction.
 import { POTION_DATA, potionCoreFor } from './brewing.js';
-import { effectsFor, immuneToEffect } from './statusEffects.js';
+import { effectsFor, immuneToEffect, instantOutcomeOnMob } from './statusEffects.js';
 
 /** Vanilla applies a splash potion within four blocks of where it lands. */
 export const SPLASH_RADIUS = 4.0;
@@ -112,7 +112,12 @@ export function throwSplashPotion(game, center, itemId) {
     // Resistance rather than a single `turtle_master` status no rule in `statusEffects.js` reads.
     for (const [name, level] of effect.effects) {
       if (target !== game?.player && immuneToEffect(name, target.type)) continue;
-      target.applyStatusEffect?.(name, effect.seconds, level);
+      // Healing and Harming on a mob with no effect handling of its own: healed or hurt at once, the other way
+      // round for the undead. (The wither skeleton and the zombified piglin handle their own.)
+      const outcome = target !== game?.player && !target.applyStatusEffect ? instantOutcomeOnMob(name, level, target.type) : null;
+      if (outcome?.damage) game?.mobs?.damageMob?.(target, outcome.damage, null, false, null, true);
+      else if (outcome?.heal) target.health = Math.min(target.maxHealth ?? target.health, target.health + outcome.heal);
+      else target.applyStatusEffect?.(name, effect.seconds, level);
     }
   }
   return true;

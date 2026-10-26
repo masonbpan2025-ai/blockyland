@@ -91,6 +91,9 @@ export function teardownWorld(game) {
   });
 
   step('paintings', () => game.paintings?.clear?.());
+  step('lingering clouds', () => game.lingeringClouds?.clear?.());
+  // A world's brewing stands are its own (and are saved with it).
+  step('brewing stands', () => (game.ui?.brewingManager ?? game.brewingManager)?.stands?.clear?.());
 
   // Mods and modes that were attached to the world.
   step('mod world', () => game.modLoader?.closeWorld?.());

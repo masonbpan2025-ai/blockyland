@@ -128,7 +128,7 @@ export const TRADES = {
     wtRow('spruce_log', 8, 'emerald', 1, 4),
     wtRow('poplar_log', 8, 'emerald', 1, 4),
     wtRow('podzol', 3, 'emerald', 3, 6),
-    wtRow('potion_of_invisibility', 1, 'emerald', 5, 1, { note: 'Duration: 8:00' }),
+    wtRow('potion_of_invisibility_long', 1, 'emerald', 5, 1, { note: 'Duration: 8:00' }),
     wtRow('blue_ice', 1, 'emerald', 6, 6),
     wtRow('iron_pickaxe', 1, 'emerald', 6, 1, {
       enchanted: true,

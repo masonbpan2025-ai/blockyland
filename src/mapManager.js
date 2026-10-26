@@ -176,6 +176,8 @@ export function serializeWorld(game, mapName = 'World 1') {
     // Wall paintings: canvas, facing and the air cell they hang from. Older saves have none.
     paintings: game.paintings?.serialize?.() ?? [],
     itemFrames: game.itemFrames?.serialize?.() ?? [],
+    // What brewing stands hold, and how far each brew has got. Older saves have none.
+    brewingStands: (game.ui?.brewingManager ?? game.brewingManager)?.serialize?.() ?? [],
     gemini: {
       builtStructures: (game.geminiAgent?.builtStructures || []).map(s => ({
         id: s.id,
@@ -457,6 +459,7 @@ async function restoreWorldAsync(game, mapData, options = {}) {
   // 9b. Paintings hang on blocks, so they go back after the chunks and before the meshes.
   game.paintings?.restore?.(mapData.paintings);
   game.itemFrames?.restore?.(mapData.itemFrames);
+  (game.ui?.brewingManager ?? game.brewingManager)?.restore?.(mapData.brewingStands);
 
   // 10. Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {
@@ -714,6 +717,7 @@ export function deserializeWorld(game, mapData, options = {}) {
   // 9b. Paintings hang on blocks, so they go back after the chunks.
   game.paintings?.restore?.(mapData.paintings);
   game.itemFrames?.restore?.(mapData.itemFrames);
+  (game.ui?.brewingManager ?? game.brewingManager)?.restore?.(mapData.brewingStands);
 
   // 10. Restore Gemini AI memory
   if (mapData.gemini && game.geminiAgent) {

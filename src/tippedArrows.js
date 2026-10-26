@@ -13,8 +13,7 @@ import { TIPPED_ARROWS } from './tippedArrowItems.js';
 /**
  * Vanilla: a tipped arrow carries its potion's effect for one eighth of the potion's duration.
  *
- * The same rule is what makes a lingering potion one quarter; that one is not implemented because the game
- * has no lingering potions at all, so there is nothing to apply it to.
+ * The same rule makes a lingering potion's cloud one quarter (lingeringPotion.js).
  */
 export const TIPPED_ARROW_DURATION_FACTOR = 1 / 8;
 

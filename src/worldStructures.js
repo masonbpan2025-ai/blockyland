@@ -514,7 +514,7 @@ export function createWorldStructures({
           // A vine's faces are booleans (north/east/south/west/up), not a facing.
           const vineFaces = props && ['north', 'south', 'east', 'west', 'up'].some((f) => String(props[f]) === 'true')
             ? Object.fromEntries(['north', 'south', 'east', 'west', 'up'].map((f) => [f, String(props[f]) === 'true'])) : null;
-          if ((props && (props.facing || props.type === 'top' || props.age !== undefined)) || vineFaces || meta?.spawner || meta?.trialSpawner || meta?.vault) {
+          if ((props && (props.facing || props.type === 'top' || props.age !== undefined)) || vineFaces || meta?.spawner || meta?.trialSpawner || meta?.vault || meta?.extraItems) {
             const request = { x, y, z, id, name: meta.state?.name ?? null, facing: props?.facing ?? null, half: props?.half ?? null,
               ...(vineFaces ? { vineFaces } : {}),
               ...(props?.age!==undefined?{plantAge:Number(props.age)}:{}),

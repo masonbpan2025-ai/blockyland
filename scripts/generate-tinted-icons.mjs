@@ -69,7 +69,7 @@ function tint(plainFile, colouredFile, hex) {
 }
 
 let made = 0;
-for (const id of ['potion_of_oozing', 'potion_of_weaving', 'potion_of_wind_charging', 'potion_of_infestation']) {
+for (const id of ['potion_of_oozing', 'potion_of_weaving', 'potion_of_wind_charging', 'potion_of_infestation', 'potion_of_luck']) {
   const file = `${DIR}/${id}.png`;
   if (existsSync(file)) continue;
   writeFileSync(file, tint('potion.png', 'potion_of_healing.png', POTION_DATA[id].color));

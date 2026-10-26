@@ -2488,7 +2488,9 @@ export const ITEMS = {
   sweet_berries: { name: 'Sweet Berries', food: 2, icon: '/assets/items/sweet_berries.png', type: 'food' },
   glow_berries: { name: 'Glow Berries', food: 2, icon: '/assets/items/glow_berries.png', type: 'food' },
   honey_bottle: { name: 'Honey Bottle', food: 6, icon: '/assets/items/honey_bottle.png', type: 'food' },
-  potion: { name: 'Water Bottle / Potion', icon: '/assets/items/potion.png', type: 'food' },
+  // Java's `minecraft:potion` with no contents: the Uncraftable Potion (the Potion page), a potion with no effect that
+  // looks like a water bottle. Drinkable (brewing.js potionDataFor), it does nothing.
+  potion: { name: 'Uncraftable Potion', icon: '/assets/items/potion.png', type: 'potion', stackSize: 1 },
 
   // --- Ingredients & Materials ---
   coal: { name: 'Coal', icon: '/assets/items/coal.png', type: 'material' },

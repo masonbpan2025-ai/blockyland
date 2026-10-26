@@ -22,10 +22,11 @@ export class EatingController {
    * Begin eating `item` (the held stack), or keep eating it: holding use calls this again, and a second call for the
    * same stack in the same slot continues the timer rather than restarting it.
    */
-  start(item) {
+  start(item, { sound = null } = {}) {
     const g = this.game;
     if (this.eating && this.item === item && this.slot === g.inventory.activeSlot) return true;
-    this.item = item; this.slot = g.inventory.activeSlot; this.time = 0; this.soundTimer = 0; this.eating = true;
+    // `sound`: what plays while using it, the eating sound unless given (a potion is drunk, not eaten).
+    this.item = item; this.slot = g.inventory.activeSlot; this.time = 0; this.soundTimer = 0; this.eating = true; this.sound = sound;
     if (g.player) g.player.usingItem = true;
     return true;
   }
@@ -44,7 +45,7 @@ export class EatingController {
     if (g.player?.isDead || held !== this.item || g.inventory.activeSlot !== this.slot || !held || held.count <= 0 || g.ui?.isModalOpen?.()) { this.cancel(); return; }
     this.time += Math.max(0, dt);
     this.soundTimer -= dt;
-    if (this.soundTimer <= 0) { this.soundTimer = 0.2; g.sounds?.playEat?.(); }
+    if (this.soundTimer <= 0) { this.soundTimer = this.sound ? 0.4 : 0.2; if (this.sound) this.sound(); else g.sounds?.playEat?.(); }
     if (this.time < consumeSeconds(held.id)) return;
     const item = held;
     this.cancel();

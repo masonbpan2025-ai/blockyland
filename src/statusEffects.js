@@ -554,6 +554,30 @@ export const EFFECT_IMMUNITY = {
 };
 
 /**
+ * The undead (the Undead page): Healing hurts them and Harming heals them, and Poison and Regeneration do nothing --
+ * the Regeneration immunity list above, plus the wither and the giant, which are undead and immune to every effect
+ * or have their own rules.
+ */
+export const UNDEAD_MOB_TYPES = Object.freeze([...EFFECT_IMMUNITY.regeneration, 'wither', 'giant', 'camel_husk', 'parched']);
+
+/** Is a mob type undead? */
+export function isUndeadType(mobType) {
+  return UNDEAD_MOB_TYPES.includes(mobType);
+}
+
+/**
+ * What an instant effect does to a mob: Instant Health heals the living 4 x 2^(level-1) and hurts the undead
+ * 6 x 2^(level-1); Instant Damage is the reverse (the Potion page: "The effects given by potions of Healing and
+ * Harming are reversed on undead mobs. Potions of Healing deal damage, and Harming heals them").
+ * @returns {{heal:number}|{damage:number}|null} null for anything that is not an instant effect
+ */
+export function instantOutcomeOnMob(effectName, level, mobType) {
+  if (effectName !== 'instant_health' && effectName !== 'instant_damage') return null;
+  const healing = (effectName === 'instant_health') !== isUndeadType(mobType);
+  return healing ? { heal: instantAmount('instant_health', level) } : { damage: instantAmount('instant_damage', level) };
+}
+
+/**
  * Is a mob type immune to an effect?
  *
  * Vanilla is explicit about which mobs shrug off which effects, and this game applied every effect to

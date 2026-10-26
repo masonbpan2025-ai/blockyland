@@ -98,12 +98,15 @@ export function trackFall(manager, mob, start, pos) {
   // A jump of more than a physics step is a teleport (an enderman, a respawn): the fall starts again from here.
   if (Math.abs(pos.y - start.y) > 3) { mob.fallPeakY = undefined; return; }
   if (inWater) { mob.fallPeakY = undefined; return; }
+  // Slow Falling: no fall counts at all (statusEffects.js FALL_DAMAGE; mobEffects.js).
+  if (mob.effects?.has('slow_falling')) { mob.fallPeakY = undefined; return; }
   if (!mob.onGround) {
     mob.fallPeakY = Math.max(mob.fallPeakY ?? start.y, pos.y);
     return;
   }
   if (mob.fallPeakY === undefined) return;
-  const distance = mob.fallPeakY - pos.y;
+  // Jump Boost takes its level off the distance, as it does for the player.
+  const distance = mob.fallPeakY - pos.y - (mob.effects?.get('jump_boost')?.level ?? 0);
   mob.fallPeakY = undefined;
   const damage = fallDamageFor(mob.type, distance);
   // Passed as a punch so the hit-cooldown does not swallow it: the ravager and warden reuse that timer for their attacks.

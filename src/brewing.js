@@ -30,11 +30,12 @@ export const POTION_DATA = {
 
   // Tier II (Potency)
   potion_of_healing_2: { name: 'Potion of Healing II', color: '#f43f5e', effect: 'instant_health', amount: 8, level: 2 },
-  potion_of_regeneration_2: { name: 'Potion of Regeneration II', color: '#ec4899', effect: 'regeneration', duration: 22, level: 2 },
+  // Java's strong Regeneration and Poison are 450 and 432 ticks: 0:22.5 and 0:21.6 (the Potion page), not 0:22 and 0:21.
+  potion_of_regeneration_2: { name: 'Potion of Regeneration II', color: '#ec4899', effect: 'regeneration', duration: 22.5, level: 2 },
   potion_of_strength_2: { name: 'Potion of Strength II', color: '#b91c1c', effect: 'strength', duration: 90, level: 2 },
   potion_of_swiftness_2: { name: 'Potion of Swiftness II', color: '#38bdf8', effect: 'speed', duration: 90, level: 2 },
   potion_of_leaping_2: { name: 'Potion of Leaping II', color: '#22c55e', effect: 'jump_boost', duration: 90, level: 2 },
-  potion_of_poison_2: { name: 'Potion of Poison II', color: '#84cc16', effect: 'poison', duration: 21, level: 2 },
+  potion_of_poison_2: { name: 'Potion of Poison II', color: '#84cc16', effect: 'poison', duration: 21.6, level: 2 },
   potion_of_harming_2: { name: 'Potion of Harming II', color: '#881337', effect: 'instant_damage', amount: 12, level: 2 },
 
   // Extended (Duration)
@@ -78,7 +79,17 @@ export const POTION_DATA = {
   potion_of_weaving: { name: 'Potion of Weaving', color: '#78695a', effect: 'weaving', duration: 180 },
   potion_of_wind_charging: { name: 'Potion of Wind Charging', color: '#bdc9ff', effect: 'wind_charged', duration: 180 },
   potion_of_infestation: { name: 'Potion of Infestation', color: '#8c9b8c', effect: 'infested', duration: 180 },
+
+  // Java's Potion of Luck (the Potion page): 5:00 of Luck, "cannot be brewed", and "available in the Creative
+  // inventory" and by command. Its colour is the Luck effect's. No recipe names it (UNBREWABLE_POTIONS).
+  potion_of_luck: { name: 'Potion of Luck', color: '#59c106', effect: 'luck', duration: 300 },
 };
+
+/** Java's Uncraftable Potion: no effect, the water bottle's look, `/give @s minecraft:potion` only. */
+export const UNCRAFTABLE_POTION = Object.freeze({ name: 'Uncraftable Potion', color: '#385dc6', type: 'base' });
+
+/** Potions vanilla has that no brewing recipe makes: the Creative inventory and commands only. */
+export const UNBREWABLE_POTIONS = Object.freeze(['potion_of_luck']);
 
 // Base Brewing Recipes: (bottleId + ingredientId) -> resultId
 export const BASE_BREWING_RECIPES = [
@@ -286,6 +297,9 @@ export function getBrewingResult(bottleId, ingredientId) {
  */
 export function potionDataFor(itemId) {
   if (typeof itemId !== 'string' || !itemId) return null;
+  // Java's Uncraftable Potion: `minecraft:potion` with no contents. Not in POTION_DATA, because its splash and
+  // lingering ids are the generic water ones here; drunk, it has no effect.
+  if (itemId === 'potion') return { id: 'potion', base: 'potion', ...UNCRAFTABLE_POTION, splash: false, lingering: false };
   const splash = itemId.startsWith('splash_');
   const lingering = itemId.startsWith('lingering_');
   // Vanilla's generic splash_potion and lingering_potion are the water potion, whose core is this
@@ -486,6 +500,31 @@ export class BrewingManager {
       if (stand.update(dt)) completed++;
     }
     return completed;
+  }
+
+  /** Every stand that holds something, for a save. */
+  serialize() {
+    const out = [];
+    for (const s of this.stands.values()) {
+      if (!s.ingredient && !s.bottles.some(Boolean) && !s.fuel) continue;
+      out.push({ x: s.x, y: s.y, z: s.z, ingredient: s.ingredient ? { ...s.ingredient } : null,
+        bottles: s.bottles.map((b) => (b ? { ...b } : null)), fuel: s.fuel, brewTimer: s.brewTimer, isBrewing: s.isBrewing });
+    }
+    return out;
+  }
+
+  /** The stands of a save, replacing whatever is here. Older saves have none. */
+  restore(list) {
+    this.stands.clear();
+    for (const r of Array.isArray(list) ? list : []) {
+      if (![r?.x, r?.y, r?.z].every(Number.isFinite)) continue;
+      const stand = this.getOrCreateStand(r.x, r.y, r.z);
+      stand.ingredient = r.ingredient ? { ...r.ingredient } : null;
+      stand.bottles = [0, 1, 2].map((i) => (r.bottles?.[i] ? { ...r.bottles[i] } : null));
+      stand.fuel = Math.max(0, Math.min(MAX_FUEL, Number(r.fuel) || 0));
+      stand.brewTimer = Math.max(0, Number(r.brewTimer) || 0);
+      stand.isBrewing = r.isBrewing === true;
+    }
   }
 
   /** Drop the stand at a position, for when its block is broken. */

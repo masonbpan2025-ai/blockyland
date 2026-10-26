@@ -161,8 +161,8 @@ export function universalScenarios(type, SCENARIO_SKIP) {
       add('fall_immune', 'Takes no fall damage', 3, s => { s.mob.mesh.position.y = 20; s.mob.velocity.y = 0; }, s => ({ ok: s.mob.health === s.mob.maxHealth, detail: `health ${s.mob.health}/${s.mob.maxHealth}` }));
     } else {
       const expected = fallDamageFor(type, 20);
-      add('fall_damage', `Takes ${expected} damage from a 20-block fall`, 4, s => { s.mob.mesh.position.y = 20; s.mob.velocity.y = 0; s.mob.onGround = false; s.healthBefore = s.mob.health; },
-        s => { const lost = s.healthBefore - Math.max(0, s.mob.health); /* llamas regenerate 1 HP at random, which can land during the measurement */ return { ok: lost >= Math.min(expected, s.healthBefore) - 1 && lost <= Math.min(expected, s.healthBefore), detail: `lost ${lost} HP, wiki rule says ${expected}` }; });
+      add('fall_damage', `Takes ${expected} damage from a 20-block fall`, 4, s => { s.mob.mesh.position.y = 20; s.mob.velocity.y = 0; s.mob.onGround = false; s.healthBefore = s.mob.health; s.healedBefore = s.mob.potionHealed ?? 0; },
+        s => { /* a witch drinks Healing when hurt (witchPotions.js): what it drank is added back */ const lost = s.healthBefore - Math.max(0, s.mob.health) + ((s.mob.potionHealed ?? 0) - s.healedBefore); /* llamas regenerate 1 HP at random, which can land during the measurement */ return { ok: lost >= Math.min(expected, s.healthBefore) - 1 && lost <= Math.min(expected, s.healthBefore), detail: `lost ${lost} HP, wiki rule says ${expected}` }; });
       add('fall_safe', `Takes no damage from a ${rule?.safeBlocks ?? 3}-block fall`, 3, s => { s.mob.mesh.position.y = rule?.safeBlocks ?? 3; s.mob.velocity.y = 0; s.mob.onGround = false; },
         s => ({ ok: s.mob.health === s.mob.maxHealth, detail: `health ${s.mob.health}/${s.mob.maxHealth}` }));
     }

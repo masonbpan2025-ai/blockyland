@@ -3,6 +3,7 @@ import { setMagmaSize, updateBlaze, updateMagmaCube, updateBlazeFireball } from 
 import { updateHoglin } from './netherMobAI.js';
 import * as THREE from 'three';
 import { BLOCKS } from './blocks.js';
+import { updateWitchDrinking } from './witchPotions.js';
 import { hasGoldTrim } from './smithing.js';
 
 import { startBarter, updatePiglin } from './piglin.js';
@@ -188,21 +189,18 @@ export class HostileMobBehaviors {
 
       // B. Witch AI: Potion throwing and drinking
       if (mob.type === 'witch') {
-        // Defensive: Drink healing if low HP, or fire res if on fire
-        if (mob.health < 15 && (!mob.drinkTimer || mob.drinkTimer <= 0)) {
-          mob.drinkTimer = 3.0;
-          mob.isDrinking = true;
+        // Defensive: Water Breathing under water, Fire Resistance on fire, Healing when hurt, Swiftness to close on a
+        // far target -- each tick, at the wiki's chances, 1.6 s a drink (witchPotions.js).
+        const drink = updateWitchDrinking(mob, dt, {
+          submerged: Boolean(mob.inWater), burning: Boolean(mob.isBurning || mob.isOnFire),
+          health: mob.health, maxHealth: mob.maxHealth,
+          targetDistance: player?.position ? mob.mesh.position.distanceTo(player.position) : Infinity,
+        });
+        if (drink.started) {
           if (this.sounds?.playEat) this.sounds.playEat();
           this.mobManager.spawnParticleBurst?.(mob.mesh.position, 0xef4444, 8);
         }
-        if (mob.drinkTimer > 0) {
-          mob.drinkTimer -= dt;
-          if (mob.drinkTimer <= 0 && mob.isDrinking) {
-            mob.health = Math.min(mob.maxHealth, mob.health + 8);
-            mob.isDrinking = false;
-            if (this.sounds?.playPop) this.sounds.playPop();
-          }
-        }
+        if (drink.finished && this.sounds?.playPop) this.sounds.playPop();
 
         // Offensive: Throw splash potions of Harm, Poison, or Slowness
         mob.potionCooldown = (mob.potionCooldown || 3.0) - dt;

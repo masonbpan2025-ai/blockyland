@@ -299,8 +299,8 @@ export const RESOURCE_CHECKS = [
       // Named one by one rather than matched by a prefix, so this cannot quietly widen into "skip whatever is
       // inconvenient" -- the failure mode these tables exist to avoid.
       if (COMPONENT_NAMED_ITEMS.has(entry.id)) return CHECK_SKIP;
-      // And one deliberate difference: this game names the drinkable potion "Water Bottle / Potion", because
-      // it models the water bottle and the potion as one item where vanilla splits them by contents.
+      // And one deliberate difference: vanilla's pinned name for `potion` is the generic "Potion", but the item
+      // with no contents -- which is what this id is here -- shows as "Uncraftable Potion", as this game names it.
       if (DELIBERATE_NAMES.has(entry.id)) return CHECK_SKIP;
       return {
         ok: false,
