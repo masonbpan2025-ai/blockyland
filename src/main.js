@@ -1094,6 +1094,7 @@ class Game {
     this.scene?.add(mesh);
     if (!this.enderEyes) this.enderEyes = [];
     this.enderEyes.push({ mesh, velocity: new THREE.Vector3(v.x, v.y, v.z), life: ENDER_EYE_LIFE });
+    this.worldSync?.shareShot?.('ender_eye', mesh.position, v); // the others see it rise and drift (remoteShots.js)
 
     const bearing = bearingToPortal(from, target);
     this.ui?.addChatMessage?.(
@@ -2635,6 +2636,57 @@ class Game {
     return true;
   }
 
+  /**
+   * Use a held item that is eaten, drunk or thrown -- the same whatever the player is looking at.
+   * @returns {boolean} whether it was used (or eating began)
+   */
+  useConsumable(activeItem) {
+    // Experience Bottle throw & shatter
+    if (activeItem.id === 'experience_bottle') {
+      const look = new THREE.Vector3();
+      this.camera.getWorldDirection(look);
+      const spawnPos = this.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(look, 2.0);
+      const xpPoints = 3 + Math.floor(Math.random() * 9); // 3-11 XP points (Minecraft wiki)
+      if (this.entities?.spawnXpOrbs) {
+        this.entities.spawnXpOrbs(spawnPos, xpPoints);
+      }
+      this.worldSync?.shareShot?.('experience_bottle', spawnPos);
+      this.sounds.playBowShoot?.();
+      if (this.player.gamemode !== 'creative') {
+        this.inventory.consumeActiveItem();
+        this.ui.updateHotbar();
+      }
+      return true;
+    }
+
+    // An ominous bottle is drunk, not eaten: "Consuming an ominous bottle gives a player the Bad Omen effect and
+    // destroys the bottle" (wiki, Ominous Bottle). It restores no hunger and can be drunk at any time. It was
+    // food here -- one hunger point and no omen -- until the wiki parity audit's I-FOOD case found it.
+    if (activeItem.id === 'ominous_bottle') {
+      this.player.applyStatusEffect?.('bad_omen', OMINOUS_BOTTLE_OMEN_SECONDS, 1);
+      this.sounds.playEat?.();
+      if (this.player.gamemode !== 'creative') {
+        this.inventory.consumeActiveItem();
+        this.ui.updateHotbar();
+      }
+      return true;
+    }
+
+    const it = ITEMS[activeItem.id];
+    if (it && it.type === 'food') {
+      // A golden apple is the classic emergency item, and its effects were missing entirely: eating one
+      // gave nothing but food. Applied before the hunger restore so the two cannot diverge.
+      // Hunger alone decides whether food can be eaten (canEat, hunger.js): eating at full hunger used to be allowed
+      // whenever health was below full, and the golden apple's effects applied even when the apple was not eaten.
+      // Eating takes 1.6 s of holding use (eating.js); `finishEating` below does the eating when it completes.
+      if (canEat(activeItem.id, this.player.hunger, { creative: this.player.gamemode === 'creative', maxHunger: this.player.maxHunger })) {
+        this.eating.start(activeItem);
+        return true;
+      }
+    }
+    return false;
+  }
+
   handleRightClick() {
     if (!modeRules(this.player.gamemode).interact) return;
     // An item frame in front of the block under the crosshair: put the held item in, or turn it (itemFrames.js).
@@ -2814,6 +2866,7 @@ class Game {
       const splashPos = this.player.position.clone()
         .add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
       throwSplashPotion(this, splashPos, splashItem.id);
+      this.worldSync?.shareShot?.('splash_potion', splashPos, null, { item: splashItem.id });
       const tint = POTION_DATA[splashItem.id.slice('splash_'.length)]?.color;
       this.mobs?.spawnParticleBurst?.(splashPos, tint ? parseInt(tint.slice(1), 16) : 0x4a044e, 16);
       this.sounds?.playPotionSplash?.();
@@ -2831,6 +2884,7 @@ class Game {
       const landing = this.player.position.clone()
         .add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
       this.lingeringClouds.throw(landing, splashItem.id);
+      this.worldSync?.shareShot?.('lingering_potion', landing, null, { item: splashItem.id });
       const tint = POTION_DATA[splashItem.id.slice('lingering_'.length)]?.color;
       this.mobs?.spawnParticleBurst?.(landing, tint ? parseInt(tint.slice(1), 16) : 0x4a044e, 16);
       this.sounds?.playPotionSplash?.();
@@ -3091,7 +3145,9 @@ class Game {
       try { this.placeBlockOnFace(activeItem); } finally { this.targetBlock = null; }
       return;
     }
-    if (!this.targetBlock) return;
+    // Food, drinks and thrown bottles need no block: looking at the sky or over the void (a SkyWars island's edge),
+    // a golden apple was not eaten, because this return came first.
+    if (!this.targetBlock) { if (activeItem && !activeItem.isBlock) this.useConsumable(activeItem); return; }
 
     const bX = this.targetBlock.x;
     const bY = this.targetBlock.y;
@@ -3410,48 +3466,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
       activeItem = { ...activeItem, id: BLOCKS.CHEST, isBlock: true };
     }
     if (activeItem && !activeItem.isBlock) {
-      // Experience Bottle throw & shatter
-      if (activeItem.id === 'experience_bottle') {
-        const look = new THREE.Vector3();
-        this.camera.getWorldDirection(look);
-        const spawnPos = this.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(look, 2.0);
-        const xpPoints = 3 + Math.floor(Math.random() * 9); // 3-11 XP points (Minecraft wiki)
-        if (this.entities?.spawnXpOrbs) {
-          this.entities.spawnXpOrbs(spawnPos, xpPoints);
-        }
-        this.sounds.playBowShoot?.();
-        if (this.player.gamemode !== 'creative') {
-          this.inventory.consumeActiveItem();
-          this.ui.updateHotbar();
-        }
-        return;
-      }
-
-      // An ominous bottle is drunk, not eaten: "Consuming an ominous bottle gives a player the Bad Omen effect and
-      // destroys the bottle" (wiki, Ominous Bottle). It restores no hunger and can be drunk at any time. It was
-      // food here -- one hunger point and no omen -- until the wiki parity audit's I-FOOD case found it.
-      if (activeItem.id === 'ominous_bottle') {
-        this.player.applyStatusEffect?.('bad_omen', OMINOUS_BOTTLE_OMEN_SECONDS, 1);
-        this.sounds.playEat?.();
-        if (this.player.gamemode !== 'creative') {
-          this.inventory.consumeActiveItem();
-          this.ui.updateHotbar();
-        }
-        return;
-      }
-
-      const it = ITEMS[activeItem.id];
-      if (it && it.type === 'food') {
-        // A golden apple is the classic emergency item, and its effects were missing entirely: eating one
-        // gave nothing but food. Applied before the hunger restore so the two cannot diverge.
-        // Hunger alone decides whether food can be eaten (canEat, hunger.js): eating at full hunger used to be allowed
-        // whenever health was below full, and the golden apple's effects applied even when the apple was not eaten.
-        // Eating takes 1.6 s of holding use (eating.js); `finishEating` below does the eating when it completes.
-        if (canEat(activeItem.id, this.player.hunger, { creative: this.player.gamemode === 'creative', maxHunger: this.player.maxHunger })) {
-          this.eating.start(activeItem);
-          return;
-        }
-      }
+      if (this.useConsumable(activeItem)) return;
 
 
       // A firework rocket is launched. `spawnFireworkRocket` was already fully built -- mesh, rising trail,

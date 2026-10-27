@@ -5,9 +5,11 @@
 // `statusEffects.js` and implemented nowhere, and the apple was only ever referenced for zombie-villager
 // curing.
 //
-// Vanilla:
-//   Golden Apple            Absorption II 2:00, Regeneration II 0:05, 4 hunger, 9.6 saturation
-//   Enchanted Golden Apple  Absorption IV 2:00, Regeneration V 0:30, Fire Resistance 5:00, Resistance 5:00
+// Vanilla (wiki, Golden Apple and Enchanted Golden Apple, Java Edition):
+//   Golden Apple            Absorption I 2:00, Regeneration II 0:05, 4 hunger, 9.6 saturation
+//   Enchanted Golden Apple  Absorption IV 2:00, Regeneration II 0:20, Fire Resistance 5:00, Resistance 5:00
+// This table had Absorption II (8 extra health, not 4) and the enchanted apple's pre-1.9 Regeneration V for 30 s,
+// disagreeing with the items' own effects (blocks.js, extraItems.js); eating applies both, so the larger won.
 //
 // The effects are listed here rather than inline at the eating site so the two apples can be tested against
 // each other, and so `resistance` -- the fifth effect that nothing applied -- has a user.
@@ -16,12 +18,12 @@ import { POTION_DATA } from './brewing.js';
 /** Seconds and level for each effect, by item id. */
 export const GOLDEN_APPLE_EFFECTS = {
   golden_apple: [
-    { id: 'absorption', seconds: 120, level: 2 },
+    { id: 'absorption', seconds: 120, level: 1 },
     { id: 'regeneration', seconds: 5, level: 2 },
   ],
   enchanted_golden_apple: [
     { id: 'absorption', seconds: 120, level: 4 },
-    { id: 'regeneration', seconds: 30, level: 5 },
+    { id: 'regeneration', seconds: 20, level: 2 },
     { id: 'fire_resistance', seconds: 300, level: 1 },
     { id: 'resistance', seconds: 300, level: 1 },
   ],

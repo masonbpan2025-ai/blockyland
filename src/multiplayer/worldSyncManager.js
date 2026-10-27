@@ -16,6 +16,8 @@ import { escapeHtml, sanitizeName, MAX_PLAYERS } from './shareProtocol.js';
 import { hitParticles } from '../pvpCombat.js';
 import { igniteActor } from '../heat.js';
 import { fireAspectSeconds } from '../enchantmentEffects.js';
+import { RemoteShots } from './remoteShots.js';
+import { lookOf } from './playerLook.js';
 
 const NAME_KEY = 'mc-player-name';
 /** The host's last choice about PvP, kept between sessions: 'on' or 'off'. */
@@ -64,6 +66,8 @@ export class WorldSyncManager {
     this.serialize = options.serialize ?? serializeWorld;
     this.deserialize = options.deserialize ?? deserializeWorldAsync;
     this.remotePlayers = new RemotePlayerManager(game);
+    /** Other players' throws, drawn here (remoteShots.js). */
+    this.remoteShots = new RemoteShots(game);
     this.isHosting = false;
     this.isJoined = false;
     this.roomId = null;
@@ -189,6 +193,7 @@ export class WorldSyncManager {
 
     this.client.on('host_disconnected', ({ message }) => {
       this.remotePlayers.clear();
+      this.remoteShots.clear();
       this.isJoined = false;
       this.refreshPeople();
       this.showEnded(message);
@@ -206,6 +211,8 @@ export class WorldSyncManager {
     });
 
     this.client.on('hurt', (hit) => this.takeHit(hit));
+    // Another player's arrow or snowball, drawn flying (it hurts no one here: the shooter's game and the host decide).
+    this.client.on('shot', (shot) => this.showShot(shot));
     // Chest contents another player changed.
     this.client.on('container', ({ x, y, z, items }) => {
       if (!this.game.chestManager?.setChestItems) return;
@@ -320,6 +327,33 @@ export class WorldSyncManager {
       if (at && damage > 0) this.game.entities?.combatParticles?.spawnHit?.({ x: at.x, y: at.y, z: at.z }, hitParticles({ damage }), {});
     }
     return true;
+  }
+
+  /**
+   * This player threw or fired something: everyone else sees it (remoteShots.js). Another player's arrow used to be
+   * invisible -- it hurt, and nothing was seen -- and so was every other throw. `velocity` for what flies; `extra` is
+   * a firework's burst height (`top`), a potion's item (`item`), an arrow's `flaming` and `spectral`.
+   */
+  shareShot(kind, origin, velocity = null, extra = {}) {
+    if (!this.client.connected || !origin) return false;
+    const shot = { kind, x: origin.x, y: origin.y, z: origin.z };
+    if (velocity) Object.assign(shot, { vx: velocity.x, vy: velocity.y, vz: velocity.z });
+    for (const [key, value] of Object.entries(extra)) if (value !== undefined && value !== false && value !== null) shot[key] = value;
+    return this.client.sendShot(shot);
+  }
+
+  /** Another player's shot: the same thing, for show only. */
+  showShot({ peerId = null, ...shot }) {
+    return this.remoteShots.show(shot, peerId);
+  }
+
+  /** Whether a projectile moving from `from` to `to` passed through another player (it stops there, drawn only). */
+  projectileTouches(from, to, { pad = 0.25, except = null } = {}) {
+    if (!this.client.connected || !from || !to) return false;
+    const dir = new THREE.Vector3(to.x - from.x, to.y - from.y, to.z - from.z);
+    const length = dir.length();
+    if (!(length > 1e-6)) return false;
+    return Boolean(this.remotePlayers.pickPlayer(from, dir.divideScalar(length), length, { pad, except }));
   }
 
   // --- a dead player's drops -------------------------------------------------------------------
@@ -508,17 +542,7 @@ export class WorldSyncManager {
       this.refreshPeople();
       if (this.game.player) {
         const p = this.game.player;
-        this.client.sendPlayerState({
-          x: Number(p.position.x.toFixed(3)),
-          y: Number(p.position.y.toFixed(3)),
-          z: Number(p.position.z.toFixed(3)),
-          yaw: Number(p.yaw.toFixed(3)),
-          pitch: Number(p.pitch.toFixed(3)),
-          isSneaking: Boolean(p.isSneaking),
-          isSprinting: Boolean(p.isSprinting),
-          isSwinging: false,
-          activeItem: this.game.inventory?.getActiveItem()?.id || null,
-        });
+        this.client.sendPlayerState(this.myState({ swinging: false }));
       }
       if (!quiet) this.chat('<span style="color:#10b981;font-weight:bold;">🌐 Your world is shared. Send the link to friends; keep this tab open while they play.</span>');
       return data;
@@ -731,17 +755,7 @@ export class WorldSyncManager {
       this.game.worldType = 'shared';
       if (this.game.player) {
         const p = this.game.player;
-        this.client.sendPlayerState({
-          x: Number(p.position.x.toFixed(3)),
-          y: Number(p.position.y.toFixed(3)),
-          z: Number(p.position.z.toFixed(3)),
-          yaw: Number(p.yaw.toFixed(3)),
-          pitch: Number(p.pitch.toFixed(3)),
-          isSneaking: Boolean(p.isSneaking),
-          isSprinting: Boolean(p.isSprinting),
-          isSwinging: false,
-          activeItem: this.game.inventory?.getActiveItem()?.id || null,
-        });
+        this.client.sendPlayerState(this.myState({ swinging: false }));
       }
       mark('built');
       console.info('[Sharing] joined in', this.joinTimings);
@@ -779,6 +793,7 @@ export class WorldSyncManager {
   leave() {
     this.client.disconnect(true);
     this.remotePlayers.clear();
+    this.remoteShots.clear();
     this.isHosting = false;
     this.isJoined = false;
     this.roomId = null;
@@ -843,6 +858,7 @@ export class WorldSyncManager {
 
   update(dt) {
     this.remotePlayers.update(dt);
+    this.remoteShots.update(dt);
     // Periodically sync world time from host to guests
     if (this.isHosting && this.client.peers.size > 1 && typeof this.game.worldTime === 'number') {
       this.timeSyncTimer = (this.timeSyncTimer || 0) + dt;
@@ -859,8 +875,16 @@ export class WorldSyncManager {
     this.broadcastTimer += dt;
     if (this.broadcastTimer < 0.04) return; // 25 updates a second
     this.broadcastTimer = 0;
+    this.client.sendPlayerState(this.myState({ swinging: Boolean(this.game.isMouseDown) }));
+  }
+
+  /**
+   * What the others see of this player: where it is and how it moves, what it holds, and its look -- armour, off hand,
+   * a raised shield, a drawn bow, flames, invisibility, a fishing line (playerLook.js).
+   */
+  myState({ swinging = false } = {}) {
     const p = this.game.player;
-    this.client.sendPlayerState({
+    return {
       x: Number(p.position.x.toFixed(3)),
       y: Number(p.position.y.toFixed(3)),
       z: Number(p.position.z.toFixed(3)),
@@ -868,9 +892,10 @@ export class WorldSyncManager {
       pitch: Number(p.pitch.toFixed(3)),
       isSneaking: Boolean(p.isSneaking),
       isSprinting: Boolean(p.isSprinting),
-      isSwinging: Boolean(this.game.isMouseDown),
-      activeItem: this.game.inventory?.getActiveItem()?.id || null,
+      isSwinging: swinging,
+      activeItem: this.game.inventory?.getActiveItem?.()?.id || null,
       dead: Boolean(p.isDead || p.health <= 0),
-    });
+      ...lookOf(this.game),
+    };
   }
 }

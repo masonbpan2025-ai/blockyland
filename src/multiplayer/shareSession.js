@@ -23,10 +23,13 @@ import {
   PROTOCOL_VERSION, MAX_PLAYERS, GUEST_TO_HOST, HOST_TO_GUEST, FrameReassembler, ProtocolError, encodeFrames,
   packSnapshot, unpackSnapshot, sanitizeName, sanitizeChat, sanitizePlayerState, sanitizeBlockUpdate, guestLimiters,
   sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE, sanitizeGameData, sanitizeContainer, sanitizeSkin,
-  sanitizeDeathDrops, isDropId, PROJECTILES,
+  sanitizeDeathDrops, isDropId, PROJECTILES, sanitizeShot, MAX_SHOT_OFFSET,
 } from './shareProtocol.js';
 
 const HOST_ID = 'host';
+/** How near a landing potion must be, by the host's record of a player's feet, to count as a hit on them. */
+const SPLASH_REACH = 5;
+const LINGERING_REACH = 6;
 
 export const DEFAULT_TIMEOUTS = Object.freeze({
   /** A guest has this long to get from "joined the room" to "talking to the host". */
@@ -355,6 +358,16 @@ export class ShareSession {
         this.grantDrop(entry.peerId, msg.id);
         break;
       }
+      case 'shot': {
+        if (!entry.limiters.shot.take()) break;
+        const shot = sanitizeShot(msg);
+        if (!shot) { this.strike(entry); break; }
+        // From the guest's hand, as far as the host knows where the guest is; a shot from elsewhere is not passed on.
+        const at = this.positions.get(entry.peerId);
+        if (!at || Math.hypot(at.x - shot.x, at.y - shot.y, at.z - shot.z) > MAX_SHOT_OFFSET) break;
+        this.relayShot(entry.peerId, shot);
+        break;
+      }
       case 'skin': {
         if (!entry.limiters.skin.take()) break;
         const skin = sanitizeSkin(msg);
@@ -601,6 +614,12 @@ export class ShareSession {
         if (!isDropId(msg.id) || typeof msg.by !== 'string') break;
         const item = msg.item ? sanitizeDeathDrops({ x: 0, y: 0, z: 0, items: [msg.item] })?.items[0] ?? null : null;
         this.emit('taken', { id: msg.id, by: msg.by, item });
+        break;
+      }
+      case 'shot': {
+        const shot = sanitizeShot(msg);
+        // `harm`: the host's ruling on a potion's harmful effects for this player (relayShot).
+        if (shot && typeof msg.peerId === 'string' && msg.peerId !== this.clientId) this.emit('shot', { peerId: msg.peerId, ...shot, harm: msg.harm === true });
         break;
       }
       case 'skin': {
@@ -868,6 +887,43 @@ export class ShareSession {
     if (to) { const entry = this.guests.get(to); if (!entry) return false; void this.send(entry.link, { t: 'game', data: clean }); return true; }
     this.broadcast({ t: 'game', data: clean });
     return true;
+  }
+
+  /**
+   * A projectile this player fired, for everyone else to see fly: a guest tells the host, which tells the rest. Only
+   * drawn there; hits are `attackPlayer`'s.
+   * @returns {boolean} whether it went
+   */
+  sendShot(shot) {
+    if (!this.connected) return false;
+    const clean = sanitizeShot(shot);
+    if (!clean) return false;
+    if (this.isHost) this.relayShot(HOST_ID, clean);
+    else if (this.hostLink) void this.send(this.hostLink, { t: 'shot', ...clean });
+    else return false;
+    return true;
+  }
+
+  /**
+   * Host: show a shot to everyone but its shooter. A splash or lingering potion also carries, for each player, the
+   * host's ruling on whether its harmful effects may touch them -- the same as a hit's: PvP on, and the world's own
+   * game agreeing (a SkyWars lobby or a spectator, no) -- and one that may, landing near them, counts as the thrower's
+   * hit, so a kill by Harming or Poison is the thrower's.
+   */
+  relayShot(from, shot) {
+    const potion = shot.kind === 'splash_potion' || shot.kind === 'lingering_potion';
+    const reach = shot.kind === 'splash_potion' ? SPLASH_REACH : LINGERING_REACH;
+    const ruling = (target) => {
+      if (!potion) return {};
+      const harm = sanitizeShareSettings(this.settings).pvp && !(this.attackPolicy?.(from, target) ?? null);
+      const at = this.positions.get(target);
+      if (harm && at && Math.hypot(at.x - shot.x, at.y - shot.y, at.z - shot.z) <= reach) this.emit('attack_landed', { attackerId: from, targetId: target, damage: 0 });
+      return { harm };
+    };
+    if (from !== HOST_ID) this.emit('shot', { peerId: from, ...shot, ...ruling(HOST_ID) });
+    for (const [peerId, entry] of this.guests) {
+      if (peerId !== from) void this.send(entry.link, { t: 'shot', peerId: from, ...shot, ...ruling(peerId) });
+    }
   }
 
   /** One chest's new contents, for everyone else: a guest tells the host, which tells the rest. */

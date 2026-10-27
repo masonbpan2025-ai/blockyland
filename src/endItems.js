@@ -31,6 +31,7 @@ export class EndItemController {
       const mesh=new THREE.Mesh(new THREE.SphereGeometry(.13,8,6),new THREE.MeshLambertMaterial({color:0x269e91,emissive:0x124c45}));
       mesh.position.copy(origin);g.scene?.add(mesh);
       this.pearls.push({mesh,velocity:direction.multiplyScalar(30),age:0,dimension:g.world.dimension,thrower:p.position.clone()});
+      g.worldSync?.shareShot?.('ender_pearl',origin,direction); // seen flying by everyone else (multiplayer/remoteShots.js)
       this.consume();g.sounds?.playBowShoot?.();return true;
     }
     if(item.id==='chorus_fruit') {

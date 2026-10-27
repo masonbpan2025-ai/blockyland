@@ -10,6 +10,7 @@ import { sanitizeAttack, refuseAttack, sanitizeDeathDrops, MAX_ATTACK_REACH, MAX
 import { Player } from '../src/player.js';
 import { BLOCKS } from '../src/blocks.js';
 import { createFakeNetwork, nextEvent, settle } from './helpers/shareFakes.js';
+import { readFileSync } from 'node:fs';
 
 /** A small page, as in worldSyncManager.test.js: every element the manager looks up exists. */
 function setupMockDom(t) {
@@ -288,4 +289,332 @@ test('the other way: the host\'s arrow and snowball reach the guest as an arrow 
   assert.equal(guest.game.hits.length, 2, 'a snowball arrives, with no damage');
   assert.equal(guest.game.hits[1].amount, 0);
   assert.equal(guest.game.hits[1].options.fromPlayer, true);
+});
+
+// --- seeing another player's shots ------------------------------------------------------------------------------------
+
+test('a shot is where it left the hand and how fast, never faster than any bow; a landing is where and which potion', async () => {
+  const { sanitizeShot, MAX_SHOT_SPEED } = await import('../src/multiplayer/shareProtocol.js');
+  assert.deepEqual(sanitizeShot({ kind: 'arrow', x: 1, y: 2, z: 3, vx: 0, vy: 0, vz: 30, flaming: true, extra: 'x' }),
+    { kind: 'arrow', x: 1, y: 2, z: 3, vx: 0, vy: 0, vz: 30, flaming: true });
+  assert.deepEqual(sanitizeShot({ kind: 'snowball', x: 0, y: 0, z: 0, vx: 22, vy: 0, vz: 0, flaming: true }),
+    { kind: 'snowball', x: 0, y: 0, z: 0, vx: 22, vy: 0, vz: 0 }, 'only an arrow burns');
+  for (const kind of ['egg', 'ender_pearl', 'ender_eye']) assert.equal(sanitizeShot({ kind, x: 0, y: 0, z: 0, vx: 1, vy: 0, vz: 0 })?.kind, kind);
+  assert.equal(sanitizeShot({ kind: 'trident', x: 0, y: 0, z: 0, vx: 1, vy: 0, vz: 0 }), null, 'nothing the game cannot throw');
+  assert.deepEqual(sanitizeShot({ kind: 'firework', x: 0, y: 10, z: 0, top: 30 }), { kind: 'firework', x: 0, y: 10, z: 0, top: 30 });
+  assert.equal(sanitizeShot({ kind: 'firework', x: 0, y: 10, z: 0, top: 500 }), null);
+  assert.deepEqual(sanitizeShot({ kind: 'splash_potion', x: 1, y: 2, z: 3, item: 'splash_potion_of_harming' }), { kind: 'splash_potion', x: 1, y: 2, z: 3, item: 'splash_potion_of_harming' });
+  assert.equal(sanitizeShot({ kind: 'splash_potion', x: 1, y: 2, z: 3, item: 'lingering_potion_of_harming' }), null, 'the item must be that kind of potion');
+  assert.equal(sanitizeShot({ kind: 'lingering_potion', x: 1, y: 2, z: 3, item: '<img>' }), null);
+  assert.deepEqual(sanitizeShot({ kind: 'experience_bottle', x: 1, y: 2, z: 3, vx: 9 }), { kind: 'experience_bottle', x: 1, y: 2, z: 3 });
+  assert.equal(sanitizeShot({ kind: 'arrow', x: 0, y: 0, z: 0, vx: MAX_SHOT_SPEED + 1, vy: 0, vz: 0 }), null);
+  assert.equal(sanitizeShot({ kind: 'arrow', x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 }), null);
+  assert.equal(sanitizeShot({ kind: 'arrow', x: NaN, y: 0, z: 0, vx: 1, vy: 0, vz: 0 }), null);
+});
+
+/** Each game's arrows and snowballs, as the mob manager keeps them. */
+async function giveProjectiles(game) {
+  const { spawnArrow } = await import('../src/arrows.js');
+  game.mobs = {
+    arrows: [], mobs: [], snowballs: [], scene: game.scene, world: game.world, game,
+    spawnArrow(origin, direction, shooter, options) { return spawnArrow(this, origin, direction, shooter, options); },
+    isBlockSolid: () => false, getMobDimensions: () => ({ width: 0.6, height: 1.8 }),
+  };
+  return game.mobs;
+}
+
+test('the guest\'s arrow is seen flying by the host, passes out of the guest\'s own body, and stops at the host unharmed', async (t) => {
+  const { host, guest } = await duel(t);
+  const { updateArrows } = await import('../src/arrows.js');
+  await giveProjectiles(guest.game);
+  const hostMobs = await giveProjectiles(host.game);
+  // The guest, 20 blocks away at z = -20, shoots at the host.
+  guest.game.worldSync = guest.manager;
+  guest.game.mobs.spawnArrow(new THREE.Vector3(0, 31.5, -19.6), new THREE.Vector3(0, 0, 1), 'player', { speed: 50, damage: 6, flaming: true });
+  await settle(10);
+  assert.equal(hostMobs.arrows.length, 1, 'the host sees the arrow');
+  const [arrow] = hostMobs.arrows;
+  assert.equal(arrow.visual, true);
+  assert.equal(arrow.flaming, true);
+  assert.equal(arrow.pickup, false, 'nobody picks up an arrow that is only drawn');
+  assert.equal(arrow.shooterId, guest.session.clientId);
+  assert.ok(arrow.mesh.position.distanceTo(new THREE.Vector3(0, 31.5, -19.6)) < 1e-9);
+  assert.ok(Math.abs(arrow.velocity.z - 50) < 1e-9);
+  host.game.worldSync = host.manager;
+  updateArrows(hostMobs, 0.05, host.game.player);
+  assert.equal(hostMobs.arrows.length, 1, 'it leaves the shooter\'s body without stopping there');
+  for (let i = 0; i < 20 && hostMobs.arrows.length; i++) updateArrows(hostMobs, 0.05, host.game.player);
+  assert.equal(hostMobs.arrows.length, 0, 'gone where it reached the host');
+  assert.equal(host.game.hits.length, 0, 'drawn only: the hit is the shooter\'s game\'s to report');
+});
+
+test('the host\'s snowball is seen by the guest; a mob\'s arrow and another player\'s drawn arrow are not passed on', async (t) => {
+  const { host, guest } = await duel(t);
+  const { useSnowball } = await import('../src/netherCombat.js');
+  const guestMobs = await giveProjectiles(guest.game);
+  await giveProjectiles(host.game);
+  host.game.worldSync = host.manager;
+  host.game.inventory.held = { id: 'snowball', count: 4 };
+  host.game.inventory.consumeActiveItem = () => {};
+  host.game.player.camera = { getWorldDirection: (v) => v.set(0, 0, -1) };
+  host.game.player.gamemode = 'survival';
+  assert.equal(useSnowball(host.game), true);
+  // A skeleton's arrow and a drawn copy of someone's arrow stay where they are.
+  host.game.mobs.spawnArrow(new THREE.Vector3(0, 31, 0), new THREE.Vector3(0, 0, -1), { mesh: null });
+  host.game.mobs.spawnArrow(new THREE.Vector3(0, 31, 0), new THREE.Vector3(0, 0, -1), 'remote', { visual: true });
+  await settle(10);
+  assert.equal(guestMobs.snowballs.length, 1);
+  assert.equal(guestMobs.snowballs[0].visual, true);
+  assert.ok(Math.abs(guestMobs.snowballs[0].velocity.z - -22) < 1e-9);
+  assert.equal(guestMobs.arrows.length, 0);
+});
+
+test('a guest\'s shot from far from where the host last saw it is not passed on', async (t) => {
+  const { host, guest } = await duel(t);
+  const shots = [];
+  host.session.on('shot', (s) => shots.push(s));
+  guest.session.sendShot({ kind: 'arrow', x: 0, y: 31.5, z: -19.6, vx: 0, vy: 0, vz: 30 });
+  guest.session.sendShot({ kind: 'arrow', x: 0, y: 31.5, z: 40, vx: 0, vy: 0, vz: 30 });
+  await settle(10);
+  assert.equal(shots.length, 1);
+  assert.equal(shots[0].peerId, guest.session.clientId);
+});
+
+// --- everything else that is seen: the look, and every throw ------------------------------------------------------------
+
+test('a look is checked: real armour and trims, a held id in the off hand, flags as flags, a bobber near its player', async () => {
+  const { sanitizePlayerState } = await import('../src/multiplayer/shareProtocol.js');
+  const s = sanitizePlayerState({
+    x: 0, y: 30, z: 0,
+    armor: [{ id: 'diamond_helmet', trim: { pattern: 'coast', material: 'gold' } }, { id: 'iron_chestplate', trim: { pattern: '<b>' } }, null, { id: 'BAD ID' }],
+    offhand: 'shield', blocking: true, using: 'bow', burning: 1, invisible: true, bobber: [3, 29, 4],
+  });
+  assert.deepEqual(s.armor, [{ id: 'diamond_helmet', trim: { pattern: 'coast', material: 'gold' } }, { id: 'iron_chestplate' }, null, null]);
+  assert.equal(s.offhand, 'shield');
+  assert.equal(s.blocking, true);
+  assert.equal(s.using, 'bow');
+  assert.equal(s.burning, false, 'a flag is true or nothing');
+  assert.equal(s.invisible, true);
+  assert.deepEqual(s.bobber, [3, 29, 4]);
+  assert.equal(sanitizePlayerState({ x: 0, y: 30, z: 0, bobber: [500, 29, 4] }).bobber, null, 'a bobber far from its player');
+  assert.equal(sanitizePlayerState({ x: 0, y: 30, z: 0, using: 'dance' }).using, null);
+  assert.equal(sanitizePlayerState({ x: 0, y: 30, z: 0 }).armor, undefined, 'no armour said: none changed');
+});
+
+test('this player\'s look is what it wears, holds in the off hand and does', async () => {
+  const { lookOf } = await import('../src/multiplayer/playerLook.js');
+  const game = {
+    inventory: { armor: { head: null, chest: { id: 'netherite_chestplate', count: 1, trim: { pattern: 'rib', material: 'diamond' } }, legs: null, feet: { id: 'iron_boots', count: 1 } }, offhand: { id: 'shield', count: 1 } },
+    player: { isBlocking: true, fireTicks: 3, hasStatusEffect: (id) => id === 'invisibility' },
+    bow: { drawing: false }, eating: { eating: true },
+    fishing: { bobber: { position: new THREE.Vector3(1.234, 2, 3) } },
+  };
+  assert.deepEqual(lookOf(game), {
+    armor: [null, { id: 'netherite_chestplate', trim: { pattern: 'rib', material: 'diamond' } }, null, { id: 'iron_boots' }],
+    offhand: 'shield', blocking: true, using: 'eat', burning: true, invisible: true, bobber: [1.23, 2, 3],
+  });
+});
+
+const exchange = async (host, guest, rounds = 4) => {
+  for (let i = 0; i < rounds; i++) { host.manager.update(0.05); guest.manager.update(0.05); await settle(5); }
+};
+
+test('the host\'s armour, shield, flames, invisibility and fishing line are seen on its avatar by the guest', async (t) => {
+  const { host, guest } = await duel(t);
+  const hp = host.game.player;
+  host.game.inventory.armor = { head: { id: 'diamond_helmet', count: 1 }, chest: { id: 'iron_chestplate', count: 1, trim: { pattern: 'coast', material: 'gold' } }, legs: null, feet: { id: 'golden_boots', count: 1 } };
+  host.game.inventory.offhand = { id: 'shield', count: 1 };
+  Object.assign(hp, { isBlocking: true, isOnFire: true, hasStatusEffect: (id) => id === 'invisibility' });
+  host.game.fishing = { bobber: { position: new THREE.Vector3(2, 29, 3) } };
+  await exchange(host, guest);
+  const peer = guest.manager.remotePlayers.remotePlayers.get('host');
+  const model = peer.avatar.mesh;
+  for (const slot of ['head', 'chest', 'feet']) assert.ok(model.hasArmor(slot), `wears its ${slot} armour`);
+  assert.equal(model.hasArmor('legs'), false);
+  assert.equal(model.equippedArmorState.chest.trimKey, 'coast_gold', 'with its trim');
+  assert.equal(peer.avatar.offhandSlot.children[0]?.userData.itemId, 'shield', 'the shield in its off hand');
+  guest.manager.remotePlayers.update(0.05);
+  assert.ok(peer.avatar.leftArm.rotation.x < -0.5, 'the shield raised');
+  assert.equal(peer.avatar.flames?.visible, true, 'on fire');
+  // Invisible: the body and the name tag go; the armour and the shield stay, as in Java.
+  const kept = (c) => { for (let o = c; o && o !== model; o = o.parent) if (/^armor_|^hand_slot$|^flames$/.test(o.name)) return true; return false; };
+  const shown = [];
+  model.traverse((c) => { if (c.isMesh && c.visible) shown.push(c); });
+  assert.ok(shown.length > 0 && shown.every(kept), 'only armour, items and flames are seen');
+  assert.equal(peer.avatar.nametag.visible, false);
+  assert.ok(peer.bobber && peer.bobber.position.distanceTo(new THREE.Vector3(2, 29, 3)) < 1e-9, 'its bobber, where it is');
+  // All of it goes away again.
+  host.game.inventory.armor = { head: null, chest: null, legs: null, feet: null };
+  host.game.inventory.offhand = null;
+  Object.assign(hp, { isBlocking: false, isOnFire: false, hasStatusEffect: () => false });
+  host.game.fishing = { bobber: null };
+  await exchange(host, guest);
+  for (const slot of ['head', 'chest', 'legs', 'feet']) assert.equal(model.hasArmor(slot), false);
+  assert.equal(peer.avatar.offhandSlot.children.length, 0);
+  assert.equal(peer.avatar.flames.visible, false);
+  assert.equal(peer.avatar.nametag.visible, true);
+  const body = [];
+  model.traverse((c) => { if (c.isMesh && c.visible && !kept(c)) body.push(c); });
+  assert.ok(body.length >= 6, 'the body is back');
+  assert.equal(peer.bobber, null);
+});
+
+test('a drawn bow is held out in both arms, and food at the mouth', async (t) => {
+  const { host, guest } = await duel(t);
+  host.game.bow = { drawing: true };
+  await exchange(host, guest, 3);
+  const peer = guest.manager.remotePlayers.remotePlayers.get('host');
+  guest.manager.remotePlayers.update(0.05);
+  assert.ok(Math.abs(peer.avatar.rightArm.rotation.x + Math.PI / 2) < 0.2 && Math.abs(peer.avatar.leftArm.rotation.x + Math.PI / 2) < 0.2);
+  host.game.bow = { drawing: false };
+  host.game.eating = { eating: true };
+  await exchange(host, guest, 3);
+  guest.manager.remotePlayers.update(0.05);
+  assert.equal(peer.using, 'eat');
+  assert.ok(peer.avatar.rightArm.rotation.x < -0.9);
+});
+
+test('every throw is seen: an egg, a pearl and an Eye of Ender fly and break; potions, bottles and fireworks show where they go', async (t) => {
+  const { host, guest } = await duel(t);
+  const { LingeringClouds } = await import('../src/lingeringPotion.js');
+  const bursts = [], rockets = [];
+  guest.game.mobs = { scene: guest.game.scene, spawnParticleBurst: (at, color) => bursts.push({ at: at.clone(), color }) };
+  guest.game.entities.spawnFireworkRocket = (at, top) => rockets.push({ at: at.clone(), top });
+  guest.game.lingeringClouds = new LingeringClouds(guest.game);
+  const send = (kind, at, velocity, extra) => host.manager.shareShot(kind, new THREE.Vector3(...at), velocity && new THREE.Vector3(...velocity), extra);
+  send('egg', [5, 31.5, 0], [0, 0, 20]);
+  send('ender_pearl', [-5, 31.5, 0], [0, 0, 30]);
+  send('ender_eye', [0, 31.5, 5], [2, 6, 0]);
+  send('firework', [0, 31.5, 0], null, { top: 50 });
+  send('splash_potion', [3, 30, 3], null, { item: 'splash_potion_of_harming' });
+  send('lingering_potion', [-3, 30, -3], null, { item: 'lingering_potion_of_poison' });
+  send('experience_bottle', [1, 31, 1]);
+  await settle(15);
+  const flying = guest.manager.remoteShots.flying;
+  assert.deepEqual(flying.map((s) => s.kind).sort(), ['egg', 'ender_eye', 'ender_pearl']);
+  assert.equal(rockets.length, 1);
+  assert.equal(rockets[0].top, 50);
+  assert.equal(bursts.length, 3, 'two potions splash, a bottle breaks');
+  assert.equal(guest.game.lingeringClouds.clouds.length, 1, 'the cloud lies there');
+  assert.equal(guest.game.lingeringClouds.clouds[0].playerOnly, true, 'and it is for this player alone');
+  // Stone below y = 25: the egg and the pearl fall and break on it; the eye's flight ends in the air.
+  guest.game.world.getVoxel = (x, y) => (y < 25 ? BLOCKS.STONE : BLOCKS.AIR);
+  for (let i = 0; i < 100 && guest.manager.remoteShots.flying.length; i++) guest.manager.update(0.05);
+  assert.equal(guest.manager.remoteShots.flying.length, 0);
+  assert.equal(bursts.length, 3 + 2, 'the egg and the pearl break in a burst where they land');
+  assert.equal(guest.game.hits.length, 0);
+});
+
+test('every throw in the game tells the shared world', () => {
+  const read = (f) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
+  assert.match(read('arrows.js'), /shareShot\?\.\('arrow'/);
+  assert.match(read('netherCombat.js'), /shareShot\?\.\('snowball'/);
+  assert.match(read('animalBehaviors.js'), /shareShot\?\.\('egg'/);
+  assert.match(read('endItems.js'), /shareShot\?\.\('ender_pearl'/);
+  assert.match(read('fireworks.js'), /shareShot\?\.\('firework'/);
+  const main = read('main.js');
+  for (const kind of ['ender_eye', 'splash_potion', 'lingering_potion', 'experience_bottle']) assert.match(main, new RegExp(`shareShot\\?\\.\\('${kind}'`), kind);
+});
+
+// --- potions on other players --------------------------------------------------------------------------------------
+
+/** The host's player as a potion sees it: effects it is given, and the magic damage it takes. */
+function takesPotions(game) {
+  game.player.maxHealth = 20;
+  game.player.effects = [];
+  game.player.applyStatusEffect = (name, seconds, level) => game.player.effects.push([name, seconds, level]);
+  return game.player;
+}
+
+test('the guest\'s Splash Potion of Harming at the host\'s feet hurts the host, as magic, and is the guest\'s hit', async (t) => {
+  const { host, guest } = await duel(t, { guestAt: [0, 30, -3] });
+  const player = takesPotions(host.game);
+  const landed = [];
+  host.session.on('attack_landed', (e) => landed.push(e));
+  guest.manager.shareShot('splash_potion', new THREE.Vector3(0.5, 30, 0.5), null, { item: 'splash_potion_of_harming' });
+  await settle(15);
+  assert.equal(host.game.hits.length, 1);
+  assert.equal(host.game.hits[0].amount, 6, 'Instant Damage I: 6');
+  assert.equal(host.game.hits[0].type, 'magic');
+  assert.deepEqual(landed, [{ attackerId: guest.session.clientId, targetId: 'host', damage: 0 }], 'a kill by it is the thrower\'s');
+  // One landing far away reaches nobody.
+  guest.manager.shareShot('splash_potion', new THREE.Vector3(0, 30, -8), null, { item: 'splash_potion_of_harming' });
+  await settle(15);
+  assert.equal(host.game.hits.length, 1);
+  assert.equal(landed.length, 1);
+  assert.equal(player.health, 14);
+});
+
+test('with PvP off a harmful splash leaves the other player alone, and a helpful one still helps', async (t) => {
+  const { host, guest } = await duel(t, { pvp: false, guestAt: [0, 30, -3] });
+  const player = takesPotions(host.game);
+  guest.manager.shareShot('splash_potion', new THREE.Vector3(0, 30, 0), null, { item: 'splash_potion_of_poison' });
+  guest.manager.shareShot('splash_potion', new THREE.Vector3(0, 30, 0), null, { item: 'splash_potion_of_swiftness' });
+  player.health = 10;
+  guest.manager.shareShot('splash_potion', new THREE.Vector3(0, 30, 0), null, { item: 'splash_potion_of_healing' });
+  await settle(15);
+  assert.deepEqual(player.effects.map(([name]) => name), ['speed']);
+  assert.equal(player.health, 14, 'Instant Health I: 4');
+  assert.equal(host.game.hits.length, 0);
+});
+
+test('the world\'s own game rules too: in a SkyWars lobby, or on a spectator, a potion harms nobody', async (t) => {
+  const { host, guest } = await duel(t, { guestAt: [0, 30, -3] });
+  const player = takesPotions(host.game);
+  host.session.attackPolicy = () => 'not_started';
+  guest.manager.shareShot('splash_potion', new THREE.Vector3(0, 30, 0), null, { item: 'splash_potion_of_harming' });
+  await settle(15);
+  assert.equal(host.game.hits.length, 0);
+  assert.equal(player.health, 20);
+});
+
+test('the host\'s splash reaches the guest the same way: harm when the host allows it', async (t) => {
+  const { host, guest } = await duel(t, { guestAt: [0, 30, -3] });
+  takesPotions(guest.game);
+  host.manager.shareShot('splash_potion', new THREE.Vector3(0, 30, -3), null, { item: 'splash_potion_of_weakness' });
+  await settle(15);
+  assert.deepEqual(guest.game.player.effects.map(([name, , level]) => [name, level]), [['weakness', 1]]);
+});
+
+test('another player\'s lingering cloud gives its effect to this player only, and its harm only as the host rules', async (t) => {
+  const { host, guest } = await duel(t, { pvp: false, guestAt: [0, 30, -3] });
+  const { LingeringClouds } = await import('../src/lingeringPotion.js');
+  const player = takesPotions(host.game);
+  host.game.mobs = { mobs: [{ type: 'pig', health: 10, mesh: { position: new THREE.Vector3(0, 30, 0) }, applyStatusEffect() { throw new Error('the guest\'s cloud is not this world\'s mobs\' business'); } }], scene: host.game.scene, spawnParticleBurst() {} };
+  host.game.lingeringClouds = new LingeringClouds(host.game);
+  host.game.world.getVoxel = (x, y) => (y < 30 ? BLOCKS.STONE : BLOCKS.AIR);
+  guest.manager.shareShot('lingering_potion', new THREE.Vector3(0, 30, 0), null, { item: 'lingering_potion_of_poison' });
+  guest.manager.shareShot('lingering_potion', new THREE.Vector3(0.5, 30, 0.5), null, { item: 'lingering_potion_of_regeneration' });
+  await settle(15);
+  assert.equal(host.game.lingeringClouds.clouds.length, 2);
+  for (let i = 0; i < 20; i++) host.game.lingeringClouds.update(0.1);
+  assert.deepEqual([...new Set(player.effects.map(([name]) => name))], ['regeneration'], 'PvP off: no poison from it');
+});
+
+test('a Splash Potion of Healing heals the player who throws it at their feet, and Harming hurts them', async () => {
+  const { throwSplashPotion } = await import('../src/splashPotion.js');
+  const hurt = [];
+  const player = { position: new THREE.Vector3(), health: 10, maxHealth: 20, applyStatusEffect() { throw new Error('an instant effect is not a timed one'); }, takeDamage: (n, src, type) => hurt.push([n, type]) };
+  throwSplashPotion({ player, mobs: { mobs: [] } }, new THREE.Vector3(1, 0, 0), 'splash_potion_of_healing');
+  assert.equal(player.health, 14);
+  throwSplashPotion({ player, mobs: { mobs: [] } }, new THREE.Vector3(1, 0, 0), 'splash_potion_of_harming');
+  assert.deepEqual(hurt, [[6, 'magic']]);
+});
+
+// --- flames on whatever burns ------------------------------------------------------------------------------------------
+
+test('a burning mob, or a burning player\'s avatar, shows flames sized to it; they go out with the fire', async () => {
+  const { updateFlames, isBurning } = await import('../src/burningFlames.js');
+  const mesh = new THREE.Group();
+  assert.equal(updateFlames(mesh, false, 0.05), null, 'nothing made for what never burns');
+  const flames = updateFlames(mesh, true, 0.05, () => ({ width: 1.4, height: 2.7 }));
+  assert.equal(flames.parent, mesh);
+  assert.equal(flames.visible, true);
+  assert.ok(Math.abs(flames.children[0].position.y - 1.35) < 1e-9, 'standing on its feet, as tall as it');
+  assert.equal(updateFlames(mesh, false, 0.05), flames);
+  assert.equal(flames.visible, false);
+  for (const actor of [{ isBurning: true }, { isOnFire: true }, { fireTicks: 2 }]) assert.equal(isBurning(actor), true);
+  assert.equal(isBurning({ isBurning: false, fireTicks: 0 }), false);
+  const mobs = readFileSync(new URL('../src/mobs.js', import.meta.url), 'utf8');
+  assert.match(mobs, /updateFlames\(mob\.mesh, mob\.health > 0 && isBurning\(mob\), dt/, 'every mob, every frame');
 });

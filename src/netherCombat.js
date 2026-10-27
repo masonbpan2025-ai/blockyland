@@ -172,9 +172,20 @@ export function useSnowball(game) {
   mesh.position.copy(game.player.position).y += game.player.eyeHeight || 1.62;
   const direction = new THREE.Vector3(); game.player.camera.getWorldDirection(direction);
   game.mobs.scene.add(mesh);
-  (game.mobs.snowballs ||= []).push({mesh, velocity:direction.multiplyScalar(22), life:5, owner:game.player});
+  const velocity = direction.multiplyScalar(22);
+  (game.mobs.snowballs ||= []).push({mesh, velocity, life:5, owner:game.player});
+  // Everyone else in a shared world sees it fly (worldSyncManager.js showShot).
+  game.worldSync?.shareShot?.('snowball', mesh.position, velocity);
   if(game.player.gamemode !== 'creative') game.inventory.consumeActiveItem(1);
   return true;
+}
+
+/** Another player's snowball in a shared world: drawn flying, hitting nothing (its owner's game decides that). */
+export function throwVisualSnowball(manager, origin, velocity, shooterId = null) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(.09, 6, 4), new THREE.MeshLambertMaterial({color:0xf4fbff}));
+  mesh.position.copy(origin);
+  manager.scene.add(mesh);
+  (manager.snowballs ||= []).push({mesh, velocity: velocity.clone(), life:5, owner:null, visual:true, shooterId});
 }
 
 export function updateSnowballs(manager, dt) {
@@ -196,6 +207,12 @@ export function updateSnowballs(manager, dt) {
       hit ||= manager.isBlockSolid(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z));
       // This player's snowball through another player in a shared world: no damage, a knockback (Snowball).
       if (!hit && p.owner === manager.game?.player && manager.game?.worldSync?.projectileHit?.(from, pos, { kind: 'snowball' })) hit = true;
+      if (p.visual) {
+        const me = manager.game?.player?.position;
+        hit ||= Boolean(me && Math.abs(pos.x-me.x)<.39 && Math.abs(pos.z-me.z)<.39 && pos.y>=me.y && pos.y<=me.y+1.8);
+        hit ||= Boolean(manager.game?.worldSync?.projectileTouches?.(from, pos, { pad: .125, except: p.shooterId }));
+        continue;
+      }
       if (!hit) for(const mob of manager.mobs) {
         if(mob.health<=0)continue;
         const dims=manager.getMobDimensions(mob.type), w=(mob.width || dims.width)/2+.09, h=mob.height || dims.height;

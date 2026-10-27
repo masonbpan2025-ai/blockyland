@@ -8,7 +8,9 @@
 // Pure functions only, so the same rules run in the browser and in the tests.
 
 // 2: a relay through the introduction service, a world's own game channel (`game`), and shared chest contents (`container`).
-export const PROTOCOL_VERSION = 4;
+// 5: shots (`shot`), so everyone sees what another player throws or fires, and a player's look in its state: armour,
+// off hand, a raised shield, a drawn bow, flames, invisibility and a fishing line.
+export const PROTOCOL_VERSION = 5;
 
 /** Host and guests together. "A small number of players": the host plus seven friends. */
 export const MAX_PLAYERS = 8;
@@ -20,10 +22,10 @@ export const MAX_COORDINATE = 30_000_000;
 export const WORLD_HEIGHT = 64;
 export const MAX_BLOCK_ID = 65535;
 
-export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container', 'skin', 'death_drops', 'claim']);
+export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container', 'skin', 'death_drops', 'claim', 'shot']);
 export const HOST_TO_GUEST = Object.freeze([
   'welcome', 'snapshot', 'peer_joined', 'peer_left', 'player_state', 'block_update', 'chat', 'ping', 'pong', 'error', 'host_closing',
-  'hurt', 'settings', 'time_sync', 'peer_hurt', 'game', 'container', 'skin', 'drops', 'taken',
+  'hurt', 'settings', 'time_sync', 'peer_hurt', 'game', 'container', 'skin', 'drops', 'taken', 'shot',
 ]);
 
 // --- players attacking players (PvP) ----------------------------------------------------------
@@ -85,6 +87,51 @@ export function refuseAttack({ settings, attackerId, targetId, attackerPos, targ
   const distance = Math.hypot(attackerPos.x - targetPos.x, attackerPos.y - targetPos.y, attackerPos.z - targetPos.z);
   if (!(distance <= (projectile ? MAX_PROJECTILE_RANGE : MAX_ATTACK_REACH))) return 'too_far';
   return null;
+}
+
+// --- shots, as everyone else sees them ----------------------------------------------------------
+
+/**
+ * What a shot can be: everything a player throws or fires, as the others' games draw it. Moving ones fly from a hand
+ * with a velocity; a firework rises to its burst height (`top`); a splash or lingering potion and an experience
+ * bottle break where they land, named by their item (`item`). An egg is drawn and breaks, and hatches nothing there.
+ */
+export const MOVING_SHOTS = Object.freeze(['arrow', 'snowball', 'egg', 'ender_pearl', 'ender_eye']);
+export const LANDING_SHOTS = Object.freeze(['splash_potion', 'lingering_potion', 'experience_bottle']);
+export const SHOT_KINDS = Object.freeze([...MOVING_SHOTS, 'firework', ...LANDING_SHOTS]);
+const SHOT_ITEM = /^[a-z0-9_]{1,64}$/;
+/** Faster than any bow draws (a full draw is 30 blocks a second here). */
+export const MAX_SHOT_SPEED = 80;
+/** How far from where the host last saw the shooter a shot may start: a player's eye, with some lag. */
+export const MAX_SHOT_OFFSET = 8;
+
+/**
+ * A shot (`{t:'shot', kind, x, y, z, vx, vy, vz}`): where a projectile left the shooter's hand, and its velocity. It is
+ * only drawn -- the shooter's own game decides what it hits, and the host whether that hurts (`attack`).
+ * @returns {{kind:string,x:number,y:number,z:number,vx:number,vy:number,vz:number,flaming?:true,spectral?:true}|null}
+ */
+export function sanitizeShot(raw) {
+  if (!raw || typeof raw !== 'object' || !SHOT_KINDS.includes(raw.kind)) return null;
+  const { x, y, z } = raw;
+  if (![x, y, z].every(finite) || Math.abs(x) > MAX_COORDINATE || Math.abs(z) > MAX_COORDINATE || y < -128 || y > 512) return null;
+  if (raw.kind === 'firework') {
+    // It rises from the hand to its burst, at most 60 blocks up (the steepest launch here is about 40).
+    return finite(raw.top) && raw.top > y && raw.top <= y + 60 ? { kind: 'firework', x, y, z, top: raw.top } : null;
+  }
+  if (LANDING_SHOTS.includes(raw.kind)) {
+    if (raw.kind === 'experience_bottle') return { kind: raw.kind, x, y, z };
+    // Which potion: its own item id, so the others draw its colour and, for a lingering one, its cloud.
+    if (typeof raw.item !== 'string' || !SHOT_ITEM.test(raw.item) || !raw.item.startsWith(raw.kind === 'splash_potion' ? 'splash_' : 'lingering_')) return null;
+    return { kind: raw.kind, x, y, z, item: raw.item };
+  }
+  const { vx, vy, vz } = raw;
+  if (![vx, vy, vz].every(finite)) return null;
+  const speed = Math.hypot(vx, vy, vz);
+  if (!(speed > 0.01 && speed <= MAX_SHOT_SPEED)) return null;
+  const shot = { kind: raw.kind, x, y, z, vx, vy, vz };
+  if (raw.kind === 'arrow' && raw.flaming === true) shot.flaming = true;
+  if (raw.kind === 'arrow' && raw.spectral === true) shot.spectral = true;
+  return shot;
 }
 
 // --- a world's own game, and chest contents ---------------------------------------------------------
@@ -240,7 +287,33 @@ export function sanitizePlayerState(raw) {
     : Number.isInteger(raw.activeItem) && raw.activeItem > 0 && raw.activeItem <= MAX_BLOCK_ID ? raw.activeItem : null;
   // Dead, between dying and respawning: the others see the death and then nobody there.
   state.dead = raw.dead === true;
+  // What else is seen of the player (playerLook.js). Absent from an older sender's state, and then not changed.
+  if (Array.isArray(raw.armor) && raw.armor.length === 4) state.armor = raw.armor.map(sanitizeArmorPiece);
+  if (raw.offhand !== undefined) state.offhand = sanitizeHeldId(raw.offhand);
+  state.blocking = raw.blocking === true;
+  state.using = raw.using === 'bow' || raw.using === 'eat' ? raw.using : null;
+  state.burning = raw.burning === true;
+  state.invisible = raw.invisible === true;
+  state.bobber = Array.isArray(raw.bobber) && raw.bobber.length === 3 && raw.bobber.every(finite)
+    && Math.hypot(raw.bobber[0] - state.x, raw.bobber[1] - state.y, raw.bobber[2] - state.z) <= 64 ? raw.bobber.slice() : null;
   return state;
+}
+
+/** An item or a block in a hand: an item's name, or a block's number. */
+function sanitizeHeldId(raw) {
+  if (typeof raw === 'string' && /^[a-z0-9_:.\-]{1,64}$/i.test(raw)) return raw;
+  return Number.isInteger(raw) && raw > 0 && raw <= MAX_BLOCK_ID ? raw : null;
+}
+
+/** One worn piece: an item name, and its trim (pattern and material) when it has one. */
+function sanitizeArmorPiece(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !/^[a-z0-9_]{1,64}$/.test(raw.id)) return null;
+  const piece = { id: raw.id };
+  const word = (v) => typeof v === 'string' && /^[a-z_]{1,32}$/.test(v);
+  if (raw.trim && typeof raw.trim === 'object' && word(raw.trim.pattern) && word(raw.trim.material)) {
+    piece.trim = { pattern: raw.trim.pattern, material: raw.trim.material };
+  }
+  return piece;
 }
 
 /**
@@ -300,6 +373,8 @@ export function guestLimiters(now) {
     // A player dies now and then; walking over drops claims them quickly.
     drops: new RateLimiter({ perSecond: 0.2, burst: 2, now }),
     claim: new RateLimiter({ perSecond: 20, burst: 40, now }),
+    // A bow fires about once a second at full draw; snowballs can be thrown four or five times a second.
+    shot: new RateLimiter({ perSecond: 8, burst: 16, now }),
     any: new RateLimiter({ perSecond: 150, burst: 300, now }),
   };
 }

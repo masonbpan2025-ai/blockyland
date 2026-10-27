@@ -61,3 +61,27 @@ test('the game eats through the controller, and the player slows while using an 
   const player = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
   assert.match(player, /if \(\(this\.usingItem \|\| this\.bowDraw > 0\) && !this\.isFlying\) targetSpeed \*= USING_ITEM_SPEED;/);
 });
+
+test('food is eaten looking at nothing: at the sky, or over the void from a SkyWars island', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  // handleRightClick returned with no block under the crosshair before it reached the food, so a golden apple held
+  // over the void was never eaten. The food is used through useConsumable on both paths.
+  assert.match(main, /if \(!this\.targetBlock\) \{ if \(activeItem && !activeItem\.isBlock\) this\.useConsumable\(activeItem\); return; \}/);
+  assert.match(main, /if \(this\.useConsumable\(activeItem\)\) return;/);
+  const body = main.slice(main.indexOf('  useConsumable(activeItem) {'), main.indexOf('  handleRightClick() {'));
+  assert.match(body, /this\.eating\.start\(activeItem\);/);
+});
+
+test('golden apples give the wiki\'s effects, and the apple table agrees with the items\' own', async () => {
+  const { GOLDEN_APPLE_EFFECTS } = await import('../src/goldenApple.js');
+  const { ITEMS } = await import('../src/blocks.js');
+  const levels = (list) => Object.fromEntries(list.map((e) => [e.id, [e.seconds, e.level]]));
+  // Golden Apple: Absorption I (4 extra health) for 2 minutes, Regeneration II for 5 seconds.
+  assert.deepEqual(levels(GOLDEN_APPLE_EFFECTS.golden_apple), { absorption: [120, 1], regeneration: [5, 2] });
+  // Enchanted: Absorption IV 2:00, Regeneration II 0:20, Fire Resistance and Resistance 5:00.
+  assert.deepEqual(levels(GOLDEN_APPLE_EFFECTS.enchanted_golden_apple), { absorption: [120, 4], regeneration: [20, 2], fire_resistance: [300, 1], resistance: [300, 1] });
+  for (const id of ['golden_apple', 'enchanted_golden_apple']) {
+    const own = Object.fromEntries(ITEMS[id].effects.map(([name, seconds, level]) => [name, [seconds, level]]));
+    assert.deepEqual(own, levels(GOLDEN_APPLE_EFFECTS[id]), id);
+  }
+});

@@ -876,6 +876,8 @@ export class AnimalBehaviors {
       this.mobManager.scene.add(eggMesh);
       eggProj.mesh = eggMesh;
       this.mobManager.customProjectiles.push(eggProj);
+      // Everyone else in a shared world sees it fly (multiplayer/remoteShots.js), and break; it hatches nothing there.
+      this.mobManager.game?.worldSync?.shareShot?.('egg', spawnPos, eggProj.velocity);
       return true;
     }
 

@@ -211,3 +211,18 @@ test('the void: a guest who falls below the islands is out, seen by the host fro
   await tick([host, guest], 1.1);
   assert.equal(guestGame.player.gamemode, 'spectator');
 });
+
+test('always midday: the clock stops even in a world with no rules yet, and runs again after SkyWars', async (t) => {
+  const { host, guest, hostGame, guestGame } = await pair(t);
+  // A new SkyWars world has no gamerules object; the clock was stopped only when it had one, so night fell.
+  delete hostGame.gamerules;
+  hostGame.worldTime = 13000;
+  guestGame.worldTime = 18000;
+  await tick([host, guest], 0.3);
+  for (const game of [hostGame, guestGame]) {
+    assert.equal(game.worldTime, 6000);
+    assert.equal(game.gamerules.doDaylightCycle, false);
+  }
+  host.deactivate();
+  assert.equal(hostGame.gamerules.doDaylightCycle, true, 'the day runs again once SkyWars is left');
+});

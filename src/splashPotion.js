@@ -17,7 +17,7 @@
 // The effect is read from `POTION_DATA` by stripping the `splash_` prefix, so a potion and its splash form
 // cannot disagree and anything the brewing stand can produce is throwable by construction.
 import { POTION_DATA, potionCoreFor } from './brewing.js';
-import { effectsFor, immuneToEffect, instantOutcomeOnMob } from './statusEffects.js';
+import { EFFECTS, effectsFor, immuneToEffect, instantOutcomeOnMob, instantAmount, INSTANT_EFFECT_IDS } from './statusEffects.js';
 
 /** Vanilla applies a splash potion within four blocks of where it lands. */
 export const SPLASH_RADIUS = 4.0;
@@ -111,7 +111,10 @@ export function throwSplashPotion(game, center, itemId) {
     // Every status the potion stands for, so a splash of the Turtle Master lands its Slowness and its
     // Resistance rather than a single `turtle_master` status no rule in `statusEffects.js` reads.
     for (const [name, level] of effect.effects) {
-      if (target !== game?.player && immuneToEffect(name, target.type)) continue;
+      // The player: Healing and Harming at once. They were stored as timed effects nothing reads, so a Splash Potion
+      // of Healing at the player's feet healed nothing, and one of Harming hurt nobody.
+      if (target === game?.player) { applyEffectToPlayer(target, name, level, effect.seconds); continue; }
+      if (immuneToEffect(name, target.type)) continue;
       // Healing and Harming on a mob with no effect handling of its own: healed or hurt at once, the other way
       // round for the undead. (The wither skeleton and the zombified piglin handle their own.)
       const outcome = target !== game?.player && !target.applyStatusEffect ? instantOutcomeOnMob(name, level, target.type) : null;
@@ -121,4 +124,39 @@ export function throwSplashPotion(game, center, itemId) {
     }
   }
   return true;
+}
+
+/** Whether an effect harms: Poison, Harming, Slowness and the like (statusEffects.js categories). */
+export const isHarmfulEffect = (name) => EFFECTS[name]?.category === 'harmful';
+
+/**
+ * One potion effect on a player: Healing and Harming at once -- `instantScale` of their amount, half for a lingering
+ * cloud -- any other for its time.
+ */
+export function applyEffectToPlayer(player, name, level, seconds, { instantScale = 1 } = {}) {
+  if (INSTANT_EFFECT_IDS.has(name)) {
+    const amount = instantAmount(name, level) * instantScale;
+    if (name === 'instant_health') player.health = Math.min(player.maxHealth ?? player.health, player.health + amount);
+    else player.takeDamage?.(amount, null, 'magic');
+  } else {
+    player.applyStatusEffect?.(name, seconds, level);
+  }
+}
+
+/**
+ * Another player's splash potion landing near this one, in a shared world: it reaches this player as it would have
+ * reached them in the thrower's world. `harm` is the host's ruling -- PvP, and the world's own game (a SkyWars lobby,
+ * a spectator) -- on whether its harmful effects may touch this player; the beneficial ones always do, as in Java.
+ * @returns {boolean} whether anything was given
+ */
+export function splashOnPlayer(player, center, itemId, { harm = false } = {}) {
+  const effect = splashPotionEffect(itemId);
+  if (!effect || !player || player.isDead || !splashTargets(center, [player]).length) return false;
+  let given = false;
+  for (const [name, level] of effect.effects) {
+    if (!harm && isHarmfulEffect(name)) continue;
+    applyEffectToPlayer(player, name, level, effect.seconds);
+    given = true;
+  }
+  return given;
 }

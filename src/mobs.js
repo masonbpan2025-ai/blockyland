@@ -29,6 +29,7 @@ import { PIGLIN_BRUTE_HEALTH, PIGLIN_BRUTE_DIMENSIONS, PIGLIN_BRUTE_DAMAGE, PIGL
 import * as THREE from 'three';
 import { quadrupedMode, updateQuadrupedMotion } from './quadrupedMotion.js';
 import { spawnArrow, updateArrows, removeArrow } from './arrows.js';
+import { updateFlames, isBurning } from './burningFlames.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 
 /**
@@ -11005,6 +11006,8 @@ export class MobManager {
       } finally {
         // Speed and Slowness on how far it moved this step, Slow Falling on how far it fell (mobEffects.js).
         if (!this.brokenMobs.has(mob) && mob.effects?.size) try { scaleMobMotion(this.world, mob, motionStartX, motionStartY, motionStartZ, dt); } catch (err) { this.brokenMobs.add(mob); this.reportMobError(err, mob); }
+        // Flames on a burning mob -- a zombie at dawn, anything in lava or set alight (burningFlames.js).
+        if (mob.mesh && (mob.mesh.userData.flames || isBurning(mob))) updateFlames(mob.mesh, mob.health > 0 && isBurning(mob), dt, () => this.getMobDimensions(mob.type));
         // Species AI may return early for a pose, a ride or aquatic motion. Articulate
         // every surviving quadruped after that path, while preserving its special action.
         if (animate && !this.brokenMobs.has(mob) && quadrupedMode(mob)) try {

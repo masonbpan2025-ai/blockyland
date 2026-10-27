@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { HURT_OVERLAY_SECONDS } from '../pvpCombat.js';
 import { BLOCK_DEFS, BLOCKS } from '../blocks.js';
 import { createPlayerModel } from '../playerModel.js';
+import { ARMOR_ORDER } from './playerLook.js';
+import { updateFlames } from '../burningFlames.js';
 
 /** Java's hurt overlay: the model's colours multiplied towards red. */
 const HURT_TINT = new THREE.Color(1.0, 0.3, 0.3);
@@ -74,10 +76,15 @@ function createPlayerAvatar(name, isHost = false, skin = null) {
   const model = createPlayerModel({ skinDataUrl: skin?.png ?? null, modelType: skin?.model ?? 'default', followEquippedSkin: false });
   model.name = `remote_player_${name}`;
 
-  // Hand item slot, at the end of the right arm (forward along -Z).
+  // Hand item slots, at the end of each arm (forward along -Z): the held item in the right, the off hand in the left.
   const handSlot = new THREE.Group();
+  handSlot.name = 'hand_slot';
   handSlot.position.set(0, -0.7, -0.15);
   model.rightArm.add(handSlot);
+  const offhandSlot = new THREE.Group();
+  offhandSlot.name = 'hand_slot';
+  offhandSlot.position.set(0, -0.7, -0.15);
+  model.leftArm.add(offhandSlot);
 
   // Floating billboard nametag, above the head (the model is 2 blocks tall to the top of its head).
   const nametag = createNametagSprite(name, isHost);
@@ -93,8 +100,17 @@ function createPlayerAvatar(name, isHost = false, skin = null) {
     leftLeg: model.leftLeg,
     rightLeg: model.rightLeg,
     handSlot,
+    offhandSlot,
     nametag,
   };
+}
+
+/** Whether a part of the avatar is the player's own body (what invisibility hides), not armour, an item or a tag. */
+function isBodyPart(object, model) {
+  for (let o = object; o && o !== model; o = o.parent) {
+    if (/^armor_/.test(o.name) || o.name === 'hand_slot' || o.name === 'flames' || o.isSprite) return false;
+  }
+  return true;
 }
 
 export class RemotePlayerManager {
@@ -149,6 +165,12 @@ export class RemotePlayerManager {
       walkPhase: 0,
       heldItemBlockId: null,
       heldItemMesh: null,
+      offhandItemId: null,
+      // The look (playerLook.js): what the player wears and does, beyond where it stands.
+      blocking: false,
+      using: null,
+      burning: false,
+      invisible: false,
       lastMoveTime: Date.now(),
       skin,
     };
@@ -165,6 +187,7 @@ export class RemotePlayerManager {
     if (peer.avatar?.mesh) {
       this.scene.remove(peer.avatar.mesh);
     }
+    this.removeBobber(peer);
     this.remotePlayers.delete(peerId);
   }
 
@@ -215,6 +238,66 @@ export class RemotePlayerManager {
     if (state.activeItem !== undefined) {
       this.updateHeldItem(peer, state.activeItem);
     }
+    this.updateLook(peer, state);
+  }
+
+  /**
+   * What else is seen of the other player (playerLook.js): the armour it wears -- with its trims, drawn as this
+   * player's own is (playerModel.js updateArmor) -- the off-hand item, a raised shield or a drawn bow (update poses
+   * them), flames, invisibility (the body goes, armour and items stay, as in Java), and a fishing line.
+   */
+  updateLook(peer, state) {
+    const model = peer.avatar?.mesh;
+    if (!model) return;
+    if (Array.isArray(state.armor)) {
+      model.updateArmor?.(Object.fromEntries(ARMOR_ORDER.map((slot, i) => [slot, state.armor[i] ?? null])));
+    }
+    if (state.offhand !== undefined) this.updateHandItem(peer, peer.avatar.offhandSlot, 'offhandItemId', state.offhand);
+    if (state.blocking !== undefined) peer.blocking = Boolean(state.blocking);
+    if (state.using !== undefined) peer.using = state.using ?? null;
+    // Flames are drawn in update (burningFlames.js).
+    if (state.burning !== undefined) peer.burning = Boolean(state.burning);
+    if (state.invisible !== undefined && Boolean(state.invisible) !== peer.invisible) {
+      peer.invisible = Boolean(state.invisible);
+      if (peer.invisible) {
+        peer.hiddenParts = [];
+        model.traverse((child) => { if (child.isMesh && child.visible && isBodyPart(child, model)) { child.visible = false; peer.hiddenParts.push(child); } });
+      } else {
+        for (const part of peer.hiddenParts ?? []) part.visible = true;
+        peer.hiddenParts = null;
+      }
+      // Java hides an invisible player's name tag too.
+      if (peer.avatar.nametag) peer.avatar.nametag.visible = !peer.invisible;
+    }
+    if (state.bobber !== undefined) this.updateBobber(peer, state.bobber);
+  }
+
+  /** The other player's fishing bobber, where their game says it is, on a line from their rod. */
+  updateBobber(peer, at) {
+    if (!at) { this.removeBobber(peer); return; }
+    if (!peer.bobber) {
+      const bobber = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshLambertMaterial({ color: 0xf2f2f2 }));
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xc0392b }));
+      cap.position.y = 0.02;
+      bobber.add(body, cap);
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0x2b2b2b }));
+      line.frustumCulled = false;
+      this.scene.add(bobber, line);
+      peer.bobber = bobber;
+      peer.bobberLine = line;
+    }
+    peer.bobber.position.set(at[0], at[1], at[2]);
+  }
+
+  removeBobber(peer) {
+    for (const object of [peer.bobber, peer.bobberLine]) {
+      if (!object) continue;
+      object.removeFromParent();
+      object.traverse((child) => { child.geometry?.dispose(); child.material?.dispose(); });
+    }
+    peer.bobber = null;
+    peer.bobberLine = null;
   }
 
   /**
@@ -224,17 +307,25 @@ export class RemotePlayerManager {
    */
   updateHeldItem(peer, activeItem) {
     if (!peer?.avatar?.handSlot) return;
-    const handSlot = peer.avatar.handSlot;
+    peer.heldItemMesh = this.updateHandItem(peer, peer.avatar.handSlot, 'heldItemBlockId', activeItem) ?? peer.heldItemMesh;
+  }
+
+  /**
+   * One hand's item: `key` is the peer's record of what that hand holds, so an unchanged item is not rebuilt.
+   * @returns {THREE.Object3D|null|undefined} the new item's mesh, null for an empty hand, undefined when unchanged
+   */
+  updateHandItem(peer, handSlot, key, activeItem) {
+    if (!handSlot) return undefined;
     const itemId = activeItem?.id ?? (typeof activeItem === 'string' || Number.isInteger(activeItem) ? activeItem : null);
-    if (peer.heldItemBlockId === itemId) return;
-    peer.heldItemBlockId = itemId;
+    if (peer[key] === itemId) return undefined;
+    peer[key] = itemId;
     while (handSlot.children.length > 0) {
       const child = handSlot.children[0];
       if (this.game?.entities?.itemVisuals?.release) this.game.entities.itemVisuals.release(child);
       else handSlot.remove(child);
     }
-    peer.heldItemMesh = null;
-    if (itemId === null || itemId === undefined) return;
+    if (handSlot === peer.avatar.handSlot) peer.heldItemMesh = null;
+    if (itemId === null || itemId === undefined) return null;
     const isBlock = typeof itemId === 'number';
     const visuals = this.game?.entities?.itemVisuals;
     let itemMesh;
@@ -253,7 +344,7 @@ export class RemotePlayerManager {
     itemMesh.name = 'held_item';
     itemMesh.userData.itemId = itemId;
     handSlot.add(itemMesh);
-    peer.heldItemMesh = itemMesh;
+    return itemMesh;
   }
 
   /** The other player died: tip over, red, then gone in a puff of smoke (update), until they respawn. */
@@ -299,7 +390,7 @@ export class RemotePlayerManager {
       peer.avatar.mesh.traverse((child) => {
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         for (const mat of materials) {
-          if (!mat?.color || mat === peer.avatar.nametag?.material) continue;
+          if (!mat?.color || mat === peer.avatar.nametag?.material || child.userData.noHurtTint) continue;
           if (peer.hurtMaterials.some((entry) => entry.mat === mat)) continue;
           peer.hurtMaterials.push({ mat, color: mat.color.clone() });
         }
@@ -399,6 +490,42 @@ export class RemotePlayerManager {
           avatar.rightArm.rotation.x = punchAngle;
         }
       }
+
+      // 5. What the player is doing with its hands: a bow drawn in both, a shield raised, food at the mouth.
+      this.poseArms(peer, dt);
+      peer.avatar.flames = updateFlames(avatar.mesh, peer.burning, dt) ?? peer.avatar.flames;
+      if (peer.bobber && peer.bobberLine) {
+        const tip = avatar.handSlot.getWorldPosition(new THREE.Vector3());
+        const positions = peer.bobberLine.geometry.attributes.position;
+        positions.setXYZ(0, tip.x, tip.y, tip.z);
+        positions.setXYZ(1, peer.bobber.position.x, peer.bobber.position.y, peer.bobber.position.z);
+        positions.needsUpdate = true;
+      }
+    }
+  }
+
+  /** Arms held as Java holds them while using an item, over the walk; back to the walk's own when done. */
+  poseArms(peer, dt) {
+    const { avatar } = peer;
+    const pitch = peer.targetPitch || 0;
+    avatar.leftArm.rotation.y = avatar.rightArm.rotation.y = 0;
+    avatar.leftArm.rotation.z = avatar.rightArm.rotation.z = 0;
+    if (peer.using === 'bow') {
+      // Both arms out along the look, the left a little across: the bow held at full draw.
+      avatar.rightArm.rotation.x = -Math.PI / 2 + pitch;
+      avatar.leftArm.rotation.x = -Math.PI / 2 + pitch;
+      avatar.rightArm.rotation.y = -0.1;
+      avatar.leftArm.rotation.y = 0.4;
+    } else if (peer.using === 'eat') {
+      // The hand to the mouth, bobbing as it eats.
+      peer.eatTime = (peer.eatTime ?? 0) + dt;
+      avatar.rightArm.rotation.x = -1.1 + Math.sin(peer.eatTime * 20) * 0.08;
+      avatar.rightArm.rotation.y = -0.5;
+    } else if (peer.blocking) {
+      // The shield's arm across the body: the off hand's when the shield is there, else the main hand's.
+      const arm = peer.offhandItemId === 'shield' || peer.heldItemBlockId !== 'shield' ? avatar.leftArm : avatar.rightArm;
+      arm.rotation.x = -0.9;
+      arm.rotation.y = arm === avatar.leftArm ? 0.5 : -0.5;
     }
   }
 
@@ -408,10 +535,12 @@ export class RemotePlayerManager {
    * radius is 0 -- and from the eyes in third person too, so neither margin nor camera ray is added here.
    * @returns {{peerId: string, name: string, distance: number}|null}
    */
-  pickPlayer(origin, direction, maxDistance, { pad = 0 } = {}) {
+  pickPlayer(origin, direction, maxDistance, { pad = 0, except = null } = {}) {
     let best = null;
     const o = [origin.x, origin.y, origin.z], d = [direction.x, direction.y, direction.z];
     for (const peer of this.remotePlayers.values()) {
+      // `except`: the shooter of another player's shot, which leaves from inside its own box.
+      if (except !== null && peer.peerId === except) continue;
       // Nobody to hit where a player lies dead, or where the world's game has hidden one (a spectator).
       if (peer.dead || peer.avatar?.mesh?.visible === false) continue;
       const p = peer.currentPos;

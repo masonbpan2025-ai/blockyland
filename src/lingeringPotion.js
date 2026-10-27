@@ -7,7 +7,7 @@
 // effect with a duration lasts a quarter of the potion's, and Healing and Harming are at half their potency.
 import * as THREE from 'three';
 import { POTION_DATA, potionCoreFor } from './brewing.js';
-import { effectsFor, immuneToEffect, instantAmount, instantOutcomeOnMob, INSTANT_EFFECT_IDS } from './statusEffects.js';
+import { EFFECTS, effectsFor, immuneToEffect, instantAmount, instantOutcomeOnMob, INSTANT_EFFECT_IDS } from './statusEffects.js';
 import { BLOCK_DEFS } from './blocks.js';
 
 export const LINGERING_CLOUD = Object.freeze({
@@ -43,6 +43,8 @@ export function giveCloudEffect(cloud, target, { player = null, mobs = null } = 
   let given = false;
   for (const [name, level] of cloud.effects) {
     if (!isPlayer && immuneToEffect(name, target.type)) continue;
+    // Another player's cloud whose harm the host refused (PvP off, a SkyWars lobby): only its good effects.
+    if (cloud.noHarm && EFFECTS[name]?.category === 'harmful') continue;
     if (INSTANT_EFFECT_IDS.has(name)) {
       if (isPlayer) {
         const amount = instantAmount(name, level) * LINGERING_CLOUD.instantScale;
@@ -89,14 +91,19 @@ export function stepCloud(cloud, dt, targets, context = {}) {
 export class LingeringClouds {
   constructor(game) { this.game = game; this.clouds = []; }
 
-  /** Throw a lingering potion to land at `at`: the cloud settles on the ground below it. */
-  throw(at, itemId) {
+  /**
+   * Throw a lingering potion to land at `at`: the cloud settles on the ground below it. `remote`: another player's
+   * cloud in a shared world. It gives its effect to this player only -- the mobs and everyone else are their own
+   * worlds' business -- and its harmful effects only when the host allows it (`harm`).
+   */
+  throw(at, itemId, { remote = false, harm = false } = {}) {
     if (!isLingeringPotion(itemId)) return false;
     const world = this.game?.world, x = Math.floor(at.x), z = Math.floor(at.z);
     let y = Math.floor(at.y);
     // Down to the first block with something to stand on, at most eight blocks.
     for (let i = 0; i < 8 && world && BLOCK_DEFS[world.getVoxel(x, y - 1, z)]?.solid === false; i++) y--;
     const cloud = createCloud({ x: at.x, y, z: at.z }, itemId);
+    if (remote) { cloud.playerOnly = true; cloud.noHarm = !harm; }
     if (this.game?.scene) {
       const mesh = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ color: cloud.color, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }));
       mesh.rotation.x = -Math.PI / 2; mesh.position.set(cloud.x, cloud.y + 0.05, cloud.z); mesh.renderOrder = 3;
@@ -112,7 +119,7 @@ export class LingeringClouds {
     const context = { player: g?.player, mobs: g?.mobs };
     for (let i = this.clouds.length - 1; i >= 0; i--) {
       const cloud = this.clouds[i];
-      const alive = stepCloud(cloud, dt, targets, context);
+      const alive = stepCloud(cloud, dt, cloud.playerOnly ? [g?.player].filter(Boolean) : targets, context);
       if (cloud.mesh) cloud.mesh.scale.setScalar(Math.max(0.01, cloud.radius));
       if (!alive) { this.remove(cloud); this.clouds.splice(i, 1); }
     }

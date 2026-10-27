@@ -53,6 +53,8 @@ export function launchFirework(game, itemId) {
   const targetHeight = eye.y + FIREWORK_BASE_RISE + pitch * FIREWORK_RISE_PER_PITCH;
 
   game.entities?.spawnFireworkRocket?.(eye, targetHeight);
+  // Everyone else in a shared world sees it rise and burst (multiplayer/remoteShots.js).
+  game.worldSync?.shareShot?.('firework', eye, null, { top: targetHeight });
   if (game.player.gamemode !== 'creative') {
     game.inventory?.consumeActiveItem?.(1);
     game.ui?.updateHotbar?.();

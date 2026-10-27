@@ -23,7 +23,11 @@ export function spawnArrow(manager,origin,direction,shooter,options={}){
   const mesh=createArrowModel();mesh.position.copy(origin);mesh.quaternion.setFromUnitVectors(forward,direction.clone().normalize());
   const trail=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffedc2,transparent:true,opacity:.65,vertexColors:true,depthWrite:false}));trail.frustumCulled=false;
   manager.scene.add(mesh,trail);manager.sounds?.playBowShoot?.();
-  const arrow={flaming:!!options.flaming,effect:options.effect,spectral:!!options.spectral,target:options.target,arrowItem:options.arrowItem,mesh,trail,points:[],velocity:direction.clone().normalize().multiplyScalar(options.speed??22),shooter,damage:options.damage??4,pickup:options.pickup??false,life:10,stuck:false};manager.arrows.push(arrow);return arrow;
+  // `visual`: another player's arrow in a shared world, drawn flying and sticking but hurting nothing here (the shooter's
+  // game and the host decide its hits). This player's own arrows are shown to everyone else (worldSyncManager.js).
+  const velocity=direction.clone().normalize().multiplyScalar(options.speed??22);
+  if(shooter==='player'&&!options.visual)manager.game?.worldSync?.shareShot?.('arrow',origin,velocity,{flaming:!!options.flaming,spectral:!!options.spectral});
+  const arrow={visual:!!options.visual,shooterId:options.shooterId??null,flaming:!!options.flaming,effect:options.effect,spectral:!!options.spectral,target:options.target,arrowItem:options.arrowItem,mesh,trail,points:[],velocity,shooter,damage:options.damage??4,pickup:!options.visual&&(options.pickup??false),life:10,stuck:false};manager.arrows.push(arrow);return arrow;
 }
 
 function projectileHitBounds(manager, target) {
@@ -77,6 +81,12 @@ export function updateArrows(manager,dt,player){
       arrow.mesh.position.copy(next);
       // This player's arrow through another player in a shared world: the host judges the hit (worldSyncManager.js).
       if(arrow.shooter==='player'&&!arrow.target&&manager.game?.worldSync?.projectileHit?.(prev,next,{kind:'arrow',damage:arrow.damage,flame:arrow.flaming})){removeArrow(manager,arrow);removed=true;break;}
+      // Another player's arrow, drawn only: it stops at whoever it passes through -- this player or another -- unharmed.
+      if(arrow.visual){
+        const p=player?.position,touches=p&&Math.abs(next.x-p.x)<.42&&Math.abs(next.z-p.z)<.42&&next.y>=p.y&&next.y<=p.y+1.8;
+        if(touches||manager.game?.worldSync?.projectileTouches?.(prev,next,{except:arrow.shooterId})){removeArrow(manager,arrow);removed=true;break;}
+        continue;
+      }
       const targets=arrow.target ? (arrow.target.health > 0 ? [arrow.target] : []) : arrow.shooter==='player'?manager.mobs.filter(m=>m.health>0&&!m.dying):[player];
       for(const target of targets){
         const pos=target.mesh?.position??target.position;

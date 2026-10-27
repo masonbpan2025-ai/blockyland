@@ -44,7 +44,8 @@ test('escaping makes text inert as HTML', () => {
 
 test('a pose is clamped, typed and stripped to what the game uses', () => {
   const s = sanitizePlayerState({ x: 1.5, y: 64, z: -2, yaw: 3, pitch: 0.2, isSneaking: true, isSprinting: 1, isSwinging: 'yes', activeItem: 'diamond_sword', health: 999, op: true });
-  assert.deepEqual(s, { x: 1.5, y: 64, z: -2, yaw: 3, pitch: 0.2, isSneaking: true, isSprinting: false, isSwinging: false, activeItem: 'diamond_sword', dead: false });
+  assert.deepEqual(s, { x: 1.5, y: 64, z: -2, yaw: 3, pitch: 0.2, isSneaking: true, isSprinting: false, isSwinging: false, activeItem: 'diamond_sword', dead: false,
+    blocking: false, using: null, burning: false, invisible: false, bobber: null });
   assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, dead: true }).dead, true, 'dead, until the player respawns');
   assert.equal(sanitizePlayerState({ x: 0, y: 0, z: 0, dead: 'yes' }).dead, false);
 });

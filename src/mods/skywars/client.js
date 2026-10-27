@@ -14,6 +14,8 @@ import { BLOCKS } from '../../blocks.js';
 
 /** The seed of the map a lobby is built on before the match names one. */
 export const ARENA_SEED = DEFAULT_MAP.seed;
+/** SkyWars is always played at midday: the clock is stopped there (worldTime 6000 is noon). */
+export const SKYWARS_TIME = 6000;
 const GUEST_MESSAGES = new Set(['died', 'drop_items', 'claim', 'start', 'reset', 'mode']);
 
 export class SkyWarsManager {
@@ -48,10 +50,7 @@ export class SkyWarsManager {
     this.dropSeq = 0;
     this.offs = [];
     this.publishTimer = 0;
-    const game = this.game;
-    if (game.gamerules) game.gamerules.doDaylightCycle = false;
-    game.worldTime = 6000;
-    game.sky?.setTime?.(6000);
+    this.holdMidday();
     this.ui = createSkyWarsUi(this);
     if (this.isHost) this.startHosting();
     else this.listenAsGuest();
@@ -69,7 +68,23 @@ export class SkyWarsManager {
     this.ui = null;
     this.match = null;
     this.state = null;
-    if (this.game.gamerules) this.game.gamerules.doDaylightCycle = true;
+    const game = this.game;
+    if (game.gamerules && this.savedDaylightCycle !== undefined) game.gamerules.doDaylightCycle = this.savedDaylightCycle;
+    this.savedDaylightCycle = undefined;
+  }
+
+  /**
+   * Always midday. The clock was stopped only when the world already had a gamerules object, which a new SkyWars world
+   * has not, so the day ran on into night; and a loaded save could set the rules back after this. Held every frame.
+   */
+  holdMidday() {
+    const game = this.game;
+    if (this.savedDaylightCycle === undefined) this.savedDaylightCycle = game.gamerules?.doDaylightCycle ?? true;
+    if (game.gamerules?.doDaylightCycle !== false) game.gamerules = { ...(game.gamerules ?? {}), doDaylightCycle: false };
+    if (game.worldTime !== SKYWARS_TIME) {
+      game.worldTime = SKYWARS_TIME;
+      game.sky?.setTime?.(SKYWARS_TIME);
+    }
   }
 
   on(event, handler) {
@@ -470,6 +485,7 @@ export class SkyWarsManager {
 
   update(dt) {
     if (!this.active) return;
+    this.holdMidday();
     const p = this.game.player;
     const phase = this.phase;
     const me = this.me();

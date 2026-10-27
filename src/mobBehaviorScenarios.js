@@ -89,7 +89,8 @@ function flood(s, top = 9) {
 }
 
 const alive = (s) => s.manager.mobs.includes(s.mob) && s.mob.health > 0;
-const hurt = (s) => !alive(s) || s.mob.health < s.mob.maxHealth;
+// Hurt, even if healed back since: a witch drinks Healing when hurt (witchPotions.js), which can bring it back to full.
+const hurt = (s) => !alive(s) || s.mob.health < s.mob.maxHealth || (s.mob.potionHealed ?? 0) > 0;
 
 export function universalScenarios(type, SCENARIO_SKIP) {
   const wiki = dataOf(type);
