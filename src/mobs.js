@@ -9842,6 +9842,8 @@ export class MobManager {
   }
 
   damageMob(mob, amount, knockbackOrigin, isPunch = false, attacker = null, bypassArmor = false) {
+    // A mob a world's game keeps out of harm's way: Bed Wars' shopkeepers.
+    if (mob?.invulnerable) return;
     // An armour stand breaks at the first hit and drops itself and its armour (nothing in Creative).
     if (mob?.type === 'armor_stand') {
       const creative = attacker?.gamemode === 'creative';

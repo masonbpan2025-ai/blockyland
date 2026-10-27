@@ -2587,6 +2587,8 @@ class Game {
     if (this.inventory.getActiveItem() !== potionItem) return false;
     const result = drinkPotion(potionItem.id, this.player, this.inventory, { gamemode: this.player.gamemode });
     if (!result.drunk) return false;
+    // The world's own game may make it a potion of its own: Bed Wars' are stronger and shorter than vanilla's.
+    this.modRuntime?.onDrink?.(potionItem);
     this.ui?.updateHotbar?.();
     this.ui?.updateStats?.();
     return true;
@@ -2689,6 +2691,9 @@ class Game {
 
   handleRightClick() {
     if (!modeRules(this.player.gamemode).interact) return;
+    // The world's own game first (a mod): Bed Wars' shopkeepers, and its items that are not what they look like -- a
+    // Bridge Egg, a Fireball, TNT that lights itself.
+    if (this.modRuntime?.interact?.({ mob: this.targetMob, block: this.targetBlock, item: this.inventory.getActiveItem() })) return;
     // An item frame in front of the block under the crosshair: put the held item in, or turn it (itemFrames.js).
     if (this.itemFrames?.frames.length && !this.usingOffhand) {
       const eye = this.camera.position.clone(), dir = new THREE.Vector3(); this.camera.getWorldDirection(dir);
@@ -3707,6 +3712,8 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
         placeZ + 1 > pMinZ && placeZ < pMaxZ
       );
 
+      // The world's own game may forbid it: Bed Wars keeps its generators and spawns clear.
+      if (!collidesWithPlayer && this.modRuntime?.canPlaceBlock?.(placeX, placeY, placeZ, activeItem) === false) return;
       if (!collidesWithPlayer) {
         // Name- or id-keyed, whichever this game used for the item: see lockIdForPlacement.
         const blockIdToPlace = blockIdForPlacement(activeItem);
@@ -3933,6 +3940,8 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     if (blockId === BLOCKS.AIR || blockId === BLOCKS.BEDROCK) return;
     // Building Studio's invisible ground can be aimed at (to build on) but not broken.
     if (y < this.world.floorY) return;
+    // The world's own game may forbid it: in Bed Wars only blocks players placed, and enemy beds, can be broken.
+    if (this.modRuntime?.canBreakBlock?.(x, y, z, blockId) === false) return;
 
     // Mining a block costs 0.005 exhaustion in vanilla. Charged after the guards, so breaking air
     // or bedrock -- neither of which is a real break -- does not tire the player.
@@ -4087,6 +4096,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     if (blockId === BLOCKS.RED_BED_FOOT || blockId === BLOCKS.RED_BED_HEAD || BLOCK_DEFS[blockId]?.bed) {
       if (this.bedManager) this.bedManager.onBlockBroken(x, y, z);
       this.world.setVoxel(x, y, z, BLOCKS.AIR);
+      this.modRuntime?.onBlockBroken?.(x, y, z, blockId);
       const cx = Math.floor(x / 16);
       const cz = Math.floor(z / 16);
       const chunk = this.world.getChunk(cx, cz);
@@ -4103,6 +4113,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     if (blockId === BLOCKS.TRIPWIRE && this.inventory.getActiveItem()?.id === 'shears' && this.world.redstone) this.world.redstone.shearing = true;
     try { this.world.setVoxel(x, y, z, replacement); } finally { if (this.world.redstone) this.world.redstone.shearing = false; }
     this.worldSync?.onBlockBroken(x, y, z);
+    this.modRuntime?.onBlockBroken?.(x, y, z, blockId);
 
     // Ladders and vines hanging on this block lose their support (wallAttached.js).
     onSupportRemoved(this.world, x, y, z, (nx, ny, nz, dropItself) => {
@@ -4306,6 +4317,12 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     }
 
     const blockIdOfTarget = this.targetBlock.blockId;
+    // A block the world's own game forbids breaking shows no cracks and never breaks (breakTargetBlock asks the same).
+    if (this.modRuntime?.canBreakBlock?.(this.targetBlock.x, this.targetBlock.y, this.targetBlock.z, blockIdOfTarget) === false) {
+      this.breakOverlayMesh.visible = false;
+      this.miningTime = 0;
+      return;
+    }
     // Dragon Egg: "Attempting to mine or using the dragon egg causes it to teleport" -- on the hit, not after a full
     // break (Advancement guide/The End tab). breakTargetBlock does the egg's teleport.
     if (blockIdOfTarget === BLOCKS.DRAGON_EGG && this.player.gamemode !== 'creative') { this.breakTargetBlock(); this.miningTime = 0; return; }
@@ -4971,6 +4988,8 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
 
   animate() {
     requestAnimationFrame(() => this.animate());
+    // An explosion's shaders, compiled once a world is up (entities.js prewarm), not in the frame a creeper goes off.
+    if (this.worldReady && this.entities && !this.entities.prewarmed) this.entities.prewarm?.(this.camera);
 
     // Rendering and the progress UI continue while loading; the SIMULATION does not.
     //

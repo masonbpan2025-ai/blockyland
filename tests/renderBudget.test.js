@@ -60,10 +60,40 @@ test('BlockLighting hides idle lights, so an empty valley pays for none', () => 
   assert.ok(lighting.lights[0].intensity > 0 && lighting.lights[1].intensity === 0, 'only the first is lit');
 });
 
-test('the explosion light is out of the scene until something explodes', () => {
+test('an explosion changes no shader: its flash is an ambient glow, its shaders compiled before and kept', async () => {
+  // A point light shown and hidden changed the light count every lit shader is compiled for, so each creeper recompiled
+  // every shader in view twice -- a frame of up to 1.7 s. An ambient light's count and intensity are in no shader.
   const src = read('src/entities.js');
-  assert.match(src, /this\.blastLight\.visible = false;/);
-  assert.match(src, /this\.blastLight\.visible = this\.blastLife > 0;/);
+  assert.match(src, /this\.blastLight = new THREE\.AmbientLight\(/);
+  assert.doesNotMatch(src, /blastLight\.visible\s*=/, 'never shown or hidden');
+  const THREE = await import('three');
+  const { EntityManager, blastGlow } = await import('../src/entities.js');
+  const scene = new THREE.Scene();
+  const em = new EntityManager(scene, { getVoxel: () => 0 }, {}, null);
+  const pointLights = () => { let n = 0; scene.traverse((o) => { if (o.isPointLight && o.visible) n++; }); return n; };
+  const before = pointLights();
+  em.spawnExplosion(new THREE.Vector3(0, 30, 0), 3);
+  assert.equal(pointLights(), before, 'no light appears');
+  assert.ok(em.blastLight.intensity > 0, 'it flashes');
+  for (let i = 0; i < 10; i++) em.update(0.1, { position: new THREE.Vector3(0, 30, 0), isDead: false }, null);
+  assert.equal(em.blastLight.intensity, 0, 'and fades out');
+  const at = new THREE.Vector3(0, 30, 0);
+  assert.ok(blastGlow(0.35, 1, new THREE.Vector3(0, 30, 3), at) > blastGlow(0.35, 1, new THREE.Vector3(0, 30, 20), at), 'brighter near it');
+  assert.equal(blastGlow(0.35, 1, new THREE.Vector3(0, 30, 40), at), 0, 'nothing far off');
+  // The smoke and sparks share one geometry each, which the explosion's end does not throw away.
+  em.spawnExplosion(at, 3);
+  const shared = em.particles.filter((p) => p.sharedGeometry);
+  assert.ok(shared.length > 60, 'puffs and sparks');
+  assert.equal(new Set(shared.map((p) => p.mesh.geometry)).size, 2, 'on two geometries between them');
+  // The warm-up: a few frames of each material, drawn in front of the camera, then removed, the materials kept.
+  const camera = new THREE.PerspectiveCamera();
+  assert.equal(em.prewarm(camera), true);
+  assert.equal(em.prewarm(camera), false, 'once');
+  assert.equal(em.warmGroup.parent, scene);
+  for (let i = 0; i < 3; i++) em.update(0.016, { position: new THREE.Vector3(), isDead: false }, null);
+  assert.equal(em.warmGroup, null, 'gone from the scene');
+  assert.equal(em.warmMaterials.length, 3, 'its materials, and so their programs, kept');
+  assert.match(read('src/main.js'), /if \(this\.worldReady && this\.entities && !this\.entities\.prewarmed\) this\.entities\.prewarm\?\.\(this\.camera\);/);
 });
 
 test('lamp shadows are redrawn when the lamp moves or four times a second, not on the sun\'s clock', () => {

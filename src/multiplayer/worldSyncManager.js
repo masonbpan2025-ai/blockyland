@@ -305,7 +305,7 @@ export class WorldSyncManager {
    * @param {{kind:'arrow'|'snowball'|'egg', damage?:number, flame?:boolean}} shot
    * @returns {boolean} whether it hit someone, so the projectile stops there
    */
-  projectileHit(from, to, { kind, damage = 0, flame = false } = {}) {
+  projectileHit(from, to, { kind, damage = 0, flame = false, punch = 0 } = {}) {
     if (!this.client.connected || !from || !to) return false;
     const dir = new THREE.Vector3(to.x - from.x, to.y - from.y, to.z - from.z);
     const length = dir.length();
@@ -317,7 +317,8 @@ export class WorldSyncManager {
     if (!hit) return false;
     const peer = this.remotePlayers.remotePlayers.get(hit.peerId);
     if (peer?.dead || peer?.avatar?.mesh?.visible === false) return false;
-    const refused = this.client.attackPlayer(hit.peerId, damage, { projectile: kind, ...(flame ? { flame: true } : {}) });
+    // Punch: a bow's knockback enchantment (wiki, Punch), carried as a hit's knockback level.
+    const refused = this.client.attackPlayer(hit.peerId, damage, { projectile: kind, ...(flame ? { flame: true } : {}), ...(punch > 0 ? { knockbackLevel: punch } : {}) });
     // With PvP off the shot passes on, as it does in Java with pvp=false.
     if (refused === 'pvp_off') return false;
     if (refused === null) {

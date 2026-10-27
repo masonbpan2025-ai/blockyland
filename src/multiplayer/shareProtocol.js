@@ -96,7 +96,7 @@ export function refuseAttack({ settings, attackerId, targetId, attackerPos, targ
  * with a velocity; a firework rises to its burst height (`top`); a splash or lingering potion and an experience
  * bottle break where they land, named by their item (`item`). An egg is drawn and breaks, and hatches nothing there.
  */
-export const MOVING_SHOTS = Object.freeze(['arrow', 'snowball', 'egg', 'ender_pearl', 'ender_eye']);
+export const MOVING_SHOTS = Object.freeze(['arrow', 'snowball', 'egg', 'ender_pearl', 'ender_eye', 'fireball']);
 export const LANDING_SHOTS = Object.freeze(['splash_potion', 'lingering_potion', 'experience_bottle']);
 export const SHOT_KINDS = Object.freeze([...MOVING_SHOTS, 'firework', ...LANDING_SHOTS]);
 const SHOT_ITEM = /^[a-z0-9_]{1,64}$/;

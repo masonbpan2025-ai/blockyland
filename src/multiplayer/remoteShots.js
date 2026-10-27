@@ -19,6 +19,8 @@ export const FLYING = Object.freeze({
   ender_pearl: { radius: 0.13, color: 0x269e91, emissive: 0x124c45, gravity: 16, life: 20, burst: 0xa855f7, collide: true },
   // An Eye of Ender arcs through anything and is gone after its flight.
   ender_eye: { radius: 0.18, color: 0x86efac, gravity: 14, life: ENDER_EYE_LIFE, burst: 0x86efac, collide: false, basic: true },
+  // A Bed Wars fireball (mods/bedwars): straight, glowing; its explosion comes as its own message.
+  fireball: { radius: 0.32, color: 0xff7a1a, gravity: 0, life: 4, burst: 0xffa500, collide: true, basic: true },
 });
 
 const solidAt = (world, p) => {

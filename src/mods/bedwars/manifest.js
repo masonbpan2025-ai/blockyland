@@ -1,0 +1,23 @@
+// Generated from mod.json by scripts/generate-mod-catalog.mjs.
+export default {
+  "id": "bedwars",
+  "name": "Bed Wars",
+  "version": "1.0.0",
+  "description": "Teams on floating islands, each protecting a bed. Collect iron, gold, diamonds and emeralds from the generators, buy gear and team upgrades from the shopkeepers, break the enemy beds, and be the last team standing. Host a lobby, share the 4-digit code, start when a friend has joined.",
+  "entrypoint": "./index.js",
+  "mechanism": "bedwars",
+  "maps": [
+    "BedWars.json"
+  ],
+  "provides": {
+    "managers": [
+      {
+        "id": "bedwars",
+        "name": "Bed Wars Match"
+      }
+    ],
+    "features": [
+      "hasBedWarsLobby"
+    ]
+  }
+};

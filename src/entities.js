@@ -9,6 +9,26 @@ import { addPlayerExperience } from './experience.js';
 import { isFireproof } from './smithing.js';
 import { CombatParticles } from './combatParticles.js';
 
+/**
+ * How bright an explosion's glow is: fading over its 0.35 s life, scaled by its power, and by how near the player is --
+ * full within 4 blocks, nothing beyond 28. Without a position (the moment of the blast) it is at full strength.
+ */
+export function blastGlow(life, scale, playerPosition, center) {
+  if (!(life > 0)) return 0;
+  const near = playerPosition ? Math.min(1, Math.max(0, 1 - (playerPosition.distanceTo(center) - 4) / 24)) : 1;
+  return 2.4 * scale * (life / 0.35) ** 2 * near;
+}
+
+// An explosion's materials, one function each, so the ones compiled in advance (EntityManager.prewarm) are the very ones
+// an explosion makes: a shader program is chosen by a material's settings, and a different one would compile anew.
+const blastMaterial = (color) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+const smokeMaterial = (color, opacity) => new THREE.MeshLambertMaterial({ color, transparent: true, opacity, depthWrite: false });
+const sparkMaterial = (color) => new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+// One geometry for every puff of smoke and one for every spark, sized by the mesh's scale: each explosion made some 90 of
+// its own, every one uploaded to the GPU in the frame after the blast and thrown away a second later.
+const PUFF_GEOMETRY = new THREE.IcosahedronGeometry(1, 1);
+const SPARK_GEOMETRY = new THREE.BoxGeometry(0.08, 0.08, 0.2);
+
 /** Item (entity): 6000 game ticks. */
 export const ITEM_DESPAWN_SECONDS = 300;
 
@@ -20,9 +40,15 @@ export class EntityManager {
     this.textures = textures;
     this.itemVisuals = new ItemVisuals(textures);
     if (world?.lava) world.lava.onIgniteTNT = (x, y, z) => this.spawnPrimedTNT(new THREE.Vector3(x, y, z));
-    this.blastLight = new THREE.PointLight(0xffb351, 0, 16, 1);
-    // Out of the scene's light list until something explodes: an idle light still costs every lit pixel.
-    this.blastLight.visible = false;
+    // The flash of an explosion: an ambient glow, brighter the nearer the blast. It was a point light hidden until
+    // something exploded -- but a point light appearing or disappearing changes the number of lights every lit
+    // material's shader is compiled for, so each explosion recompiled every shader in view twice (a frame of up to
+    // 1.7 s after a creeper blew up), and again on the next explosion, as three.js frees programs no material uses.
+    // Ambient lights are summed into one uniform: no shader depends on how many there are, or on this one's intensity,
+    // and an idle one at zero costs nothing per pixel.
+    this.blastLight = new THREE.AmbientLight(0xffb351, 0);
+    this.blastCenter = new THREE.Vector3();
+    this.blastScale = 1;
     this.scene.add(this.blastLight);
     this.blastLife = 0;
     this.droppedItems = [];
@@ -322,25 +348,47 @@ export class EntityManager {
     this.particles.push({ mesh, velocity, life: 0.7 + Math.random() * 0.4, sharedMaterial: true });
   }
 
+  /**
+   * Compile an explosion's shaders before the first one goes off, and keep them. The first creeper of a session stalled
+   * a frame for half a second or more compiling them; and as three.js deletes a program once no material uses it, they
+   * could be thrown away between explosions and compiled again. So one tiny, all but invisible mesh of each kind is drawn
+   * in front of the camera for a few frames -- drawn, not just compiled, because the world is drawn into the shader's
+   * and the water's own targets, whose colour handling is part of each program -- and their materials are never
+   * disposed, so the programs stay.
+   * @returns {boolean} whether it started
+   */
+  prewarm(camera) {
+    if (this.prewarmed || !camera) return false;
+    this.prewarmed = true;
+    const group = new THREE.Group();
+    const box = new THREE.BoxGeometry(0.02, 0.02, 0.02);
+    this.warmMaterials = [blastMaterial(0x000000), smokeMaterial(0xffffff, 0.001), sparkMaterial(0x000000)];
+    for (const material of this.warmMaterials) group.add(new THREE.Mesh(box, material));
+    // The blast's flying debris and the drops it leaves are item visuals, on the shared textured block material: the
+    // last shader the first explosion compiled, and the atlas it first uploaded.
+    if (this.textures) {
+      this.warmVisuals = [this.itemVisuals.create(BLOCKS.DIRT, true, 0.02), this.itemVisuals.create('stick', false, 0.02)].filter(Boolean);
+      for (const visual of this.warmVisuals) group.add(visual);
+    }
+    group.position.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(0.5));
+    this.scene.add(group);
+    this.warmGroup = group;
+    this.warmFrames = 3;
+    return true;
+  }
+
   spawnExplosion(center, power = 3) {
     const scale = Math.max(0.5, power / 3);
-    this.blastLight.position.copy(center);
+    this.blastCenter.copy(center);
+    this.blastScale = scale;
     this.blastLife = 0.35;
-    this.blastLight.intensity = 16 * scale;
-    this.blastLight.visible = true;
+    this.blastLight.intensity = blastGlow(this.blastLife, scale, null, center);
 
     // A brief hot core and expanding shockwave ring
     for (const ring of [false, true]) {
       const mesh = new THREE.Mesh(
         ring ? new THREE.RingGeometry(0.85 * scale, 1.1 * scale, 48) : new THREE.IcosahedronGeometry(0.8 * scale, 2),
-        new THREE.MeshBasicMaterial({
-          color: ring ? 0xffdfaa : 0xfffae0,
-          transparent: true,
-          opacity: 0.95,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          side: THREE.DoubleSide
-        })
+        blastMaterial(ring ? 0xffdfaa : 0xfffae0)
       );
       mesh.position.copy(center);
       if (ring) mesh.rotation.x = -Math.PI / 2;
@@ -355,10 +403,8 @@ export class EntityManager {
     for (let i = 0; i < cloudCount; i++) {
       const radius = (0.35 + Math.random() * 0.5) * scale;
       const color = cloudColors[Math.floor(Math.random() * cloudColors.length)];
-      const mesh = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(radius, 1),
-        new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.92, depthWrite: false })
-      );
+      const mesh = new THREE.Mesh(PUFF_GEOMETRY, smokeMaterial(color, 0.92));
+      mesh.scale.setScalar(radius);
       const dir = new THREE.Vector3().randomDirection();
       const dist = Math.random() * 1.2 * scale;
       mesh.position.copy(center).addScaledVector(dir, dist);
@@ -375,7 +421,9 @@ export class EntityManager {
         maxLife: life,
         smoke: true,
         baseOpacity: 0.92,
-        growth: (1.8 + Math.random() * 1.6) * scale
+        growth: (1.8 + Math.random() * 1.6) * scale,
+        size: radius,
+        sharedGeometry: true,
       });
     }
 
@@ -384,10 +432,9 @@ export class EntityManager {
     const darkCount = Math.floor(16 * scale);
     for (let i = 0; i < darkCount; i++) {
       const color = darkColors[Math.floor(Math.random() * darkColors.length)];
-      const mesh = new THREE.Mesh(
-        new THREE.IcosahedronGeometry((0.3 + Math.random() * 0.35) * scale, 1),
-        new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.7, depthWrite: false })
-      );
+      const size = (0.3 + Math.random() * 0.35) * scale;
+      const mesh = new THREE.Mesh(PUFF_GEOMETRY, smokeMaterial(color, 0.7));
+      mesh.scale.setScalar(size);
       const dir = new THREE.Vector3().randomDirection();
       mesh.position.copy(center).addScaledVector(dir, (0.5 + Math.random() * 1.5) * scale);
       this.scene.add(mesh);
@@ -402,7 +449,9 @@ export class EntityManager {
         maxLife: life,
         smoke: true,
         baseOpacity: 0.7,
-        growth: 1.2 * scale
+        growth: 1.2 * scale,
+        size,
+        sharedGeometry: true,
       });
     }
 
@@ -411,24 +460,27 @@ export class EntityManager {
     const sparkColors = [0xffd166, 0xf97316, 0xef4444, 0xfef08a, 0xffedd5];
     for (let i = 0; i < sparkCount; i++) {
       const col = sparkColors[Math.floor(Math.random() * sparkColors.length)];
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(0.08 * scale, 0.08 * scale, 0.2 * scale),
-        new THREE.MeshBasicMaterial({ color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
-      );
+      const mesh = new THREE.Mesh(SPARK_GEOMETRY, sparkMaterial(col));
+      mesh.scale.setScalar(scale);
       mesh.position.copy(center);
       this.scene.add(mesh);
       const velocity = new THREE.Vector3().randomDirection().multiplyScalar((5 + Math.random() * 9) * scale);
       velocity.y += (2 + Math.random() * 3) * scale;
-      this.particles.push({ mesh, velocity, life: 0.6 + Math.random() * 0.6, maxLife: 1.2, spark: true });
+      this.particles.push({ mesh, velocity, life: 0.6 + Math.random() * 0.6, maxLife: 1.2, spark: true, sharedGeometry: true });
     }
   }
 
   update(dt, player, inventory) {
     this.combatParticles?.update(dt);
+    // The explosion shaders' warm-up (prewarm): drawn a few frames, then gone, its materials kept.
+    if (this.warmGroup && --this.warmFrames <= 0) {
+      for (const visual of this.warmVisuals ?? []) this.itemVisuals.release(visual);
+      this.warmGroup.removeFromParent();
+      this.warmGroup = null;
+    }
     dt = Math.min(dt, 0.1);
     this.blastLife = Math.max(0, this.blastLife - dt);
-    this.blastLight.intensity = 12 * (this.blastLife / 0.3) ** 2;
-    this.blastLight.visible = this.blastLife > 0;
+    this.blastLight.intensity = blastGlow(this.blastLife, this.blastScale, player?.position, this.blastCenter);
     this.updateHeat(dt,player);
     // 1. Update Dropped Items
     for (let i = this.droppedItems.length - 1; i >= 0; i--) {
@@ -743,7 +795,8 @@ export class EntityManager {
 
       if (p.smoke) {
         p.velocity.multiplyScalar(Math.exp(-1.4 * dt)); p.velocity.y += dt * 0.8;
-        p.mesh.scale.addScalar(dt * p.growth);
+        // A puff on the shared unit geometry is scaled to its size, so it grows in proportion to it.
+        p.mesh.scale.addScalar(dt * p.growth * (p.size ?? 1));
         p.mesh.material.opacity = Math.max(0, p.life / p.maxLife) * (p.baseOpacity ?? 0.6);
       } else if (p.blast) {
         p.mesh.scale.addScalar(dt * p.growth);
@@ -773,7 +826,7 @@ export class EntityManager {
       if (p.life <= 0) {
         this.scene.remove(p.mesh);
         if (p.sharedMaterial) p.mesh.traverse(child => child.geometry?.dispose());
-        else p.mesh.geometry?.dispose();
+        else if (!p.sharedGeometry) p.mesh.geometry?.dispose();
         if (!p.sharedMaterial) p.mesh.material?.dispose();
         this.particles.splice(i, 1);
       }

@@ -613,7 +613,8 @@ test('manifest content is read without loading the mod', () => {
   // The same reason `fabric.mod.json` exists: metadata must be readable without running the code, or listing
   // a world's content would cost a Three.js import.
   const { mods } = discoverMods();
-  const content = manifestContent(mods[0]);
+  // By id: the packages are listed alphabetically, and which comes first changes as packages are added.
+  const content = manifestContent(mods.find((m) => m.id === 'dragonball_tournament'));
   assert.ok(content.length > 0);
   for (const entry of content) {
     assert.equal(entry.modId, 'dragonball_tournament');

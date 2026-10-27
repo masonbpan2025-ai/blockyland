@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { isTippedArrow, tippedArrowEffect } from './tippedArrows.js';
+import { enchantLevel } from './maceSmash.js';
 export const bowPower=seconds=>Math.min(1,(seconds*seconds+seconds*2)/3);
 export const bowFov=(fov,draw)=>fov*(1-.15*Math.min(1,draw)**2);
 export class BowController {
@@ -24,7 +25,10 @@ export class BowController {
     const origin=g.player.position.clone().add(new THREE.Vector3(0,g.player.eyeHeight??1.62,0));
     // `effect` is what `spawnArrow` stores and `updateArrows` applies to whatever the arrow hits, so a
     // tipped arrow now carries its potion's effect at one eighth of the potion's duration.
-    g.mobs.spawnArrow(origin,direction,'player',{spectral:ammo?.id==='spectral_arrow',effect:tippedArrowEffect(ammo?.id),arrowItem:ammo?.id,speed:30*power,damage:Math.ceil(6*power),pickup:g.player.gamemode!=='creative'});
+    // Power: +25% x (level + 1), rounded up to a half heart (wiki, Power); Punch: knockback (wiki, Punch).
+    const powerLevel=enchantLevel(this.item?.enchantments,'power'),punchLevel=enchantLevel(this.item?.enchantments,'punch');
+    const damage=powerLevel>0?Math.ceil(6*power*(1+0.25*(powerLevel+1))*2)/2:Math.ceil(6*power);
+    g.mobs.spawnArrow(origin,direction,'player',{spectral:ammo?.id==='spectral_arrow',effect:tippedArrowEffect(ammo?.id),arrowItem:ammo?.id,speed:30*power,damage,punch:punchLevel,pickup:g.player.gamemode!=='creative'});
     if(g.player.gamemode!=='creative'){ammo.count--;if(ammo.count===0&&g.inventory.offhand===ammo)g.inventory.offhand=null;for(const slots of [g.inventory.hotbar,g.inventory.storage]){const i=slots.indexOf(ammo);if(i>=0&&ammo.count===0)slots[i]=null;}}
     g.ui.updateHotbar();g.heldItemRenderer.recoil();
   }

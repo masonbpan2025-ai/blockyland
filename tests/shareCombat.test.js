@@ -161,7 +161,7 @@ test('the arrows module asks the shared world about every step of this player\'s
   spawnArrow(manager, new THREE.Vector3(0, 31, 0), new THREE.Vector3(0, 0, -1), 'player', { speed: 30, damage: 6, flaming: true });
   updateArrows(manager, 0.05, { position: new THREE.Vector3(100, 0, 100) });
   assert.equal(calls.length, 3, 'stepped, and stopped at the hit');
-  assert.deepEqual(calls[0].shot, { kind: 'arrow', damage: 6, flame: true });
+  assert.deepEqual(calls[0].shot, { kind: 'arrow', damage: 6, flame: true, punch: 0 }, 'a plain bow: no Punch');
   assert.ok(calls[1].from.distanceTo(calls[0].to) < 1e-9, 'consecutive steps');
   assert.equal(manager.arrows.length, 0, 'the arrow is gone');
 });
@@ -617,4 +617,14 @@ test('a burning mob, or a burning player\'s avatar, shows flames sized to it; th
   assert.equal(isBurning({ isBurning: false, fireTicks: 0 }), false);
   const mobs = readFileSync(new URL('../src/mobs.js', import.meta.url), 'utf8');
   assert.match(mobs, /updateFlames\(mob\.mesh, mob\.health > 0 && isBurning\(mob\), dt/, 'every mob, every frame');
+});
+
+test('a Punch bow\'s arrow knocks the other player back harder (wiki, Punch); Power is read from the bow', async (t) => {
+  const { host, guest } = await duel(t);
+  guest.manager.projectileHit(new THREE.Vector3(0, 31, -1), new THREE.Vector3(0, 31, 1), { kind: 'arrow', damage: 6, punch: 1 });
+  await settle(10);
+  assert.equal(host.game.hits[0].options.knockbackLevel, 1);
+  const bow = readFileSync(new URL('../src/bow.js', import.meta.url), 'utf8');
+  assert.match(bow, /enchantLevel\(this\.item\?\.enchantments,'power'\)/);
+  assert.match(bow, /1\+0\.25\*\(powerLevel\+1\)/, 'Power: +25% x (level + 1)');
 });

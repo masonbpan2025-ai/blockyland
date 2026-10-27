@@ -1,0 +1,7 @@
+{
+  "format": "minecraft-web-map", "version": 2,
+  "name": "Bed Wars", "filename": "BedWars.json",
+  "description": "Teams on floating islands, each with a bed and a generator. Buy gear with iron, gold, diamonds and emeralds, break the other beds, and be the last team standing. Host a lobby and share the code.",
+  "worldType": "designed", "mechanism": "bedwars", "seed": 2017, "generationMode": "authored", "worldTime": 6000,
+  "chunks": [], "player": {"position": {"x": 0.5, "y": 53, "z": 0.5}, "yaw": 0, "pitch": 0, "gamemode": "adventure"}, "modState": {}
+}
