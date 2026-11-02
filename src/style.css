@@ -4001,3 +4001,35 @@ body.hud-hidden #offhand-hud-slot {
 }
 #gemini-modal.studio-mode.agent-compact .gemini-terminal-body { height: auto; flex: 1 1 132px; min-height: 48px; max-height: 132px; }
 #gemini-modal.studio-mode.agent-compact .gemini-terminal-card > :not(.gemini-terminal-body) { flex-shrink: 0; }
+
+/* The credits after the ender dragon (src/endCredits.js): black screen, text rolling up, skippable. */
+#end-credits {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  background: #000;
+  overflow: hidden;
+  color: #e8e8f0;
+  font-family: var(--ui-font);
+  text-align: center;
+  cursor: pointer;
+}
+#end-credits .end-credits-roll {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: min(640px, 90vw);
+  transform: translateX(-50%);
+  animation-name: end-credits-roll;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes end-credits-roll {
+  from { top: 100%; transform: translate(-50%, 0); }
+  to { top: 0; transform: translate(-50%, -100%); }
+}
+#end-credits .end-credits-title { font-family: 'Pixelify Sans', var(--ui-font); font-size: 56px; letter-spacing: 6px; color: #f3e8ff; margin-bottom: 12px; }
+#end-credits .end-credits-heading { font-size: 22px; font-weight: 700; color: #fde68a; margin: 8px 0; }
+#end-credits .end-credits-line { font-size: 20px; line-height: 1.7; }
+#end-credits .end-credits-gap { height: 48px; }
+#end-credits .end-credits-hint { position: absolute; right: 18px; bottom: 14px; font-size: 13px; color: #8b8ba0; }

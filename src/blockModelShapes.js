@@ -17,6 +17,9 @@ export const BLOCK_MODEL_SHAPES = {
   'Enchanting Table': { boxes: [[0, 0, 0, 16, 12, 16]] },
   'Dirt Path': { boxes: [[0, 0, 0, 16, 15, 16]] },
   Cake: { boxes: [[1, 0, 1, 15, 8, 15]] },
+  // Vanilla's block/dragon_egg model (minecraft-assets 1.21.4 blocks_models.json): six stacked boxes, an egg rather
+  // than a cube.
+  'Dragon Egg': { boxes: [[6, 15, 6, 10, 16, 10], [5, 14, 5, 11, 15, 11], [4, 13, 4, 12, 14, 12], [3, 0, 3, 13, 13, 13], [2, 1, 2, 14, 11, 14], [1, 3, 1, 15, 8, 15]] },
   Cauldron: { boxes: cauldron() },
   'Water Cauldron': { boxes: cauldron(), content: [2, 4, 2, 14, 15, 14] },
   'Lava Cauldron': { boxes: cauldron(), content: [2, 4, 2, 14, 15, 14] },

@@ -17,7 +17,8 @@ import { placeBonusChest } from './bonusChest.js';
 import { regenerateEndPlatform } from './worldgen/generators/endFeatures.js';
 import { placeEndWorldSpawn, placeNetherSpawnPortal } from './dimensionSpawns.js';
 import { EndItemController } from './endItems.js';
-import { updateEndGatewayTravel, endReturnArrival, cacheEndResidents, restoreEndResidents } from './endProgression.js';
+import { updateEndGatewayTravel, endReturnArrival, cacheEndResidents, restoreEndResidents, endStateFor } from './endProgression.js';
+import { showEndCredits } from './endCredits.js';
 import { MonsterSpawners } from './monsterSpawner.js';
 import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
@@ -1181,9 +1182,26 @@ class Game {
     };
     // Behind the progress bar, as the Nether portal does; one trip at a time.
     this.endPortalTravelCooldown = 1e9;
-    this.travelToDimension(dest, arrival, { title: dest === 'the_end' ? 'Entering the End' : 'Returning to the Overworld', arrive })
-      .catch((error) => console.error('[End portal] The trip failed:', error))
-      .finally(() => { this.endPortalTravelCooldown = 3.0; });
+    const travel = () => this.travelToDimension(dest, arrival, { title: dest === 'the_end' ? 'Entering the End' : 'Returning to the Overworld', arrive });
+    // The first trip home through the exit portal rolls the credits first (Exit portal: "The credits roll when a player
+    // enters the End podium for the first time"). The player stands still while they roll.
+    const endState = from === 'the_end' ? endStateFor(this.world) : null;
+    const credits = endState && !endState.creditsSeen;
+    if (credits) endState.creditsSeen = true;
+    let trip;
+    if (credits) {
+      this.player.controlsDisabled = true;
+      this.player.velocity?.set?.(0, 0, 0);
+      this.ui?.removeBossBar?.('ender_dragon');
+      // The mouse is let go for the credits, which is not the player pausing (handlePointerLockLoss).
+      this.creditsRolling = true;
+      if (document.pointerLockElement) document.exitPointerLock();
+      trip = showEndCredits().then(() => { this.creditsRolling = false; this.player.controlsDisabled = false; return travel(); });
+    } else {
+      trip = travel();
+    }
+    trip.catch((error) => console.error('[End portal] The trip failed:', error))
+      .finally(() => { this.creditsRolling = false; this.player.controlsDisabled = false; this.endPortalTravelCooldown = 3.0; });
   }
 
   /**
@@ -1317,6 +1335,11 @@ class Game {
   async travelToDimension(newDim, targetPos = null, { title = 'Travelling', arrive = null } = {}) {
     if (!this.overlay) { this.switchDimension(newDim, targetPos); arrive?.(); return; }
     const previous = this.lifecycle?.phase;
+    // A bot walking the player through a portal has done what it was asked: the trip is the result, not an
+    // interruption (the loading pause below would otherwise stop it as "the world simulation paused").
+    if (this.playerBot?.active && this.playerBot.task) {
+      this.playerBot.finish(true, `Went through the portal to ${{ nether: 'the Nether', the_end: 'the End' }[newDim] ?? 'the Overworld'}.`);
+    }
     if (this.lifecycle) this.lifecycle.phase = 'loading';
     this.travellingTo = newDim;
     try {
@@ -2321,6 +2344,8 @@ class Game {
     // Escape while playing beside the Agent Terminal closes the terminal only; the terminal letting go of the mouse
     // (opening, or Enter to type) is not a pause either.
     if (this.ui?.handleTerminalLockLoss?.()) return;
+    // The credits after the dragon take the mouse; skipping them must not leave a pause menu behind.
+    if (this.creditsRolling) return;
     if (shouldPauseOnLockLoss({
       worldReady: this.worldReady,
       // The lifecycle's phase: the game has no `phase` of its own, and reading one gave undefined, taken as idle, so

@@ -10951,6 +10951,9 @@ export class MobManager {
       applyUnconsumedKnockback(this, mob, dt);
 
       if (mob.health <= 0) {
+        // The End's dragon dies its own way: it flies to the exit portal and rises in beams of light for 10 seconds
+        // (BossFightManager.updateDragonDeath), rather than tipping over.
+        if (mob.endEncounterManaged && mob.type === 'ender_dragon') continue;
         if(isEquine(mob)||mob.type==='strider')releaseHorseLead(this,mob);
         this.updateDeath(mob, dt);
         continue;

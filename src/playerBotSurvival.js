@@ -3,7 +3,7 @@ import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { getSmeltingRecipe, getFuelBurnTime, SMELTING_RECIPES } from './furnace.js';
 import { isHoe, getCropInfo } from './farming.js';
 import { lightPortal, detectPortalFrame } from './netherPortal.js';
-import { insertEye, tryActivateAround } from './endPortal.js';
+import { insertEye, tryActivateAround, isFrame, frameRingOffsets } from './endPortal.js';
 import { calculateBookshelfCount, generateEnchantmentOffers, applyEnchantment } from './enchanting.js';
 import { executeTrade } from './villagerEconomy.js';
 import { BrewingManager } from './brewing.js';
@@ -193,8 +193,72 @@ export class BotSurvival {
    * (x, y, z) is visible within reach.
    */
   /** The nearest cell (to the player) a player can stand in with the block at x,y,z in arm's reach. */
-  /** The nearest cell to stand in within reach of a block. `avoid`: cells ("x,y,z") the player's body must not enter. */
-  standingSpotNear(x, y, z, avoid = null) {
+  /**
+   * The cells ("x,y,z") of the portal opening an action is making, which the player must not stand in: a Nether
+   * portal's opening for flint and steel, or the 3x3 inside the End portal ring an eye of ender goes into (the ring
+   * whose frames surround the most of it). Null for any other action.
+   */
+  portalOpeningCells(c) {
+    if (c.type !== 'use' || !Array.isArray(c.position)) return null;
+    const [x, y, z] = c.position, world = this.game.world;
+    if (c.item === 'flint_and_steel') {
+      const frame = detectPortalFrame(world, x, y, z);
+      return frame?.valid ? new Set(frame.innerBlocks.map(b => `${b.x},${b.y},${b.z}`)) : null;
+    }
+    if (c.item !== 'ender_eye' || !isFrame(world.getVoxel(x, y, z))) return null;
+    let best = null;
+    for (const { dx, dz } of frameRingOffsets()) {
+      const cx = x - dx, cz = z - dz;
+      const frames = frameRingOffsets().filter(o => isFrame(world.getVoxel(cx + o.dx, y, cz + o.dz))).length;
+      if (!best || frames > best.frames) best = { cx, cz, frames };
+    }
+    const cells = new Set();
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) cells.add(`${best.cx + dx},${y},${best.cz + dz}`);
+    return cells;
+  }
+  /**
+   * A point on block (x, y, z) that a line from the eye reaches without passing through anything solid: its centre, or
+   * the centre of one of its faces. A frame in an End portal ring seen from above has its centre hidden behind the next
+   * frame's corner while its top face is in plain view, so aiming at the centre alone missed it. Null when none is.
+   */
+  aimPoint(eye, x, y, z) {
+    for (const [ox, oy, oz] of [[.5, .5, .5], [.5, .98, .5], [.02, .5, .5], [.98, .5, .5], [.5, .5, .02], [.5, .5, .98], [.5, .02, .5]]) {
+      const to = { x: x + ox, y: y + oy, z: z + oz };
+      if (this.firstBlockOnLine(eye, to, x, y, z) === 'target') return to;
+    }
+    return null;
+  }
+  /**
+   * Walk the cells a line passes through, in order (Amanatides & Woo), and say whether it reaches block (x, y, z)
+   * before anything solid: 'target', or 'blocked'. Exact, so a line that only clips the corner of a neighbouring block
+   * counts as blocked, as the game's crosshair would stop there; sampling the line every 0.05 missed such corners.
+   */
+  firstBlockOnLine(from, to, x, y, z) {
+    const dir = { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z };
+    const cell = { x: Math.floor(from.x), y: Math.floor(from.y), z: Math.floor(from.z) };
+    const step = {}, tMax = {}, tDelta = {};
+    for (const a of ['x', 'y', 'z']) {
+      step[a] = Math.sign(dir[a]);
+      tDelta[a] = dir[a] === 0 ? Infinity : Math.abs(1 / dir[a]);
+      tMax[a] = dir[a] === 0 ? Infinity : (step[a] > 0 ? cell[a] + 1 - from[a] : from[a] - cell[a]) * tDelta[a];
+    }
+    for (let i = 0; i < 64; i++) {
+      if (cell.x === x && cell.y === y && cell.z === z) return 'target';
+      if (i > 0 && !this.bot.passable(this.game.world.getVoxel(cell.x, cell.y, cell.z))) return 'blocked';
+      const a = tMax.x < tMax.y ? (tMax.x < tMax.z ? 'x' : 'z') : (tMax.y < tMax.z ? 'y' : 'z');
+      if (tMax[a] > 1) return 'blocked';
+      cell[a] += step[a];
+      tMax[a] += tDelta[a];
+    }
+    return 'blocked';
+  }
+  /** Whether some point of block (x, y, z) is in plain view from an eye. */
+  clearSight(eye, x, y, z) { return this.aimPoint(eye, x, y, z) !== null; }
+  /**
+   * The nearest cell to stand in within reach of a block. `avoid`: cells ("x,y,z") the player's body must not enter.
+   * `needSight`: the block must be in view from there, for a click on it.
+   */
+  standingSpotNear(x, y, z, avoid = null, needSight = false) {
     const p = this.game.player.position, world = this.game.world, bot = this.bot;
     let best = null;
     for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) for (let dy = -4; dy <= 2; dy++) {
@@ -204,6 +268,7 @@ export class BotSurvival {
       const floor = world.getVoxel(sx, sy - 1, sz);
       if (bot.passable(floor) || bot.hazard(floor) || !bot.passable(world.getVoxel(sx, sy, sz)) || !bot.passable(world.getVoxel(sx, sy + 1, sz))) continue;
       if (Math.hypot(x + 0.5 - (sx + 0.5), y + 0.5 - (sy + 1.62), z + 0.5 - (sz + 0.5)) > 4) continue;
+      if (needSight && !this.clearSight({ x: sx + 0.5, y: sy + 1.62, z: sz + 0.5 }, x, y, z)) continue;
       const d = Math.hypot(sx + 0.5 - p.x, sy - p.y, sz + 0.5 - p.z);
       if (!best || d < best.d) best = { x: sx, y: sy, z: sz, d };
     }
@@ -465,11 +530,15 @@ export class BotSurvival {
       t.approached = true;
       const [x, y, z] = c.position;
       const eye = { x: p.position.x, y: p.position.y + 1.62, z: p.position.z };
-      if (Math.hypot(x + .5 - eye.x, y + .5 - eye.y, z + .5 - eye.z) > 4.3) {
-        // Never stand in a portal's opening to light it: the player would be carried off to the Nether.
-        const frame = c.type === 'use' && c.item === 'flint_and_steel' ? detectPortalFrame(this.game.world, x, y, z) : null;
-        const avoid = frame?.valid ? new Set(frame.innerBlocks.map(b => `${b.x},${b.y},${b.z}`)) : null;
-        const spot = this.standingSpotNear(x, y, z, avoid);
+      // Never stand in a portal's opening while making it: a Nether portal's, lit with flint and steel, or the 3x3 inside
+      // an End portal ring, which opens when the last eye goes in. Either would carry the player off before they chose to go.
+      const avoid = this.portalOpeningCells(c);
+      const inOpening = avoid && [0, 1].some(h => avoid.has(`${Math.floor(p.position.x)},${Math.floor(p.position.y) + h},${Math.floor(p.position.z)}`));
+      // A use is a click on the block, so the block has to be in sight, not only in reach: inside an End portal ring,
+      // the frames hide each other from most spots.
+      const needSight = c.type === 'use' && !this.bot.passable(this.game.world.getVoxel(x, y, z));
+      if (inOpening || Math.hypot(x + .5 - eye.x, y + .5 - eye.y, z + .5 - eye.z) > 4.3 || (needSight && !this.clearSight(eye, x, y, z))) {
+        const spot = this.standingSpotNear(x, y, z, avoid, needSight);
         if (spot) { this.bot.walkForSurvival(spot); return; }
       }
     }
@@ -617,7 +686,8 @@ export class BotSurvival {
       t.before ??= this.count(itemId(c.item));
       // Shears on a full hive give honeycomb and change no block: any change to the inventory is the use landing.
       t.beforeInventory ??= this.inventorySignature();
-      this.bot.lookAt({ x: x + 0.5, y: y + 0.5, z: z + 0.5 });
+      const eye = { x: p.position.x, y: p.position.y + (p.isSneaking ? 1.38 : p.eyeHeight || 1.62), z: p.position.z };
+      this.bot.lookAt(this.aimPoint(eye, x, y, z) ?? { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
       if (t.elapsed > 3) throw new Error(`Using ${c.item} timed out.`);
     } else if (c.type === 'brew') {
       this.requireReach(c.position, [BLOCKS.BREWING_STAND]);
@@ -906,13 +976,15 @@ export class BotSurvival {
         this.bot.finish(true, `Tilled soil at ${c.position}.`);
       }
     } else if (c.type === 'use') {
+      // Nothing is used on the way there: the walk to a spot in reach and in sight comes first.
+      if (t.survivalWalk) return;
       const [x, y, z] = c.position;
       t.beforeVoxel ??= this.game.world.getVoxel(x, y, z);
       const frame = c.item === 'flint_and_steel' ? detectPortalFrame(this.game.world, x, y, z) : null;
       if (frame?.valid) {
         // Only within a player's reach, once any walk there is over.
         const eye = { x: p.position.x, y: p.position.y + 1.62, z: p.position.z };
-        if (t.survivalWalk || Math.hypot(x + .5 - eye.x, y + .5 - eye.y, z + .5 - eye.z) > 4.5) return;
+        if (Math.hypot(x + .5 - eye.x, y + .5 - eye.y, z + .5 - eye.z) > 4.5) return;
         // Lighting a Nether portal: the bottom obsidian of the opening, or the opening itself. A click lands only when
         // the crosshair is on the given block; an opening is air, which the crosshair passes through to whatever is
         // behind it, so there the flint and steel strikes the frame's inside directly, as a player's click on the
@@ -935,6 +1007,15 @@ export class BotSurvival {
         throw new Error(`There is no complete obsidian portal frame at ${c.position.join(' ')}. A frame is obsidian, at least 4 wide and 5 tall around a 2-wide, 3-tall opening (corners may be left out). Give an obsidian block on the bottom of the opening, or a block of the opening.`);
       }
       if (typeof this.game.handleRightClick === 'function') {
+        // Click only once the crosshair is on the block, as a player does: a click before the aim arrives lands on
+        // whatever is under the crosshair instead (an eye of ender aimed at nothing is thrown, and twelve used to fly
+        // off this way while each was reported as used). Air and fluids are not what the crosshair stops on, so a use
+        // aimed at a cell the player could walk through (a bucket at water) keeps clicking at once.
+        const onTarget = target && target.x === x && target.y === y && target.z === z;
+        if (!onTarget && !this.bot.passable(t.beforeVoxel)) {
+          if (t.elapsed < 2) return;
+          throw new Error(`Cannot aim at ${c.position.join(' ')} to use ${c.item}: something is in the way.`);
+        }
         this.game.handleRightClick();
         if (c.item === 'bone_meal') {
           let crop = getCropInfo(this.game.world.getVoxel(x, y, z));

@@ -111,24 +111,51 @@ test('arrows destroy real encounter crystals and are removed after the collision
   assert.equal(game.world.endState.crystals[0],false);
 });
 
+/** Step the fight until the dying dragon is gone (it flies to the podium, then rises for 10 s). Returns the seconds taken. */
+function playOutDeath(boss,player,step=.05){let t=0;while(boss.enderDragon&&t<30){boss.update(step,player);t+=step;}return t;}
+
 test('first victory awards XP once, opens exit and gateway; a saved defeated End never respawns a dragon',()=>{
   const {boss,w,player,xp,manager}=fixture();boss.initEndArena();boss.enderDragon.health=0;
-  boss.update(.05,player);boss.update(.05,player);
-  assert.deepEqual(xp,[12000]);assert.equal(endStateFor(w).kills,1);assert.equal(w.getVoxel(1,33,0),B.END_PORTAL);assert.equal(w.getVoxel(0,37,0),B.DRAGON_EGG);
+  playOutDeath(boss,player);
+  // Ender Dragon (wiki): 12 000 on the first kill, "ten drops of 960 and one drop of 2400".
+  assert.deepEqual(xp,[...Array(10).fill(960),2400]);assert.equal(endStateFor(w).kills,1);assert.equal(w.getVoxel(1,33,0),B.END_PORTAL);assert.equal(w.getVoxel(0,37,0),B.DRAGON_EGG);
+  xp.length=0;xp.push(12000);
   const saved=captureEndState(w);w.setVoxel(0,37,0,B.AIR);restoreEndState(w,saved);boss.initEndArena();
   assert.equal(boss.enderDragon,null);assert.equal(manager.mobs.filter(m=>m.type==='ender_dragon').length,0);assert.deepEqual(xp,[12000]);assert.equal(w.getVoxel(0,37,0),B.AIR);
 });
 
+test('the dragon dies the vanilla way: to the podium, 10 s rising, experience from 7.75 s, then the exit portal',()=>{
+  const {boss,w,player,xp,manager}=fixture();boss.initEndArena();const dragon=boss.enderDragon;
+  dragon.mesh.position.set(40,45,0);dragon.health=0;
+  boss.update(.05,player);
+  assert.ok(boss.enderDragon,'it does not vanish at zero health');assert.equal(dragon.deathSequence.phase,'approach');
+  let t=0;while(dragon.deathSequence.phase==='approach'&&t<10){boss.update(.05,player);t+=.05;}
+  // "It moves to the highest dragon-immune block in the (0,0) column, which is typically the top of the exit portal."
+  assert.ok(Math.hypot(dragon.mesh.position.x,dragon.mesh.position.z)<1,'at (0, 0) when it starts to rise');
+  const startY=dragon.mesh.position.y;
+  for(let s=0;s<7.5;s+=.05)boss.update(.05,player);
+  assert.ok(dragon.mesh.position.y>startY+5,'rising');assert.deepEqual(xp,[],'no experience before 7.75 s');
+  assert.notEqual(w.getVoxel(1,33,0),B.END_PORTAL,'the exit portal is not open yet');
+  for(let s=0;s<.5;s+=.05)boss.update(.05,player);
+  assert.ok(xp.length>0&&xp.every(n=>n===960),'experience in drops of 960 from 7.75 s');
+  assert.notEqual(w.getVoxel(0,37,0),B.DRAGON_EGG,'no egg until 10 s');
+  playOutDeath(boss,player);
+  assert.equal(boss.enderDragon,null);assert.equal(manager.mobs.includes(dragon),false,'the body is gone');
+  assert.equal(w.getVoxel(1,33,0),B.END_PORTAL);assert.equal(w.getVoxel(0,37,0),B.DRAGON_EGG);
+  assert.equal(xp.reduce((a,b)=>a+b,0),12000);
+});
+
 test('four correctly placed crystals restore the spikes and a repeat dragon awarding 500 XP',()=>{
-  const {boss,w,player,xp}=fixture();boss.initEndArena();boss.enderDragon.health=0;boss.update(.05,player);
+  const {boss,w,player,xp}=fixture();boss.initEndArena();boss.enderDragon.health=0;playOutDeath(boss,player);xp.length=0;xp.push(12000);
   for(const [x,z]of [[3,0],[-3,0],[0,3],[0,-3]])assert.equal(boss.placeEndCrystal(x,34,z),true);
   assert.equal(w.endState.respawning,true);boss.update(29,player);assert.equal(boss.enderDragon,null);
   boss.update(1.1,player);assert.ok(boss.enderDragon);assert.equal(boss.enderDragon.health,200);assert.equal(boss.endCrystals.filter(c=>c.alive).length,10);
-  boss.enderDragon.health=0;boss.update(.05,player);assert.deepEqual(xp,[12000,500]);assert.equal(w.endState.kills,2);
+  boss.enderDragon.health=0;playOutDeath(boss,player);
+  assert.equal(xp[0],12000);assert.equal(xp.slice(1).reduce((a,b)=>a+b,0),500,'a respawned dragon drops 500');assert.equal(w.endState.kills,2);
 });
 
 test('destroying a ritual crystal aborts the summon and restores the exit',()=>{
-  const {boss,w,player}=fixture();boss.initEndArena();boss.enderDragon.health=0;boss.update(.05,player);
+  const {boss,w,player}=fixture();boss.initEndArena();boss.enderDragon.health=0;playOutDeath(boss,player);
   for(const [x,z]of [[3,0],[-3,0],[0,3],[0,-3]])boss.placeEndCrystal(x,34,z);
   boss.destroyEndCrystal(boss.endCrystals.find(c=>c.placed));assert.equal(w.endState.respawning,false);assert.equal(w.getVoxel(1,33,0),B.END_PORTAL);
 });

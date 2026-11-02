@@ -94,8 +94,10 @@ export function parsePlayerCommand(prompt) {
   if (m) return { type: 'look', position: m.slice(1, 4).map(Number) };
   m = text.match(/^(follow|attack|kill|look at)\s+(?:the\s+|a\s+|an\s+)?(.+)$/);
   if (m) return { type: m[1] === 'kill' ? 'attack' : m[1] === 'look at' ? 'look' : m[1], mob: m[2].replace(/\s+/g, '_') };
-  m = text.match(/^(?:equip|hold|select)\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
-  if (m) return { type: 'equip', item: m[1].replace(/\s+/g, '_') };
+  // `equip`/`wear` puts armor on; `hold`/`select` only takes the item in hand, so it can be enchanted (/enchant works
+  // on the held item) before it is worn.
+  m = text.match(/^(equip|wear|put on|hold|select)\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
+  if (m) return { type: 'equip', item: m[2].replace(/\s+/g, '_'), ...(/^(hold|select)$/.test(m[1]) ? { wear: false } : {}) };
   m = text.match(/^(?:store|deposit)\s+(?:(\d+)\s+)?(?:a\s+|an\s+|the\s+)?(.+?)\s+(?:in|into|at)\s+(?:the\s+)?(?:chest\s+)?(?:at\s+)?(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
   if (m) return { type: 'store', count: Number(m[1] || 1), item: m[2].trim().replace(/\s+/g, '_'), position: [Number(m[3]), Number(m[4]), Number(m[5])] };
   m = text.match(/^withdraw\s+(?:(\d+)\s+)?(?:a\s+|an\s+|the\s+)?(.+?)\s+(?:from|at)\s+(?:the\s+)?(?:chest\s+)?(?:at\s+)?(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
@@ -274,10 +276,11 @@ export class PlayerBot {
       }
       if (!found) return Promise.reject(new Error(`You do not have ${command.item} in your inventory.`));
       const active = this.game.inventory.getActiveItem();
-      if (active && ITEMS[active.id]?.armorSlot && this.game.inventory.equipArmorItem) {
+      if (command.wear !== false && active && ITEMS[active.id]?.armorSlot && this.game.inventory.equipArmorItem) {
         this.game.inventory.equipArmorItem(true);
+        return Promise.resolve({ ok: true, message: `Put on ${command.item}.` });
       }
-      return Promise.resolve({ ok: true, message: `Equipped ${command.item}.` });
+      return Promise.resolve({ ok: true, message: command.wear === false ? `Holding ${command.item}.` : `Equipped ${command.item}.` });
     }
     return new Promise(resolve => {
       const inventoryBefore = {};
@@ -592,11 +595,22 @@ export class PlayerBot {
    * chase, across a field -- is walked in legs of up to 28 blocks toward the goal, each ending on standable ground.
    */
   gotoLeg(t) {
-    const [gx, gy, gz] = t.command.position.map(Math.floor), p = this.game.player.position;
+    const [gx, gy0, gz] = t.command.position.map(Math.floor), p = this.game.player.position;
+    const world = this.game.world;
+    // A height one or two off is still where the caller meant: the nearest cell in that column the player can stand in
+    // (floor below, room for the body). Asking for (4, 34, 0) beside the End podium, where the ground puts the feet
+    // at 33, found "no safe walking path" for want of a block under a floating cell.
+    // A ladder or water holds the player up as a floor does (neighbors() walks them the same way).
+    const climbable = (id) => id === BLOCKS.LADDER || id === BLOCKS.WATER;
+    const standable = (y) => {
+      const floor = world.getVoxel(gx, y - 1, gz), here = world.getVoxel(gx, y, gz);
+      const held = climbable(here) || climbable(floor) || (!this.passable(floor) && !this.hazard(floor));
+      return held && this.passable(here) && this.passable(world.getVoxel(gx, y + 1, gz));
+    };
+    const gy = [0, -1, 1, -2, 2, -3, 3].map(d => gy0 + d).find(standable) ?? gy0;
     const dx = gx + .5 - p.x, dz = gz + .5 - p.z, dist = Math.hypot(dx, dz);
     t.finalLeg = dist <= 28;
     if (t.finalLeg) return cell(gx, gy, gz);
-    const world = this.game.world;
     for (let reach = 28; reach >= 8; reach -= 4) {
       const wx = Math.floor(p.x + dx / dist * reach), wz = Math.floor(p.z + dz / dist * reach);
       for (let y = Math.floor(p.y) + 8; y >= Math.floor(p.y) - 8; y--) {

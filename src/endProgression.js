@@ -9,7 +9,7 @@ import { advancementEvent } from './advancements.js';
 
 export function createEndState(seed) {
   return { seed, initialized: false, defeated: false, kills: 0, health: 200,
-    crystals: Array(10).fill(true), gateways: [], residents: [], respawning: false };
+    crystals: Array(10).fill(true), gateways: [], residents: [], respawning: false, creditsSeen: false };
 }
 export function endStateFor(world) {
   if (!world.endState || world.endState.seed !== world.seed) world.endState = createEndState(world.seed);
@@ -32,6 +32,8 @@ export function restoreEndState(world, saved) {
       ...(typeof g.link==='string'?{link:g.link}:{}),...(g.small&&[g.small.x,g.small.groundY,g.small.z].every(Number.isFinite)?{small:{x:g.small.x,groundY:g.small.groundY,z:g.small.z}}:{})}));
     // A save during the ritual restarts the ritual on next arena entry.
     state.respawning = saved.respawning === true;
+    // The credits roll once, the first trip home through the exit portal.
+    state.creditsSeen = saved.creditsSeen === true;
     state.residents=(Array.isArray(saved.residents)?saved.residents:[]).filter(m=>m&&['enderman','shulker'].includes(m.type)&&[m.x,m.y,m.z,m.health].every(Number.isFinite));
   }
   world.endState = state;

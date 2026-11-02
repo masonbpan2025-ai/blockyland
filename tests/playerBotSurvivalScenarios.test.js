@@ -128,6 +128,8 @@ export function createSurvivalFixture({ playerPos = [0.5, 1, 0.5] } = {}) {
   game.portalManager = netherPortalManager;
 
   game.switchDimension = (dim, targetPos = null) => {
+    // As Game.travelToDimension does: walking through the portal is the walk's result.
+    if (game.playerBot?.task) game.playerBot.finish(true, `Went through the portal to ${dim}.`);
     game.currentDimension = dim;
     if (targetPos) {
       player.position.set(targetPos.x, targetPos.y, targetPos.z);
@@ -1069,6 +1071,54 @@ test('light portal at an incomplete frame says what a frame needs', async () => 
   assert.equal(f.world.getVoxel(1, 2, 0), BLOCKS.AIR, 'nothing lit');
 });
 
+test('hold takes armor in hand so /enchant can reach it; equip puts it on', async () => {
+  const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] });
+  f.inventory.addItem('netherite_helmet', false, 1);
+  const held = await f.bot.run('hold netherite_helmet');
+  assert.equal(held.ok, true, held.message);
+  assert.equal(f.inventory.getActiveItem()?.id, 'netherite_helmet', 'in hand');
+  assert.equal(f.inventory.armor.head, null, 'not worn yet');
+  const worn = await f.bot.run('equip netherite_helmet');
+  assert.equal(worn.ok, true, worn.message);
+  assert.equal(f.inventory.armor.head?.id, 'netherite_helmet', 'worn');
+});
+
+test('the frames of an End portal ring are filled from outside it, each in sight, and going in is a separate step', async () => {
+  const f = createSurvivalFixture({ playerPos: [10.5, 1, 10.5] }); // starting inside the ring
+  f.player.gamemode = 'creative';
+  const ring = [[8, 9], [8, 10], [8, 11], [12, 9], [12, 10], [12, 11], [9, 8], [10, 8], [11, 8], [9, 12], [10, 12], [11, 12]];
+  for (const [x, z] of ring) f.world.setVoxel(x, 1, z, BLOCKS.END_PORTAL_FRAME);
+  for (const [x, z] of ring) {
+    const r = await f.drive(f.bot.run(`use ender_eye at ${x} 1 ${z}`));
+    assert.equal(r.ok, true, `${x} 1 ${z}: ${r.message}`);
+  }
+  assert.equal(f.world.getVoxel(10, 1, 10), BLOCKS.END_PORTAL, 'the portal opened');
+  for (let i = 0; i < 30; i++) f.step();
+  assert.notEqual(f.game.currentDimension, 'the_end', 'the player was not standing in it when it opened');
+  const p = f.player.position;
+  assert.ok(!(p.x >= 9 && p.x < 12 && p.z >= 9 && p.z < 12), `outside the ring (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
+});
+
+test('a line that only clips the corner of the next frame is blocked, and the bot aims at the open top face instead', () => {
+  // The case from a real run: standing on a frame of the ring, aiming past the corner of its neighbour at the next one.
+  const f = createSurvivalFixture({ playerPos: [5.34, 28, -3.5] });
+  f.world.setVoxel(6, 27, -6, BLOCKS.END_PORTAL_FRAME);
+  f.world.setVoxel(7, 27, -6, BLOCKS.END_PORTAL_FRAME);
+  const eye = { x: 5.34, y: 29.62, z: -3.5 };
+  assert.equal(f.bot.survival.firstBlockOnLine(eye, { x: 7.5, y: 27.5, z: -5.5 }, 7, 27, -6), 'blocked', 'the centre is behind the corner');
+  const aim = f.bot.survival.aimPoint(eye, 7, 27, -6);
+  assert.ok(aim && aim.y > 27.9, `aims at the top face (${JSON.stringify(aim)})`);
+  assert.equal(f.bot.survival.firstBlockOnLine(eye, aim, 7, 27, -6), 'target');
+});
+
+test('go to a height a block or two off the ground still arrives, on the ground there', async () => {
+  const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] }); // flat ground: the feet are at y 1
+  const result = await f.drive(f.bot.run('go to 6 3 0'));
+  assert.equal(result.ok, true, result.message);
+  assert.ok(Math.hypot(f.player.position.x - 6.5, f.player.position.z - 0.5) < 1, 'at x 6, z 0');
+  assert.equal(Math.floor(f.player.position.y), 1, 'standing on the ground, not floating at y 3');
+});
+
 test('look at X Y Z turns the player to that block, rather than looking for a creature', async () => {
   const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] });
   const result = await f.drive(f.bot.run('look at 5 1 0'));
@@ -1114,7 +1164,10 @@ test('Survival Scenario 12: End Portal frame construction, eye insertion, activa
         'use ender_eye at 11 1 8',
         'use ender_eye at 9 1 12',
         'use ender_eye at 10 1 12',
-        'use ender_eye at 11 1 12'
+        'use ender_eye at 11 1 12',
+        // Filling the frames is done from outside the ring, so the portal opening does not carry the player off: going
+        // in is its own step.
+        'go to 10 1 10'
       ],
       assertions: [
         {

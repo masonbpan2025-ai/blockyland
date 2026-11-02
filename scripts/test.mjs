@@ -48,7 +48,7 @@ const testsDir = join(root, 'tests');
  */
 export const AREAS = {
   caves: ['caveCommands', 'teleport', 'caveGeneration', 'mountainTerrain', 'worldSpawn', 'treePlacement', 'worldStructures', 'structureMonsterRoom', 'structureGeode', 'structureMineshaft', 'structureAncientCity', 'spawnEligibilityRegression', 'spawnPlacementRegression', 'mapManager', 'survivalSaveLoad'],
-  end: ['endSurvival', 'endPortal', 'enderDragonParity', 'endermanParity', 'endermiteParity', 'shulkerBullet', 'structureEndFeatures', 'structureEndCity', 'dragonEgg', 'survivalSaveLoad', 'mapManager', 'worldChunkCache', 'bed', 'waterRules', 'dimensionSpawns', 'bedExplosion', 'portalTravel'],
+  end: ['endSurvival', 'endCredits', 'endPortal', 'enderDragonParity', 'endermanParity', 'endermiteParity', 'shulkerBullet', 'structureEndFeatures', 'structureEndCity', 'dragonEgg', 'survivalSaveLoad', 'mapManager', 'worldChunkCache', 'bed', 'waterRules', 'dimensionSpawns', 'bedExplosion', 'portalTravel'],
   nether: ['netherSurvival', 'nether', 'netherParity', 'netherPortal', 'netherCombat', 'netherLavaEscape', 'piglin', 'piglinBruteParity', 'blazeParity', 'striderParity', 'cubeHopParity', 'zombifiedPiglinParity', 'witherSkeletonParity', 'monsterSpawner', 'farming', 'worldStructures', 'worldSpawn', 'playerDeathRespawn', 'survivalSaveLoad', 'dimensionSpawns', 'portalTravel'],
   fishing: ['fishingParity', 'fishingExperience', 'rails', 'vehicles_transport', 'waterFlow'],
   // --- agent / terminal ---

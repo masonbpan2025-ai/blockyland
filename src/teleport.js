@@ -38,6 +38,9 @@ function coordinate(token, current) {
  * @returns {{ok:true,kind:'coords',x:number,y:number,z:number}|{ok:true,kind:'structure',id:string}|{ok:true,kind:'cave',radius:number}|{ok:false,reason:string}}
  */
 export function parseTeleport(args, from = { x: 0, y: 0, z: 0 }) {
+  // Vanilla's `/teleport <targets> <location>`: the player is the only one to move here, so a leading selector that
+  // means the player (@s, @p, @a, @r) is accepted and skipped. `/teleport @s 85 40 27` was read as a structure name.
+  if (args.length && /^@[spar](\[[^\]]*\])?$/i.test(args[0])) args = args.slice(1);
   if (!args.length) return { ok: false, reason: `Usage: ${TELEPORT_USAGE}` };
   if (args[0].toLowerCase() === 'cave') {
     try { return { ok: true, kind: 'cave', radius: parseCaveRadius(args.slice(1)) }; }

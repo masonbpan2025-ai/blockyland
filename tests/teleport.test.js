@@ -19,6 +19,13 @@ test('coordinates, relative coordinates and structure names parse', () => {
   assert.equal(normaliseStructureName('Ocean Ruin'), 'ocean_ruin');
 });
 
+test('vanilla\'s /teleport <targets> <x y z>: a selector for the player comes first', () => {
+  assert.deepEqual(parseTeleport(['@s', '85', '40', '27']), { ok: true, kind: 'coords', x: 85, y: 40, z: 27 });
+  assert.deepEqual(parseTeleport(['@p', '~', '~1', '~'], { x: 1, y: 30, z: 4 }), { ok: true, kind: 'coords', x: 1, y: 31, z: 4 });
+  assert.deepEqual(parseTeleport(['@s', 'swamp_hut']), { ok: true, kind: 'structure', id: 'swamp_hut' });
+  assert.equal(parseTeleport(['@s']).ok, false, 'a target with nowhere to go is a usage error');
+});
+
 test('/teleport and /tp are one gated command', () => {
   assert.equal(findCommand('teleport').name, 'teleport');
   assert.equal(findCommand('tp').name, 'teleport');

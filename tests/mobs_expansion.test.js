@@ -564,7 +564,10 @@ test('Ender Dragon: Boss Bar UI, End Crystal healing, dragon breath, and exit po
 
   // Dragon death -> Exit portal and Dragon Egg
   bossManager.enderDragon.health = 0;
-  bossManager.updateEnderDragonBoss(bossManager.enderDragon, 0.1, { position: new THREE.Vector3(0, 30, 0) });
+  // Its death plays out over about 10 s (flying to the podium, then rising) before the portal opens.
+  for (let t = 0; bossManager.enderDragon && t < 30; t += 0.1) {
+    bossManager.updateEnderDragonBoss(bossManager.enderDragon, 0.1, { position: new THREE.Vector3(0, 30, 0) });
+  }
   // The podium's portal sits one above the island top at 0, 0 (32 here) and the egg on its pillar, four above that.
   assert.equal(world.getVoxel(0, 37, 0), BLOCKS.DRAGON_EGG, 'Dragon egg placed on the exit podium pillar');
   assert.equal(world.getVoxel(1, 33, 1), BLOCKS.END_PORTAL, 'and the exit portal is active');

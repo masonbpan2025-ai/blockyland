@@ -292,9 +292,10 @@ test('XP Orbs Entity Magnetism, Physics, and Collection', () => {
   assert.equal(orb.value, 5);
   assert.equal(entities.xpOrbs.length, 1);
 
-  // Spawn multi XP orbs
-  entities.spawnXpOrbs(new THREE.Vector3(2, 5, 2), 7);
-  assert.ok(entities.xpOrbs.length > 1);
+  // Spawn multi XP orbs: vanilla's sizes, largest first. Experience orb (wiki): "a total value of 1000 would be dropped
+  // as orbs with values 617, 307, 73, and 3".
+  entities.spawnXpOrbs(new THREE.Vector3(2, 5, 2), 1000);
+  assert.deepEqual(entities.xpOrbs.slice(1).map(o => o.value), [617, 307, 73, 3]);
 
   // Test player magnetic attraction & collection
   const player = {
@@ -314,6 +315,23 @@ test('XP Orbs Entity Magnetism, Physics, and Collection', () => {
   entities.update(0.05, player, null);
   assert.equal(playedPickup, true);
   assert.ok(player.exp > 0 || player.level > 0, 'Player collected XP from orb');
+});
+
+test('an XP orb over a chunk that is not loaded waits there instead of falling out of the world', () => {
+  const scene = new THREE.Scene();
+  const loaded = new Set(['0,0']);
+  // Unloaded chunks read as air, as the game's world does.
+  const world = { getVoxel: () => BLOCKS.AIR, getChunk: (cx, cz) => (loaded.has(`${cx},${cz}`) ? {} : null) };
+  const entities = new EntityManager(scene, world, {});
+  const far = entities.spawnXpOrb(new THREE.Vector3(40.5, 30, 40.5), 617);
+  const near = entities.spawnXpOrb(new THREE.Vector3(8.5, 30, 8.5), 617);
+  const farY = far.mesh.position.y, nearY = near.mesh.position.y;
+  for (let i = 0; i < 40; i++) entities.update(0.05, null, null);
+  assert.equal(far.mesh.position.y, farY, 'the orb in the unloaded chunk did not move');
+  assert.ok(near.mesh.position.y < nearY - 5, 'the orb in a loaded chunk falls');
+  loaded.add('2,2');
+  for (let i = 0; i < 10; i++) entities.update(0.05, null, null);
+  assert.ok(far.mesh.position.y < farY, 'and falls once its chunk loads');
 });
 
 test('Enchanting Table GUI Integration - Open, Slot, Select Offer & Enchant', async () => {

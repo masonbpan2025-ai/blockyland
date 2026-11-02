@@ -9,6 +9,9 @@ import { addPlayerExperience } from './experience.js';
 import { isFireproof } from './smithing.js';
 import { CombatParticles } from './combatParticles.js';
 
+/** Vanilla's experience orb values, largest first (ExperienceOrb.getExperienceValue). */
+export const XP_ORB_SIZES = [2477, 1237, 617, 307, 149, 73, 37, 17, 7, 3, 1];
+
 /**
  * How bright an explosion's glow is: fading over its 0.35 s life, scaled by its power, and by how near the player is --
  * full within 4 blocks, nothing beyond 28. Without a position (the moment of the blast) it is at full strength.
@@ -209,12 +212,18 @@ export class EntityManager {
     return orb;
   }
 
-  // Spawn multiple XP orbs totaling totalXp
+  /**
+   * Spawn orbs totalling totalXp, in vanilla's orb sizes. Experience orb (Minecraft Wiki): killing mobs and the rest
+   * "calculate their total experience amount and then split it into the base values of orbs by size (1, 3, 7, 17, 37,
+   * 73, 149, 307, 617, 1237, and 2477). Higher values are chosen first".
+   * Splitting into orbs of 1 to 3 made the ender dragon's 12 000 into about 6 000 orbs, hundreds of which were never
+   * collected, and a frame of physics for each.
+   */
   spawnXpOrbs(pos, totalXp = 1) {
     if (totalXp <= 0) return;
     let remaining = Math.floor(totalXp);
     while (remaining > 0) {
-      const take = Math.min(remaining, Math.random() < 0.4 ? 1 : (Math.random() < 0.5 ? 2 : 3));
+      const take = XP_ORB_SIZES.find(size => size <= remaining);
       this.spawnXpOrb(pos, take);
       remaining -= take;
     }
@@ -603,8 +612,14 @@ export class EntityManager {
         }
       }
 
+      // An orb over a chunk that is not loaded stays where it is, as vanilla's entities do outside loaded chunks: the
+      // missing chunk reads as air, so it used to fall out of the world. The ender dragon's experience, dropped over
+      // the exit portal while the player was still on the platform 100 blocks away, was lost that way.
+      const unloaded = typeof this.world.getChunk === 'function'
+        && !this.world.getChunk(Math.floor(orb.mesh.position.x / 16), Math.floor(orb.mesh.position.z / 16));
+
       // Physics when not magnetically flying
-      if (!attracted) {
+      if (!attracted && !unloaded) {
         // Gravity
         orb.velocity.y -= 18 * dt;
 

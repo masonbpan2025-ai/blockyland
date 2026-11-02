@@ -2181,7 +2181,7 @@ export const BLOCK_DEFS = {
   // found by the wiki parity audit's B-LIGHT case.
   [BLOCKS.SCULK_SENSOR]: { name: 'Sculk Sensor', hardness: 1.5, sound: 'stone', transparent: true, solid: true, sculkSensor: true, light: 1, drop: BLOCKS.SCULK_SENSOR, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
   [BLOCKS.SCULK_SHRIEKER]: { name: 'Sculk Shrieker', hardness: 3.0, sound: 'stone', transparent: true, solid: true, sculkShrieker: true, drop: BLOCKS.SCULK_SHRIEKER, textures: { all: 'sculk_catalyst_side.png', top: 'sculk_catalyst_top.png' } },
-  [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, light: 1, dropItem: 'dragon_egg', textures: { all: 'obsidian.png' } },
+  [BLOCKS.DRAGON_EGG]: { name: 'Dragon Egg', hardness: 3.0, sound: 'stone', transparent: false, solid: true, dragonEgg: true, light: 1, dropItem: 'dragon_egg', textures: { all: 'dragon_egg.png' } },
   [BLOCKS.END_PORTAL]: { name: 'End Portal', hardness: -1, sound: 'glass', light: 15, transparent: true, solid: false, portal: true, endPortal: true, textures: { all: 'end_gateway.png' } },
   // This entry had `textures: { all: 'coal_block.png' }` and a `skull: true` flag that nothing in the
   // codebase reads, so it rendered as a coal cube. It now carries `head`, which is what routes a block to

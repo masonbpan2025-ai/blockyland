@@ -435,8 +435,11 @@ export class BossFightManager {
       player = maybePlayer;
     }
     const dragon = this.enderDragon || dtOrDragon;
-    if (!dragon || dragon.health <= 0) {
-      if (dragon?.health <= 0) this.onDragonDefeated();
+    if (!dragon) return;
+    if (dragon.health <= 0) {
+      // A managed dragon dies the vanilla way (updateDragonDeath); one outside the encounter has nothing to play out.
+      if (dragon.endEncounterManaged && dragon.mesh) this.updateDragonDeath(dragon, dt, player);
+      else this.onDragonDefeated();
       return;
     }
 
@@ -529,16 +532,118 @@ export class BossFightManager {
     createDragonBreathCloud(this.mobManager,pos);
   }
 
-  onDragonDefeated() {
+  /**
+   * The dragon's death, as the wiki (Ender Dragon, "Death and drops") describes it: it first flies to the top of the
+   * exit portal at (0, 0), then slowly rises for 10 seconds while beams of light break out of its body. From 7.75 s it
+   * drops its experience (ten orbs, one every 5 ticks, then the last, larger one), and at 10 s it is gone: the exit
+   * portal fills in, the dragon egg appears on the podium, and an End gateway opens. Everything appeared the instant its
+   * health reached zero before, with the body tipping over like any other mob.
+   */
+  updateDragonDeath(dragon, dt, player) {
+    const state = endStateFor(this.world);
+    if (!dragon.deathSequence) {
+      const firstKill = state.kills === 0;
+      dragon.deathSequence = { phase: 'approach', time: 0, approachTime: 0, orbs: 0, beams: null, firstKill };
+      dragon.velocity?.set?.(0, 0, 0);
+      dragon.healingCrystal = null;
+      state.health = 0;
+      this.ui?.removeBossBar?.('ender_dragon');
+      if (this.sounds?.playDragonDeath) this.sounds.playDragonDeath(); else this.sounds?.playDragonRoar?.();
+      for (const c of this.endCrystals) if (c.alive) this.setCrystalBeam(c, null);
+      // "Free the End": the kill is the player's once they hurt it (mobs.js grants kills at a mob's death; the managed
+      // dragon does not die there).
+      if (dragon.playerDamaged || dragon.lastAttacker === this.game?.player) {
+        const pp = player?.position;
+        advancementEvent('kill', { type: 'ender_dragon', distance: pp ? dragon.mesh.position.distanceTo(pp) : 0, projectile: !!dragon.lastHitByProjectile, dimension: 'the_end' });
+      }
+    }
+    const seq = dragon.deathSequence, top = new THREE.Vector3(0, this.podiumY() + 4, 0);
+    if (seq.phase === 'approach') {
+      // To the highest block of the (0, 0) column: the top of the exit portal's pillar. It can still hit things on the
+      // way, which this leaves to its body passing through.
+      seq.approachTime += dt;
+      const to = top.clone().sub(dragon.mesh.position), dist = to.length();
+      if (dist < 1 || seq.approachTime > 8) { dragon.mesh.position.copy(top); seq.phase = 'ascend'; }
+      else {
+        dragon.mesh.position.addScaledVector(to.normalize(), Math.min(dist, 14 * dt));
+        dragon.mesh.rotation.y = Math.atan2(to.x, to.z);
+      }
+      return;
+    }
+    // Ascending: about 2 blocks a second, beams growing out of it, the body fading in the last seconds.
+    seq.time += dt;
+    dragon.mesh.position.y += 2 * dt;
+    dragon.mesh.rotation.y += 0.4 * dt;
+    this.updateDeathBeams(dragon, seq);
+    if (seq.time > 7) {
+      const fade = 1 - THREE.MathUtils.smoothstep(seq.time, 7, 10);
+      dragon.mesh.traverse(o => { for (const m of [o.material].flat().filter(Boolean)) { m.transparent = true; m.opacity = Math.min(m.opacity ?? 1, fade); } });
+    }
+    // Experience: from DragonDeathTime 150 (7.5 s) an orb every 5 ticks, the first at 155. 12 000 for the first kill
+    // (ten of 960 and one of 2400), 500 for a respawned dragon.
+    const total = seq.firstKill ? 12000 : 500, each = seq.firstKill ? 960 : 40;
+    while (seq.orbs < 10 && seq.time >= 7.75 + seq.orbs * 0.25) { this.spawnDragonXp(dragon.mesh.position, each); seq.orbs++; }
+    if (seq.time < 10) return;
+    if (seq.orbs === 10) { this.spawnDragonXp(dragon.mesh.position, total - each * 10); seq.orbs++; }
+    this.removeDeathBeams(seq);
+    if (typeof this.mobManager.removeMob === 'function') this.mobManager.removeMob(dragon, 'dragon_death');
+    else { dragon.mesh.removeFromParent(); this.mobManager.mobs = this.mobManager.mobs.filter(m => m !== dragon); }
+    this.onDragonDefeated({ xp: false });
+  }
+
+  spawnDragonXp(position, amount) {
+    const at = position.clone();
+    if (this.entities?.spawnXpOrbs) this.entities.spawnXpOrbs(at, amount);
+    else this.mobManager.spawnXpOrbs?.(at, amount);
+  }
+
+  /** The beams of light that break out of the dying dragon: more of them, longer, as the 10 seconds run. */
+  updateDeathBeams(dragon, seq) {
+    const scene = this.mobManager.scene;
+    if (!scene) return;
+    if (!seq.beams) {
+      seq.beams = new THREE.Group();
+      seq.beams.name = 'dragon-death-beams';
+      const material = new THREE.MeshBasicMaterial({ color: 0xfff0ff, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      for (let i = 0; i < 20; i++) {
+        const beam = new THREE.Mesh(new THREE.ConeGeometry(1.4, 1, 4, 1, true), material);
+        beam.geometry.translate(0, -0.5, 0);
+        beam.geometry.rotateX(Math.PI);
+        const dir = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
+        beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        beam.userData.appearsAt = i * 0.45;
+        beam.userData.length = 24 + Math.random() * 28;
+        beam.visible = false;
+        seq.beams.add(beam);
+      }
+      scene.add(seq.beams);
+    }
+    seq.beams.position.copy(dragon.mesh.position);
+    seq.beams.rotation.y += 0.02;
+    for (const beam of seq.beams.children) {
+      const grow = THREE.MathUtils.clamp((seq.time - beam.userData.appearsAt) / 2, 0, 1);
+      beam.visible = grow > 0;
+      beam.scale.set(0.3 + grow, beam.userData.length * grow, 0.3 + grow);
+    }
+  }
+
+  removeDeathBeams(seq) {
+    if (!seq.beams) return;
+    seq.beams.removeFromParent();
+    seq.beams.traverse(o => { o.geometry?.dispose(); });
+    seq.beams.children[0]?.material?.dispose();
+    seq.beams = null;
+  }
+
+  onDragonDefeated({ xp = true } = {}) {
     const state=endStateFor(this.world);
     if(state.defeated)return;
     state.defeated=true;state.health=0;
-    const xp=state.kills===0?12000:500;
+    const amount=state.kills===0?12000:500;
     state.kills++;
     this.ui?.removeBossBar?.('ender_dragon');this.sounds?.playVictoryFanfare?.();
-    const position=new THREE.Vector3(0,this.podiumY()+3,0);
-    if(this.entities?.spawnXpOrbs)this.entities.spawnXpOrbs(position,xp);
-    else this.mobManager.spawnXpOrbs?.(position,xp);
+    // Without the death sequence (a save from mid-fight with the dragon at zero), the experience comes all at once.
+    if(xp)this.spawnDragonXp(new THREE.Vector3(0,this.podiumY()+3,0),amount);
     this.activateEndExitPortal(true);
     // And a small gateway to the nearest End city, with one there back to the main island.
     const links=openEndCityLinks(this.world);
