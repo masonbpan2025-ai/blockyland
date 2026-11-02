@@ -22,6 +22,8 @@ export const VISUAL_POLICIES = {
 export function canSupportPlant(belowBlockId, plantBlockId) {
   const netherSupport=netherPlantSupport(belowBlockId,plantBlockId);
   if(netherSupport!==null)return netherSupport;
+  // A sunflower's head stands on its own stalk.
+  if (plantBlockId === BLOCKS.SUNFLOWER && belowBlockId === BLOCKS.SUNFLOWER_STALK) return true;
   if (belowBlockId === undefined || belowBlockId === null || belowBlockId === BLOCKS.AIR) return false;
   const def = BLOCK_DEFS[belowBlockId];
   if (!def || def.solid === false || def.plant) return false;

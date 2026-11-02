@@ -2,6 +2,11 @@ import { advancementEvent } from './advancements.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { explosionBlocks } from './blockHarvestData.js';
+import { explosionDamage } from './creeperBehavior.js';
+
+/** A bed's explosion in the Nether or the End (wiki: Bed). */
+export const BED_EXPLOSION_POWER = 5;
 // The 16 dye colours, shared with the wool and concrete families so a bed's blanket cannot drift
 // from a wool block of the same colour.
 import { timeAfterSleep, sleepingAllowedIn } from './deathAndRespawn.js';
@@ -309,72 +314,58 @@ export class BedManager {
     }
   }
 
-  explode(x, y, z) {
+  /**
+   * A bed used in the Nether or the End explodes: "power 5 ... the explosion also creates fire" -- the damage is
+   * Intentional Game Design (https://minecraft.wiki/w/Bed#Usage). It was a hand-made 3-block sphere with a flat damage
+   * curve and no blast to see; it now uses the explosion rules a creeper and TNT use (blockHarvestData explosionBlocks,
+   * creeperBehavior explosionDamage) and the explosion effect, and sets a third of the open cells on fire.
+   * Respawn anchors used outside the Nether come here too.
+   */
+  explode(x, y, z, { power = BED_EXPLOSION_POWER, random = Math.random } = {}) {
     const world = this.game.world;
     const pos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
+    const difficulty = this.game.difficulty ?? 'normal';
+    this.game.sounds?.playExplosion?.();
+    this.game.entities?.spawnExplosion?.(pos, power);
 
-    // 1. Play explosion sound
-    if (this.game.sounds?.playExplosion) {
-      this.game.sounds.playExplosion();
-    }
-
-    // 2. Remove bed blocks
+    // The bed goes first (both halves), and drops nothing.
     const bed = this.getBed(x, y, z);
-    if (bed) {
-      world.setVoxel(...bed.footPos, BLOCKS.AIR);
-      world.setVoxel(...bed.headPos, BLOCKS.AIR);
-      this.beds.delete(this.getKey(...bed.footPos));
-      this.beds.delete(this.getKey(...bed.headPos));
-    } else {
-      world.setVoxel(x, y, z, BLOCKS.AIR);
+    const removed = bed ? [bed.footPos, bed.headPos] : [[x, y, z]];
+    for (const cell of removed) world.setVoxel(...cell, BLOCKS.AIR);
+    if (bed) { this.beds.delete(this.getKey(...bed.footPos)); this.beds.delete(this.getKey(...bed.headPos)); }
+
+    // Blocks, by the explosion's rays; then fire on a third of the cleared cells that have a block under them.
+    const broken = explosionBlocks(world, pos, power, random);
+    for (const b of broken) world.setVoxel(b.x, b.y, b.z, BLOCKS.AIR);
+    for (const b of [...broken, ...removed.map(([bx, by, bz]) => ({ x: bx, y: by, z: bz }))]) {
+      const below = world.getVoxel(b.x, b.y - 1, b.z);
+      if (world.getVoxel(b.x, b.y, b.z) === BLOCKS.AIR && below !== BLOCKS.AIR && BLOCK_DEFS[below]?.solid !== false && random() < 1 / 3) world.setVoxel(b.x, b.y, b.z, BLOCKS.FIRE);
     }
 
-    // 3. Destroy blocks in 3-block sphere
-    const radius = 3;
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dz = -radius; dz <= radius; dz++) {
-          const distSq = dx * dx + dy * dy + dz * dz;
-          if (distSq <= radius * radius) {
-            const bx = Math.floor(x) + dx;
-            const by = Math.floor(y) + dy;
-            const bz = Math.floor(z) + dz;
-            const v = world.getVoxel(bx, by, bz);
-            if (v !== BLOCKS.AIR && v !== BLOCKS.BEDROCK && v !== BLOCKS.OBSIDIAN) {
-              world.setVoxel(bx, by, bz, BLOCKS.AIR);
-              // Small chance to place fire around explosion center
-              if (Math.random() < 0.25 && world.getVoxel(bx, by - 1, bz) !== BLOCKS.AIR) {
-                world.setVoxel(bx, by, bz, BLOCKS.FIRE);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 4. Damage player & knockback
+    // The player and mobs nearby: the explosion's damage by distance, and a push away from it.
     const player = this.game.player;
-    if (player) {
-      const pDist = player.position.distanceTo(pos);
-      if (pDist < 6) {
-        const damage = Math.round(Math.max(4, 20 * (1 - pDist / 6)));
-        player.takeDamage?.(damage);
-        const knock = player.position.clone().sub(pos).normalize().multiplyScalar(15);
-        if (player.velocity) {
-          player.velocity.x += knock.x;
-          player.velocity.y += Math.max(8, knock.y);
-          player.velocity.z += knock.z;
-        }
+    if (player?.position && player.gamemode !== 'creative' && player.gamemode !== 'spectator') {
+      const d = pos.distanceTo(player.position.clone().add(new THREE.Vector3(0, 0.9, 0)));
+      const damage = explosionDamage(power, d, difficulty);
+      if (damage > 0) {
+        player.takeDamage?.(damage, pos, 'bad_respawn_point');
+        const push = player.position.clone().sub(pos).normalize().multiplyScalar(Math.max(0, 1 - d / (2 * power)) * 12);
+        if (player.velocity) { player.velocity.x += push.x; player.velocity.y += Math.max(4, push.y); player.velocity.z += push.z; }
       }
     }
-
-    // 5. Spawn explosion particles
-    if (this.game.entities?.spawnBlockParticles) {
-      this.game.entities.spawnBlockParticles(pos, BLOCKS.FIRE);
+    const mobs = this.game.mobs;
+    for (const mob of mobs?.mobs?.slice?.() ?? []) {
+      if (!mob?.mesh || mob.health <= 0 || mob.dying) continue;
+      const damage = explosionDamage(power, pos.distanceTo(mob.mesh.position), difficulty);
+      if (damage > 0) mobs.damageMob?.(mob, damage, pos, false, null, true);
     }
 
-    // 6. Reload chunks
+    this.lastExplosion = { x, y, z, power, broken: broken.length };
     this.game.loadChunksAroundPlayer?.();
+    for (const key of new Set([...broken, { x, z }].map((b) => `${Math.floor(b.x / 16)},${Math.floor(b.z / 16)}`))) {
+      const chunk = world.getChunk?.(...key.split(',').map(Number));
+      if (chunk) this.game.rebuildChunkMesh?.(chunk);
+    }
     this.game.refreshDirtyChunks?.();
   }
 

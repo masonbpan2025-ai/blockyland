@@ -1,8 +1,15 @@
+/* Words in the game use the system's own sans-serif font (--ui-font), the easiest to read on every platform.
+   Pixelify Sans, a pixel font (SIL Open Font License 1.1, public/assets/fonts/PixelifySans-OFL.txt), is kept for
+   the BLOCKYLAND logo only. A variable font: one file covers weights 400-700. */
 @font-face {
-  font-family: 'Minecraft';
-  src: url('/assets/fonts/Minecraft.otf') format('opentype');
-  font-weight: normal;
+  font-family: 'Pixelify Sans';
+  src: url('/assets/fonts/PixelifySans.ttf') format('truetype');
+  font-weight: 400 700;
   font-style: normal;
+}
+
+:root {
+  --ui-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 
 * {
@@ -23,7 +30,7 @@ html, body {
     url('/assets/blocks/dirt.png');
   background-repeat: repeat;
   background-size: 64px 64px;
-  font-family: 'Minecraft', monospace, sans-serif;
+  font-family: var(--ui-font);
   color: #fff;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
@@ -419,7 +426,7 @@ html, body {
   border-right-color: #373737;
   border-bottom-color: #373737;
   color: #e0e0e0;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 16px;
   text-shadow: 1px 1px 0 #252525;
   cursor: pointer;
@@ -670,7 +677,7 @@ html, body {
 .slot-hint-label {
   font-size: 10px;
   color: #c4b5fd;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   font-weight: bold;
   text-shadow: 1px 1px 0 #000;
 }
@@ -751,7 +758,7 @@ html, body {
   font-size: 14px;
   letter-spacing: 2px;
   color: #d8b4fe;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   text-shadow: 0 0 4px #a855f7;
 }
 
@@ -918,7 +925,7 @@ html, body {
   border: none;
   outline: none;
   color: #55ff55;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 13px;
   width: 110px;
 }
@@ -1041,7 +1048,7 @@ html, body {
 
 .destroy-x-icon {
   color: #d93838;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 26px;
   font-weight: bold;
   line-height: 1;
@@ -1097,7 +1104,7 @@ html, body {
   border-right-color: #373737;
   border-bottom-color: #373737;
   color: #e0e0e0;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 11px;
   padding: 2px 8px;
   cursor: pointer;
@@ -1119,7 +1126,7 @@ html, body {
   border-radius: 3px;
   padding: 5px 8px;
   color: #ffffff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 13px;
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
   display: flex;
@@ -1138,7 +1145,6 @@ html, body {
   color: #aaaaaa;
   font-size: 11px;
 }
-
 
 /* Chat overlay */
 #chat-container {
@@ -1193,7 +1199,7 @@ html, body {
   background: rgba(0, 0, 0, 0.7);
   border: 1px solid #555;
   color: #fff;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   font-size: 14px;
   padding: 0 8px;
   outline: none;
@@ -1223,6 +1229,8 @@ html, body {
 }
 
 .mc-logo {
+  /* The logo keeps the pixel look; it is a picture of the name more than words to read. */
+  font-family: 'Pixelify Sans', var(--ui-font);
   font-size: 52px;
   color: #e0e0e0;
   text-shadow: 3px 3px 0 #3f3f3f, 6px 6px 0 #000000;
@@ -1256,7 +1264,21 @@ html, body {
   border-color: #e9d4a3 #493720 #493720 #e9d4a3;
 }
 
+/* The non-affiliation notice: always on the title screen, small enough not to compete with the buttons. */
+#start-overlay .start-legal {
+  position: absolute;
+  bottom: 10px;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+  font: 12px/1.4 sans-serif;
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
 @media (max-height: 760px) {
+  #start-overlay .start-legal { position: static; margin: 12px 16px 0; }
   #start-overlay { padding: 16px 0; overflow-y: auto; }
   #start-overlay .mc-logo { font-size: 40px; }
   #start-overlay .start-actions-row { gap: 8px; }
@@ -1447,7 +1469,7 @@ html, body {
   padding: 16px 20px;
   gap: 12px;
   position: relative;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   animation: geminiFadeIn 0.22s ease-out;
 }
 
@@ -1545,7 +1567,7 @@ html, body {
   border-radius: 5px;
   background: #182238;
   color: #c6d5f3;
-  font: 11px 'Minecraft', monospace;
+  font: 11px var(--ui-font);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1575,7 +1597,7 @@ html, body {
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
 }
 
 .gemini-icon-btn:hover {
@@ -1630,51 +1652,6 @@ html, body {
   font-size: 11px;
 }
 
-.gemini-key-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.gemini-key-vault { display: grid; gap: 8px; padding: 8px 0; }
-.gemini-key-vault [hidden] { display: none !important; }
-.gemini-key-row input { min-width: 160px; }
-
-/* Refresh / custom id / follow-newest, under the model picker. */
-.gemini-model-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-}
-
-.gemini-model-tools input[type="text"] {
-  flex: 1 1 140px;
-  min-width: 0;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid #445577;
-  color: #fff;
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 4px;
-  outline: none;
-}
-
-.gemini-model-tools .gemini-vendor-hint {
-  flex-basis: 100%;
-}
-
-.gemini-key-row input {
-  flex: 1;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid #445577;
-  color: #fff;
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 4px;
-  outline: none;
-}
-
 .gemini-btn-sm {
   background: #3b5998;
   border: 1px solid #5a7ec8;
@@ -1683,7 +1660,7 @@ html, body {
   font-size: 12px;
   border-radius: 4px;
   cursor: pointer;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
 }
 
 .gemini-btn-sm:hover {
@@ -1700,104 +1677,8 @@ html, body {
   background: #d97706;
 }
 
-/* Vendor picker */
-.gemini-vendor-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.gemini-vendor-btn {
-  flex: 1 1 96px;
-  min-width: 96px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  background: rgba(35, 45, 75, 0.7);
-  border: 1px solid #445577;
-  color: #b9c9e8;
-  border-radius: 5px;
-  padding: 6px 9px;
-  cursor: pointer;
-  font-family: 'Minecraft', monospace;
-  font-size: 12px;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-
-.gemini-vendor-btn:hover {
-  background: rgba(52, 68, 110, 0.85);
-}
-
-.gemini-vendor-btn.active {
-  background: rgba(59, 89, 152, 0.95);
-  border-color: #7aa2ff;
-  color: #fff;
-  box-shadow: 0 0 0 1px rgba(122, 162, 255, 0.35) inset;
-}
-
-.gemini-vendor-name {
-  font-weight: bold;
-}
-
-.gemini-vendor-key-state {
-  font-size: 10px;
-  opacity: 0.65;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.gemini-vendor-btn.active .gemini-vendor-key-state {
-  opacity: 0.9;
-}
-
-.gemini-vendor-key-state.ready {
-  color: #7ee787;
-  opacity: 1;
-}
-
-/* Model & effort controls */
-.gemini-controls-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.gemini-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1 1 150px;
-  min-width: 0;
-}
-
-.gemini-field.hidden,
 .gemini-check.hidden {
   display: none;
-}
-
-.gemini-field-label {
-  font-size: 10px;
-  color: #8899b5;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.gemini-field select {
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid #445577;
-  color: #fff;
-  padding: 4px 6px;
-  font-size: 12px;
-  border-radius: 4px;
-  outline: none;
-  font-family: 'Minecraft', monospace;
-  cursor: pointer;
-}
-
-.gemini-field select:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 /* Current-view capture toggle */
@@ -1829,48 +1710,6 @@ html, body {
 
 .gemini-vendor-hint a {
   color: #60a5fa;
-}
-
-/* Quick Prompt Chips */
-.gemini-chips-container {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.gemini-chips-label {
-  font-size: 11px;
-  color: #8899b5;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.gemini-chips-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-height: 80px;
-  overflow-y: auto;
-}
-
-.gemini-chip {
-  background: rgba(35, 45, 75, 0.7);
-  border: 1px solid rgba(80, 130, 220, 0.35);
-  color: #c0d4ff;
-  padding: 4px 8px;
-  border-radius: 14px;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-  font-family: 'Minecraft', monospace;
-}
-
-.gemini-chip:hover {
-  background: rgba(66, 133, 244, 0.35);
-  border-color: #64b5f6;
-  color: #ffffff;
-  transform: translateY(-1px);
 }
 
 /* Terminal Feed */
@@ -2007,7 +1846,7 @@ html, body {
   outline: none;
   color: #fff;
   font-size: 14px;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   padding: 8px 0;
 }
 
@@ -2024,7 +1863,7 @@ html, body {
   padding: 8px 16px;
   font-size: 13px;
   font-weight: bold;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2590,7 +2429,7 @@ html, body {
   border-right-color: #373737;
   border-bottom-color: #373737;
   color: #e0e0e0;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 14px;
   cursor: pointer;
   display: flex;
@@ -2638,7 +2477,7 @@ html, body {
   border-bottom-color: #ffffff;
   border-right-color: #ffffff;
   padding: 8px 10px;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 15px;
   color: #ffffff;
   outline: none;
@@ -2836,7 +2675,7 @@ html, body {
   height: 28px;
   padding: 0 10px;
   font-size: 12px;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   border: 2px solid #ffffff;
   border-right-color: #373737;
   border-bottom-color: #373737;
@@ -2884,7 +2723,7 @@ html, body {
 
 .boss-bar-title {
   color: #f3e8ff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 15px;
   font-weight: bold;
   letter-spacing: 1px;
@@ -2934,7 +2773,7 @@ html, body {
 
 .death-title {
   color: #fff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 40px;
   margin: 0 0 4px 0;
   text-shadow: 3px 3px 0 #3f3f3f;
@@ -2942,7 +2781,7 @@ html, body {
 
 .death-score {
   color: #fff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 18px;
   margin-bottom: 14px;
   text-shadow: 1px 1px 0 #000;
@@ -2954,7 +2793,7 @@ html, body {
 
 .death-cause {
   color: #fff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 16px;
 }
 
@@ -3010,7 +2849,7 @@ html, body {
 
 .defeat-title {
   color: #f87171;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 36px;
   font-weight: 900;
   letter-spacing: 2px;
@@ -3020,7 +2859,7 @@ html, body {
 
 .defeat-message {
   color: #ffffff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 18px;
   margin: 8px 0 12px 0;
   text-shadow: 1px 1px 0 #000;
@@ -3084,7 +2923,7 @@ html, body {
 }
 
 .opt-name {
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 13px;
   font-weight: bold;
 }
@@ -3095,7 +2934,7 @@ html, body {
 }
 
 .control-tag {
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font);
   font-size: 10px;
   font-weight: bold;
   letter-spacing: 0.5px;
@@ -3135,12 +2974,6 @@ html, body {
   transform: scale(1.02);
 }
 
-
-
-
-
-
-
 /* --- World generation / map loading progress ------------------------------ */
 
 #world-progress-overlay {
@@ -3166,7 +2999,7 @@ html, body {
   border: 2px solid #4a5b7d;
   border-radius: 8px;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   color: #e6edf7;
 }
 
@@ -3243,16 +3076,11 @@ html, body {
   max-height: 90vh;
 }
 
-/* Hide Quick Prompts & Ideas in Building Studio Mode */
-.studio-mode .gemini-chips-container {
-  display: none !important;
-}
-
 /* --------------------------------------------------------------------------
    Building Studio docking
    The studio's file panel and the Agent Terminal share a narrow left column:
    Save/Open sit directly above the terminal, and the rest of the screen is
-   left open so the structure can be seen. AI Settings expands the terminal to
+   left open so the structure can be seen. Connect AI expands the terminal to
    the full-size settings window; closing the drawer docks it again.
    -------------------------------------------------------------------------- */
 #gemini-modal.studio-mode {
@@ -3317,7 +3145,7 @@ html, body {
 #gemini-modal.studio-mode #gemini-prompt-input { font-size: 12px; padding: 6px 0; }
 #gemini-modal.studio-mode .gemini-exec-btn { padding: 6px 10px; font-size: 11px; }
 
-/* AI Settings: the terminal becomes the big settings window and the game view dims behind it. */
+/* Connect AI: the terminal becomes the big window and the game view dims behind it. */
 #gemini-modal.studio-mode.studio-settings-expanded {
   justify-content: center;
   align-items: center;
@@ -3381,7 +3209,7 @@ html, body {
   flex-direction: column;
   padding: 16px;
   gap: 12px;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   color: #f8fafc;
   animation: geminiFadeIn 0.22s ease-out;
 }
@@ -3569,7 +3397,6 @@ html, body {
   pointer-events: none;
 }
 
-
 .mc-dialog-card {
   width: 440px;
   max-width: 90vw;
@@ -3581,7 +3408,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  font-family: 'Minecraft', monospace;
+  font-family: var(--ui-font);
   color: #f8fafc;
 }
 
@@ -3667,7 +3494,7 @@ html, body {
   padding: 6px 10px;
   border-radius: 5px;
   cursor: pointer;
-  font: 12px 'Minecraft', monospace;
+  font: 12px var(--ui-font);
 }
 
 .studio-open-tab:hover { border-color: #38bdf8; color: #fff; }
@@ -3896,7 +3723,7 @@ html, body {
 
 .sleeping-title {
   color: #f1f5f9;
-  font-family: 'Minecraft', monospace, sans-serif;
+  font-family: var(--ui-font);
   font-size: 28px;
   font-weight: bold;
   text-shadow: 2px 2px 0 #000;
@@ -3939,9 +3766,6 @@ html, body {
     filter: hue-rotate(-20deg) contrast(170%) saturate(210%);
   }
 }
-
-
-
 
 /* F1 hides the HUD, as vanilla's `key.toggleGui` does. !important because the F3 toggle writes an inline
    display on the debug screens, and F1 has to be able to hide them anyway. Chat stays visible. */
@@ -3995,8 +3819,185 @@ body.hud-hidden #offhand-hud-slot {
   }
 }
 
-
 /* A compass in the hotbar shows its needle (compass.js): red toward the target, spinning where there is none. */
 .hotbar-slot { position: relative; }
 .compass-needle { position: absolute; left: 50%; top: 50%; width: 3px; height: 38%; background: linear-gradient(#e53935 0 55%, #f5f5f5 55%); transform-origin: 50% 100%; transform: translate(-50%, -100%); border-radius: 2px; pointer-events: none; box-shadow: 0 0 1px rgba(0,0,0,.8); }
 .compass-needle.lodestone { background: linear-gradient(#7e57c2 0 55%, #f5f5f5 55%); }
+
+/* The recipe book (recipeBookUi.js): a panel beside the crafting window, in the window's own grey. */
+.recipe-book{width:236px;align-self:stretch;max-height:520px;margin-right:8px;background:#c6c6c6;border:4px solid #fff;border-right-color:#555;border-bottom-color:#555;padding:10px;box-shadow:0 10px 40px rgba(0,0,0,.9);color:#3f3f3f;display:flex;flex-direction:column;gap:8px}
+.recipe-book[hidden]{display:none}
+.rb-top{display:flex;gap:6px}
+.rb-search{flex:1;min-width:0;background:#000;color:#fff;border:2px solid #a0a0a0;font:inherit;font-size:12px;padding:4px 6px}
+.rb-toggle,.rb-tab,.rb-prev,.rb-next,.rb-open{background:#8b8b8b;color:#fff;border:2px solid #fff;border-right-color:#373737;border-bottom-color:#373737;cursor:pointer;font:inherit;font-size:12px;padding:3px 7px}
+.rb-toggle.active,.rb-tab.active,.rb-open.active{background:#5b8c33}
+.rb-tabs{display:flex;gap:4px}
+.rb-tab{flex:1;font-size:15px;padding:3px 0}
+.rb-grid{display:grid;grid-template-columns:repeat(5,36px);gap:4px;align-content:start;flex:1;overflow:auto}
+.rb-recipe{cursor:pointer}
+.rb-recipe.rb-missing{background:#b85a5a}
+.rb-empty{grid-column:1/-1;font-size:12px;line-height:1.4;color:#444}
+.rb-pages{display:flex;justify-content:center;align-items:center;gap:10px;font-size:12px}
+.rb-prev:disabled,.rb-next:disabled{opacity:.4;cursor:default}
+.rb-open{position:absolute;top:6px;right:34px;font-size:15px;padding:1px 6px}
+.rb-open[hidden]{display:none}
+.inv-slot.rb-ghost .slot-icon{opacity:.35}
+.inv-slot.rb-ghost{background:#a77}
+@media (max-width:760px){.recipe-book{position:absolute;left:8px;top:8px;bottom:8px;z-index:2;margin:0}}
+
+/* Connect AI (Agent Terminal, Offline Mode off): the player's own AI app through Agent Control */
+.agent-connect-status {
+  font-size: 13px;
+  color: #fde68a;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.agent-connect-drawer[data-status="connected"] .agent-connect-status { color: #4ade80; }
+.agent-connect-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+.agent-connect-steps li > span { display: block; margin-bottom: 4px; }
+.agent-connect-cmd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.agent-connect-cmd code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: 12px/1.4 Consolas, 'Courier New', monospace;
+  color: #e2e8f0;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+  padding: 4px 6px;
+  user-select: all;
+}
+#agent-connect-code {
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #fde68a;
+}
+.agent-connect-drawer .gemini-view-row { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.gemini-log-entry.ai-reply {
+  color: #e9d5ff;
+  border-left: 2px solid #a855f7;
+  padding-left: 6px;
+}
+
+/* What the player's AI app is doing with the latest request (src/agentControl/requestTracker.js) */
+.agent-activity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #dbeafe;
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+}
+.agent-activity-icon { flex: none; font-size: 15px; }
+.agent-activity-text { flex: 1; min-width: 0; }
+.agent-activity-time { flex: none; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.agent-activity[data-state="working"] .agent-activity-icon { display: inline-block; animation: agentActivitySpin 1.6s linear infinite; }
+.agent-activity[data-state="done"] { color: #dcfce7; background: rgba(34, 197, 94, 0.16); border-color: rgba(74, 222, 128, 0.6); font-weight: bold; }
+.agent-activity[data-state="interrupted"] { color: #fef3c7; background: rgba(245, 158, 11, 0.14); border-color: rgba(251, 191, 36, 0.55); }
+@keyframes agentActivitySpin { to { transform: rotate(360deg); } }
+.gemini-log-entry.done {
+  color: #4ade80;
+  font-weight: bold;
+  border-left: 3px solid #22c55e;
+  padding-left: 6px;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+/* Connect AI with its setup steps folded away: one status line and the button to unfold them */
+.agent-connect-status-row { display: flex; align-items: center; gap: 8px; }
+.agent-connect-status-row .agent-connect-status { flex: 1; min-width: 0; }
+.agent-connect-status-row #agent-connect-collapse { flex: none; }
+.agent-connect-details { display: flex; flex-direction: column; gap: 8px; }
+.agent-connect-drawer.collapsed { padding: 6px 8px; gap: 0; }
+.agent-connect-drawer.collapsed .gemini-key-desc { display: none; }
+
+/* The small terminal: docked bottom-left over a clear view of the world, so the player can watch the agent build.
+   The layer behind it stays (transparent): a click on it takes the mouse back to play, the terminal still open. */
+#gemini-modal.agent-compact {
+  background: transparent;
+  justify-content: flex-start;
+  align-items: flex-end;
+  padding: 12px;
+}
+#gemini-modal.agent-compact .studio-workspace-wrapper { max-height: calc(100vh - 24px); }
+#gemini-modal.agent-compact .gemini-terminal-card {
+  width: 460px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  padding: 8px 10px;
+  gap: 6px;
+  background: rgba(12, 16, 28, 0.86);
+  animation: none;
+}
+#gemini-modal.agent-compact .gemini-header { padding-bottom: 6px; gap: 6px; }
+#gemini-modal.agent-compact .gemini-sparkle { font-size: 15px; }
+#gemini-modal.agent-compact .gemini-title { font-size: 13px; }
+#gemini-modal.agent-compact .gemini-pill { font-size: 10px; padding: 2px 6px; }
+#gemini-modal.agent-compact .gemini-offline-toggle { padding: 3px 6px; font-size: 10px; }
+#gemini-modal.agent-compact .gemini-icon-btn { padding: 3px 7px; font-size: 11px; }
+#gemini-modal.agent-compact .gemini-terminal-body { height: 132px; min-height: 80px; padding: 6px 8px; font-size: 12px; }
+#gemini-modal.agent-compact .agent-activity { font-size: 12px; padding: 5px 8px; }
+#gemini-modal.agent-compact .agent-connect-status { font-size: 12px; padding: 4px 6px; }
+#gemini-modal.agent-compact .gemini-input-bar { padding: 2px 6px 2px 8px; gap: 6px; }
+#gemini-modal.agent-compact #gemini-prompt-input { font-size: 12px; padding: 6px 0; }
+#gemini-modal.agent-compact .gemini-exec-btn { padding: 6px 10px; font-size: 11px; }
+#gemini-modal.agent-compact .gemini-progress-wrapper { margin: 0; }
+
+/* The small terminal in Building Studio: the file panel shrinks to a few lines above it, and the column fits the
+   window. The log gives up height first, so the request box is always on screen. */
+#gemini-modal.studio-mode.agent-compact { padding: 12px; }
+#gemini-modal.studio-mode.agent-compact .studio-workspace-wrapper {
+  width: 460px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  min-height: 0;
+  gap: 6px;
+}
+#gemini-modal.studio-mode.agent-compact .building-parameter-panel {
+  width: 100%;
+  max-width: 100%;
+  padding: 6px 10px;
+  gap: 4px;
+  flex: none;
+}
+#gemini-modal.studio-mode.agent-compact .studio-panel-header { padding-bottom: 4px; gap: 6px; }
+#gemini-modal.studio-mode.agent-compact .studio-panel-icon { font-size: 14px; }
+#gemini-modal.studio-mode.agent-compact .studio-panel-title { font-size: 13px; }
+#gemini-modal.studio-mode.agent-compact .studio-building-badge { font-size: 10px; padding: 2px 6px; }
+#gemini-modal.studio-mode.agent-compact .studio-panel-body { gap: 4px; }
+#gemini-modal.studio-mode.agent-compact .studio-file-prompt { padding: 4px 8px; gap: 6px; margin: 0; }
+#gemini-modal.studio-mode.agent-compact .studio-file-prompt-icon { display: none; }
+#gemini-modal.studio-mode.agent-compact .studio-file-prompt strong { font-size: 12px; }
+#gemini-modal.studio-mode.agent-compact .studio-file-prompt small { display: none; }
+#gemini-modal.studio-mode.agent-compact .studio-live-sync { font-size: 11px; gap: 6px; padding: 0; min-height: 0; }
+#gemini-modal.studio-mode.agent-compact .studio-live-btn { padding: 2px 8px; font-size: 11px; min-height: 0; }
+#gemini-modal.studio-mode.agent-compact .studio-panel-footer { padding-top: 4px; gap: 6px; }
+#gemini-modal.studio-mode.agent-compact .studio-panel-footer .mc-btn { padding: 4px 8px; font-size: 12px; min-height: 0; height: auto; }
+#gemini-modal.studio-mode.agent-compact .gemini-terminal-card {
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+#gemini-modal.studio-mode.agent-compact .gemini-terminal-body { height: auto; flex: 1 1 132px; min-height: 48px; max-height: 132px; }
+#gemini-modal.studio-mode.agent-compact .gemini-terminal-card > :not(.gemini-terminal-body) { flex-shrink: 0; }

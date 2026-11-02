@@ -7,8 +7,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { CAST, makeCharacter, posePlayer } from './civCast.js';
-// ?set=weddings shows the Three Weddings key frames; the default is 1500 Players
-const SETS = { civ: () => import('./civFrames.js'), weddings: () => import('./weddingFrames.js') };
+// ?set=weddings shows the Three Weddings key frames, ?set=invasion the 1500 Players invasion ending; the default is 1500 Players
+const SETS = { civ: () => import('./civFrames.js'), weddings: () => import('./weddingFrames.js'), invasion: () => import('./invasionFrames.js') };
 const { FRAMES } = await SETS[new URLSearchParams(location.search).get('set') ?? 'civ']();
 
 const W = 1280, H = 720;

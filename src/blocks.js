@@ -2032,13 +2032,6 @@ export const BLOCK_DEFS = {
     lightColor: 0x61eaff, shape: 'torch', transparent: true, solid: false,
     drop: BLOCKS.SOUL_TORCH, textures: { all: 'soul_torch.svg' }
   },
-  [BLOCKS.ANVIL]: {
-    name: 'Anvil',
-    hardness: 5.0,
-    sound: 'stone',
-    textures: { all: 'anvil.png' }
-  },
-
   // Wood variants
   [BLOCKS.CHERRY_LOG]: { name: 'Cherry Log', hardness: 2.0, sound: 'wood', drop: BLOCKS.CHERRY_LOG, textures: { side: 'cherry_log.png', top: 'cherry_log_top.png', bottom: 'cherry_log_top.png' } },
   [BLOCKS.CHERRY_LEAVES]: { name: 'Cherry Leaves', hardness: 0.2, sound: 'grass', transparent: true, solid: true, drop: BLOCKS.CHERRY_LEAVES, textures: { all: 'cherry_leaves.png' } },
@@ -2228,9 +2221,10 @@ export const BLOCK_DEFS = {
   [BLOCKS.GRINDSTONE]: { name: 'Grindstone', hardness: 2.0, sound: 'stone', workstation: 'weaponsmith', interactable: true, textures: { top: 'stone.png', side: 'dark_oak_planks.png', bottom: 'dark_oak_planks.png' } },
 
   // Anvils, Beacons, and Conduits
-  [BLOCKS.ANVIL]: { name: 'Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'blackstone.png' } },
-  [BLOCKS.CHIPPED_ANVIL]: { name: 'Chipped Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'blackstone.png' } },
-  [BLOCKS.DAMAGED_ANVIL]: { name: 'Damaged Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'blackstone.png' } },
+  // Gravity blocks (fallingBlocks.js): they fall like sand when nothing holds them up.
+  [BLOCKS.ANVIL]: { name: 'Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'anvil.png' } },
+  [BLOCKS.CHIPPED_ANVIL]: { name: 'Chipped Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'anvil.png' } },
+  [BLOCKS.DAMAGED_ANVIL]: { name: 'Damaged Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'anvil.png' } },
   [BLOCKS.BEACON]: { name: 'Beacon', hardness: 3.0, sound: 'glass', light: 15, transparent: true, interactable: true, textures: { all: 'glass.png' } },
   [BLOCKS.CONDUIT]: { name: 'Conduit', hardness: 3.0, sound: 'stone', light: 15, transparent: true, interactable: true, textures: { all: 'prismarine_bricks.png' } },
 
@@ -2284,6 +2278,12 @@ for (const [key, id] of Object.entries(FUTURE_BLOCK_IDS)) {
 Object.assign(BLOCK_DEFS, FUTURE_BLOCK_DEFS);
 BLOCK_DEFS[BLOCKS.FIREFLY_BUSH]={name:'Firefly Bush',hardness:0,sound:'grass',solid:false,transparent:true,plant:true,light:2,drop:BLOCKS.FIREFLY_BUSH,textures:{all:'firefly_bush.svg'},icon:'/assets/blocks/firefly_bush.svg'};
 BLOCK_DEFS[BLOCKS.LIGHTNING_ROD].redstone = true;
+// The sunflower is two blocks tall (https://minecraft.wiki/w/Sunflower): this is its lower half, the stalk, under the
+// SUNFLOWER block, which is the head. It has no item of its own; either half drops the one sunflower, and breaking either
+// half breaks both (main.js). A sunflower used to be the head alone, one block high on the grass.
+if (Object.values(BLOCKS).includes(1418)) throw new Error('block id 1418 is taken: move SUNFLOWER_STALK');
+BLOCKS.SUNFLOWER_STALK = 1418;
+BLOCK_DEFS[BLOCKS.SUNFLOWER_STALK] = { name: 'Sunflower', hardness: 0, sound: 'grass', transparent: true, solid: false, plant: true, drop: BLOCKS.SUNFLOWER, noItem: true, lowerHalfOf: BLOCKS.SUNFLOWER, textures: { all: 'sunflower_bottom.png' } };
 
 export const WATER_PLANT_BLOCK_IDS = new Set([
   BLOCKS.SEAGRASS, BLOCKS.TALL_SEAGRASS, BLOCKS.KELP, BLOCKS.KELP_PLANT, BLOCKS.SEA_PICKLE,

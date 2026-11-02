@@ -300,6 +300,29 @@ export function abandonBlock(name, style, x, y, z) {
 }
 
 /**
+ * The share of cobblestone each vanilla piece turns mossy: its template pool's `mossify_10/20/70_percent` processor
+ * (worldgen/template_pool/village/*, processor_list/mossify_*). Without it the plains temple's tower, its houses and the
+ * taiga village were plain cobblestone, where Minecraft (and Education Edition) mixes in mossy cobblestone.
+ */
+export const VILLAGE_MOSSIFY = {
+  ...Object.fromEntries('plains_small_house_1 plains_small_house_2 plains_small_house_3 plains_small_house_4 plains_small_house_5 plains_small_house_6 plains_small_house_7 plains_small_house_8 plains_medium_house_1 plains_medium_house_2 plains_big_house_1 plains_butcher_shop_1 plains_butcher_shop_2 plains_tool_smith_1 plains_fletcher_house_1 plains_armorer_house_1 plains_fisher_cottage_1 plains_tannery_1 plains_cartographer_1 plains_library_1 plains_library_2 plains_masons_house_1 plains_weaponsmith_1 plains_temple_3 plains_temple_4 plains_stable_1 taiga_small_house_1 taiga_small_house_2 taiga_small_house_3 taiga_small_house_4 taiga_small_house_5 taiga_medium_house_1 taiga_medium_house_2 taiga_medium_house_3 taiga_medium_house_4 taiga_butcher_shop_1 taiga_tool_smith_1 taiga_fletcher_house_1 taiga_shepherds_house_1 taiga_armorer_house_1 taiga_armorer_2 taiga_fisher_cottage_1 taiga_tannery_1 taiga_cartographer_house_1 taiga_library_1 taiga_masons_house_1 taiga_weaponsmith_1 taiga_weaponsmith_2 taiga_temple_1 taiga_small_farm_1 taiga_animal_pen_1 taiga_meeting_point_1 taiga_meeting_point_2'.split(' ').map((n) => [n, 0.1])),
+  ...Object.fromEntries('plains_fountain_01 plains_meeting_point_1'.split(' ').map((n) => [n, 0.2])),
+  ...Object.fromEntries('plains_meeting_point_4 plains_meeting_point_3'.split(' ').map((n) => [n, 0.7])),
+};
+
+/** The processors a piece is placed with: the jigsaw block's replacement, then its pool's mossify rule. */
+export function villagePieceProcessors(name) {
+  const processors = [{ processor_type: 'minecraft:jigsaw_replacement' }];
+  const share = VILLAGE_MOSSIFY[name];
+  if (share) processors.push({ processor_type: 'minecraft:rule', rules: [{
+    input_predicate: { predicate_type: 'minecraft:random_block_match', block: 'minecraft:cobblestone', probability: share },
+    location_predicate: { predicate_type: 'minecraft:always_true' },
+    output_state: 'minecraft:mossy_cobblestone'
+  }] });
+  return { processors };
+}
+
+/**
  * Write a village and report what it spawns.
  *
  * Mobs come from the elements (`entities`): a villager per bed, an iron golem at the meeting point, the pen animals,
@@ -331,7 +354,7 @@ export function realizeVillage(start, setBlock, blockIds, { spawnMob = null, cli
     const random = new LegacyRandom(BigInt(start.seed ?? 0) + BigInt(piece.index) * 2654435761n);
     const placement = placeTemplate({
       template, origin, rotation: piece.rotation, mirror: piece.mirror,
-      processors: { processors: [{ processor_type: 'minecraft:jigsaw_replacement' }] },
+      processors: villagePieceProcessors(name),
       random, world: null
     });
     for (const block of placement.blocks) {

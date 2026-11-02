@@ -17,6 +17,7 @@
 
 import { capturePacks, restorePacks, createPackStore } from './dataPackStore.js';
 import { captureEndState, restoreEndState } from './endProgression.js';
+import { captureSpawnPortals, restoreSpawnPortals } from './dimensionSpawns.js';
 
 /**
  * Bumped when the shape changes.
@@ -103,6 +104,8 @@ export function capturePlayerState(player) {
     spawnPosition: player.spawnPosition
       ? { x: player.spawnPosition.x, y: player.spawnPosition.y, z: player.spawnPosition.z }
       : null,
+    // The recipe book's unlocked recipes (recipeBook.js; also what `/recipe` gives and doLimitedCrafting checks).
+    knownRecipes: player.knownRecipes instanceof Set ? [...player.knownRecipes] : [],
   };
 }
 
@@ -158,6 +161,9 @@ export function applyPlayerState(player, saved, helpers = {}) {
     player.spawnPosition = makeVector(
       num(s.spawnPosition.x, 0), num(s.spawnPosition.y, 0), num(s.spawnPosition.z, 0));
   }
+  player.knownRecipes = new Set(Array.isArray(s.knownRecipes) ? s.knownRecipes.filter((id) => typeof id === 'string') : []);
+  // What the book has already learned from is per session: the restored inventory is looked at again.
+  player.recipeBookSeen = new Set();
   return player;
 }
 
@@ -217,6 +223,8 @@ export function captureSessionState(game) {
     biomes: game.world?.selectedBiome,
     dayCount: game.dayCount ?? 0,
     endState: captureEndState(game.world,game),
+    // A Nether world's spawn portal and the Overworld biome it leads to (dimensionSpawns.js).
+    spawnPortals: captureSpawnPortals(game.world),
     // The loaded data packs. Captured here rather than beside the world, because a pack changes the CONTENT
     // -- biomes, recipes, drops -- and content has to be back in place before the world is regenerated from
     // it. A save that restored the terrain but not the packs would rebuild the world with different rules.
@@ -242,6 +250,7 @@ export function applySessionState(game, saved) {
   if (!game) return null;
   const s = saved && typeof saved === 'object' ? saved : {};
   if(game.world && 'endState' in s)restoreEndState(game.world,s.endState);
+  if(game.world && 'spawnPortals' in s)restoreSpawnPortals(game.world,s.spawnPortals);
   if (typeof s.difficulty === 'string' && s.difficulty) {
     game.difficulty = s.difficulty;
     if (game.player) game.player.difficulty = s.difficulty;

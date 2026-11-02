@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import { rawUrl } from './dataLock.mjs';
 
-const BASE_ITEMS = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.2/items/';
-const BASE_BLOCKS = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.2/blocks/';
+const BASE_ITEMS = rawUrl('minecraft-assets', 'data/1.20.2/items/');
+const BASE_BLOCKS = rawUrl('minecraft-assets', 'data/1.20.2/blocks/');
 
 const itemsToDownload = [
   // Tools & Utilities

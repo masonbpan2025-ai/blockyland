@@ -129,6 +129,26 @@ describe('SchematicWatcher', () => {
   });
 });
 
+describe('SchematicWatcher with only one file', () => {
+  it('looks at that file alone: other files are never read or delivered', async () => {
+    const source = writableSource();
+    const reads = [];
+    const read = source.read;
+    source.read = async (name) => { reads.push(name); return read(name); };
+    source.set('mine.schem', new Uint8Array([1]));
+    source.set('other.schem', new Uint8Array([1]));
+    const delivered = [];
+    const watcher = new SchematicWatcher({ source, only: 'Mine.schem', onChange: (name) => delivered.push(name), setIntervalImpl: () => 1, clearIntervalImpl: () => {} });
+    await watcher.start();
+    source.set('other.schem', new Uint8Array([2]));
+    source.set('mine.schem', new Uint8Array([2]));
+    await watcher.poll();
+    await watcher.poll();
+    assert.deepEqual(delivered, ['mine.schem'], 'the name matches without regard to case');
+    assert.deepEqual(reads, ['mine.schem']);
+  });
+});
+
 describe('build_studio_schematics dev server routes', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-schem-'));
   fs.writeFileSync(path.join(dir, 'tower.schem'), Buffer.from([7, 8, 9]));
@@ -312,6 +332,63 @@ describe('Building Studio live schematic updates', () => {
 
     const mapped = studio.liveBuildingIds.get('live_tower.schem');
     if (mapped) BuildingLibrary.deleteBuilding(mapped);
+  });
+
+  it('starts empty: finding the folder watches nothing and reopens nothing, even with files in it', async () => {
+    const placed = new Map();
+    const studio = new BuildingStudioManager({ world: { setVoxel: (x, y, z, id) => placed.set(`${x},${y},${z}`, id) } });
+    const source = writableSource();
+    source.set('last_session.schem', await schemBytes([[0, 0, 0, 'stone']]));
+    assert.equal(await studio.connectSource(source), true);
+    assert.equal(studio.source, source, 'Save and Open can use the folder');
+    assert.equal(studio.liveWatcher, null, 'nothing is watched before a save or an open');
+    assert.equal(studio.activeFile, null);
+    assert.equal(studio.currentBuilding, null, 'no earlier file is reopened');
+    assert.equal(placed.size, 0, 'the world stays empty');
+  });
+
+  it('watches the file once it is saved, and only that file', async () => {
+    const studio = new BuildingStudioManager({ world: { setVoxel() {} } });
+    const source = writableSource();
+    source.set('someone_else.schem', await schemBytes([[0, 0, 0, 'glass']]));
+    await studio.connectSource(source);
+    try {
+      studio.adoptCustomBuild({ name: 'Saved Hut', blocks: [{ x: 0, y: STUDIO_GROUND_Y, z: 8, id: BLOCKS.STONE }] });
+      await studio.writeSchematicFile('saved_hut.schem', 'Saved Hut');
+      assert.ok(studio.liveWatcher, 'saving starts the watch');
+      assert.equal(studio.liveWatcher.only, 'saved_hut.schem');
+      assert.deepEqual((await studio.liveWatcher.watched()).map(f => f.name), ['saved_hut.schem']);
+      assert.deepEqual(await studio.liveWatcher.poll(), [], 'its own save is not delivered back');
+    } finally {
+      studio.stopLiveSync();
+      const mapped = studio.liveBuildingIds.get('saved_hut.schem');
+      if (mapped) BuildingLibrary.deleteBuilding(mapped);
+    }
+  });
+
+  it('opening a file from the folder watches it; opening one from elsewhere stops watching', async () => {
+    const studio = new BuildingStudioManager({ world: { setVoxel() {} } });
+    studio.fileExists = async (name) => source.files.has(name);
+    const source = writableSource();
+    source.set('folder_tower.schem', await schemBytes([[0, 0, 0, 'stone'], [0, 1, 0, 'stone']]));
+    await studio.connectSource(source);
+    try {
+      await studio.openSchematicFromSource('folder_tower.schem');
+      assert.equal(studio.activeFile, 'folder_tower.schem');
+      assert.equal(studio.liveWatcher?.only, 'folder_tower.schem', 'the opened file is watched');
+
+      const elsewhere = { name: 'downloaded_house.schem', arrayBuffer: async () => (await schemBytes([[0, 0, 0, 'oak_planks']])).buffer };
+      await studio.openSchematicFromFile(elsewhere);
+      assert.equal(studio.liveWatcher, null, 'a file outside the folder cannot be watched, and the old one no longer is');
+      assert.equal(studio.activeFile, null);
+      assert.equal(studio.pendingFileName, 'downloaded_house.schem', 'Save proposes its name');
+    } finally {
+      studio.stopLiveSync();
+      for (const name of ['folder_tower.schem', 'downloaded_house.schem']) {
+        const mapped = studio.liveBuildingIds.get(name);
+        if (mapped) BuildingLibrary.deleteBuilding(mapped);
+      }
+    }
   });
 });
 

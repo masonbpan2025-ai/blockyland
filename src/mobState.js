@@ -35,6 +35,8 @@ export const PERSISTED_MOB_FIELDS = [
   'angerTimer', 'lifetime', 'moistness', 'breedingCooldown', 'inLove', 'retreatTimer',
   // Enderman and dolphin extras.
   'carriedBlock', 'gotFish',
+  // Drowned: whether it holds a trident, which only some do.
+  'hasTrident',
   // Roles.
   'isLeader', 'isRaidCaptain', 'canPickUpLoot', 'lootingLevel', 'slimeSize'
 ];
@@ -152,6 +154,9 @@ export function mobAppearanceRestorers({ sheepApplyWool, applyMooshroomVariant, 
           // A saved rabbit may have been named Toast, which changes only its appearance.
           applyRabbitName?.(mob);
           applyRabbitCoat?.(mob);
+          break;
+        case 'drowned':
+          if (mob.trident) mob.trident.visible = !!mob.hasTrident;
           break;
         default:
           break;

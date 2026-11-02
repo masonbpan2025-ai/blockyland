@@ -1,8 +1,9 @@
 // 1500 Cartoon Players Simulate Civilization: the score and sound effects, composed on the shared sound kit.
-// A playful pentatonic theme for the three islands, a sneaky one for Frieza, a low drum march for Doomsday, a rising
-// swell for the Spirit Bomb that resolves into the opening theme when it becomes a dome, and a gentle reprise for the end.
+// A playful pentatonic theme for the three islands, a sneaky one for Frieza, a low minor march for the Grumbler
+// invasion and a fast one for the battle, a swell for the Spirit Bomb that resolves into the opening theme when the
+// mothership spins away, and the theme again for the victory, the proposal and the wedding.
 // Effects follow the cues the film passes in: border hum and its shutdown roar, the Nimbus, the crash, the squeak,
-// the train, crowds cheering, blizzard wind, the campfire, the Death Ball, the dome, and the final countdown.
+// the train, crowds cheering, blizzard wind, the campfire, the fleet's hum, goo rays, the crack, wedding bells, fireworks.
 import { createSoundKit } from './claudeSound.js';
 export { wavBase64 } from './claudeSound.js';
 
@@ -41,24 +42,40 @@ export async function buildCivSoundtrack(story, { BASE, cues: Q, scenes: SC }) {
   for (let t = Q.fire[0]; t < Q.fire[1]; t += .05) if (rnd() < .5) burst(t, .02, 'highpass', 2500 + rnd() * 2000, .02 * rnd(), amb);
   cheer(Q.cheer[0], Q.cheer[1], .045);
   for (let t = Q.minecart[0]; t < Q.minecart[1]; t += .16) { thump(t, 260, .05, .05); burst(t, .04, 'bandpass', 2400, .02); }
-  // Doomsday and the stand
-  for (let i = 0; i < 3; i++) tone(Q.doom + i * .6, .45, 220, 220, .14, 'square'); // the alarm
-  thump(Q.doom + 2, 45, 2.4, .5);
-  for (let t = Q.rumble[0]; t < Q.rumble[1]; t += 2.4) sweep(t, 2.6, 60, 120, .05, 'lowpass', .5, amb);
-  sweep(Q.deathBall[0], Q.deathBall[1] - Q.deathBall[0], 120, 400, .09, 'lowpass', .8);
+  // the invasion: the alarm, the fleet's hum and warble, tractor beams, the walls going up
+  for (let i = 0; i < 4; i++) tone(Q.alarm + i * .5, .4, 330, 330, .12, 'square');
+  hum(Q.fleetHum[0], Q.fleetHum[1], 62, .016);
+  for (let t = Q.fleetHum[0] + 1; t < Q.fleetHum[1]; t += 2.6 + rnd() * 2) tone(t, 1.2, 520 + rnd() * 240, 880 + rnd() * 200, .018, 'sine', amb);
+  rangeAll(Q.beams, (a, b) => { sweep(a, b - a, 300, 1100, .05, 'bandpass', .4); for (let t = a; t < b; t += .9) tone(t, .8, 240, 300, .025, 'sine'); });
+  clatter(Q.walls, 14, .12); thump(Q.walls + .4, 70, .6, .3);
+  // the battle: crowds, goo "pew"s, the disc, the halves, the train, the candy
+  cheer(Q.battle[0], Q.battle[1], .028);
+  rangeAll(Q.zaps, (a, b) => { for (let t = a + .3; t < b; t += .45 + rnd() * .7) tone(t, .22, 1900 + rnd() * 300, 320, .05, 'square'); });
+  sweep(Q.disc[0], Q.disc[1] - Q.disc[0], 900, 3200, .12, 'bandpass', 1.5);
+  crack(Q.halves, .6); clatter(Q.halves + 1.5, 10, .15); thump(Q.halves + 1.7, 60, .6, .4);
+  chug(...Q.train2); sweep(Q.train2[0], Q.train2[1] - Q.train2[0], 300, 900, .05, 'lowpass', .6);
+  for (let i = 0; i < 14; i++) bell(Q.candy + i * .06, 90 + Math.floor(rnd() * 14), .05, sfx);
+  // Gohan blasted, the Nimbus, the transformation
+  tone(Q.blast - .3, .5, 300, 1500, .15, 'sawtooth'); crack(Q.blast, .5);
+  sweep(Q.nimbus2[0], Q.nimbus2[1] - Q.nimbus2[0], 500, 1400, .07, 'bandpass', .6); sleigh(Q.nimbus2[0] + .5);
   sweep(Q.transform - .3, 1.6, 200, 4000, .22, 'bandpass', .7); thump(Q.transform, 70, 1.2, .6);
+  // the finale: the Spirit Bomb grows, the beam, the crack, the launch and the impact, the mothership spinning away
   sweep(Q.bomb[0], Q.bomb[1] - Q.bomb[0], 200, 1600, .08, 'bandpass', .5); sparkle(Q.bomb[0] + 1, Q.bomb[1]);
-  for (const [i, m] of [86, 90, 93, 98, 102, 105].entries()) bell(Q.dome + i * .09, m, .14, sfx);
-  crack(Q.deflect, .5); thump(Q.deflect, 55, 1, .5);
-  for (let i = 0; i < 4; i++) tone(Q.countdown + i, .25, i === 3 ? 1320 : 880, i === 3 ? 1320 : 880, .12, 'sine');
-  thump(Q.finalFlash, 40, 2.2, .7); sweep(Q.finalFlash - .4, 2.6, 200, 6000, .2, 'bandpass', .6);
-  musicGate(Q.finalFlash - .1, Q.finalFlash + 1.8);
+  sweep(Q.masenko[0], Q.masenko[1] - Q.masenko[0], 400, 2400, .14, 'bandpass', .8);
+  crack(Q.crack, 1); for (let i = 0; i < 10; i++) bell(Q.crack + .1 + rnd() * .8, 100 + Math.floor(rnd() * 10), .05, sfx); musicGate(Q.crack - .05, Q.crack + 1.2);
+  sweep(Q.launch, Q.impact - Q.launch, 200, 3000, .2, 'bandpass', .7);
+  thump(Q.impact, 40, 2.2, .7); crack(Q.impact, .8); sweep(Q.impact - .2, 2.6, 200, 6000, .2, 'bandpass', .6); musicGate(Q.impact - .1, Q.impact + 1.4);
+  sweep(Q.away[0], Q.away[1] - Q.away[0], 1200, 200, .08, 'bandpass', .6); tone(Q.away[0] + .4, 2.4, 1000, 180, .08, 'sine'); // the cartoon falling whistle, going up
+  // victory, the wedding bells, the fireworks
+  cheer(Q.victoryCheer[0], Q.victoryCheer[1], .05);
+  for (let i = 0; i < 16; i++) bell(Q.bells + i * .42, [86, 90, 93, 98][i % 4], .1, sfx);
+  for (let t = Q.fireworks[0] + 1; t < Q.fireworks[1]; t += 1.4 + rnd() * 1.2) { thump(t, 90, .4, .2); burst(t + .05, .5, 'highpass', 2500, .05); for (let i = 0; i < 6; i++) burst(t + .3 + rnd() * .6, .03, 'bandpass', 3000 + rnd() * 2000, .03 * rnd(), sfx, 2, (rnd() - .5) * .8); }
   // ambience
   rangeAll(Q.blizzard, (a, b) => { wind(a, b, .05, 900); wind(a, b, .03, 2400); });
   rangeAll(Q.birds, (a, b) => birds(a, b, 3.2, .016));
   rangeAll(Q.sea, (a, b) => { for (let t = a; t < b; t += 3.5) sweep(t, 3.4, 300, 700, .035, 'lowpass', .5, amb); });
   { const [a, b] = Q.cave; for (let t = a + .5; t < b; t += .9 + rnd() * 1.4) tone(t, .25, 1800 + rnd() * 600, 900, .03); } // drips
-  crickets(SC.epilogue[0], SC.credits[1]);
+  crickets(Q.night[0], Q.night[1]);
 
   // ---------------------------------------------------------------- music
   const at = (scene, bpm, offset = 0) => sec(SC[scene][0] + offset, bpm);
@@ -83,12 +100,20 @@ export async function buildCivSoundtrack(story, { BASE, cues: Q, scenes: SC }) {
   each('nimbus', 132, ['D', 'G', 'A', 'D'], [0, 1, 2, 3, 4, 3, 2, 1], .2); melody(THEME, sec(SC.nimbus[0], 132), .26);
   each('trade', 116, ['D', 'G', 'Asus', 'D'], [0, 2, 1, 3, 2, 4, 3, 2], .18);
   { const a = at('photobomb', 96); for (let b = 0; a(b) < SC.photobomb[1] - 1; b++) pluck(a(b), [52, 55, 57, 59, 57, 55, 52, 47][b % 8], .16, (b % 2 ? .3 : -.3)); }
-  // Phase III: a low march, then the swell
-  { for (const name of ['doomsday', 'march', 'stand']) { const a = at(name, 84), end = SC[name][1]; for (let b = 0; a(b) < end - .3; b++) drum(a(b), b % 4 === 0 ? .55 : .25, b % 4 === 0 ? 70 : 95); pad(SC[name][0], [40, 47, 52, 55], end - SC[name][0], .04); } }
-  pad(Q.bomb[0], [50, 57, 62, 66, 69], Q.dome - Q.bomb[0], .05);
-  { const a = sec(Q.dome, 96); ['D', 'G', 'Bm', 'Asus', 'D', 'G', 'D', 'D'].forEach((c, bar) => { if (a(bar * 4) < SC.spirit[1] - 2) arp(bar * 4, c, a, .22); }); melody(THEME, sec(Q.dome + 1, 96), .3); }
-  // the end: a gentle reprise as the sun comes up, then the credits
-  { const a = at('epilogue', 66, 1); ['D', 'Bm', 'G', 'Asus', 'D', 'G', 'D', 'D'].forEach((c, bar) => arp(bar * 4, c, a, .15, [0, 1, 2, 3, 4, 3, 2, 1])); pad(SC.epilogue[0], [50, 57, 62], SC.epilogue[1] - SC.epilogue[0], .03); }
+  // Phase III: a low minor march for the invasion, a fast one for the battle, the swell into the theme for the finale,
+  // a happy reprise for the victory, a slow one for the proposal, and wedding bells over the theme
+  const march = (name, bpm, vel = .25) => { const a = at(name, bpm), end = SC[name][1]; for (let b = 0; a(b) < end - .3; b++) drum(a(b), b % 4 === 0 ? vel * 2 : vel, b % 4 === 0 ? 70 : 95); };
+  for (const name of ['invasion', 'backfire']) { march(name, 84); pad(SC[name][0], [40, 47, 52, 55], SC[name][1] - SC[name][0], .04); each(name, 84, ['Em', 'Bm', 'Em', 'Asus'], [0, 2, 1, 3], .12); }
+  march('rally', 100, .22); each('rally', 100, ['D', 'G', 'Bm', 'A'], [0, 1, 2, 3, 4, 3, 2, 1], .17); melody(THEME.slice(0, 8), sec(Q.walls + .5, 100), .2);
+  for (const name of ['battle', 'fights', 'backtoback']) { march(name, 132, .2); each(name, 132, ['Em', 'G', 'D', 'A'], [0, 2, 1, 3, 2, 4, 3, 2], .16); }
+  pad(SC.beam[0], [45, 52, 57, 62], SC.catch[1] - SC.beam[0], .05); { const a = at('beam', 72); for (let b = 0; a(b) < SC.beam[1] - .5; b += 2) bell(a(b), [76, 74, 72, 71][b / 2 % 4], .06); }
+  melody(THEME.slice(0, 8), sec(Q.nimbus2[1] + .3, 104), .26); each('catch', 104, ['D', 'G', 'D', 'Asus'], undefined, .14, Q.nimbus2[1] - SC.catch[0]);
+  pad(Q.bomb[0], [50, 57, 62, 66, 69], Q.impact - Q.bomb[0], .05);
+  { const a = sec(Q.impact + 1.2, 96); ['D', 'G', 'Bm', 'Asus', 'D', 'G', 'D', 'D'].forEach((c, bar) => { if (a(bar * 4) < SC.finale[1] - 1) arp(bar * 4, c, a, .22); }); melody(THEME, sec(Q.impact + 1.6, 96), .3); }
+  each('victory', 104, ['D', 'G', 'Asus', 'D'], [0, 1, 2, 3, 4, 3, 2, 1], .18); melody(THEME, sec(SC.victory[0] + 2, 104), .24);
+  { const a = at('proposal', 66, 1); ['D', 'Bm', 'G', 'Asus', 'D', 'G', 'D', 'D'].forEach((c, bar) => { if (a(bar * 4) < SC.proposal[1]) arp(bar * 4, c, a, .14, [0, 1, 2, 3, 4, 3, 2, 1]); }); pad(SC.proposal[0], [50, 57, 62], SC.proposal[1] - SC.proposal[0], .035); melody(THEME.slice(0, 6), sec(SC.proposal[0] + 3, 60), .16); }
+  each('wedding', 92, ['D', 'G', 'Bm', 'A'], [0, 1, 2, 3, 4, 3, 2, 1], .17); melody(THEME, sec(SC.wedding[0] + 6, 92), .26); pad(SC.wedding[0], [50, 57, 62, 66], SC.wedding[1] - SC.wedding[0], .03);
+  each('goodbye', 96, ['D', 'G', 'Asus', 'D'], [0, 1, 2, 3, 4, 3, 2, 1], .17); melody(THEME, sec(SC.goodbye[0] + 1, 96), .24);
   { each('credits', 96, ['D', 'G', 'Asus', 'D'], undefined, .2); melody(THEME, sec(SC.credits[0] + 1, 96), .28); const end = SC.credits[1]; [50, 57, 62, 66, 69, 74].forEach((m, i) => pluck(end - 3.4 + i * .07, m, .24, -.3 + i * .1)); bell(end - 3.3, 62, .14); }
   return kit.render();
 }

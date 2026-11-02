@@ -5,6 +5,7 @@ import { EXTRA_RECIPES } from './extraRecipes.js';
 import { HeldItemRenderer } from './heldItem.js';
 import { ItemVisuals, getBlockDrop } from './itemVisuals.js';
 import { resolveVisualPolicy, canSupportPlant, VISUAL_POLICIES } from './resourceVisualPolicy.js';
+import { gameplayScenarios } from './resourceGameplayScenarios.js';
 
 const ALL_ITEMS = { ...ITEMS, ...EXTRA_ITEMS };
 const CENTER = [8, 2, 8];
@@ -270,10 +271,16 @@ export function genericItemScenarios({ entry, session }) {
 }
 
 /**
- * Returns the comprehensive scenario list for any given resource entry.
+ * Returns the comprehensive scenario list for any given resource entry: its kind's scenarios, then the gameplay rules
+ * it carries -- the recipe book, beds in the Nether and the End, the two-block sunflower, falling anvils
+ * (resourceGameplayScenarios.js).
  */
 export function getScenariosForResource({ entry, session, textures }) {
   if (!entry) return [];
+  return [...kindScenarios({ entry, session, textures }), ...gameplayScenarios(entry, session, textures)];
+}
+
+function kindScenarios({ entry, session, textures }) {
 
   // Flowers & Cutout Plants
   if (isFlowerOrPlant(entry)) {

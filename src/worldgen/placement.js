@@ -483,9 +483,10 @@ export class StructurePlacementEngine {
    *
    * Vanilla steps by the placement's spacing and only looks at the shell of each square, so the search
    * cost grows linearly in the distance rather than quadratically. `maxRadiusChunks` bounds the search
-   * for a browser frame; vanilla's default is effectively unbounded.
+   * for a browser frame; vanilla's default is effectively unbounded. `accept(start)`, when given, skips a start it
+   * returns false for (the Structure Inspector's "a village with this building").
    */
-  findNearest(structureId, blockX, blockZ, { maxRadiusChunks = 512 } = {}) {
+  findNearest(structureId, blockX, blockZ, { maxRadiusChunks = 512, accept = null } = {}) {
     const centreChunkX = Math.floor(blockX / 16);
     const centreChunkZ = Math.floor(blockZ / 16);
     const targets = [];
@@ -512,6 +513,7 @@ export class StructurePlacementEngine {
           if (!placement.isStructureChunk(this.context, chunkX, chunkZ, setName)) continue;
           const plan = this.planSet(chunkX, chunkZ, setName, set);
           if (!plan || plan.structureId !== structureId) continue;
+          if (accept && !accept(plan.start)) continue;
           const reference = plan.start.placementReference();
           const offset = placement.locateOffset || { x: 0, y: 0, z: 0 };
           const point = {

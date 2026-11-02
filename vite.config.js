@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { sharePlugin } from './server/shareVite.js';
+import { agentControlPlugin } from './server/agentControlVite.js';
 import { loadModTable } from './src/mods/manifestFile.js';
 import { modGamesPlugin } from './server/modGames.js';
 import { studioSchematicsPlugin } from './server/studioSchematics.js';
@@ -84,7 +85,7 @@ export default defineConfig({
   cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
   // Keep Vite's dependency scanner on this game's entries.
   optimizeDeps: {
-    entries: ['index.html', 'mob-debug.html', 'item-debug.html', 'block-debug.html', 'structure-inspector.html']
+    entries: ['index.html', 'mob-debug.html', 'item-debug.html', 'block-debug.html', 'structure-inspector.html', 'biome-inspector.html']
   },
   server: {
     host: '0.0.0.0',
@@ -93,6 +94,7 @@ export default defineConfig({
   },
   plugins: [
     sharePlugin(),
+    agentControlPlugin(),
     modGamesPlugin(),
     studioSchematicsPlugin(),
     rebaseScriptAssetPaths(base),
@@ -403,7 +405,8 @@ export default defineConfig({
         wellSeeClaude: path.resolve('well-see-claude.html'),
         volumeLayers: path.resolve('volume-layers.html'),
         blockDebug: path.resolve('block-debug.html'),
-        structureInspector: path.resolve('structure-inspector.html')
+        structureInspector: path.resolve('structure-inspector.html'),
+        biomeInspector: path.resolve('biome-inspector.html')
       }
     },
     target: 'esnext'

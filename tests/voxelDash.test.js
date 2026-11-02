@@ -280,3 +280,34 @@ test('coyote time survives a practice checkpoint (fork) and only the cube has it
   const ship=createSimulation([block(-100,0,300,60)],{length:5000},{mode:'ship',x:0,y:60,grounded:true});
   advance(ship,1);assert.equal(ship.snapshot().coyote,null);
 });
+
+// --- who the player plays as -----------------------------------------------------------------------------------
+
+test('the character picker offers at most twenty, the default cube first, and every head block a cube can be',async()=>{
+  const {CHARACTERS,DEFAULT_CHARACTER,characterById}=await import('../src/mods/voxel-dash/client/characters.js');
+  assert.ok(CHARACTERS.length<=20&&CHARACTERS.length>=10,`${CHARACTERS.length} characters`);
+  assert.equal(new Set(CHARACTERS.map(c=>c.id)).size,CHARACTERS.length,'no two share an id');
+  assert.equal(CHARACTERS[0].id,DEFAULT_CHARACTER);
+  // Wiki (Head): the seven head blocks are player, zombie, skeleton, wither skeleton, creeper, piglin and dragon. All but
+  // the dragon's, which is no cube, are here.
+  for(const id of ['steve','zombie','skeleton','wither_skeleton','creeper','piglin'])assert.ok(CHARACTERS.some(c=>c.id===id),id);
+  // As the user asked: a sheep and a cow.
+  for(const id of ['sheep','cow'])assert.ok(CHARACTERS.some(c=>c.id===id),id);
+  assert.equal(characterById('no_such_mob').id,DEFAULT_CHARACTER,'an unknown or stale saved choice falls back');
+});
+
+test('every character\'s face is cut from a skin the game ships, inside the skin and inside the face',async()=>{
+  const {CHARACTERS}=await import('../src/mods/voxel-dash/client/characters.js');
+  const {readFileSync}=await import('node:fs');
+  const png=path=>{const b=readFileSync(new URL(`../public${path}`,import.meta.url));assert.equal(b.toString('ascii',1,4),'PNG',path);return [b.readUInt32BE(16),b.readUInt32BE(20)];};
+  for(const c of CHARACTERS.filter(c=>c.skin)){
+    for(const [x,y,w,h,dx,dy,skin] of c.layers){
+      const [iw,ih]=png(skin??c.skin);
+      // A skin may be drawn at a multiple of the model's texture size; it must keep the model's proportions.
+      assert.equal(iw/c.size[0],ih/c.size[1],`${c.name}: ${skin??c.skin} is in the model's proportions`);
+      assert.ok(x>=0&&y>=0&&x+w<=c.size[0]&&y+h<=c.size[1],`${c.name}: [${x},${y},${w},${h}] is inside the ${c.size.join('x')} skin`);
+      assert.ok(dx>=0&&dy>=0&&dx+w<=c.face[0]&&dy+h<=c.face[1],`${c.name}: the layer lands on the ${c.face.join('x')} face`);
+    }
+    assert.deepEqual(c.layers[0].slice(2,4),c.face,`${c.name}: the first layer is the whole face`);
+  }
+});

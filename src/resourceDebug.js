@@ -224,6 +224,11 @@ async function startShowcase() {
           // Tiny offset avoids an up-vector singularity when looking straight down.
           camera.position.set(x * 4.5 + 0.02, y * 4.5 + 0.5, z * 4.5 + 0.02);
           camera.lookAt(controls.target);
+        } else if (step.camera) {
+          // A step that shows something away from the block (an anvil falling from above it) frames it itself.
+          controls.target.set(...step.camera.target);
+          camera.position.set(...step.camera.position);
+          camera.lookAt(controls.target);
         } else if (step.enter) {
           controls.target.set(0, 0.5, 0);
           camera.position.set(2.2, 2, 3.2);

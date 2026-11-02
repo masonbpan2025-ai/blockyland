@@ -5,15 +5,15 @@ import { START, SCENE, DURATION } from './civTimeline.js';
 
 export { START, SCENE };
 export const CIV_STORY = {
-  id: 'civ-1500', title: '1500名卡通玩家模拟文明', englishTitle: '1500 CARTOON PLAYERS SIMULATE CIVILIZATION', tagline: 'Three islands. Three cartoons. Twenty days.',
-  brand: 'BLOCKYLAND PICTURES', duration: DURATION, fps: 24, posterTime: SCENE.spirit[0] + 24,
+  id: 'civ-1500', title: '1500名卡通玩家模拟文明', englishTitle: '1500 CARTOON PLAYERS SIMULATE CIVILIZATION', tagline: 'Three islands. Three cartoons. One invasion.',
+  brand: 'BLOCKYLAND PICTURES', duration: DURATION, fps: 24, posterTime: SCENE.wedding[0] + 8,
   lines: LINES.map(line => ({ ...line, start: START[line.id] })),
   labels: [
     { from: SCENE.day1[0] + .4, to: SCENE.day1[1] - .2, text: '第一阶段 · 第 1–7 天  ·  PHASE I · DAYS 1–7' },
     { from: SCENE.day8[0] + .4, to: SCENE.day8[0] + 6, text: '第二阶段 · 第 8–14 天  ·  PHASE II · DAYS 8–14' },
-    { from: SCENE.doomsday[0] + .4, to: SCENE.doomsday[0] + 6, text: '第三阶段 · 第 15–20 天  ·  PHASE III · DAYS 15–20' },
+    { from: SCENE.invasion[0] + .4, to: SCENE.invasion[0] + 6, text: '第三阶段 · 第 15 天  ·  PHASE III · DAY 15: THE INVASION' },
   ],
-  moral: { zh: '服务器上最强的力量，是大家手拉着手。', en: 'The strongest power on the server was everyone holding hands.' },
+  moral: { zh: '好的团队不是从不摔倒的团队，而是会互相接住的团队。', en: 'A good team isn’t the one that never falls. It’s the one that catches each other.' },
 };
 
 // Review frames: the start, middle and end of every scene.

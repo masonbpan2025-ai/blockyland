@@ -11,6 +11,7 @@ import path from 'node:path';
 import { BuildingStudioManager } from '../src/buildingStudio.js';
 import { BuildingLibrary } from '../src/buildingLibrary.js';
 import { WorldAgent } from '../src/worldAgent.js';
+import { runGameTool } from '../src/agentControl/gameTools.js';
 import { BLOCKS } from '../src/blocks.js';
 
 function studio() {
@@ -158,69 +159,39 @@ function agentFixture() {
   };
   manager.game = game;
   const agent = new WorldAgent(game);
-  agent.setVendor('deepseek');
-  agent.setApiKey('test-key');
   return { agent, manager, game };
 }
 
-test('with the studio open, a free-form prompt is sent to the model', async t => {
-  const { agent, manager } = agentFixture();
-  const calls = [];
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    calls.push({ url, body: JSON.parse(options.body) });
-    return {
-      ok: true,
-      status: 200,
-      headers: { get: () => 'application/json' },
-      json: async () => ({ choices: [{ message: { content: '{"action":"message","explanation":"hi"}' }, finish_reason: 'stop' }] })
-    };
-  });
-
+test('with the studio open, a free-form prompt the studio does not claim points to the AI app', async () => {
+  const { agent } = agentFixture();
+  const logs = [];
+  agent.onLog = (message, type) => logs.push({ message, type });
   await agent.executePrompt('造一个黄鹤楼');
   assert.equal(agent.lastError, null);
-  assert.equal(calls.length, 1, 'the model must be consulted');
-  assert.match(calls[0].url, /deepseek/);
+  assert.ok(logs.some(entry => /Connect AI/.test(entry.message)), 'the offline presets say where free-form builds come from');
 });
 
-test('with the studio open, an AI-built library structure is loaded into the studio', async t => {
-  const { agent, manager } = agentFixture();
-  t.mock.method(globalThis, 'fetch', async () => ({
-    ok: true,
-    status: 200,
-    headers: { get: () => 'application/json' },
-    json: async () => ({
-      choices: [{
-        message: {
-          content: JSON.stringify({
-            action: 'build',
-            structureType: 'aquarium',
-            name: 'Reef Tank',
-            dimensions: { width: 12, height: 7, depth: 8 }
-          })
-        },
-        finish_reason: 'stop'
-      }]
-    })
-  }));
-
-  await agent.executePrompt('build me a big fish tank');
-  assert.equal(agent.lastError, null);
+test('with the studio open, a structure an AI app builds is loaded into the studio', async () => {
+  const { agent, manager, game } = agentFixture();
+  const { result } = await runGameTool('run_plan', { plan: {
+    action: 'build',
+    structureType: 'aquarium',
+    name: 'Reef Tank',
+    dimensions: { width: 12, height: 7, depth: 8 }
+  } }, { game, agent });
+  assert.match(result.studio, /open in Building Studio/, 'the AI app is told where its build went');
   assert.equal(manager.currentBuilding?.id, 'aquarium', 'the panel should hold the built structure');
   assert.equal(manager.currentParameters.width, 12);
   assert.equal(manager.currentParameters.height, 7);
 });
 
-test('a parametric studio prompt still short-circuits without calling the model', async t => {
+test('a parametric studio prompt is answered by the studio itself', async () => {
   const { agent } = agentFixture();
-  let called = 0;
-  t.mock.method(globalThis, 'fetch', async () => {
-    called++;
-    return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ choices: [{ message: { content: '{}' }, finish_reason: 'stop' }] }) };
-  });
-
+  const logs = [];
+  agent.onLog = (message, type) => logs.push({ message, type });
   await agent.executePrompt('build a stair with a height parameter');
-  assert.equal(called, 0, 'the studio handles this instantly');
   assert.equal(agent.lastError, null);
+  assert.ok(logs.some(entry => /\[Building Studio\] Loaded parametric building/.test(entry.message)), 'the studio handles this instantly');
 });
 
 // --- quick prompts removal --------------------------------------------------

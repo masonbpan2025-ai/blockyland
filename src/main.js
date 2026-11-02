@@ -15,6 +15,7 @@ import { packsModal } from './packsModal.js';
 import { resourcePackManager } from './resourcePackManager.js';
 import { placeBonusChest } from './bonusChest.js';
 import { regenerateEndPlatform } from './worldgen/generators/endFeatures.js';
+import { placeEndWorldSpawn, placeNetherSpawnPortal } from './dimensionSpawns.js';
 import { EndItemController } from './endItems.js';
 import { updateEndGatewayTravel, endReturnArrival, cacheEndResidents, restoreEndResidents } from './endProgression.js';
 import { MonsterSpawners } from './monsterSpawner.js';
@@ -99,7 +100,7 @@ import { useRespawnAnchor } from './respawnAnchor.js';
 import { returnFoodContainer } from './foodContainers.js';
 import { WeatherManager } from './weather.js';
 import { WorldAgent } from './worldAgent.js';
-import { encodeScreenshotDataUrl } from './agentProviders.js';
+import { encodeScreenshotDataUrl } from './screenshotEncoding.js';
 import { startZombieVillagerCure, tradeRefusal } from './villagerEconomy.js';
 import {
   DEFAULT_BATCH_SIZE,
@@ -681,12 +682,16 @@ class Game {
     }
     let spawn;
     this.bossManager?.clearEndVisuals?.();this.endArenaBuilt=false;this.endItems?.clear();
+    this.world.spawnPortals=null;
     if(this.world.dimension==='the_end') {
       const arrival=regenerateEndPlatform(this.world,BLOCKS);
       this.player.position.set(arrival.x,arrival.y,arrival.z);this.player.yaw=arrival.yaw;
       this.player.spawnPosition=this.player.position.clone();
-      spawn={...arrival,found:true,reason:'End obsidian arrival platform'};
+      // Only "The End" starts here; the other End choices start out on the islands. Each has a small portal home.
+      spawn=placeEndWorldSpawn(this,arrival);
     } else spawn=placePlayerOnSurface(this);
+    // A Nether world starts beside a lit portal to a random Overworld biome (dimensionSpawns.js).
+    if(this.world.dimension==='nether'&&spawn?.found)placeNetherSpawnPortal(this,spawn);
     await this.loadWorldProgressively();
     if(this.world.dimension==='the_end'){this.endArenaBuilt=true;this.bossManager?.initEndArena();}
 
@@ -1160,20 +1165,25 @@ class Game {
     // "Whenever a new entity enters the End, the platform is regenerated, and all blocks within 3 blocks above the
     // platform are destroyed" -- done once the End's chunks are the world's (after the switch below).
     const regenerate = dest === 'the_end';
-
-    if (this.switchDimension) this.switchDimension(dest, arrival);
-    if (regenerate) {
-      regenerateEndPlatform(this.world, BLOCKS);
-      for (const chunk of this.world.chunks.values()) this.rebuildChunkMesh?.(chunk);
-    } else {
-      const safe=endReturnArrival(this);
-      if(safe)this.player.position.set(safe.x,safe.y,safe.z);
-      else placePlayerOnSurface(this);
-      this.loadChunksAroundPlayer();this.player.updateCameraAndModel?.(0);
-    }
-    this.sounds?.playLevelUp?.();
-    this.ui?.addChatMessage?.(
-      dest === 'the_end' ? 'You step through the End portal.' : 'You return from the End.', 'system');
+    const arrive = () => {
+      if (regenerate) {
+        regenerateEndPlatform(this.world, BLOCKS);
+        for (const chunk of this.world.chunks.values()) this.rebuildChunkMesh?.(chunk);
+      } else {
+        const safe=endReturnArrival(this);
+        if(safe)this.player.position.set(safe.x,safe.y,safe.z);
+        else placePlayerOnSurface(this);
+        this.loadChunksAroundPlayer();this.player.updateCameraAndModel?.(0);
+      }
+      this.sounds?.playLevelUp?.();
+      this.ui?.addChatMessage?.(
+        dest === 'the_end' ? 'You step through the End portal.' : 'You return from the End.', 'system');
+    };
+    // Behind the progress bar, as the Nether portal does; one trip at a time.
+    this.endPortalTravelCooldown = 1e9;
+    this.travelToDimension(dest, arrival, { title: dest === 'the_end' ? 'Entering the End' : 'Returning to the Overworld', arrive })
+      .catch((error) => console.error('[End portal] The trip failed:', error))
+      .finally(() => { this.endPortalTravelCooldown = 3.0; });
   }
 
   /**
@@ -1298,7 +1308,37 @@ class Game {
     return golem;
   }
 
-  switchDimension(newDim, targetPos = null) {    if (!this.world) return;
+  /**
+   * Go to another dimension behind the progress bar, the way a world is first built: the game pauses, the overlay
+   * says where it is going, the switch happens without the blocking chunk load, the terrain is generated and meshed in
+   * batches with the bar filling, then `arrive` runs (it finds or builds the arrival portal and places the player)
+   * and the game resumes. Switching used to build every chunk in one go and froze the game for seconds.
+   */
+  async travelToDimension(newDim, targetPos = null, { title = 'Travelling', arrive = null } = {}) {
+    if (!this.overlay) { this.switchDimension(newDim, targetPos); arrive?.(); return; }
+    const previous = this.lifecycle?.phase;
+    if (this.lifecycle) this.lifecycle.phase = 'loading';
+    this.travellingTo = newDim;
+    try {
+      this.overlay.show(title);
+      this.overlay.set(0, 'Leaving…');
+      await yieldToBrowser();
+      this.switchDimension(newDim, targetPos, { deferLoad: true });
+      await this.loadWorldProgressively({ title, label: { nether: 'Building the Nether', the_end: 'Building the End' }[newDim] ?? 'Building the Overworld' });
+      // The arrival may move the player a little (onto the portal it found); the streamer fills in anything missing
+      // there over the next frames. Loading around the player here re-meshed every chunk just built, for 1.7 s.
+      arrive?.();
+      if (!this.mobsByDimension?.[newDim]?.length) this.spawnVillageMobs();
+      await this.settleLighting?.();
+      this.player?.updateCameraAndModel?.(0);
+    } finally {
+      this.overlay.hide();
+      this.travellingTo = null;
+      if (this.lifecycle) this.lifecycle.phase = previous === 'loading' ? 'ready' : (previous ?? 'ready');
+    }
+  }
+
+  switchDimension(newDim, targetPos = null, { deferLoad = false } = {}) {    if (!this.world) return;
     if(this.world.dimension===newDim)return;
     cacheEndResidents(this);
     this.bossManager?.clearEndVisuals?.();this.endArenaBuilt=false;
@@ -1395,7 +1435,9 @@ class Game {
       if (this.player.velocity) this.player.velocity.set(0, 0, 0);
     }
 
-    // 6. Immediately load chunks around destination
+    // 6. Immediately load chunks around destination -- unless the caller builds them behind the progress bar
+    // (travelToDimension), which also does the first-visit population after the terrain exists.
+    if (deferLoad) { if (this.ui?.updateStats) this.ui.updateStats(); return; }
     this.loadChunksAroundPlayer();
     // The showcase population is for a dimension's first visit; on a return its mobs are the ones put away.
     if (!this.mobsByDimension?.[newDim]) this.spawnVillageMobs();
@@ -1855,6 +1897,10 @@ class Game {
     if (btnPickInspectorMob) {
       btnPickInspectorMob.addEventListener('click', (e) => { e.stopPropagation(); this.openInspector('mob'); });
     }
+    const btnPickInspectorBiome = document.getElementById('btn-pick-inspector-biome');
+    if (btnPickInspectorBiome) {
+      btnPickInspectorBiome.addEventListener('click', (e) => { e.stopPropagation(); this.openInspector('biome'); });
+    }
   }
 
   // ------------------------------------------------------------------------------------------------
@@ -2272,6 +2318,9 @@ class Game {
   }
 
   handlePointerLockLoss() {
+    // Escape while playing beside the Agent Terminal closes the terminal only; the terminal letting go of the mouse
+    // (opening, or Enter to type) is not a pause either.
+    if (this.ui?.handleTerminalLockLoss?.()) return;
     if (shouldPauseOnLockLoss({
       worldReady: this.worldReady,
       // The lifecycle's phase: the game has no `phase` of its own, and reading one gave undefined, taken as idle, so
@@ -2296,6 +2345,18 @@ class Game {
    *
    * @returns {string} the URL that was navigated to, so it can be asserted in tests
    */
+  /**
+   * Open the Biome Inspector: one biome choice's world around its spawn, with a checklist of what that spawn should
+   * have (its portals and where they lead, the End islands, sunflowers two blocks tall). A standalone page, like the
+   * other Inspectors; the biome last chosen on the new-world screen is carried over.
+   */
+  openBiomeInspector() {
+    const biome = this.ui?.worldBiomeSelect?.value;
+    const url = biome && biome !== 'all' ? `/biome-inspector.html?biome=${encodeURIComponent(biome)}` : '/biome-inspector.html';
+    if (typeof window !== 'undefined') window.location.href = url;
+    return url;
+  }
+
   openMobInspector() {
     // Carry the mob the player was last examining, when one is known.
     const mob = this.mobInspectorTarget || '';
@@ -2339,6 +2400,7 @@ class Game {
     this.closeInspectorPicker();
     if (kind === 'structure') return this.openStructureInspector();
     if (kind === 'mob') return this.openMobInspector();
+    if (kind === 'biome') return this.openBiomeInspector();
     if (kind === 'item' || kind === 'block') return this.openResourceInspector({ kind });
     return null;
   }
@@ -3725,11 +3787,16 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
           if (!canSupportPlant(below, blockIdToPlace)) return;
           if(isNetherFarmPlant(blockIdToPlace)&&!canPlantNether(this.world,placeX,placeY,placeZ,blockIdToPlace))return;
         }
+        // A sunflower is two blocks tall, its stalk here and its head above, so it needs the block above free (Sunflower).
+        const twoTall = blockIdToPlace === BLOCKS.SUNFLOWER;
+        if (twoTall && this.world.getVoxel(placeX, placeY + 1, placeZ) !== BLOCKS.AIR) return;
+        const placedHere = twoTall ? BLOCKS.SUNFLOWER_STALK : blockIdToPlace;
         // A ladder or vine hangs on the face that was clicked, and only on a solid one (wallAttached.js).
         const attachment = isWallAttached(blockIdToPlace) ? attachStateForClick(blockIdToPlace, this.targetBlock.normal, this.world.getVoxel(bX, bY, bZ)) : null;
         if (isWallAttached(blockIdToPlace) && !attachment) return;
 
-        this.world.setVoxel(placeX, placeY, placeZ, blockIdToPlace);
+        this.world.setVoxel(placeX, placeY, placeZ, placedHere);
+        if (twoTall) { this.world.setVoxel(placeX, placeY + 1, placeZ, BLOCKS.SUNFLOWER); this.worldSync?.onBlockPlaced(placeX, placeY + 1, placeZ, BLOCKS.SUNFLOWER); }
         this.farmingManager?.netherPlants?.register(placeX,placeY,placeZ);
         this.farmingManager?.chorus?.register(placeX,placeY,placeZ,0);
         if (attachment) rememberAttachment(this.world, placeX, placeY, placeZ, blockIdToPlace, attachment);
@@ -3746,7 +3813,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
             this.world.applyStructureOrientation?.({ x: placeX, y: placeY, z: placeZ, id: blockIdToPlace, facing, half: upper ? 'top' : 'bottom' });
           }
         }
-        this.worldSync?.onBlockPlaced(placeX, placeY, placeZ, blockIdToPlace);
+        this.worldSync?.onBlockPlaced(placeX, placeY, placeZ, placedHere);
         this.world.leafDecay?.onPlaced(placeX, placeY, placeZ, blockIdToPlace);
         this.vibration(placeX, placeY, placeZ, 'block_place', { fromWool: isWool(blockIdToPlace) });
         // A shrieker a player placed cannot summon a warden (deepDarkWarden.js).
@@ -4113,6 +4180,13 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     if (blockId === BLOCKS.TRIPWIRE && this.inventory.getActiveItem()?.id === 'shears' && this.world.redstone) this.world.redstone.shearing = true;
     try { this.world.setVoxel(x, y, z, replacement); } finally { if (this.world.redstone) this.world.redstone.shearing = false; }
     this.worldSync?.onBlockBroken(x, y, z);
+    // A sunflower is one plant in two blocks: whichever half is broken dropped the one sunflower, and takes the other
+    // half with it, which drops nothing (so the head does not fall as a second sunflower when its stalk goes).
+    const otherHalf = blockId === BLOCKS.SUNFLOWER ? [y - 1, BLOCKS.SUNFLOWER_STALK] : blockId === BLOCKS.SUNFLOWER_STALK ? [y + 1, BLOCKS.SUNFLOWER] : null;
+    if (otherHalf && this.world.getVoxel(x, otherHalf[0], z) === otherHalf[1]) {
+      this.world.setVoxel(x, otherHalf[0], z, BLOCKS.AIR);
+      this.worldSync?.onBlockBroken(x, otherHalf[0], z);
+    }
     this.modRuntime?.onBlockBroken?.(x, y, z, blockId);
 
     // Ladders and vines hanging on this block lose their support (wallAttached.js).

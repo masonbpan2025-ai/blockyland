@@ -18,14 +18,17 @@ import { inspectorStructures } from './structureInspectorSession.js';
  * @param {string} [options.biome]       the world's biome selection; 'all' lets the structure's own biome gate decide
  * @param {number} [options.margin]      chunks of terrain generated around the structure's box
  */
-export async function buildStructureWorld({ structureId, seed = 20250401, biome = 'auto', difficulty = 'normal', margin = 1, maxRadiusChunks = 512, mixedRadiusChunks = 48 }) {
+export async function buildStructureWorld({ structureId, seed = 20250401, biome = 'auto', difficulty = 'normal', margin = 1, maxRadiusChunks = 512, mixedRadiusChunks = 48, piece = null }) {
+  // `piece`: a village building (plains_temple_4, say). The world is built round the nearest village that has it, and
+  // the walk-through starts outside that building, facing it.
+  const accept = piece ? (start) => start.pieces.some((p) => p.meta?.element === piece) : null;
   // 'auto': look for one in a normal mixed-biome world first, but only nearby, because searching a big radius through
   // the real biome noise takes minutes (buried treasure, mansions, ...). If none is near, build a world made of the
   // structure's own biome, where it is found at once. `built.biomeMode` says which one you are looking at.
   let world; let recorder; let found; let biomeMode = 'mixed';
   const attempt = async (worldBiome, radius) => {
     ({ world, recorder } = await createAuditWorld({ seed, biome: worldBiome, structureId, difficulty }));
-    found = locateNearestStructure(world, structureId, 0, 0, { maxRadiusChunks: radius });
+    found = locateNearestStructure(world, structureId, 0, 0, { maxRadiusChunks: radius, accept });
   };
   const own = inspectorStructures().find((entry) => entry.id === structureId)?.defaultBiome ?? 'plains';
   const otherDimension = ['nether', 'the_end'].includes(inspectorStructures().find((entry) => entry.id === structureId)?.dimension);
@@ -49,15 +52,34 @@ export async function buildStructureWorld({ structureId, seed = 20250401, biome 
     minCx: Math.floor(minX / 16) - margin, maxCx: Math.floor(maxX / 16) + margin,
     minCz: Math.floor(minZ / 16) - margin, maxCz: Math.floor(maxZ / 16) + margin
   };
-  const arrival = structureArrival(world, found);
   // The piece boxes, for the page's overlay and the evidence file (`locateNearestStructure` reports only the whole box).
-  const start = world.structures.engine.locate(structureId, 0, 0, { maxRadiusChunks }).start;
-  const pieces = start.pieces.map((piece) => piece.box.toArray());
+  const start = world.structures.engine.locate(structureId, 0, 0, { maxRadiusChunks, accept }).start;
+  const pieces = start.pieces.map((p) => p.box.toArray());
+  const chosen = piece ? start.pieces.find((p) => p.meta?.element === piece) : null;
+  const focus = chosen ? { piece, box: chosen.box.toArray(), workstations: workstationsIn(world, chosen.box.toArray()) } : null;
+  const arrival = focus
+    ? { ...structureArrival(world, { box: focus.box }, { gap: 2 }), note: `outside ${piece}` }
+    : structureArrival(world, found);
   return {
-    structureId, seed: String(seed), world, recorder, found, range, arrival, pieces, biomeMode,
+    structureId, seed: String(seed), world, recorder, found, range, arrival, pieces, biomeMode, focus,
     box: { minX, minY, minZ, maxX, maxY, maxZ },
     centre: found.centre
   };
+}
+
+// A villager's job-site blocks (https://minecraft.wiki/w/Villager#Professions), for "where is the brewing stand".
+const WORKSTATIONS = ['BREWING_STAND', 'BLAST_FURNACE', 'SMOKER', 'CARTOGRAPHY_TABLE', 'COMPOSTER', 'BARREL', 'FLETCHING_TABLE',
+  'CAULDRON', 'WATER_CAULDRON', 'LECTERN', 'STONECUTTER', 'LOOM', 'SMITHING_TABLE', 'GRINDSTONE'];
+
+/** Job-site blocks inside a box, as `{ name, x, y, z }`. */
+export function workstationsIn(world, [minX, minY, minZ, maxX, maxY, maxZ]) {
+  const ids = new Map(WORKSTATIONS.filter((n) => BLOCKS[n] !== undefined).map((n) => [BLOCKS[n], BLOCK_DEFS[BLOCKS[n]]?.name ?? n]));
+  const out = [];
+  for (let x = minX; x <= maxX; x++) for (let y = Math.max(0, minY - 40); y <= Math.min(63, maxY); y++) for (let z = minZ; z <= maxZ; z++) {
+    const name = ids.get(world.getVoxel(x, y, z));
+    if (name) out.push({ name, x, y, z });
+  }
+  return out;
 }
 
 /** The chunk coordinates to mesh. */

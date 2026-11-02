@@ -2,7 +2,7 @@ import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { getSmeltingRecipe, getFuelBurnTime, SMELTING_RECIPES } from './furnace.js';
 import { isHoe, getCropInfo } from './farming.js';
-import { lightPortal } from './netherPortal.js';
+import { lightPortal, detectPortalFrame } from './netherPortal.js';
 import { insertEye, tryActivateAround } from './endPortal.js';
 import { calculateBookshelfCount, generateEnchantmentOffers, applyEnchantment } from './enchanting.js';
 import { executeTrade } from './villagerEconomy.js';
@@ -193,12 +193,14 @@ export class BotSurvival {
    * (x, y, z) is visible within reach.
    */
   /** The nearest cell (to the player) a player can stand in with the block at x,y,z in arm's reach. */
-  standingSpotNear(x, y, z) {
+  /** The nearest cell to stand in within reach of a block. `avoid`: cells ("x,y,z") the player's body must not enter. */
+  standingSpotNear(x, y, z, avoid = null) {
     const p = this.game.player.position, world = this.game.world, bot = this.bot;
     let best = null;
     for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) for (let dy = -4; dy <= 2; dy++) {
       const sx = x + dx, sy = y + dy, sz = z + dz;
       if (sx === x && sz === z) continue;
+      if (avoid && (avoid.has(`${sx},${sy},${sz}`) || avoid.has(`${sx},${sy + 1},${sz}`))) continue;
       const floor = world.getVoxel(sx, sy - 1, sz);
       if (bot.passable(floor) || bot.hazard(floor) || !bot.passable(world.getVoxel(sx, sy, sz)) || !bot.passable(world.getVoxel(sx, sy + 1, sz))) continue;
       if (Math.hypot(x + 0.5 - (sx + 0.5), y + 0.5 - (sy + 1.62), z + 0.5 - (sz + 0.5)) > 4) continue;
@@ -464,7 +466,10 @@ export class BotSurvival {
       const [x, y, z] = c.position;
       const eye = { x: p.position.x, y: p.position.y + 1.62, z: p.position.z };
       if (Math.hypot(x + .5 - eye.x, y + .5 - eye.y, z + .5 - eye.z) > 4.3) {
-        const spot = this.standingSpotNear(x, y, z);
+        // Never stand in a portal's opening to light it: the player would be carried off to the Nether.
+        const frame = c.type === 'use' && c.item === 'flint_and_steel' ? detectPortalFrame(this.game.world, x, y, z) : null;
+        const avoid = frame?.valid ? new Set(frame.innerBlocks.map(b => `${b.x},${b.y},${b.z}`)) : null;
+        const spot = this.standingSpotNear(x, y, z, avoid);
         if (spot) { this.bot.walkForSurvival(spot); return; }
       }
     }
@@ -903,6 +908,32 @@ export class BotSurvival {
     } else if (c.type === 'use') {
       const [x, y, z] = c.position;
       t.beforeVoxel ??= this.game.world.getVoxel(x, y, z);
+      const frame = c.item === 'flint_and_steel' ? detectPortalFrame(this.game.world, x, y, z) : null;
+      if (frame?.valid) {
+        // Only within a player's reach, once any walk there is over.
+        const eye = { x: p.position.x, y: p.position.y + 1.62, z: p.position.z };
+        if (t.survivalWalk || Math.hypot(x + .5 - eye.x, y + .5 - eye.y, z + .5 - eye.z) > 4.5) return;
+        // Lighting a Nether portal: the bottom obsidian of the opening, or the opening itself. A click lands only when
+        // the crosshair is on the given block; an opening is air, which the crosshair passes through to whatever is
+        // behind it, so there the flint and steel strikes the frame's inside directly, as a player's click on the
+        // frame's floor would. Either way the frame is what lights, never a block behind it.
+        const onTarget = target && target.x === x && target.y === y && target.z === z;
+        const canClick = typeof this.game.handleRightClick === 'function';
+        if (onTarget && canClick) this.game.handleRightClick();
+        // A solid block is clicked like a player does: give the aim a moment to settle on it first.
+        else if (canClick && t.beforeVoxel === BLOCKS.OBSIDIAN && t.elapsed < 1) return;
+        if (!frame.innerBlocks.some(b => this.game.world.getVoxel(b.x, b.y, b.z) === BLOCKS.NETHER_PORTAL)) {
+          if (this.game.portalManager) this.game.portalManager.ignitePortal(this.game.world, x, y, z);
+          else lightPortal(this.game.world, x, y, z, this.game.sounds);
+        }
+        if (frame.innerBlocks.some(b => this.game.world.getVoxel(b.x, b.y, b.z) === BLOCKS.NETHER_PORTAL)) {
+          this.bot.finish(true, `Lit the Nether portal at ${c.position}.`);
+        }
+        return;
+      }
+      if (c.portal) {
+        throw new Error(`There is no complete obsidian portal frame at ${c.position.join(' ')}. A frame is obsidian, at least 4 wide and 5 tall around a 2-wide, 3-tall opening (corners may be left out). Give an obsidian block on the bottom of the opening, or a block of the opening.`);
+      }
       if (typeof this.game.handleRightClick === 'function') {
         this.game.handleRightClick();
         if (c.item === 'bone_meal') {

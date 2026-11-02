@@ -4,6 +4,7 @@ import { advancementEvent } from './advancements.js';
 import { endSpikes, buildSpike, buildPodium, gatewayOrder } from './worldgen/generators/endFeatures.js';
 import { CellCanvas } from './worldgen/cellStructure.js';
 import { endStateFor, writeEndCanvas, addEndGateway } from './endProgression.js';
+import { openEndCityLinks } from './dimensionSpawns.js';
 import { updateEnderDragonAI, onCrystalDestroyed, createDragonBreathCloud } from './enderDragonBehavior.js';
 
 export class BossFightManager {
@@ -539,6 +540,12 @@ export class BossFightManager {
     if(this.entities?.spawnXpOrbs)this.entities.spawnXpOrbs(position,xp);
     else this.mobManager.spawnXpOrbs?.(position,xp);
     this.activateEndExitPortal(true);
+    // And a small gateway to the nearest End city, with one there back to the main island.
+    const links=openEndCityLinks(this.world);
+    if(links){
+      for(const key of new Set([links.main,links.city].map(p=>`${Math.floor(p.x/16)},${Math.floor(p.z/16)}`))){const chunk=this.world.getChunk?.(...key.split(',').map(Number));if(chunk)this.world.game?.rebuildChunkMesh?.(chunk);}
+      this.ui?.addChatMessage?.(`A small gateway opened on the island: it leads to an End city (${links.cityCentre.x}, ${links.cityCentre.z}).`,'system');
+    }
     this.enderDragon=null;
   }
 
@@ -546,7 +553,8 @@ export class BossFightManager {
     const state=endStateFor(this.world),canvas=new CellCanvas();
     buildPodium(canvas,this.podiumY(),{active:true,egg:newDefeat&&state.kills===1});
     writeEndCanvas(this.world,canvas);
-    const order=gatewayOrder(this.world.seed),opened=state.gateways.filter(g=>Math.hypot(g.x,g.z)<1000).length;
+    // The dragon's own twenty gateways; the small End city links (dimensionSpawns.js) are not among them.
+    const order=gatewayOrder(this.world.seed),opened=state.gateways.filter(g=>!g.link&&Math.hypot(g.x,g.z)<1000).length;
     if(newDefeat&&opened<order.length){const g=order[opened];addEndGateway(this.world,g.x,g.y,g.z);}
   }
 }

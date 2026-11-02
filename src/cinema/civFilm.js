@@ -1,14 +1,16 @@
 // 1500 Cartoon Players Simulate Civilization · 1500名卡通玩家模拟文明. Direction: the cast, the sets that change over the
-// twenty days, every scene's action, cameras, light and the documentary overlays (name tags, day cards, island counters,
+// twenty days (and the Grumbler invasion that ends them in a wedding), every scene's action, cameras, light and the documentary overlays (name tags, day cards, island counters,
 // map pins, banners, the live broadcast and the credits). Built on the shared stage (createStage, meshWorld) and director
 // (createDirector), so exports render at 1080p from a 2x supersampled picture with a mipmapped block atlas.
 import * as T from 'three';
 import { CIV_STORY as story, SCENE } from './civStory.js';
 import { buildWorld, SITES, ISLANDS, SEA, RAIL } from './civWorld.js';
-import { makeCharacter, posePlayer, cube, separateCoplanar, coplanarFaces, checkRig } from './civCast.js';
+import { makeCharacter, posePlayer, cube, separateCoplanar, coplanarFaces, checkRig, bowTie } from './civCast.js';
 import { crowd, gather } from './civCrowd.js';
-import { aura, energyBall, lightDome, nimbus, borderWall, fairyLights, toyHammer, bread, cookies, ocelot, mailbox, thrusterTrain, railBridge, platform, sparkles, glowMat } from './civFx.js';
-import { skyDome, mapTable, blockTower, armourStand, hoverPod, minecart, fortress } from './civFrames.js';
+import { aura, energyBall, nimbus, borderWall, fairyLights, toyHammer, bread, cookies, ocelot, mailbox, thrusterTrain, railBridge, sparkles, glowMat } from './civFx.js';
+import { skyDome, mapTable, blockTower, armourStand, hoverPod, minecart } from './civFrames.js';
+import { saucer, saucerSwarm, mothership, tractorBeam, gooRay, gooJelly, wreck } from './invasionProps.js';
+import { arch, weddingCake, fireworks } from './wedProps.js';
 import { nameTag, bigName, caption, counters, dayCard, mapPin, banner, broadcast, fontsReady } from './civOverlay.js';
 import { blockTex, rand } from './claudeStage.js';
 import { BLOCK_DEFS } from '../blocks.js';
@@ -38,9 +40,11 @@ const LOOKS = {
   blizzard: { top: 0xaab8c6, horizon: 0xdfe6ec, glow: 0xe8eef2, sunColor: 0xe7eef6, sunI: 1.0, hemiSky: 0xe6eef6, hemiGround: 0x8f9cab, hemiI: 1.7, fog: 0xd9e1e8, exposure: 1.0, stars: 0 },
   night: { top: 0x0c1430, horizon: 0x2c3a5e, glow: 0x6a7cc0, sunColor: 0x8fa2d8, sunI: .55, hemiSky: 0x52608e, hemiGround: 0x1c2032, hemiI: .75, fog: 0x2a3550, exposure: 1.05, stars: 1 },
   cave: { top: 0x10141c, horizon: 0x10141c, glow: 0x000000, sunColor: 0x9fb4ff, sunI: .05, hemiSky: 0x4a5a8a, hemiGround: 0x1a1a24, hemiI: .5, fog: 0x0c1018, exposure: 1.1, stars: 0 },
-  doom: { top: 0x2c1640, horizon: 0x8a4f88, glow: 0xe07ad0, sunColor: 0xe0a8f0, sunI: 2.0, hemiSky: 0x9a7ab8, hemiGround: 0x3a2a40, hemiI: 1.1, fog: 0x6e4a78, exposure: 1.0, stars: 0 },
+  // the invasion: "Not grass green. Alien green."
+  invasion: { top: 0x123a26, horizon: 0x9fe07a, glow: 0xd8ff9a, sunColor: 0xeaffd0, sunI: 2.1, hemiSky: 0xb0e8a0, hemiGround: 0x2f3a2a, hemiI: 1.15, fog: 0x7aa872, exposure: 1.0, stars: 0 },
+  sunset: { top: 0x34407a, horizon: 0xff9a5c, glow: 0xffc070, sunColor: 0xffb070, sunI: 2.2, hemiSky: 0xb090c0, hemiGround: 0x4a3a40, hemiI: 1.0, fog: 0xd89070, exposure: 1.02, stars: 0 },
+  dusk: { top: 0x2c3a6e, horizon: 0xf2a066, glow: 0xffb070, sunColor: 0xffb080, sunI: 1.3, hemiSky: 0x7080b0, hemiGround: 0x3a3040, hemiI: 1.0, fog: 0x8a7090, exposure: 1.05, stars: 0 },
   lobby: { top: 0xf2f4f8, horizon: 0xe9edf3, glow: 0xffffff, sunColor: 0xffffff, sunI: 1.4, hemiSky: 0xffffff, hemiGround: 0xc9d0da, hemiI: 1.5, fog: 0xe9edf3, exposure: 1.0, stars: 0 },
-  void: { top: 0x070a1a, horizon: 0x2a2648, glow: 0xffb070, sunColor: 0xffc890, sunI: 2.2, hemiSky: 0x8090c0, hemiGround: 0x20203a, hemiI: 1.25, fog: 0x141830, exposure: 1.05, stars: 1 },
 };
 const mixLook = (A, B, k) => { const o = {}; for (const key in A) o[key] = typeof A[key] === 'number' && key.match(/top|horizon|glow|sunColor|hemiSky|hemiGround|fog/) ? new T.Color(A[key]).lerp(new T.Color(B[key]), k).getHex() : lerp(A[key], B[key], k); return o; };
 function applyLook(L, { focus = [0, 20, 0], sunDir = [-.6, .45, .55], area = 40, near = 90, far = 700 } = {}) {
@@ -61,11 +65,14 @@ for (const [k, id, name] of [['goku', 'goku'], ['gokuL', 'goku_leather', 'goku']
   ['krillin', 'krillin_leather', 'krillin'], ['yamchaL', 'yamcha_leather', 'yamcha'], ['yamcha', 'yamcha'], ['gohan', 'gohan'], ['gohanS', 'gohan_scarred', 'gohan'], ['videl', 'videl'], ['buu', 'buu'],
   ['trunks', 'trunks'], ['goten', 'goten'], ['pocoyo', 'pocoyo'], ['elly', 'elly'], ['pato', 'pato'], ['loula', 'loula'], ['nina', 'nina'], ['gabby', 'gabby'], ['pandy', 'pandy'], ['cakey', 'cakey'],
   ['mercat', 'mercat'], ['babybox', 'babybox'], ['djcatnip', 'djcatnip'], ['carlita', 'carlita'], ['soldier1', 'soldier', 'soldier1'], ['soldier2', 'soldier', 'soldier2'], ['soldier3', 'soldier', 'soldier3'],
-  ['bear', 'polarbear', 'bear'], ['zombie', 'zombie']]) make(k, id, name);
+  ['bear', 'polarbear', 'bear'], ['zombie', 'zombie'], ['krillin2', 'krillin', 'krillin'], ['gohanG', 'gohan', 'gohan'], ['videlB', 'videl_bride', 'videl'], ['commander', 'alien_boss', 'commander'], ['zib', 'alien_kid', 'zib'],
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map(i => [`a${i}`, 'alien', `grumbler${i}`])]) make(k, id, name);
+bowTie(C.gohanG); // the groom
+for (let i = 1; i <= 8; i++) { const b = cube(C[`a${i}`].armR, [.1, .1, .3], [0, -.42, -.12], { all: '#5a5f6e' }); cube(b, [.06, .06, .12], [0, 0, -.2], { all: '#7dff6a' }); } // goo blasters
 // every limb must move the way the poses below are written: a reach forward ends in front of the face, seated knees point
 // ahead. A sign error here once sent every arm in the film backward, so it stops the film instead of rendering
 { const bad = Object.entries(C).flatMap(([k, R]) => checkRig(R, k)); if (bad.length) throw new Error('Rig check failed:\n' + bad.join('\n')); }
-const LABEL = { goku: 'Goku', gokuL: 'Goku', gokuS: 'Goku', gohanS: 'Gohan', krillin: 'Krillin', yamchaL: 'Yamcha', briefs: 'Dr. Briefs', soldier1: 'Frieza soldier', soldier2: 'Frieza soldier', soldier3: 'Frieza soldier', bear: 'Polar bear' };
+const LABEL = { goku: 'Goku', gokuL: 'Goku', gokuS: 'Goku', gohanS: 'Gohan', krillin: 'Krillin', yamchaL: 'Yamcha', briefs: 'Dr. Briefs', soldier1: 'Frieza soldier', soldier2: 'Frieza soldier', soldier3: 'Frieza soldier', bear: 'Polar bear', krillin2: 'Krillin', gohanG: 'Gohan', videlB: 'Videl', commander: 'Commander Grumbleflux', zib: 'Zib', ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map(i => [`a${i}`, 'Grumbler'])) };
 /** Pose a character for this frame and make it visible. q: posePlayer options; y defaults to the ground. */
 function show(key, q) {
   const R = C[key]; R.root.visible = true;
@@ -88,36 +95,35 @@ const front = (a, o = {}) => front0(a, { ...o, dist: (o.dist ?? 1.4) * 1.6 }), s
 // ------------------------------------------------------------------ expressions
 const X = D.expressions;
 X('goku', [[0, 'happy'], [L('goku-wow'), 'excited'], [L('goku-hello'), 'joy'], [L('n-hungry'), 'sad'], [L('n-cold'), 'pained'], [L('n-zombie'), 'surprised'], [L('goku-hithere'), 'happy'], [E('yamcha-run'), 'shock'], [L('n-idea'), 'thinking'], [L('goku-breathe'), 'warm'],
-  [SC('nimbus')[0], 'joy'], [L('goku-oops'), 'sheepish'], [SC('stand')[0], 'determined'], [L('goku-energy'), 'determined'], [SC('epilogue')[0], 'happy']]);
-X('vegeta', [[0, 'stern'], [L('veg-prince'), 'proud'], [L('veg-map'), 'stern'], [L('veg-off'), 'shock'], [E('veg-off'), 'stern'], [L('veg-unbelievable'), 'bored'], [L('veg-train'), 'proud'], [L('veg-kakarot'), 'worried'], [SC('epilogue')[0], 'stern'], [L('veg-bread'), 'greedy'], [E('pato-quack2'), 'shock']]);
-X('frieza', [[0, 'knowing'], [L('frieza-mine'), 'greedy'], [L('frieza-know'), 'joy'], [SC('crash')[0], 'calm'], [L('frieza-palace'), 'shock'], [E('goku-oops'), 'stern'], [L('frieza-deal'), 'knowing'], [L('poc-peekaboo') + .8, 'pained'], [L('frieza-baby'), 'stern'], [L('frieza-nobody'), 'stern']]);
-X('pocoyo', [[0, 'happy'], [L('poc-hello'), 'joy'], [L('poc-tower'), 'excited'], [L('poc-peekaboo'), 'joy'], [L('gabby-now'), 'determined'], [L('poc-toot'), 'excited'], [SC('epilogue')[0], 'warm'], [L('poc-bye'), 'happy']]);
-X('gabby', [[0, 'happy'], [L('gabby-panels'), 'excited'], [L('gabby-mailbox'), 'excited'], [L('gabby-walls'), 'determined'], [L('gabby-weapon'), 'hopeful'], [L('gabby-now'), 'determined'], [L('n-dome'), 'joy'], [SC('epilogue')[0], 'sleepy']]);
-X('pato', [[0, 'bored'], [L('pato-beak'), 'sulk'], [L('pato-quack'), 'joy'], [L('veg-bread'), 'stern'], [L('pato-quack2'), 'knowing']]);
-X('krillin', [[0, 'pained'], [L('krillin-teeth'), 'cry'], [L('goku-breathe'), 'relieved']]);
+  [SC('nimbus')[0], 'joy'], [L('goku-oops'), 'sheepish'], [SC('rally')[0], 'determined'], [L('goku-spirit'), 'joy'], [SC('battle')[0], 'determined'], [L('goku-gohan'), 'shock'], [L('goku-ride'), 'joy'], [L('goku-energy'), 'determined'], [SC('victory')[0], 'joy']]);
+X('vegeta', [[0, 'stern'], [L('veg-prince'), 'proud'], [L('veg-map'), 'stern'], [L('veg-off'), 'shock'], [E('veg-off'), 'stern'], [L('veg-unbelievable'), 'bored'], [L('veg-train'), 'proud'], [SC('rally')[0], 'stern'], [L('veg-once'), 'determined'], [L('veg-train2'), 'excited']]);
+X('frieza', [[0, 'knowing'], [L('frieza-mine'), 'greedy'], [L('frieza-know'), 'joy'], [SC('crash')[0], 'calm'], [L('frieza-palace'), 'shock'], [E('goku-oops'), 'stern'], [L('frieza-deal'), 'knowing'], [L('poc-peekaboo') + .8, 'pained'], [L('frieza-baby'), 'stern'],
+  [L('frieza-king'), 'greedy'], [L('cmd-thanks') + 1, 'shock'], [L('n-lesson'), 'pained'], [SC('rally')[0], 'sulk'], [L('frieza-mine2'), 'stern'], [SC('wedding')[0], 'cry']]);
+X('pocoyo', [[0, 'happy'], [L('poc-hello'), 'joy'], [L('poc-tower'), 'excited'], [L('poc-peekaboo'), 'joy'], [L('poc-aliens'), 'excited'], [SC('rally')[0], 'determined'], [SC('victory')[0], 'happy'], [L('poc-party'), 'joy'], [SC('wedding')[0], 'joy']]);
+X('gabby', [[0, 'happy'], [L('gabby-panels'), 'excited'], [L('gabby-mailbox'), 'excited'], [SC('rally')[0], 'determined'], [L('gabby-walls'), 'excited']]);
+X('pato', [[0, 'bored'], [L('pato-beak'), 'sulk'], [L('pato-quack'), 'joy'], [L('pato-armour'), 'proud']]);
+X('krillin', [[0, 'pained'], [L('krillin-teeth'), 'cry'], [L('goku-breathe'), 'relieved'], [SC('fights')[0], 'determined']]);
 X('yamcha', [[0, 'worried'], [L('yamcha-run'), 'shock'], [L('goku-breathe'), 'relieved'], [SC('photobomb')[0], 'greedy']]);
-X('buu', [[0, 'joy'], [L('buu-yes'), 'excited'], [L('buu-customers'), 'joy']]);
-X('bulma', [[0, 'determined'], [L('bulma-sand'), 'excited'], [E('briefs-cat'), 'bored']]);
+X('buu', [[0, 'joy'], [L('buu-yes'), 'excited'], [L('buu-customers'), 'joy'], [L('buu-candy'), 'excited']]);
+X('bulma', [[0, 'determined'], [L('bulma-sand'), 'excited'], [E('briefs-cat'), 'bored'], [SC('rally')[0], 'determined']]);
 X('drbriefs', [[0, 'calm'], [L('briefs-cat'), 'surprised']]);
 X('goten', [[0, 'excited'], [L('goten-two'), 'hopeful'], [L('buu-yes'), 'joy'], [L('goten-noway'), 'determined']]);
 X('trunks', [[0, 'determined']]);
-X('gohan', [[0, 'curious'], [L('gohan-ocelots'), 'knowing'], [SC('nimbus')[0], 'excited'], [SC('stand')[0], 'determined'], [SC('epilogue')[0], 'warm']]);
-X('videl', [[0, 'curious'], [L('videl-eco'), 'thinking'], [E('videl-eco'), 'happy']]);
+X('gohan', [[0, 'curious'], [L('gohan-ocelots'), 'knowing'], [L('gohan-sure'), 'happy'], [SC('nimbus')[0], 'excited'], [SC('rally')[0], 'determined'], [L('gohan-never'), 'determined'], [L('gohan-partner'), 'warm'], [SC('backtoback')[0], 'determined'], [SC('proposal')[0], 'warm'], [SC('wedding')[0], 'happy']]);
+X('videl', [[0, 'curious'], [L('videl-eco'), 'thinking'], [E('videl-eco'), 'happy'], [L('videl-fly'), 'hopeful'], [SC('rally')[0], 'determined'], [L('videl-gohan'), 'worried'], [L('videl-caught'), 'warm'], [SC('backtoback')[0], 'determined'], [SC('proposal')[0], 'warm'], [L('videl-yes'), 'joy'], [SC('wedding')[0], 'happy']]);
+X('commander', [[0, 'stern'], [L('cmd-thanks'), 'greedy'], [SC('rally')[0], 'stern'], [SC('victory')[0], 'shock']]);
+X('zib', [[0, 'worried'], [L('zib-hello'), 'hopeful'], [L('poc-party'), 'joy']]);
+for (let i = 1; i <= 8; i++) X(`grumbler${i}`, [[0, 'stern']]);
 X('mercat', [[0, 'warm']]); X('djcatnip', [[0, 'excited']]); X('babybox', [[0, 'curious'], [L('box-tada'), 'joy']]);
-X('nina', [[0, 'excited']]); X('cakey', [[0, 'joy']]); X('elly', [[0, 'happy'], [L('elly-choo'), 'joy']]); X('pandy', [[0, 'happy'], [SC('epilogue')[0], 'sleepy']]);
+X('nina', [[0, 'excited']]); X('cakey', [[0, 'joy']]); X('elly', [[0, 'happy'], [L('elly-choo'), 'joy'], [SC('wedding')[0], 'warm']]); X('pandy', [[0, 'happy']]);
 X('soldier1', [[0, 'stern'], [SC('grotto')[0], 'relieved']]); X('zombie', [[0, 'bored']]);
 
 // ------------------------------------------------------------------ props (hidden every frame, shown by the scene that needs them)
 const props = [];
 const prop = o => { props.push(o); o.visible = false; return o; };
 const group = () => { const g = new T.Group(); scene.add(g); return prop(g); };
-// world borders: one around each island (phase I), the doomsday square (scaled per frame)
+// world borders: one around each island (phase I)
 const islandBorders = group(); for (const I of Object.values(ISLANDS)) islandBorders.add(borderWall(new T.Group(), I.c[0] - I.r - 8, I.c[1] - I.r - 8, I.c[0] + I.r + 8, I.c[1] + I.r + 8, { y0: SEA - 4, height: 70, opacity: .42 }));
-const doomBorder = group(); doomBorder.add(borderWall(new T.Group(), -1, -1, 1, 1, { y0: 0, height: 1, opacity: .4, color: '#ff4f7e' }));
-function setDoom(cx, cz, half, height = 140, opacity = .32) {
-  doomBorder.visible = true; doomBorder.position.set(cx, 0, cz); doomBorder.scale.set(half, height, half);
-  doomBorder.traverse(o => { if (o.material) o.material.opacity = opacity; });
-}
 // clouds for the aerials
 // opaque, and each puff a little taller and higher than the last: see-through puffs re-sort as the camera moves, and
 // puffs with shared top faces z-fight, and both read as flicker
@@ -203,31 +209,78 @@ const trainAt = u => { // u in 0..1 along bridge then land; returns [x, y, z, ya
   const [a, b, k] = d < l1 ? [BR[0], BR[1], d / l1] : [BR[1], BR[2], (d - l1) / l2], x = lerp(a[0], b[0], k), z = lerp(a[1], b[1], k);
   return [x, d < l1 ? BY + .2 : Math.max(BY + .2 - (d - l1) * .4, G(x, z) + .1), z, Math.atan2(a[0] - b[0], a[1] - b[1])];
 };
-// doomsday, the march, the final stand, the dome
-const [sx, sz] = SITES.plateau, SG = G(sx, sz);
-const fort = group(); fortress(fort, [sx, sz - 4], SG);
+// the invasion (Act III, see INVASION_STORY.md): the plateau's pink fortress, the Grumbler fleet and army, the battle's
+// goo rays and jelly, the finale, and the wedding
+const [sx, sz] = SITES.plateau, SG = G(sx, sz), FC = [sx, sz - 4]; // the fortress rings (radius 5.4 and 9) stand round FC
+const fort = group();
+{ const ring = 9, h = 1.6; for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2; if (Math.abs(a - Math.PI / 2) < .18) continue; const m = cube(fort, [ring * .14, h, .8], [FC[0] + Math.cos(a) * ring, SG + h / 2, FC[1] + Math.sin(a) * ring], { all: i % 2 ? '#f27fb7' : '#e05aa0' }); m.rotation.y = -a + Math.PI / 2; if (i % 2 === 0) cube(fort, [.6, .6, .6], [FC[0] + Math.cos(a) * ring, SG + h + .3, FC[1] + Math.sin(a) * ring], { all: '#f27fb7' }); }
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + .3, x = FC[0] + Math.cos(a) * ring, z = FC[1] + Math.sin(a) * ring; cube(fort, [1.4, 6, 1.4], [x, SG + 3, z], { all: '#f6c3dc' }); const roof = new T.Mesh(new T.ConeGeometry(1.1, 1.8, 4), new T.MeshLambertMaterial({ color: 0xa254e8 })); roof.position.set(x, SG + 6.9, z); roof.rotation.y = Math.PI / 4; fort.add(roof); } }
 const fortClip = new T.Plane(new T.Vector3(0, -1, 0), SG + 20); const clip = m => { const c = m.clone(); c.clippingPlanes = [fortClip]; return c; }; fort.traverse(o => { if (o.material) o.material = Array.isArray(o.material) ? o.material.map(clip) : clip(o.material); }); renderer.localClippingEnabled = true;
-// the tunnel Pocoyo digs: a dark hole in the plateau top with dirt heaped on both sides (a standing black panel read as a door to nowhere)
-const tunnel = group(); { const dirt = await blockTex('coarse_dirt.png'), y = G(sx - 7, sz + 7); cube(tunnel, [1.2, .04, 1.2], [sx - 7, y + .02, sz + 7], { all: '#0b0b0d' }); for (const s of [-1, 1]) cube(tunnel, [.5, .3, 1.1], [sx - 7 + s * .95, y + .15, sz + 7], { all: dirt }); }
-const marchers = group(); for (let k = 0; k < 3; k++) marchers.add(crowd(gather(50, { center: [sx + 14 + k * 9, sz + 22 + k * 7], radius: 5, groundAt: G, face: [sx, sz], seed: 30 + k, mix: ALL })));
-const defenders = group(); defenders.add(crowd(gather(40, { center: [sx, sz - 2], radius: 6, inner: 2, groundAt: () => SG, face: [sx, sz + 30], seed: 18, mix: ['gi', 'saiyan', 'pocoyo', 'gabby', 'panda', 'cat', 'elly', 'pato', 'nina'] })));
-const loyalists = group(); loyalists.add(crowd(gather(70, { center: [sx + 2, sz + 26], radius: 8, groundAt: G, face: [sx, sz], seed: 17, mix: ['soldier', 'frieza'] })));
-const ring = []; for (let i = 0; i < 46; i++) { const a = i / 46 * Math.PI * 2, r = 6.5 + (i % 3) * 1.6; ring.push({ x: sx + Math.cos(a) * r, z: sz + Math.sin(a) * r, y: G(sx + Math.cos(a) * r, sz + Math.sin(a) * r), yaw: Math.atan2(Math.cos(a), Math.sin(a)) }); }
-const ringDown = group(); ringDown.add(crowd(ring, { mix: ['gi', 'saiyan', 'pocoyo', 'elly', 'pato', 'gabby', 'panda', 'cat', 'cakey', 'buu', 'bulma', 'nina'], seed: 21 }));
-const ringUp = group(); ringUp.add(crowd(ring.map((p, i) => ({ ...p, armUp: i % 2 ? 1 : 2 })), { mix: ['gi', 'saiyan', 'pocoyo', 'elly', 'pato', 'gabby', 'panda', 'cat', 'cakey', 'buu', 'bulma', 'nina'], seed: 21 }));
-const deathBall = prop(energyBall(scene, [0, 0, 0], 1, { core: 0xffc080, glow: 0xff4a2a, light: 30, range: 60 }));
-const spiritBomb = prop(energyBall(scene, [0, 0, 0], 1, { core: 0x9fdcff, glow: 0x4aa8ff, light: 20, range: 60 }));
-const dome = prop(lightDome(scene, [0, 0, 0], 1));
+const outsideFort = p => Math.hypot(p.x - FC[0], p.z - FC[1]) > 10;
+const CROSS = { armL: [-1.25, .75], armR: [-1.25, -.75] }, mix2 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; // arms folded; a point k of the way from a to b
+const HEROES = ['gi', 'saiyan', 'purpleGi', 'pocoyo', 'elly', 'pato', 'gabby', 'panda', 'cat', 'cakey', 'buu', 'bulma', 'nina', 'soldier'];
+// the fleet: a sky full of saucers over the islands, a nearer squadron over the plateau, and the mothership
+const fleet = group(); saucerSwarm(fleet, [0, 75, -10], [170, 28, 150], 520, { rMin: 2.5, rMax: 5.5, seed: 11 });
+const squadron = group(); saucerSwarm(squadron, [sx, SG + 40, sz - 60], [80, 14, 30], 140, { seed: 7 });
+const MS = mothership(scene, [0, 0, 0], 40); prop(MS.group);
+const beamPalace = group(); tractorBeam(beamPalace, [px, KG + 72, pz - 6], [px, KG + 2, pz - 2], { radius: 16 });
+const palaceIce = Array.from({ length: 60 }, (_, i) => { const s = .6 + rand(i, 31) * 1.8, m = new T.Mesh(new T.BoxGeometry(s, s, s), iceMat); m.castShadow = true; beamPalace.add(m); return { m, x: px + (rand(i, 32) - .5) * 22, z: pz - 4 + (rand(i, 33) - .5) * 16, y0: KG + 6 + rand(i, 34) * 30, spin: rand(i, 35) * 3 }; });
+const podOut = prop(hoverPod(scene, [0, 0, 0])), cmdSaucer = prop(saucer(scene, [0, 0, 0], 1.3));
+const BF = [px - 12, pz + 34], BFC = [px - 15.5, pz + 41]; // Frieza out in the snowfield, and the lens that sees him, the palace and the beam
+// the rally: Bulma's map table in the inner ring
+const RT = [FC[0], FC[1] - .5], RTC = [RT[0] + .4, RT[1] + 4.6], rally = group(); mapTable(rally, [RT[0], SG, RT[1]]);
+rally.add(crowd(gather(120, { center: FC, radius: 8.6, inner: 4.6, groundAt: G, face: RT, seed: 41, mix: HEROES }).filter(p => p.z < FC[1] - 2.8)));
+// the battle: the heroes inside the walls, the Grumblers advancing from the north, saucers firing goo
+const NORTH = FC[1] - 9; // the outer wall's north side
+const defenders = group(); defenders.add(crowd(gather(260, { center: FC, radius: 8.6, inner: 1.5, groundAt: G, face: [FC[0], FC[1] - 40], seed: 31, mix: HEROES }).filter(p => p.z < FC[1] + 2 && !(p.x > FC[0] - 1.2 && p.x < FC[0] + 4.2 && p.z > FC[1] - 3.6 && p.z < FC[1] + 1.4)).map((p, i) => ({ ...p, armUp: i % 4 === 0 ? 1 : undefined }))));
+const army = group(); army.add(crowd([...gather(560, { center: [FC[0], NORTH - 18], radius: 16, groundAt: G, face: FC, seed: 32, costume: 'alien' }), ...gather(40, { center: [FC[0] + 1, NORTH - 3.4], radius: 4.5, groundAt: G, face: FC, seed: 33, costume: 'alien' })].filter(p => p.z < NORTH - 1.5 && Math.hypot(p.x - FC[0] - 3.5, p.z - NORTH + 7.3) > 3.2), { seed: 32, angry: true }));
+const RAYS = [[-6, -22, 13, .1], [3, -26, 16, -.15], [9, -18, 11, .2], [-12, -28, 18, 0], [14, -30, 20, .1]];
+const battleSaucers = group(), rays = RAYS.map(([x, z, h, tilt], i) => { const s = [FC[0] + x, SG + h, FC[1] + z]; saucer(battleSaucers, s, 2.4, { tilt: [tilt, 0] }); const r = new T.Group(); battleSaucers.add(r); gooRay(r, [s[0], s[1] - .5, s[2]], [s[0] + (x > 0 ? -2 : 2), SG + .6, FC[1] - 6 + x * .1]); return r; });
+const jellies = group(); for (const [x, z] of [[-4, -4], [1, -2.5], [5, -3.5]]) { const y = G(FC[0] + x, FC[1] + z); gooJelly(jellies, [FC[0] + x, y, FC[1] + z]); jellies.add(crowd([{ x: FC[0] + x, y, z: FC[1] + z, yaw: Math.PI, costume: 'pocoyo' }])); }
+// everyone fights: Krillin's disc and the saucer it halves, Buu's candy, the cats
+const disc = group(); { const d = new T.Mesh(new T.CylinderGeometry(1, 1, .04, 40), glowMat(0xffe66a, .9)); disc.add(d, new T.Mesh(new T.CylinderGeometry(1.3, 1.3, .02, 40), glowMat(0xfff4b0, .35))); }
+const DS = [FC[0] + 2, SG + 10, NORTH - 6], KR = [FC[0] + 1.5, NORTH + 3.5], KRC = [KR[0] + 1.2, KR[1] + 3.6]; // the saucer Krillin's disc cuts in two, and where he throws from
+const discTarget = prop(saucer(scene, DS, 2.2));
+const halves = [0, 1].map(() => { const s = prop(saucer(scene, [0, 0, 0], 2.2)); s.scale.z *= .5; return s; });
+const candy = group(); for (let i = 0; i < 70; i++) { const c = new T.Mesh(new T.BoxGeometry(.14, .14, .14), new T.MeshLambertMaterial({ color: [0xff6fa8, 0xffe14a, 0x7fd0ff, 0xb98bff, 0x7dff6a][i % 5], emissive: 0x222222 })); c.userData.d = [Math.sin(i * 1.3), Math.abs(Math.sin(i * 2.1)) + .3, Math.cos(i * 1.7)]; candy.add(c); }
+const candyRay = group(); const BUU = [FC[0] + 5.2, FC[1] - 3.6], BUUC = [BUU[0] + 1.2, BUU[1] + 4]; // east of Krillin, so neither is in the other's shot gooRay(candyRay, [BUU[0] + 5, SG + 9, BUU[1] - 9], [BUU[0] + .4, SG + 2.6, BUU[1] - .6]);
+const catsUp = group(); catsUp.add(crowd(gather(16, { center: [FC[0] - 5, FC[1] - 6.5], radius: 2.2, groundAt: G, face: [FC[0] - 5, FC[1] - 20], seed: 61, mix: ['cat', 'panda', 'cakey'] }).map(p => ({ ...p, armUp: 2 }))));
+// the tractor beam, the Nimbus catch and the ring of Grumblers, south of the walls
+const BM = [sx - 4, sz + 9], BMC = [BM[0] + 1.6, BM[1] + 6], beamFx = group(); saucer(beamFx, [BM[0], SG + 15, BM[1] - 1], 3); tractorBeam(beamFx, [BM[0], SG + 14.4, BM[1] - 1], [BM[0], SG, BM[1] - 1], { radius: 2.4, soft: true });
+const beamCrowd = group(); beamCrowd.add(crowd(gather(60, { center: [BM[0], BM[1] - 5], radius: 6, inner: 2, groundAt: G, face: [BM[0], BM[1] - 1], seed: 71, mix: HEROES }).filter(p => p.z < BM[1] - 2 && outsideFort(p)).map(p => ({ ...p, armUp: 2 }))));
+const blast = group(); const blastRay = new T.Group(); blast.add(blastRay);
+const CB = [sx + 6, sz + 6], CBC = [CB[0] - .6, CB[1] + 4.6], GO = [sx, sz + 11], GOC = [GO[0] + 1, GO[1] + 4]; // where Videl catches Gohan; Goku watching
+const B2B = [sx - 4, sz + 9], B2BC = [B2B[0] + .4, B2B[1] + 5.4]; // back to back
+const GRUNTS = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8'];
+const ringArmy = group(); ringArmy.add(crowd(gather(170, { center: B2B, radius: 12, inner: 5, groundAt: G, face: B2B, seed: 81, costume: 'alien' }).filter(p => p.z < B2B[1] + 2 && outsideFort(p)), { angry: true }));
+const b2bRays = group(); gooRay(b2bRays, [B2B[0] - 3.4, SG + .8, B2B[1] - 2.2], [B2B[0] - 1.6, SG + .3, B2B[1] - .2]); gooRay(b2bRays, [B2B[0] + 3.6, SG + .8, B2B[1] - 2], [B2B[0] + 1.8, SG + .3, B2B[1] - .4]);
+// the finale: everyone's hands up round Goku, the eye under the mothership, Gohan and Videl's beam, the crack
+const GK = [sx, sz + 9], GKC = [GK[0] + 3, GK[1] + 6], EYE = [sx - 6, SG + 70 - 40 * .065, sz - 30], GV = [EYE[0] + 6, EYE[1] - 16, EYE[2] + 4];
+const handsRing = []; for (let i = 0; i < 140; i++) { const a = i / 140 * Math.PI * 2, r = 4 + (i % 4) * 1.4, x = GK[0] + Math.cos(a) * r, z = GK[1] + Math.sin(a) * r; if (!outsideFort({ x, z })) continue; handsRing.push({ x, z, y: G(x, z), yaw: yawTo([x, z], [GK[0], GK[1] - 30]) }); }
+const ringDown = group(); ringDown.add(crowd(handsRing, { mix: HEROES, seed: 91 }));
+const ringUp = group(); ringUp.add(crowd(handsRing.map((p, i) => ({ ...p, armUp: i % 2 ? 1 : 2 })), { mix: HEROES, seed: 91 }));
+const spiritBomb = prop(energyBall(scene, [0, 0, 0], 1, { core: 0x9fdcff, glow: 0x4aa8ff, light: 8, range: 40 }));
+const masenko = group(); gooRay(masenko, [GV[0] + .9, GV[1] + 1.4, GV[2]], [EYE[0], EYE[1] - .4, EYE[2]], { color: 0xffe066, width: .5 });
+const crackFlash = prop(new T.Mesh(new T.SphereGeometry(5, 16, 10), glowMat(0xfff6c0, .7))); scene.add(crackFlash);
 const kiAura = prop(aura(scene, [0, 0, 0], { color: 0xffe066 })), whiteAura = prop(aura(scene, [0, 0, 0], { color: 0xffffff, h: 2.2, r: .7, sparks: 0 })); // no sparks: the breathing close-up looks through it
-const horn = new T.Group(); { const c = new T.Mesh(new T.ConeGeometry(.12, .4, 12, 1, true), new T.MeshLambertMaterial({ color: 0xffd23a, side: T.DoubleSide })); c.rotation.x = Math.PI / 2; horn.add(c); } C.pocoyo.armL.add(horn); horn.position.set(0, -.36, -.12); prop(horn);
-// epilogue: the last platform in the void
-const VOID_Y = LOBBY_Y;
-const finale = group(); finale.position.set(600, VOID_Y, 0);
-{ const top = await blockTex('grass_block_top.png'), side = await blockTex('grass_block_side.png'), dirt = await blockTex('dirt.png'); platform(finale, [0, 0, 0], 8, { top: new T.MeshLambertMaterial({ map: top, color: 0x7fbf55 }), side: new T.MeshLambertMaterial({ map: side }), dirt: new T.MeshLambertMaterial({ map: dirt }) }); }
-const loaf = bread(scene, [0, 0, 0]); prop(loaf);
-const cape = cube(finale, [1.5, .06, 1.8], [3.9, .52, -.5], { all: '#f4f1e8' });
-finale.add(crowd(gather(37, { center: [0, 3.2], radius: 5, inner: 1.5, face: [0, -10], seed: 42, mix: ['gi', 'saiyan', 'pocoyo', 'gabby', 'panda', 'cat', 'buu', 'elly', 'pato', 'bulma', 'nina'] }).map(p => ({ ...p, y: 0 }))));
-const FX = 600; // the finale's x offset
+// victory and the proposal: wrecked saucers, and the cheering crowd
+const wrecks = group(); for (const [x, z, r] of [[-7, 8, 2], [8, 6, 2.4], [-11, 14, 1.8], [5, 17, 2.2]]) wreck(wrecks, [sx + x, G(sx + x, sz + z), sz + z], r, .55);
+const smoke = group(); for (let i = 0; i < 14; i++) { const s = new T.Mesh(new T.SphereGeometry(4 + i * .8, 10, 8), new T.MeshLambertMaterial({ color: 0x8a8f99, transparent: true, opacity: .32 - i * .02, depthWrite: false })); s.position.set(i * 5, -i * 3, i * 9); smoke.add(s); }
+const VC = [sx + 1, sz + 10], VCC = [VC[0] + .3, VC[1] + 4.6], PR = [sx - 2, sz + 7.5], PRC = [PR[0] + 3.2, PR[1] + 3.2]; // Pocoyo meets Zib; the proposal
+const cheer = group(); cheer.add(crowd(gather(150, { center: [VC[0], VC[1] - 6], radius: 9, inner: 2.5, groundAt: G, face: [VC[0], VC[1] + 5], seed: 95, mix: HEROES }).filter(p => p.z < VC[1] - 3.5 && outsideFort(p)).map((p, i) => ({ ...p, armUp: i % 3 ? 2 : 1 }))));
+const ringBox = new T.Group(); C.gohanS.armR.add(ringBox); ringBox.position.set(0, -.62, -.04); cube(ringBox, [.14, .12, .14], [0, 0, 0], { all: '#d6383f' }); cube(ringBox, [.05, .05, .05], [0, .09, 0], { all: '#ffe9a8' }); prop(ringBox);
+const patoArmour = new T.Group(); C.pato.torso.add(patoArmour); cube(patoArmour, [.5, .34, .4], [0, .2, 0], { all: '#d8dde6' }); for (const s of [-1, 1]) cube(patoArmour, [.16, .08, .3], [s * .26, .38, 0], { all: '#e8c04a' }); prop(patoArmour);
+// the wedding: the arch, rows of guests from every island, Buu's cake, the lights, a Grumbler saucer as the party light, fireworks
+const WA = [sx, sz - 3], WC = [WA[0] + .2, WA[1] + 6.6], wedding = group();
+await arch(wedding, [WA[0], G(...WA), WA[1] - .8], 0, 7.4, 3.8);
+const CAKE = [WA[0] + 6.2, WA[1] - 1.6], GBC = [CAKE[0] + 8, CAKE[1] + 2], cakeTop = await weddingCake(wedding, [CAKE[0], G(...CAKE), CAKE[1]], 6);
+{ const rows = []; for (let r = 0; r < 5; r++) for (let i = 0; i < 16; i++) { if (i === 7 || i === 8) continue; const x = WA[0] - 7.5 + i, z = WA[1] + 4.6 + r * 1.3; rows.push({ x, z, y: G(x, z), yaw: Math.sin(i * 7 + r) * .15 }); } wedding.add(crowd(rows, { mix: [...HEROES, 'alien'], seed: 101 })); }
+cube(wedding, [.9, .4, .7], [WA[0], G(...WA) + .2, WA[1] - .4], { all: '#f4f1e8' }); // Elly's step
+fairyLights(wedding, [WA[0] - 8, G(...WA) + 5.4, WA[1] + 1.6], [WA[0] + 8, G(...WA) + 5.4, WA[1] + 1.6], { sag: 1 });
+saucer(wedding, [WA[0], G(...WA) + 9, WA[1] + 3], 1.2);
+const petals = group(); { const pet = new T.MeshLambertMaterial({ color: 0xffc0dc, side: T.DoubleSide }); for (let i = 0; i < 60; i++) { const p = new T.Mesh(new T.PlaneGeometry(.12, .12), pet); p.userData.o = [WA[0] - 4 + Math.abs(Math.sin(i * 3.1)) * 8, .5 + Math.abs(Math.sin(i * 1.7)) * 4, WA[1] + Math.abs(Math.sin(i * 2.3)) * 4, i]; petals.add(p); } }
+const fwSky = group(); const bursts = fireworks(fwSky, [[[WA[0] + 16, SG + 22, WA[1] - 30], 0xff6fa8, 7], [[WA[0] - 14, SG + 26, WA[1] - 34], 0x7fd0ff, 6], [[WA[0] + 2, SG + 32, WA[1] - 40], 0xffe066, 8], [[WA[0] - 26, SG + 20, WA[1] - 26], 0x9dff7a, 6]]);
+const dancers = group(); dancers.add(crowd(gather(140, { center: [CAKE[0] - 3, CAKE[1] + 1], radius: 7, inner: 2.2, groundAt: G, face: [CAKE[0] - 3, CAKE[1] + 1], seed: 111, mix: [...HEROES, 'alien'] }).filter(p => p.z < CAKE[1] + 4).map((p, i) => ({ ...p, walk: i, armUp: i % 4 === 0 ? 2 : undefined }))));
 
 for (const p of props) separateCoplanar(p); // props are built from cube() too: no flush, same-facing faces
 
@@ -402,68 +455,179 @@ const directors = {
     if (t > L('n-found')) { hammer.visible = true; H('pocoyo', t, { x: lerp(mx - .2, mx - 1.1, pop) + (t > E('poc-peekaboo') ? .5 : 0), z: mz + 3.25, y: MG, yaw: .25, armR: bonk ? [-2.2, .1] : [-2.9, .2], headYaw: -.2, lean: pop * .25 }); } // peeks out from behind the throne
   },
   day14(t) { clouds.visible = true; },
-  doomsday(t) {
-    clouds.visible = true; const [a, b] = SC('doomsday'), k = span(t, L('n-hud'), b + 6);
-    setDoom(0, -30, lerp(170, 120, k), 160, .3 * span(t, L('n-hud') - .5, L('n-hud') + 1));
+  invasion(t) {
+    clouds.visible = fleet.visible = true;
+    fleet.position.y = lerp(90, 0, span(t, L('n-green') - .5, L('n-thousands') + 1));
+    shipAt([-10, 150 + fleet.position.y, -120], 1.15, true);
   },
-  march(t) {
-    marchers.visible = fort.visible = true; marchers.position.set(-(t - SC('march')[0]) * .7, 0, -(t - SC('march')[0]) * .5); marchers.children.forEach(c => c.position.y = Math.abs(Math.sin(t * 6)) * .05);
-    const [a] = SC('march'); fortClip.constant = SG + lerp(-.5, 9, span(t, L('gabby-walls') - 1, E('n-tunnels'))); setDoom(sx, sz, lerp(90, 60, span(t, a, SC('march')[1])), 120, .22);
-    H('gabby', t, { x: sx - 3, z: sz + 4, yaw: yawTo([sx - 3, sz + 4], [sx, sz - 4]), armR: [-2.6 + Math.sin(t * 6) * .3, .3], armL: [-2.6 - Math.sin(t * 6) * .3, -.3] });
-    H('carlita', t, { x: sx - 1.2, z: sz + 5, yaw: yawTo([sx - 1.2, sz + 5], [sx, sz - 4]) });
-    tunnel.visible = true; H('pocoyo', t, { x: sx - 7, z: sz + 5.9, yaw: Math.PI, armR: [-.6 - Math.abs(Math.sin(t * 4)) * 1.2, .2], armL: [-.6 - Math.abs(Math.cos(t * 4)) * 1.2, -.2], lean: .55 });
+  backfire(t) {
+    palace.visible = beamPalace.visible = true; snowAt([px, G(px, pz) + 10, pz], t);
+    shipAt([px, KG + 75, pz - 6], .75, false);
+    const lift = span(t, L('cmd-thanks') + .6, SC('backfire')[1]);
+    palaceIce.forEach(({ m, x, z, y0, spin }, i) => { m.position.set(x + Math.sin(t + i) * .4, y0 + lift * 34 + Math.sin(t * 1.3 + i) * .6, z); m.rotation.set(spin * t, spin * t * .7, 0); });
+    const king = t > L('frieza-king') && t < E('frieza-king') + .3, cross = t > L('frieza-deal2') - .2 && t < E('frieza-deal2') + .4;
+    podOut.visible = true; podOut.position.set(BF[0], G(...BF), BF[1]); podOut.rotation.y = yawTo(BF, BFC);
+    H('frieza', t, { x: BF[0], z: BF[1], y: G(...BF) + .25, yaw: yawTo(BF, mix2([px, pz], BFC, .55)), armR: king || cross ? [-2.9 + (cross ? Math.sin(t * 9) * .3 : 0), .3] : [-.4, .2], armL: king || cross ? [-2.9, -.3] : [-.4, -.2], headPitch: t > L('cmd-thanks') - .3 && t < E('cmd-thanks') ? -.35 : 0 });
+    const down = span(t, L('frieza-king') + 1, L('cmd-thanks')), S = [BF[0] + 3.2, BF[1] - 1.2], sy = G(...BF) + 3.1 + (1 - down) * 12;
+    cmdSaucer.visible = true; cmdSaucer.position.set(S[0], sy, S[1]);
+    H('commander', t, { x: S[0], z: S[1], y: sy + .15, yaw: yawTo(S, mix2(BF, BFC, .55)), armR: t > L('cmd-thanks') && t < E('cmd-thanks') ? [-1.6, .25] : [-.4, .2], armL: [-.4, -.3] });
   },
-  stand(t) {
-    fort.visible = defenders.visible = loyalists.visible = true; fortClip.constant = SG + 30; setDoom(sx, sz, 46, 110, .2);
-    const front = sz + 9, enemy = [sx, sz + 40], ssj = t > L('goku-energy') + .6;
-    H(ssj ? 'gokuS' : 'goku', t, { x: sx + 1.2, z: front, yaw: yawTo([sx + 1.2, front], enemy), armL: t > L('goku-energy') ? [-.5, -.8] : [0, -.05], armR: t > L('goku-energy') ? [-.5, .8] : [0, .05] });
-    if (ssj) { kiAura.visible = true; kiAura.position.set(sx + 1.2, G(sx + 1.2, front), front); kiAura.scale.setScalar(1 + Math.sin(t * 12) * .04); }
-    H('gohanS', t, { x: sx - 1.4, z: front + .4, yaw: yawTo([sx - 1.4, front + .4], enemy), armL: [-.3, -.4] });
-    H('vegeta', t, { x: sx + 3.8, z: front - .4, yaw: yawTo([sx + 3.8, front - .4], t > L('veg-kakarot') && t < E('veg-kakarot') ? [sx + 1.2, front] : enemy), armR: t > L('veg-kakarot') && t < E('veg-kakarot') ? [-1.5, .3] : [-.4, .6], armL: [-.4, -.6] });
-    H('pocoyo', t, { x: sx - 4.4, z: front - 1.2, yaw: yawTo([sx - 4.4, front - 1.2], enemy) }); H('pato', t, { x: sx - 5.4, z: front - 1.8, yaw: yawTo([sx - 5.4, front - 1.8], enemy) });
-    const rise = span(t, L('n-frieza') - .6, L('n-frieza') + 1.4), fz = sz + 21, fy = SG + lerp(-6, 8, rise);
-    H('frieza', t, { x: sx + 4, z: fz, y: fy, yaw: yawTo([sx + 4, fz], [sx, sz]), armR: t > L('frieza-nobody') ? [-3, .1] : [-.3, .2], armL: t > L('frieza-nobody') ? [-3, -.1] : [-.3, -.2] });
-    if (t > L('frieza-nobody')) { deathBall.visible = true; deathBall.position.set(sx + 4, fy + 2.8 + span(t, L('frieza-nobody'), E('frieza-nobody') + 2) * 2, fz); deathBall.scale.setScalar(lerp(.3, 2.2, span(t, L('frieza-nobody'), E('frieza-nobody') + 3))); }
+  rally(t) {
+    fort.visible = rally.visible = squadron.visible = true; shipAt([sx - 20, SG + 90, sz - 140], .75, true);
+    fortClip.constant = SG + lerp(-.5, 9, span(t, L('gabby-walls') - .5, L('gabby-walls') + 4));
+    const m = RT, toward = (x, z, k = .4) => yawTo([m[0] + x, m[1] + z], mix2(m, RTC, k));
+    H('bulma', t, { x: m[0] - .4, z: m[1] - 1.3, yaw: toward(-.4, -1.3, .5), armR: reach(t, [[L('bulma-shield'), E('bulma-shield'), [-1.4, .1]]], [-.3, .1]) });
+    const vegOnce = t > L('veg-once') - .3 && t < E('veg-once') + .3;
+    H('goku', t, { x: m[0] - 1.9, z: m[1] - .9, yaw: toward(-1.9, -.9), armR: reach(t, [[L('goku-spirit'), E('goku-spirit'), [-2.8, .3]]], [-.6, .3]) });
+    H('vegeta', t, { x: m[0] + 1.7, z: m[1] - 1, yaw: vegOnce ? yawTo([m[0] + 1.7, m[1] - 1], [m[0] - 1.9, m[1] - .9]) : toward(1.7, -1), ...CROSS });
+    H('gohan', t, { x: m[0] - 2.2, z: m[1] + .5, yaw: toward(-2.2, .5, .6) }); H('videl', t, { x: m[0] - 1.6, z: m[1] + 1.1, yaw: toward(-1.6, 1.1, .6), armL: [-.4, -.3] });
+    const walls = t > L('gabby-walls') - .3;
+    H('gabby', t, { x: m[0] + 2.2, z: m[1] + .5, yaw: toward(2.2, .5, .6), armR: walls ? [-2.6 + Math.sin(t * 6) * .3, .3] : [-.3, .1], armL: walls ? [-2.6 - Math.sin(t * 6) * .3, -.3] : [-.3, -.1] });
+    H('carlita', t, { x: m[0] + 3, z: m[1] + 1.3, yaw: toward(3, 1.3, .6) });
+    patoArmour.visible = t > L('pato-armour'); H('pato', t, { x: m[0] + 1.4, z: m[1] + 1.4, yaw: toward(1.4, 1.4, .8), armR: t > E('pato-armour') - .6 ? [-2.9, .1] : [-.3, .1] });
+    H('frieza', t, { x: m[0] + 3.3, z: m[1] - 1.6, yaw: toward(3.3, -1.6, .25), headPitch: t > L('frieza-mine2') ? 0 : .2, ...CROSS });
+    H('pocoyo', t, { x: m[0] + .6, z: m[1] - .2, y: SG + .98, yaw: yawTo([m[0] + .6, m[1] - .2], RTC), sit: true, seat: SG + 1.0 });
   },
-  spirit(t) {
-    fort.visible = true; fortClip.constant = SG + 30;
-    const [a, b] = SC('spirit'), hands = t > L('n-hands'), domeK = span(t, L('n-dome'), L('n-dome') + 3), close = span(t, L('n-hold'), b);
-    ringDown.visible = !hands || t > L('n-hold'); ringUp.visible = hands && t < L('n-hold');
-    setDoom(sx, sz, lerp(40, 22, close), 100, .28);
-    H('gokuS', t, { x: sx, z: sz, yaw: yawTo([sx, sz], [sx, sz - 20]), armL: [-3.05, -.2], armR: [-3.05, .2], headPitch: -.4 }); kiAura.visible = true; kiAura.position.set(sx, SG, sz); kiAura.scale.setScalar(1.1);
-    const grow = span(t, L('n-hands'), L('n-dome')); spiritBomb.visible = domeK < 1; spiritBomb.position.set(sx, SG + lerp(6, 17, grow) - domeK * 12, sz); spiritBomb.scale.setScalar(lerp(.4, 5, grow) * (1 - domeK * .9));
-    dome.visible = domeK > 0; dome.position.set(sx, SG - .5, sz); dome.scale.setScalar(Math.max(.01, 14 * domeK));
-    const ball = span(t, L('n-dome') + 1, L('n-dome') + 4); if (ball < 1) { deathBall.visible = true; deathBall.position.set(lerp(sx + 4, sx + 9, ball), SG + lerp(16, 9, ball), lerp(sz + 21, sz + 12, ball)); deathBall.scale.setScalar(2.2 * (1 - ball * .8)); }
-    H('gabby', t, { x: sx - 2.2, z: sz - 1.6, yaw: yawTo([sx - 2.2, sz - 1.6], t > L('gabby-now') && t < E('poc-toot') ? [sx + 2.2, sz - 1.6] : [sx, sz - 20]), armR: [-2.9, .3], armL: [-2.9, -.3] });
-    H('pocoyo', t, { x: sx + 2.2, z: sz - 1.6, yaw: yawTo([sx + 2.2, sz - 1.6], [sx, sz - 20]), armL: t > L('poc-toot') - .5 && t < E('poc-toot') + 1 ? [-1.6, -.1] : [-2.9, -.3], armR: [-2.9, .3], headPitch: t > L('poc-toot') - .5 && t < E('poc-toot') + 1 ? -.3 : 0 });
-    horn.visible = t > L('poc-toot') - .6 && t < E('poc-toot') + 1;
-    const holding = t > L('n-hold');
-    for (const [k, dx, dz] of [['vegeta', 3.8, .4], ['gohanS', -3.9, .4], ['pandy', -1.3, -3.4], ['pato', 1.4, -3.6], ['buu', 5.6, 2.4], ['elly', -5.4, 2.4]]) H(k, t, { x: sx + dx, z: sz + dz, yaw: yawTo([sx + dx, sz + dz], [sx, sz - 20]), headPitch: holding ? 0 : -.5, armL: holding ? [-.3, -1.2] : [-2.9, -.3], armR: holding ? [-.3, 1.2] : [-2.9, .3] });
+  battle(t) { battlefield(t); },
+  fights(t) {
+    battlefield(t, { heroes: false });
+    // Krillin's disc: out of his hand, up to the saucer, which splits in two and falls
+    const throwAt = L('kri-disc') + .3, hitAt = throwAt + 1.1, kq = { x: KR[0], z: KR[1], yaw: yawTo(KR, [DS[0], DS[2]]) };
+    kq.yaw = yawTo(KR, mix2([DS[0], DS[2]], KRC, .75)); // he throws toward the saucer but shouts toward us
+    H('krillin2', t, { ...kq, armR: t > L('kri-disc') - .4 && t < hitAt + .6 ? [-2.9, .2] : [-.5, .2], lean: .1 });
+    if (t > throwAt && t < hitAt) { disc.visible = true; const k = (t - throwAt) / (hitAt - throwAt); disc.position.set(lerp(KR[0], DS[0], k), lerp(SG + 2.4, DS[1], k), lerp(KR[1], DS[2], k)); disc.rotation.set(.2, t * 30, 0); }
+    if (t < hitAt) { discTarget.visible = true; discTarget.position.set(...DS); }
+    else halves.forEach((h, i) => { const d = Math.min(t - hitAt, 2.4), s = i ? 1 : -1; h.visible = true; h.position.set(DS[0] + s * d * 1.2, Math.max(SG + .4, DS[1] - 4.9 * d * d * .5), DS[2] + s * d * .6); h.rotation.set(s * d * 1.2, 0, s * d * .8); });
+    // Vegeta's thruster train flies along the north wall
+    const tk = span(t, L('veg-train2') - 1, E('veg-train2') + 3), tx = lerp(FC[0] + 36, FC[0] - 36, tk);
+    train.visible = true; train.position.set(tx, SG + 7, NORTH - 9); train.rotation.y = Math.PI / 2;
+    H('vegeta', t, { x: tx, z: NORTH - 9, y: SG + 8.75, yaw: -Math.PI / 2 + .6, armR: t > L('veg-train2') && t < E('veg-train2') ? [-2.9, .3] : [-.4, .6], armL: [-.4, -.6] });
+    // Buu catches a goo ray and it comes out as candy
+    const candyAt = L('buu-candy') + .2; candyRay.visible = t > L('buu-candy') - 1.2 && t < candyAt;
+    H('buu', t, { x: BUU[0], z: BUU[1], yaw: yawTo(BUU, BUUC), armL: [-2.6, -.5], armR: [-2.6, .5] });
+    if (t > candyAt) { candy.visible = true; const d = t - candyAt; candy.children.forEach(c => { const [x, y, z] = c.userData.d; const e = Math.min(d, 1.4); c.position.set(BUU[0] + x * e, SG + 2.6 + y * e * 1.6 - .5 * e * e, BUU[1] + z * e); c.rotation.set(d * 4, d * 3, 0); }); } // a burst round his hands, never out into the lens
+    patoArmour.visible = true; H('pato', t, { x: FC[0] + .6, z: FC[1] - 4.4, yaw: yawTo([FC[0] + .6, FC[1] - 4.4], [FC[0] + .8, FC[1] + 4]), armR: [-2.9, .1] });
+    catsUp.visible = true; catsUp.position.y = Math.abs(Math.sin(t * 6)) * .25;
   },
-  epilogue(t) {
-    finale.visible = true; const y = VOID_Y, P = (x, z) => [FX + x, z];
-    const took = t > L('pato-quack2'), tug = t > L('veg-bread') && !took ? Math.sin(t * 7) * .15 : 0;
-    H('vegeta', t, { x: FX - .4, z: -2.8, y, yaw: yawTo([-.4, -2.8], [1, -2.8]), armR: took ? [-.3, .5] : [-1.5 + tug, .2], lean: -.05 });
-    H('pato', t, { x: FX + 1, z: -2.8, y, yaw: yawTo([1, -2.8], took ? [3, -6] : [-.4, -2.8]), armL: [-1.7 - tug, -.3], armR: [-1.6, .3] });
-    loaf.visible = true; loaf.position.set(FX + (took ? 1.4 : .3 + tug * .3), y + (took ? 1.0 : 1.08), took ? -3.2 : -2.8); loaf.rotation.set(0, .3, 0);
-    H('gabby', t, { x: FX + 3.4, z: -1, y, yaw: -Math.PI / 2, lie: true }); H('pandy', t, { x: FX + 3.4, z: -.1, y, yaw: -Math.PI / 2, lie: true });
-    H('pocoyo', t, { x: FX - 3.2, z: -6.4, y, yaw: yawTo([-3.2, -6.4], [-1.2, -10.2]), sit: true, armR: t > L('n-wave') ? WAVE(t) : [-.4, .3] }); // faces 'The very last block' camera
+  beam(t) {
+    fort.visible = beamFx.visible = beamCrowd.visible = squadron.visible = true; fortClip.constant = SG + 30; shipAt([sx - 30, SG + 95, sz - 150], 1, true);
+    const vy = SG + lerp(0, 4.6, span(t, L('n-beam'), E('videl-gohan') + .4)), gy = SG + lerp(0, 3.2, span(t, L('gohan-gotyou') - .8, L('gohan-gotyou') + .4)), flying = gy > SG + .2;
+    H('videl', t, { x: BM[0], z: BM[1] - 1, y: vy, yaw: yawTo([BM[0], BM[1] - 1], mix2([BM[0] + 1, BM[1] + 4], BMC, .6)), fly: vy > SG + .2, flyLean: -.2, armR: [-2.6, .6], armL: [-.6, -.9], legL: .3, legR: -.2, t });
+    H('gohanS', t, { x: BM[0] + 1.3, z: BM[1] - .2, y: gy, yaw: yawTo([BM[0] + 1.3, BM[1] - .2], mix2([BM[0], BM[1] - 1], BMC, .55)), fly: flying, flyLean: -.4, armL: flying ? [-2.9, -.3] : [-.4, -.2], armR: [-.5, .5], headPitch: -.4, t });
   },
-  credits(t) {
-    finale.visible = true; const y = VOID_Y;
-    H('pocoyo', t, { x: FX - 3.2, z: -6.4, y, yaw: yawTo([-3.2, -6.4], [-1.2, -10.2]), sit: true, armR: WAVE(t) });
-    H('gabby', t, { x: FX + 3.4, z: -1, y, yaw: -Math.PI / 2, lie: true }); H('pandy', t, { x: FX + 3.4, z: -.1, y, yaw: -Math.PI / 2, lie: true });
-    H('vegeta', t, { x: FX - .4, z: -2.8, y, yaw: yawTo([-.4, -2.8], [1, -2.8]), armL: [-1, -.8], armR: [-1, .8] }); H('pato', t, { x: FX + 1, z: -2.8, y, yaw: yawTo([1, -2.8], [3, -6]) });
-    loaf.visible = true; loaf.position.set(FX + 1.4, y + 1.0, -3.2);
+  catch(t) {
+    fort.visible = squadron.visible = true; fortClip.constant = SG + 30; shipAt([sx - 30, SG + 95, sz - 150], 1, true);
+    const hit = L('n-furious') + 1.4, caught = L('goku-ride'), [a, b] = SC('catch');
+    // the Commander on his saucer, above and behind, blasting Gohan
+    const cmd = [CB[0] - 10, CB[1] - 18], cy = SG + 16; cmdSaucer.visible = true; cmdSaucer.position.set(cmd[0], cy - .3, cmd[1]);
+    H('commander', t, { x: cmd[0], z: cmd[1], y: cy, yaw: yawTo(cmd, CB), armR: t > hit - 1 && t < hit + .4 ? [-1.6, .2] : [-.4, .2] });
+    blast.visible = t > hit - .25 && t < hit + .15;
+    // Gohan tumbles down until Videl, on the Nimbus, catches him
+    const fall = clamp((t - hit) / (caught - hit)), gy = t < hit ? SG + 11 : lerp(SG + 11, SG + 8.1, fall * fall);
+    H('gohanS', t, t < hit ? { x: CB[0], z: CB[1], y: gy, yaw: yawTo(CB, cmd), fly: true, flyLean: -.2, armL: [-1.6, -.3], armR: [-1.6, .3], t }
+      : { x: CB[0] + .1, z: CB[1] - .45, y: gy + .05, yaw: -Math.PI / 2 - .6, lie: true, armR: [-2.6, .4], armL: [-.4, -.6] });
+    if (t >= hit) C.gohanS.root.rotation.z = t < caught ? Math.sin(t * 5) * .4 : 0;
+    // Videl calls the Nimbus from the ground, rides it up, and catches him
+    const V0 = [CB[0] - 1.5, CB[1] + 2.5], up = span(t, L('n-goodheart') - .2, caught);
+    const vx = lerp(V0[0], CB[0] - .3, up), vz = lerp(V0[1], CB[1], up), ny = lerp(G(...V0) + .35, SG + 7, up);
+    const onCloud = t > L('videl-nimbus') + .6;
+    if (onCloud) { nimbusCloud.visible = true; nimbusCloud.position.set(vx, ny, vz); nimbusCloud.rotation.y = Math.PI / 2; }
+    H('videl', t, { x: vx, z: vz, y: onCloud ? ny + .3 : G(...V0), yaw: t < caught ? yawTo([vx, vz], mix2(CB, CBC, .4)) : yawTo([vx, vz], mix2([CB[0] + 1, CB[1]], CBC, .55)), armL: t > caught - .5 ? [-1.6, -.2] : t > L('videl-nimbus') && t < E('videl-nimbus') + .3 ? [-2.9, -.3] : [-.3, -.1], armR: t > caught - .5 ? [-1.6, .2] : [-.3, .1], headPitch: t < caught && t > hit ? -.4 : 0, lean: t > caught ? .2 : 0 });
+    H('goku', t, { x: GO[0], z: GO[1], yaw: yawTo(GO, mix2(CB, GOC, .5)), headPitch: -.45, armR: t > L('goku-ride') && t < E('goku-ride') + .3 ? [-2.9, .3] : [-.4, .3] });
   },
+  backtoback(t) {
+    fort.visible = ringArmy.visible = b2bRays.visible = squadron.visible = true; fortClip.constant = SG + 30;
+    b2bRays.visible = Math.sin(t * 2.2) > -.3;
+    const m = B2B; H('gohanS', t, { x: m[0] - .35, z: m[1], yaw: yawTo([m[0] - .35, m[1]], mix2([m[0] - 4, m[1] + 1], B2BC, .5)), armL: [-1.6, -.3], armR: [-1.2, .5] });
+    H('videl', t, { x: m[0] + .35, z: m[1] + .05, yaw: yawTo([m[0] + .35, m[1] + .05], mix2([m[0] + 4, m[1] + 1], B2BC, .5)), armR: [-1.6, .3], armL: [-1.1, -.5] });
+    GRUNTS.forEach((k, i) => { const a = Math.PI * (1.05 + i * .13), r = 3 + (i % 2) * .7, x = m[0] + Math.cos(a) * r, z = m[1] + Math.sin(a) * r * .8; H(k, t, { x, z, yaw: yawTo([x, z], m), armR: [-1.5, .2], walk: t * 2 + i, stride: .15 }); });
+  },
+  finale(t) {
+    fort.visible = squadron.visible = true; fortClip.constant = SG + 30;
+    const hands = t > L('n-hands'), launch = L('goku-now') + .3, impact = launch + 2.2, gone = span(t, impact, SC('finale')[1]);
+    ringDown.visible = !hands; ringUp.visible = hands;
+    shipAt([EYE[0] + gone * 60, SG + 70 + gone * 90, EYE[2] - gone * 160], 1 - gone * .6, t < L('n-crack'));
+    MS.group.rotation.set(gone * .5, t > impact ? (t - impact) * 3 : 0, gone * .4);
+    H('gokuS', t, { x: GK[0], z: GK[1], yaw: yawTo(GK, mix2([GK[0], GK[1] - 20], GKC, .2)), armL: [-3.05, -.2], armR: [-3.05, .2], headPitch: t < L('n-hands') ? 0 : -.4 });
+    kiAura.visible = !CLOSE.has(shotNow?.name); kiAura.position.set(GK[0], G(...GK), GK[1]); kiAura.scale.setScalar(1.1 + Math.sin(t * 12) * .04);
+    const grow = span(t, L('n-hands'), L('goku-now')), fly = clamp((t - launch) / (impact - launch));
+    if (t < impact) { spiritBomb.visible = true; const p0 = [GK[0], SG + lerp(6, 12, grow), GK[1]]; spiritBomb.position.set(lerp(p0[0], EYE[0], fly * fly), lerp(p0[1], EYE[1], fly * fly), lerp(p0[2], EYE[2], fly * fly)); spiritBomb.scale.setScalar(lerp(.4, 3.4, grow)); }
+    nimbusCloud.visible = true; nimbusCloud.position.set(GV[0] + 1.8, GV[1] - .9, GV[2]); nimbusCloud.rotation.y = yawTo([GV[0], GV[2]], [EYE[0], EYE[2]]);
+    const eyeYaw = yawTo([GV[0], GV[2]], [EYE[0], EYE[2]]);
+    H('gohanS', t, { x: GV[0], z: GV[2], y: GV[1] - .4, yaw: eyeYaw, fly: true, flyLean: -.6, armL: [-2.9, -.1], armR: [-2.9, .1], t });
+    whiteAura.visible = true; whiteAura.position.set(GV[0], GV[1] - .9, GV[2]); whiteAura.scale.setScalar(1);
+    H('videl', t, { x: GV[0] + 1.8, z: GV[2], y: GV[1] - .4, yaw: eyeYaw, armR: [-2.9, .2], armL: [-2.6, -.2], headPitch: -.6 });
+    masenko.visible = t > L('videl-together') + .2 && t < L('n-crack') + .4;
+    crackFlash.visible = t > L('n-crack') - .1 && t < L('n-crack') + .8; crackFlash.position.set(EYE[0], EYE[1] - .6, EYE[2]); crackFlash.scale.setScalar(.4 + (t - L('n-crack')) * 1.8);
+  },
+  victory(t) {
+    wrecks.visible = cheer.visible = smoke.visible = squadron.visible = true;
+    const k = span(t, SC('victory')[0], SC('victory')[1]);
+    shipAt([sx - 60 - k * 40, SG + 120 + k * 60, sz - 220 - k * 120], .65, false); MS.group.rotation.set(.5, t * 2, .4);
+    smoke.position.copy(MS.group.position); squadron.position.set(-k * 60, k * 50, -k * 140);
+    cheer.position.y = Math.abs(Math.sin(t * 7)) * .12;
+    const hi = t > L('poc-hello2') - .2 && t < E('poc-hello2') + .4;
+    H('pocoyo', t, { x: VC[0] - .5, z: VC[1], yaw: yawTo([VC[0] - .5, VC[1]], mix2([VC[0] + .5, VC[1]], VCC, .4)), armR: hi ? WAVE(t) : t > L('poc-party') ? [-2.2, .4] : [-.3, .1] });
+    H('zib', t, { x: VC[0] + .55, z: VC[1] + .5, yaw: yawTo([VC[0] + .55, VC[1] + .5], mix2([VC[0] - .5, VC[1]], VCC, .4)), armL: t > L('zib-hello') && t < E('zib-hello') + .5 ? [-2.6, -.3] : [-.4, -.1] });
+  },
+  proposal(t) {
+    wrecks.visible = true;
+    const m = PR, Gh = [m[0] - .5, m[1]], Vi = [m[0] + .6, m[1] - .1], kneel = t > L('gohan-marry') - 1.2;
+    ringBox.visible = kneel;
+    H('gohanS', t, kneel ? { x: Gh[0], z: Gh[1], y: G(...Gh) - .38, yaw: yawTo(Gh, mix2(Vi, PRC, .25)), legL: -1.5, legR: 1.2, armR: [-1.5, .1], armL: [-.2, -.2], lean: .05 }
+      : { x: Gh[0], z: Gh[1], yaw: yawTo(Gh, mix2(Vi, PRC, .35)) });
+    H('videl', t, { x: Vi[0], z: Vi[1], yaw: yawTo(Vi, mix2(Gh, PRC, .35)), armL: t > L('videl-yes') ? [-1.2, .45] : [-.3, -.1], armR: t > L('videl-yes') ? [-1.2, -.45] : [-.3, .1], headPitch: kneel ? .15 : 0 });
+  },
+  wedding(t) { weddingSet(t); },
+  goodbye(t) { weddingSet(t, { party: true }); },
+  credits(t) { weddingSet(t, { party: true }); },
 };
+const CLOSE = new Set(['Lend me your energy', 'NOW!']); // close-ups of Goku: no aura over his face
+/** The mothership at p, scaled, with or without its shield. */
+function shipAt(p, s, shield) { MS.group.visible = true; MS.group.position.set(...p); MS.group.scale.setScalar(s); MS.group.rotation.set(0, 0, 0); MS.shield.visible = shield; }
+/** The plateau under attack: the walls, the defenders inside, the Grumbler army outside, saucers firing goo, the jelly. */
+function battlefield(t, { heroes = true } = {}) {
+  defenders.visible = heroes; fort.visible = army.visible = battleSaucers.visible = jellies.visible = squadron.visible = true; fortClip.constant = SG + 30;
+  shipAt([sx - 30, SG + 95, sz - 150], 1, true);
+  army.position.y = Math.abs(Math.sin(t * 5)) * .06; defenders.position.y = Math.abs(Math.cos(t * 5)) * .05;
+  rays.forEach((r, i) => { r.visible = Math.sin(t * 2.3 + i * 1.7) > .2; });
+  if (!heroes) return;
+  H('gokuS', t, { x: FC[0] + 2, z: NORTH + 1.6, yaw: yawTo([FC[0] + 2, NORTH + 1.6], [FC[0] + 6, NORTH - 30]), armR: [-1.6, .3], armL: [-1.6, -.3] });
+  kiAura.visible = true; kiAura.position.set(FC[0] + 2, G(FC[0] + 2, NORTH + 1.6), NORTH + 1.6);
+  H('vegeta', t, { x: FC[0] + 4.4, z: NORTH + 1.4, yaw: yawTo([FC[0] + 4.4, NORTH + 1.4], [FC[0] + 9, NORTH - 30]), armR: [-1.6, .2] });
+  H('frieza', t, { x: FC[0] - 1.8, z: NORTH + 2.4, yaw: yawTo([FC[0] - 1.8, NORTH + 2.4], [FC[0] - 2, NORTH - 30]), armR: [-1.7, .1] });
+  const cs = [FC[0] + 2, NORTH - 12], cy = SG + 12; cmdSaucer.visible = true; cmdSaucer.position.set(cs[0], cy - .3, cs[1]);
+  H('commander', t, { x: cs[0], z: cs[1], y: cy, yaw: yawTo(cs, [FC[0] + 2, NORTH + 20]), armR: t > L('cmd-fire') && t < E('cmd-fire') + .4 ? [-2.9, .2] : [-1.4, .2] });
+}
+/** The wedding on the plateau: the couple under the arch, the guests, the cake; the party (fireworks, dancing) after. */
+function weddingSet(t, { party = false } = {}) {
+  wedding.visible = petals.visible = true;
+  petals.children.forEach(p => { const [x, y, z, i] = p.userData.o; p.position.set(x + Math.sin(t + i) * .3, G(...WA) + .3 + ((y - t * .35) % 4 + 4) % 4, z); p.rotation.set(t + i, t * 2 + i, 0); });
+  train.visible = true; train.position.set(WA[0] - 12, G(WA[0] - 12, WA[1] + 6), WA[1] + 6); train.rotation.y = 0;
+  const Gh = [WA[0] - .65, WA[1] + .8], Vi = [WA[0] + .65, WA[1] + .8];
+  if (!party) {
+    H('gohanG', t, { x: Gh[0], z: Gh[1], yaw: yawTo(Gh, mix2(Vi, WC, .7)), armL: [-.4, -.35] });
+    H('videlB', t, { x: Vi[0], z: Vi[1], yaw: yawTo(Vi, mix2(Gh, WC, .7)), armR: [-.4, .35] });
+    H('elly', t, { x: WA[0], z: WA[1] - .4, y: G(...WA) + .4, yaw: yawTo([WA[0], WA[1] - .4], WC), armL: [-1.3, -.1], armR: [-1.3, .1] });
+    const rings = t > L('poc-rings') - .4;
+    H('pocoyo', t, { x: WA[0] - 1.4, z: WA[1] + 1.5, yaw: yawTo([WA[0] - 1.4, WA[1] + 1.5], WC), armL: rings ? [-2.6, -.2] : [-1.3, -.1], armR: rings ? [-2.6, .2] : [-1.3, .1] });
+    H('zib', t, { x: WA[0] + 1.4, z: WA[1] + 1.5, yaw: yawTo([WA[0] + 1.4, WA[1] + 1.5], WC), armR: rings ? [-2.6, .3] : [-.4, .1] });
+    H('frieza', t, { x: WA[0] + 3.2, z: WA[1] + 2.8, yaw: yawTo([WA[0] + 3.2, WA[1] + 2.8], mix2(WA, WC, .6)), armR: [-2.5, .4], headPitch: .2 });
+    return;
+  }
+  fwSky.visible = dancers.visible = true; dancers.position.y = Math.abs(Math.sin(t * 6)) * .1; dancers.rotation.y = 0;
+  bursts.forEach(({ points, light }, i) => { const k = ((t * .35 + i * .27) % 1); points.scale.setScalar(.15 + k); points.material.opacity = 1 - k; light.intensity = 40 * (1 - k); });
+  H('pocoyo', t, { x: CAKE[0], z: CAKE[1], y: cakeTop + .5, yaw: yawTo(CAKE, GBC), sit: true, seat: cakeTop + .5, armR: t > L('n-wave') ? WAVE(t) : [-.4, .3] });
+  const spin = t * .8, c = [CAKE[0] - 3, CAKE[1] + 2.5];
+  H('gohanG', t, { x: c[0] - Math.cos(spin) * .45, z: c[1] - Math.sin(spin) * .45, yaw: yawTo([c[0] - Math.cos(spin) * .45, c[1] - Math.sin(spin) * .45], c), armL: [-1.4, -.4], armR: [-1.6, .2] });
+  H('videlB', t, { x: c[0] + Math.cos(spin) * .45, z: c[1] + Math.sin(spin) * .45, yaw: yawTo([c[0] + Math.cos(spin) * .45, c[1] + Math.sin(spin) * .45], c), armR: [-1.4, .4], armL: [-1.6, -.2] });
+}
 let shotNow; // the shot being drawn (light() decides its key light)
 function reset(t, shot) {
   shotNow = shot;
   for (const p of props) p.visible = false;
   visibleNow = [];
-  W.group.visible = !['lobby', 'epilogue', 'credits'].includes(shot.scene);
-  doomBorder.visible = false;
+  W.group.visible = shot.scene !== 'lobby';
   for (const R of Object.values(C)) R.root.position.y = -9999;
 }
 
@@ -487,24 +651,32 @@ const LIGHT = {
   trade: ['golden', { focus: [-48, 20, -15], sunDir: [-.8, .35, .3], area: 50, far: 900 }],
   photobomb: ['day', { focus: [mx, MG, mz], sunDir: [-.4, .7, -.6], area: 14 }],
   day14: ['golden', { focus: [-90, 20, 55], sunDir: [-.7, .32, .35], area: 70, far: 900 }],
-  doomsday: ['doom', { focus: [0, 12, -10], sunDir: [.2, .5, -.8], area: 200, near: 300, far: 1500 }],
-  march: ['doom', { focus: [sx, SG, sz + 10], sunDir: [-.3, .6, -.7], area: 40, near: 60, far: 500 }],
-  stand: ['doom', { focus: [sx, SG, sz + 10], sunDir: [-.3, .6, -.7], area: 34, near: 60, far: 500 }],
-  spirit: ['doom', { focus: [sx, SG, sz], sunDir: [-.3, .6, -.7], area: 34, near: 60, far: 500 }],
-  epilogue: ['void', { focus: [FX, VOID_Y, 0], sunDir: [-.5, .3, -.8], area: 14, near: 40, far: 300 }],
-  credits: ['void', { focus: [FX, VOID_Y, 0], sunDir: [-.5, .3, -.8], area: 14, near: 40, far: 300 }],
+  invasion: ['invasion', { focus: [0, 12, -10], sunDir: [.2, .5, -.8], area: 200, near: 300, far: 1500 }],
+  backfire: ['invasion', { focus: [px, KG + 10, pz + 20], sunDir: [-.3, .6, .6], area: 40, near: 40, far: 450 }],
+  rally: ['invasion', { focus: [FC[0], SG, FC[1]], sunDir: [.3, .6, .75], area: 24, near: 60, far: 600 }],
+  battle: ['invasion', { focus: [FC[0], SG, FC[1] - 10], sunDir: [-.5, .55, .6], area: 34, near: 60, far: 600 }],
+  fights: ['invasion', { focus: [FC[0], SG, FC[1] - 6], sunDir: [.4, .55, .7], area: 30, near: 60, far: 600 }],
+  beam: ['invasion', { focus: [BM[0], SG + 4, BM[1]], sunDir: [-.4, .5, .75], area: 24, near: 60, far: 600 }],
+  catch: ['invasion', { focus: [CB[0], SG + 6, CB[1]], sunDir: [.3, .45, .85], area: 30, near: 60, far: 600 }],
+  backtoback: ['invasion', { focus: [B2B[0], SG, B2B[1]], sunDir: [-.3, .5, .8], area: 24, near: 60, far: 600 }],
+  finale: ['invasion', { focus: [GK[0], SG + 10, GK[1] - 10], sunDir: [-.2, .6, .75], area: 40, near: 80, far: 800 }],
+  victory: ['golden', { focus: [VC[0], SG, VC[1]], sunDir: [.3, .4, .85], area: 24 }],
+  proposal: ['sunset', { focus: [PR[0], SG, PR[1]], sunDir: [.35, .18, .9], area: 20, near: 60, far: 450 }],
+  wedding: ['dusk', { focus: [WA[0], SG, WA[1]], sunDir: [.3, .25, .9], area: 24, near: 80, far: 500 }],
+  goodbye: ['night', { focus: [WA[0], SG, WA[1]], sunDir: [.3, .25, .9], area: 24, near: 80, far: 500 }],
+  credits: ['night', { focus: [WA[0], SG, WA[1]], sunDir: [.3, .25, .9], area: 24, near: 80, far: 500 }],
 };
 // Depth precision falls with the square of distance over the near plane: at 0.1 m the aerials (200–560 m away) resolve
 // depth only to ~15 cm, so the sea plane and the shore blocks 12 cm above it fight. Aerials get a near plane of 2 m.
-const AERIAL = new Set(['open', 'map', 'day1', 'day7', 'day8', 'day14', 'doomsday']);
+const AERIAL = new Set(['open', 'map', 'day1', 'day7', 'day8', 'day14', 'invasion']);
 function light(name, t) { look(name, t); keyLight.intensity = shotNow ? keyFor(shotNow, t) : 0; }
 function look(name, t) {
   camera.near = AERIAL.has(name) ? 2 : .1; camera.updateProjectionMatrix();
   let [look, opts] = LIGHT[name], Lk = LOOKS[look];
   if (name === 'zfighters') Lk = mixLook(LOOKS.blizzard, LOOKS.night, span(t, L('n-idea') - 1.4, L('n-idea') + .6));
-  if (name === 'doomsday') Lk = mixLook(LOOKS.golden, LOOKS.doom, span(t, L('n-purple') - .4, L('n-purple') + 2.6));
-  if (name === 'spirit') Lk = mixLook(LOOKS.doom, LOOKS.golden, span(t, L('n-dome') + 1, L('n-hold') + 4) * .6);
-  if (name === 'credits' || name === 'epilogue') Lk = mixLook(LOOKS.void, { ...LOOKS.void, horizon: 0xf2a066, glow: 0xffb070, top: 0x34477a, stars: 0 }, span(t, SC('epilogue')[0] + 8, SC('credits')[1]));
+  if (name === 'invasion') Lk = mixLook(LOOKS.golden, LOOKS.invasion, span(t, L('n-green') - .4, L('n-green') + 2.6));
+  if (name === 'victory') Lk = mixLook(LOOKS.invasion, LOOKS.golden, span(t, SC('victory')[0], SC('victory')[0] + 5));
+  if (name === 'goodbye') Lk = mixLook(LOOKS.dusk, LOOKS.night, span(t, SC('goodbye')[0], SC('goodbye')[0] + 6));
   applyLook(Lk, opts);
   clouds.position.x = t * .6;
 }
@@ -531,7 +703,7 @@ function keyFor(shot, t) {
   poseAt(shot, t); look(shot.scene, t); // the frame being drawn is posed again by the director
   return shot.key;
 }
-const grade = name => ({ day1: 'blur(6px) saturate(1.1) brightness(1.04)', day14: 'blur(6px) saturate(1.05) brightness(1.02)', grotto: 'saturate(1.15) contrast(1.05)', icepalace: 'saturate(.92)', zfighters: 'saturate(.95)', doomsday: 'saturate(1.15) contrast(1.05)', stand: 'saturate(1.12) contrast(1.04)', spirit: 'saturate(1.12)' })[name] ?? 'saturate(1.1) contrast(1.03)';
+const grade = name => ({ day1: 'blur(6px) saturate(1.1) brightness(1.04)', day14: 'blur(6px) saturate(1.05) brightness(1.02)', grotto: 'saturate(1.15) contrast(1.05)', icepalace: 'saturate(.92)', zfighters: 'saturate(.95)', invasion: 'saturate(1.12) contrast(1.05)', battle: 'saturate(1.1) contrast(1.04)', finale: 'saturate(1.1) contrast(1.03)' })[name] ?? 'saturate(1.1) contrast(1.03)';
 
 // ------------------------------------------------------------------ shots
 const P = (...a) => v(...a);
@@ -616,26 +788,70 @@ const shots = [
   { at: L('frieza-baby') - .2, scene: 'photobomb', name: 'Who invited the baby?', cam: front(C.frieza.root, { dist: 2.3, side: -.4, up: .1, fov: 40 }) },
   { at: L('n-nobody-invites') - .2, scene: 'photobomb', name: 'He just comes', cam: mv([mx + .2, MG + 1.6, mz - 3.4], [mx + .2, MG + 1.7, mz - 4.2], [mx - .2, MG + 1.5, mz + 2], [mx - .2, MG + 1.5, mz + 2], 40) },
   { at: S0('day14'), scene: 'day14', name: 'Day 14', dissolve: 1, cam: mv([-34, 70, 128], [-30, 66, 122], [-92, 18, 52], [-92, 18, 52], 42) },
-  { at: S0('doomsday'), scene: 'doomsday', name: 'Doomsday', dissolve: 1.2, cam: mv([230, 190, 250], [190, 170, 210], [0, 10, -20], [0, 10, -20], 46) },
-  { at: S0('march'), scene: 'march', name: 'To the last green hill', dissolve: 1.2, free: true, cam: mv([sx + 30, SG + 14, sz + 40], [sx + 16, SG + 8, sz + 22], [sx, SG + 3, sz], [sx - 2, SG + 3, sz + 2], 46) },
-  { at: L('gabby-walls') - .3, scene: 'march', name: 'Pink walls', cam: front(C.gabby.root, { dist: 2.4, side: .5, fov: 40 }) },
-  { at: L('n-tunnels') - .3, scene: 'march', name: 'Tunnels, just in case', cam: mv([sx - 5.6, G(sx - 5.6, sz + 9.6) + 1.9, sz + 9.6], [sx - 5.9, G(sx - 5.9, sz + 9.2) + 1.8, sz + 9.2], [sx - 7, G(sx - 7, sz + 6) + 1, sz + 6.1], [sx - 7, G(sx - 7, sz + 6) + 1, sz + 6.1], 44) }, // across the hole: Pocoyo digs toward us (aimed at his head)
-  { at: S0('stand'), scene: 'stand', name: 'From the south', dissolve: 1.2, cam: mv([sx - 4.5, G(sx - 4.5, sz + 5.5) + 1.7, sz + 5.5], [sx - 4, G(sx - 4.5, sz + 5.5) + 1.8, sz + 6], [sx + 2.5, SG + 6, sz + 20], [sx + 2.5, SG + 7, sz + 20], 52) },
-  { at: L('frieza-nobody') - .3, scene: 'stand', name: 'Nobody can!', cam: front(C.frieza.root, { dist: 3.2, side: .4, up: -.4, fov: 44 }) },
-  { at: L('veg-kakarot') - .3, scene: 'stand', name: 'Kakarot!', cam: single(C.vegeta.root, C.goku.root, { dist: 2.2, angle: .6, fov: 38 }) }, // off Goku's eyeline: front() put his hair at the lens
-  { at: L('goku-energy') - .3, scene: 'stand', name: 'Lend me your energy', cam: (t, k) => { const h = C[t > L('goku-energy') + .6 ? 'gokuS' : 'goku'].root; const f = [-Math.sin(h.rotation.y), -Math.cos(h.rotation.y)]; return { pos: P(h.position.x + f[0] * 4.6 + .8, h.position.y + 1.7, h.position.z + f[1] * 4.6), look: P(h.position.x, h.position.y + 1.4, h.position.z), fov: lerp(42, 36, k) }; } },
-  { at: S0('spirit'), scene: 'spirit', name: 'Hands up', dissolve: .8, cam: mv([sx + 15, SG + 5, sz - 21], [sx + 12, SG + 6, sz - 18], [sx, SG + 6, sz], [sx, SG + 9, sz], 50) },
-  { at: L('gabby-weapon') - .3, scene: 'spirit', name: 'Not a weapon', cam: front(C.gabby.root, { dist: 2.2, side: .4, up: -.1, fov: 38 }) },
-  { at: L('poc-toot') - .3, scene: 'spirit', name: 'Toot toot', cam: front(C.pocoyo.root, { dist: 1.9, side: -.3, up: -.05, fov: 38 }) },
-  { at: L('n-dome') - .2, scene: 'spirit', name: 'A dome of happy light', cam: mv([sx + 22, SG + 8, sz - 28], [sx + 26, SG + 10, sz - 32], [sx, SG + 7, sz], [sx, SG + 7, sz], 50) },
-  { at: L('n-hold') - .3, scene: 'spirit', name: 'Everyone held hands', cam: mv([sx + 14, SG + 9, sz - 20], [sx + 20, SG + 14, sz - 28], [sx, SG + 2, sz], [sx, SG + 4, sz], 50) },
-  { at: S0('epilogue'), scene: 'epilogue', name: 'Forty-two players', dissolve: 2, cam: mv([FX + 16, VOID_Y + 9, -24], [FX + 3, VOID_Y + 2.3, -11.5], [FX, VOID_Y, 0], [FX - .6, VOID_Y + .9, -2.4], 46, 48) },
-  { at: L('veg-bread') - .3, scene: 'epilogue', name: 'That bread is mine', cam: single(C.vegeta.root, C.pato.root, { dist: 2.2, angle: .75, fov: 36 }) },
-  { at: L('pato-quack2') - .2, scene: 'epilogue', name: 'Quack', cam: front(C.pato.root, { dist: 1.8, side: .3, up: -.05, fov: 36 }) },
-  { at: L('n-asleep') - .3, scene: 'epilogue', name: "Asleep in Gohan's cape", cam: mv([FX + 3, VOID_Y + 2.2, -4], [FX + 3.2, VOID_Y + 2, -3.2], [FX + 3.6, VOID_Y + .3, -.5], [FX + 3.6, VOID_Y + .3, -.5], 40) },
-  { at: L('n-wave') - .3, scene: 'epilogue', name: 'The very last block', cam: mv([FX - 1.2, VOID_Y + 1.8, -10.2], [FX - .8, VOID_Y + 1.9, -10.6], [FX - 3.2, VOID_Y + .7, -6.4], [FX - 3.2, VOID_Y + .8, -6.4], 40) },
-  { at: L('n-goodbye') - .3, scene: 'epilogue', name: 'Goodbye, everyone', cam: mv([FX - 2, VOID_Y + 2, -9], [FX + 8, VOID_Y + 10, -30], [FX - 1, VOID_Y + .6, -3], [FX, VOID_Y, 0], 44, 50) },
-  { at: S0('credits'), scene: 'credits', name: 'Credits', cam: mv([FX + 8, VOID_Y + 10, -30], [FX + 18, VOID_Y + 22, -60], [FX, VOID_Y, 0], [FX, VOID_Y + 4, 0], 50) },
+  { at: S0('invasion'), scene: 'invasion', name: 'The sky turns green', dissolve: 1.2, cam: mv([230, 190, 250], [190, 170, 210], [0, 30, -30], [0, 40, -40], 46) },
+  { at: L('poc-aliens') - .3, scene: 'invasion', name: 'Oooh! Aliens!', free: true, cam: mv([sx + 12, SG + 4, sz + 24], [sx + 12, SG + 4.6, sz + 23], [sx - 10, SG + 40, sz - 60], [sx - 12, SG + 46, sz - 70], 52) },
+  { at: S0('backfire'), scene: 'backfire', name: 'Who invited them?', dissolve: 1.2, free: true, cam: mv([px - 30, KG + 18, pz + 46], [px - 26, KG + 14, pz + 42], [px, KG + 22, pz], [px, KG + 28, pz], 48) },
+  { at: L('frieza-king') - .3, scene: 'backfire', name: 'I shall be your king', cam: front(C.frieza.root, { dist: 2.4, side: .4, up: .1, fov: 40 }) },
+  { at: L('cmd-thanks') - .3, scene: 'backfire', name: 'Thank you for the invitation', cam: front(C.commander.root, { dist: 2.6, side: -.35, up: -.15, fov: 40 }) },
+  { at: L('frieza-deal2') - .2, scene: 'backfire', name: 'NOT the deal', cam: front(C.frieza.root, { dist: 2.0, side: -.35, fov: 38 }) },
+  { at: L('n-lesson') - .3, scene: 'backfire', name: 'They might take yours first', free: true, cam: mv([BFC[0], G(...BF) + 1.8, BFC[1]], [BFC[0] - .4, G(...BF) + 2.2, BFC[1] + .6], [BF[0] + 2.4, G(...BF) + 4.6, BF[1] - 8], [px, KG + 30, pz], 50, 54) },
+  { at: S0('rally'), scene: 'rally', name: 'All three islands', dissolve: 1.2, free: true, cam: mv([sx + 30, SG + 14, sz + 40], [sx + 16, SG + 8, sz + 22], [sx, SG + 3, sz - 4], [sx - 1, SG + 2, sz - 4], 46) },
+  { at: L('bulma-shield') - .3, scene: 'rally', name: 'One big shield', cam: front(C.bulma.root, { dist: 2.2, side: .4, fov: 38 }) },
+  { at: L('veg-once') - .3, scene: 'rally', name: 'Just this once', cam: single(C.vegeta.root, C.goku.root, { dist: 2.2, angle: .6, fov: 38 }) },
+  { at: L('goku-spirit') - .2, scene: 'rally', name: "That's the spirit", cam: front(C.goku.root, { dist: 2.0, side: -.3, fov: 36 }) },
+  { at: L('gabby-walls') - .3, scene: 'rally', name: 'Pink walls', cam: front(C.gabby.root, { dist: 2.8, side: .5, up: .1, fov: 48 }) },
+  { at: L('pato-armour') - .2, scene: 'rally', name: 'It goes with my beak', cam: front(C.pato.root, { dist: 1.8, side: .3, up: -.05, fov: 36 }) },
+  { at: L('frieza-mine2') - .3, scene: 'rally', name: 'Move over, monkeys', cam: front(C.frieza.root, { dist: 2.2, side: .4, fov: 38 }) },
+  { at: S0('battle'), scene: 'battle', name: 'The Grumblers came', dissolve: .8, free: true, cam: mv([FC[0] + 4, SG + 3.2, NORTH - 8], [FC[0] + 3, SG + 3.6, NORTH - 6.6], [FC[0] + 1, SG + 3.4, NORTH + 4], [FC[0] + 1, SG + 3.2, NORTH + 4], 56) },
+  { at: L('cmd-fire') - .3, scene: 'battle', name: 'Goo rays! Fire!', cam: front(C.commander.root, { dist: 3, side: .3, up: -.3, fov: 42 }) },
+  { at: L('n-goo') - .3, scene: 'battle', name: 'Like a gummy bear', cam: mv([FC[0] + 1.6, SG + 1.8, FC[1] + .2], [FC[0] + 1.9, SG + 1.9, FC[1] - .2], [FC[0] + 1, SG + 1.1, FC[1] - 2.5], [FC[0] + 1, SG + 1.2, FC[1] - 2.5], 44) },
+  { at: L('kri-disc') - .3, scene: 'fights', name: 'Destructo Disc!', cam: mv([KRC[0], SG + 1.7, KRC[1]], [KRC[0] - .2, SG + 1.8, KRC[1] - .3], [KR[0], SG + 1.5, KR[1]], [KR[0], SG + 1.7, KR[1]], 42) },
+  { at: L('kri-disc') + 1.0, scene: 'fights', name: 'A saucer in two', free: true, cam: mv([KRC[0], SG + 2.2, KRC[1] + .6], [KRC[0] + .3, SG + 2.1, KRC[1] + 1], [DS[0], DS[1] - 1, DS[2]], [DS[0], DS[1] - 5, DS[2]], 52) },
+  { at: L('veg-train2') - .3, scene: 'fights', name: 'Saiyan train', free: true, cam: (t, k) => { const p = train.position; return { pos: P(p.x - 2, p.y + 2.6, p.z + 9), look: P(p.x + 1, p.y + 1.6, p.z), fov: 44 }; } },
+  { at: L('buu-candy') - .3, scene: 'fights', name: 'Ray into candy', cam: front(C.buu.root, { dist: 2.6, side: .4, up: .2, fov: 46 }) },
+  { at: L('n-cats') - .3, scene: 'fights', name: 'Even the cats', cam: mv([FC[0] - 4.4, SG + 2.4, FC[1] - 2], [FC[0] - 4.8, SG + 2.2, FC[1] - 2.4], [FC[0] - 5, SG + 1.2, FC[1] - 6.5], [FC[0] - 5, SG + 1.2, FC[1] - 6.5], 46) },
+  { at: S0('beam'), scene: 'beam', name: 'A tractor beam', dissolve: .6, cam: mv([BMC[0], SG + 2.8, BMC[1]], [BMC[0] - .3, SG + 3, BMC[1] - .4], [BM[0] + .6, SG + 3.2, BM[1] - .6], [BM[0] + .6, SG + 4, BM[1] - .6], 46) },
+  { at: L('gohan-gotyou') - .3, scene: 'beam', name: "I've got you", cam: mv([BM[0] + 3.4, SG + 3.2, BM[1] + 4.4], [BM[0] + 3.2, SG + 3.3, BM[1] + 4.1], [BM[0] + .6, SG + 3.8, BM[1] - .6], [BM[0] + .6, SG + 3.8, BM[1] - .6], 44) },
+  { at: S0('catch'), scene: 'catch', name: 'Blasted out of the sky', dissolve: .6, free: true, cam: mv([CB[0] + 6, SG + 9, CB[1] + 14], [CB[0] + 5, SG + 8.5, CB[1] + 13], [CB[0] - 3, SG + 11, CB[1] - 6], [CB[0] - 1, SG + 9, CB[1] - 2], 50) },
+  { at: L('goku-gohan') - .2, scene: 'catch', name: 'Gohan!', cam: front(C.goku.root, { dist: 2.2, side: .3, up: .1, fov: 40 }) },
+  { at: L('n-cantfly') - .3, scene: 'catch', name: 'Videl could not fly', cam: front(C.videl.root, { dist: 2.4, side: .4, up: .05, fov: 40 }) },
+  { at: L('n-goodheart') - .3, scene: 'catch', name: 'A good heart', cam: (t, k) => { const p = nimbusCloud.position; return { pos: P(p.x + 1.4, p.y + 2.2, p.z + 5.6), look: P(p.x, p.y + 1, p.z), fov: 44 }; } },
+  { at: L('goku-ride') - .2, scene: 'catch', name: 'It let her ride!', cam: front(C.goku.root, { dist: 2.2, side: -.3, up: .1, fov: 38 }) },
+  { at: L('videl-caught') - .3, scene: 'catch', name: 'Now I caught you', cam: mv([CB[0] - .6, SG + 9.6, CB[1] + 4.6], [CB[0] - .5, SG + 9.4, CB[1] + 4.2], [CB[0], SG + 8.1, CB[1] - .2], [CB[0], SG + 8.1, CB[1] - .2], 42) },
+  { at: S0('backtoback'), scene: 'backtoback', name: 'Surrounded', dissolve: .6, cam: mv([B2BC[0], SG + 1.6, B2BC[1]], [B2BC[0] - .3, SG + 1.5, B2BC[1] - .4], [B2B[0], SG + 1.2, B2B[1] - .6], [B2B[0], SG + 1.2, B2B[1] - .6], 44) },
+  { at: L('gohan-back') - .2, scene: 'backtoback', name: 'Back to back?', cam: front(C.gohanS.root, { dist: 2.0, side: -.3, fov: 38 }) },
+  { at: L('videl-always') - .2, scene: 'backtoback', name: 'Always', cam: front(C.videl.root, { dist: 1.9, side: .3, fov: 38 }) },
+  { at: L('n-partners') - .3, scene: 'backtoback', name: 'What partners do', cam: orbit([B2B[0], SG, B2B[1]], 5.2, 1.6, 1.2, 2.0, 44, 1.2) },
+  { at: S0('finale'), scene: 'finale', name: 'Lend me your energy', dissolve: .8, cam: front(C.gokuS.root, { dist: 3, side: .3, up: .2, fov: 42 }) },
+  { at: L('n-hands') - .3, scene: 'finale', name: 'Hands up', free: true, cam: mv([GK[0] + 14, SG + 5, GK[1] + 16], [GK[0] + 12, SG + 6, GK[1] + 14], [GK[0], SG + 7, GK[1]], [GK[0], SG + 10, GK[1]], 50) },
+  { at: L('bulma-eye') - .3, scene: 'finale', name: 'The eye', free: true, cam: mv([GK[0] + 6, SG + 3, GK[1] + 8], [GK[0] + 6, SG + 3.4, GK[1] + 8], [EYE[0], EYE[1] - 4, EYE[2]], [EYE[0], EYE[1], EYE[2]], 52) },
+  { at: L('gohan-together') - .3, scene: 'finale', name: 'Together', free: true, cam: mv([GV[0] - 3.4, GV[1] + 2.6, GV[2] - 4.2], [GV[0] - 3.2, GV[1] + 2.8, GV[2] - 4], [GV[0] + .9, GV[1] - .2, GV[2]], [GV[0] + .9, GV[1] - .2, GV[2]], 42) },
+  { at: L('n-crack') - .3, scene: 'finale', name: 'Crack', free: true, cam: mv([GK[0] + 58, SG + 14, GK[1] + 60], [GK[0] + 56, SG + 15, GK[1] + 58], [sx - 4, SG + 34, sz - 16], [sx - 4, SG + 36, sz - 16], 50) },
+  { at: L('goku-now') - .2, scene: 'finale', name: 'NOW!', cam: front(C.gokuS.root, { dist: 2.6, side: -.3, up: .3, fov: 40 }) },
+  { at: L('goku-now') + 1.4, scene: 'finale', name: 'All the way home', free: true, cam: mv([GK[0] + 40, SG + 10, GK[1] + 50], [GK[0] + 44, SG + 12, GK[1] + 56], [EYE[0], EYE[1], EYE[2]], [EYE[0] + 20, EYE[1] + 40, EYE[2] - 60], 50, 56) },
+  { at: S0('victory'), scene: 'victory', name: 'They flew home', dissolve: 1, free: true, cam: mv([VC[0] + 8, SG + 4, VC[1] + 12], [VC[0] + 7, SG + 3.6, VC[1] + 11], [sx - 30, SG + 40, sz - 100], [sx - 40, SG + 50, sz - 120], 50) },
+  { at: L('zib-hello') - .3, scene: 'victory', name: 'Um... hello?', cam: front(C.zib.root, { dist: 1.8, side: .3, up: -.1, fov: 36 }) },
+  { at: L('poc-hello2') - .2, scene: 'victory', name: 'Hello!', cam: front(C.pocoyo.root, { dist: 1.9, side: -.3, up: -.1, fov: 36 }) },
+  { at: L('n-littlest') - .3, scene: 'victory', name: 'The littlest one', cam: mv([VCC[0], SG + .9, VCC[1]], [VCC[0] - .2, SG + .9, VCC[1] - .4], [VC[0], SG + 1.4, VC[1] - 1], [VC[0], SG + 1.4, VC[1] - 1], 42) },
+  { at: L('poc-party') - .2, scene: 'victory', name: 'Party?', cam: front(C.pocoyo.root, { dist: 1.8, side: .3, up: -.1, fov: 36 }) },
+  { at: S0('proposal'), scene: 'proposal', name: 'Sunset', dissolve: 1.4, free: true, cam: mv([PR[0] + 10, SG + 4, PR[1] + 9], [PR[0] + 8, SG + 3, PR[1] + 7], [PR[0], SG + 1.2, PR[1]], [PR[0], SG + 1.2, PR[1]], 46) },
+  { at: L('gohan-saved') - .3, scene: 'proposal', name: 'You saved me', cam: front(C.gohanS.root, { dist: 2.0, side: .3, fov: 38 }) },
+  { at: L('videl-first') - .2, scene: 'proposal', name: 'You saved me first', cam: front(C.videl.root, { dist: 1.9, side: -.3, fov: 38 }) },
+  { at: L('gohan-marry') - .3, scene: 'proposal', name: 'Will you marry me?', cam: mv([PRC[0], SG + 1, PRC[1]], [PRC[0] - .3, SG + 1, PRC[1] - .3], [PR[0], SG + 1, PR[1] - .2], [PR[0], SG + 1, PR[1] - .2], 40) },
+  { at: L('videl-yes') - .2, scene: 'proposal', name: 'Yes', cam: front(C.videl.root, { dist: 1.8, side: .3, fov: 36 }) },
+  { at: L('goku-cake2') - .2, scene: 'proposal', name: 'Does this mean cake?', free: true, cam: mv([PR[0] + 6, SG + 2.4, PR[1] + 6], [PR[0] + 8, SG + 3.4, PR[1] + 8], [PR[0], SG + 1, PR[1]], [PR[0], SG + 1.4, PR[1]], 44) },
+  { at: S0('wedding'), scene: 'wedding', name: 'The biggest wedding', dissolve: 1.4, free: true, cam: mv([WA[0] + 12, SG + 8.5, WA[1] + 14], [WA[0] + 10.5, SG + 7.5, WA[1] + 12], [WA[0] - .4, SG + 1.4, WA[1] + 3.2], [WA[0] - .4, SG + 1.2, WA[1] + 3.2], 50) },
+  { at: L('n-guests') + 2, scene: 'wedding', name: 'A cake as tall as a house', free: true, cam: mv([CAKE[0] + 4, SG + 3, CAKE[1] + 8], [CAKE[0] + 2, SG + 4, CAKE[1] + 7], [CAKE[0], SG + 3, CAKE[1]], [CAKE[0], cakeTop, CAKE[1]], 46) },
+  { at: L('elly-promise') - .3, scene: 'wedding', name: 'Do you promise?', cam: mv([WA[0] + .2, SG + 2.3, WA[1] + 4.6], [WA[0] + .2, SG + 2.2, WA[1] + 4.2], [WA[0], SG + 1.6, WA[1] - .4], [WA[0], SG + 1.6, WA[1] - .4], 40) },
+  { at: L('videl-vow') - .3, scene: 'wedding', name: 'I promise to catch you', cam: front(C.videlB.root, { dist: 1.8, side: .3, fov: 36 }) },
+  { at: L('gohan-vow') - .3, scene: 'wedding', name: 'I promise to never let go', cam: front(C.gohanG.root, { dist: 1.8, side: -.3, fov: 36 }) },
+  { at: L('poc-rings') - .3, scene: 'wedding', name: 'Rings!', cam: mv([WA[0], SG + 1.4, WA[1] + 5], [WA[0], SG + 1.3, WA[1] + 4.6], [WA[0], SG + .9, WA[1] + 1.5], [WA[0], SG + .9, WA[1] + 1.5], 44) },
+  { at: L('frieza-goo') - .3, scene: 'wedding', name: "It's the goo", cam: front(C.frieza.root, { dist: 2.0, side: .35, fov: 38 }) },
+  { at: S0('goodbye'), scene: 'goodbye', name: 'The party', dissolve: 1.2, free: true, cam: mv([WA[0] + 10, SG + 5, WA[1] + 15], [WA[0] + 9, SG + 6, WA[1] + 14], [WA[0] + 3, SG + 4, WA[1]], [WA[0] + 3, SG + 6, WA[1] - 4], 50) },
+  { at: L('n-wave') - .3, scene: 'goodbye', name: 'The very top of the cake', cam: mv([GBC[0], cakeTop - .8, GBC[1]], [GBC[0] - .6, cakeTop - .6, GBC[1] - .2], [CAKE[0], cakeTop - .6, CAKE[1]], [CAKE[0], cakeTop + .2, CAKE[1]], 44) },
+  { at: L('poc-bye') - .2, scene: 'goodbye', name: 'Bye-bye!', cam: front(C.pocoyo.root, { dist: 2.2, side: .3, up: -.1, fov: 38 }) },
+  { at: L('n-goodbye') - .3, scene: 'goodbye', name: 'Goodbye, everyone', free: true, cam: mv([CAKE[0] - 2, cakeTop + .4, CAKE[1] + 7], [CAKE[0] + 6, cakeTop + 10, CAKE[1] + 26], [CAKE[0], cakeTop, CAKE[1]], [CAKE[0] - 6, SG + 20, CAKE[1] - 30], 44, 50) },
+  { at: S0('credits'), scene: 'credits', name: 'Credits', free: true, cam: mv([CAKE[0] + 6, cakeTop + 10, CAKE[1] + 26], [CAKE[0] + 10, cakeTop + 18, CAKE[1] + 40], [CAKE[0] - 6, SG + 20, CAKE[1] - 30], [CAKE[0] - 8, SG + 26, CAKE[1] - 40], 50) },
 ];
 
 /** Keep the lens on the near side of any blocks (terrain, walls, leaves, the fortress) between it and its subject. */
@@ -711,17 +927,18 @@ const box3 = new T.Box3();
 const headTop = key => { box3.setFromObject(C[key].head); return [(box3.min.x + box3.max.x) / 2, box3.max.y, (box3.min.z + box3.max.z) / 2]; };
 const TAGS = { lobby: ['pocoyo', 'goku', 'gabby', 'vegeta', 'pato', 'frieza', 'pandy', 'buu', 'elly', 'nina'], outpost: ['bulma', 'briefs', 'gabby', 'pandy', 'cakey'], warroom: ['vegeta', 'pocoyo', 'pato', 'elly'],
   icepalace: ['frieza'], grotto: ['mercat', 'babybox', 'djcatnip'], zfighters: ['gokuL', 'krillin', 'yamchaL', 'zombie'], bakery: ['buu', 'goten', 'nina', 'loula', 'trunks'], cafe: ['gohan', 'videl', 'gabby', 'cakey'],
-  nimbus: ['goku', 'gohan'], crash: ['goku', 'frieza'], trade: ['gabby', 'vegeta', 'elly', 'pato', 'buu'], photobomb: ['frieza', 'pocoyo', 'yamcha'], march: ['gabby', 'carlita', 'pocoyo'],
-  stand: ['goku', 'gokuS', 'gohanS', 'vegeta', 'pocoyo', 'pato', 'frieza'], spirit: ['gokuS', 'gabby', 'pocoyo', 'vegeta', 'gohanS'], epilogue: ['vegeta', 'pato', 'gabby', 'pandy', 'pocoyo'] };
+  nimbus: ['goku', 'gohan'], crash: ['goku', 'frieza'], trade: ['gabby', 'vegeta', 'elly', 'pato', 'buu'], photobomb: ['frieza', 'pocoyo', 'yamcha'], backfire: ['frieza', 'commander'],
+  rally: ['bulma', 'goku', 'vegeta', 'gohan', 'videl', 'gabby', 'carlita', 'pato', 'frieza', 'pocoyo'], battle: ['gokuS', 'vegeta', 'frieza', 'commander'], fights: ['krillin2', 'vegeta', 'buu', 'pato'], beam: ['videl', 'gohanS'],
+  catch: ['videl', 'gohanS', 'goku', 'commander'], backtoback: ['gohanS', 'videl', 'a1', 'a5'], finale: ['gokuS', 'gohanS', 'videl'], victory: ['pocoyo', 'zib'], proposal: ['gohanS', 'videl'], wedding: ['gohanG', 'videlB', 'elly', 'pocoyo', 'zib', 'frieza'], goodbye: ['pocoyo', 'gohanG', 'videlB'] };
 const ISLAND_PINS = [['hot', 'vegeta', 'HOT ISLAND'], ['cold', 'frieza', 'COLD ISLAND'], ['temperate', 'pocoyo', 'TEMPERATE ISLAND']];
 const FACTION_PINS = [['bulma', SITES.outpost, 'Capsule Corp Outpost', [0, 0]], ['vegeta', SITES.vegetaMesa, 'Saiyan-Pocoyo Accord', [0, 0]], ['frieza', SITES.palace, 'Ice Sanctuary', [0, -6]], ['goku', SITES.goku, 'Z-Fighters', [-6, 6]], ['mercat', SITES.grotto, 'Spa Grotto', [10, 8]],
   ['buu', SITES.bakery, 'Buu Bakery', [-8, 0]], ['gabby', SITES.cafe, 'Caffeine Paws', [8, 4]], ['pocoyo', SITES.park, 'Pocoyo Park', [0, 10]], ['gohan', SITES.plateau, 'Central Plateau', [0, -14]]];
 const CAPTIONS = [ // [from, to, text]: the editor's punchy captions
   [L('veg-prince') + .2, E('veg-prince') + .4, '"Prince of All Hot Island Wastes"'], [L('n-cuteness') + 1, E('veg-unbelievable'), 'Coup averted: cuteness'], [L('n-zombie') + .6, E('goku-hithere'), '*zombie noises*'],
-  [L('n-through') + .9, L('n-through') + 2.4, 'CRASH'], [E('poc-peekaboo') + .05, E('poc-peekaboo') + 1.1, '*squeak*'], [L('n-ohdear'), L('n-ohdear') + 1.6, 'Oh dear.'],
+  [L('n-through') + .9, L('n-through') + 2.4, 'CRASH'], [E('poc-peekaboo') + .05, E('poc-peekaboo') + 1.1, '*squeak*'], [L('n-crack') + .1, L('n-crack') + 1.4, 'CRACK'], [L('n-goo') + 2.4, E('n-goo'), '*boing*'],
 ];
 const CREDITS = ['1500 CARTOON PLAYERS SIMULATE CIVILIZATION', '', 'A Blockyland Pictures film', 'Inspired by the Minecraft civilization experiments', '', 'Starring (fan versions of)', 'Pocoyo · Elly · Pato · Nina · Loula', 'Gabby · Pandy Paws · Cakey Cat · MerCat · Baby Box · DJ Catnip · Carlita',
-  'Goku · Vegeta · Gohan · Krillin · Yamcha · Bulma · Dr. Briefs · Videl · Majin Buu · Trunks · Goten · Frieza', '', 'and 1,500 players in costume', '', 'Built with Blockyland\'s own blocks', 'Voices: neural text-to-speech · Original score', '', 'Pocoyo, Gabby\'s Dollhouse and Dragon Ball belong to their creators.', 'This is an unofficial fan film.'];
+  'Goku · Vegeta · Gohan · Krillin · Yamcha · Bulma · Dr. Briefs · Videl · Majin Buu · Trunks · Goten · Frieza', '', 'Commander Grumbleflux · Zib · 3,000 Grumblers', '(original aliens in Pocoyo\'s toy style)', '', 'and 1,500 players in costume', '', 'Built with Blockyland\'s own blocks', 'Voices: OpenAI text-to-speech, directed line by line · Original score', '', 'Pocoyo, Gabby\'s Dollhouse and Dragon Ball belong to their creators.', 'This is an unofficial fan film.'];
 function overlay(ink, t, shot) {
   const sc = shot.scene;
   // name tags: big and soft in close-ups, small Minecraft tags in wider shots
@@ -750,13 +967,14 @@ function overlay(ink, t, shot) {
   if (sc === 'day1') { dayCard(ink, 'DAY 1'); counters(ink, [500, 500, 500]); }
   if (sc === 'day14') { dayCard(ink, 'DAY 14'); counters(ink, [61, 78, 40]); }
   if (sc === 'day8') { const a = SC('day8')[0]; if (t < a + 3.2) { ink.globalAlpha = Math.min(1, (a + 3.2 - t) / .6); dayCard(ink, 'DAY 8'); counters(ink, [471, 488, 402]); ink.globalAlpha = 1; } if (t > L('n-gone') + .4) banner(ink, 'WORLD BORDER DISABLED', 'Day 8 · anything is possible', { color: '#7dff9a' }); }
-  if (sc === 'doomsday') { if (t > L('n-hud') - .2) { ink.globalAlpha = Math.min(1, (t - L('n-hud') + .2) / .4); banner(ink, 'DOOMSDAY ACTIVATED', 'WORLD BORDER IS CLOSING · 500 BLOCKS A DAY'); ink.globalAlpha = 1; } counters(ink, t > L('n-hud') ? [48, 71, 31] : [61, 78, 40]); }
+  if (sc === 'invasion' && t > L('n-thousands') - .2) { ink.globalAlpha = Math.min(1, (t - L('n-thousands') + .2) / .4); banner(ink, 'INVASION', 'DAY 15 · 500 SAUCERS · 3,000 GRUMBLERS', { color: '#5fd04a' }); ink.globalAlpha = 1; }
+  if (sc === 'backfire' && t > L('frieza-king') - .3) broadcast(ink, 'WORLD BROADCAST · Frieza and the Grumblers');
+  if (sc === 'battle' && t < S0('battle') + 5) { ink.globalAlpha = clamp(Math.min(t - S0('battle'), S0('battle') + 5 - t) / .4); banner(ink, 'THE BATTLE OF THE CENTRAL PLATEAU', 'goo rays only stick · they never hurt', { color: '#5fd04a' }); ink.globalAlpha = 1; }
   if (sc === 'photobomb' && t > L('n-broadcast') - .3) broadcast(ink, "WORLD BROADCAST · Frieza's (secret) meeting");
-  if (sc === 'spirit') { const end = SC('spirit')[1], left = Math.ceil(end - 1.4 - t); if (left >= 0 && left <= 3 && t > L('n-hold')) { ink.save(); ink.font = '110px Minecraft, monospace'; ink.textAlign = 'center'; ink.fillStyle = 'rgba(255,255,255,.85)'; ink.fillText(String(left), 640, 300); ink.restore(); } const flashK = clamp(1 - Math.abs(t - (end - 1)) / .8); if (flashK > 0) { ink.fillStyle = `rgba(255,248,230,${flashK * .9})`; ink.fillRect(0, 0, 1280, 720); } }
-  if (sc === 'epilogue' || sc === 'credits') { const a = SC('epilogue')[0]; if (sc === 'epilogue' && t < L('n-settled') + 6) { ink.save(); ink.font = '22px Minecraft, monospace'; ink.textAlign = 'center'; ink.globalAlpha = clamp(t - a - 1); ink.fillStyle = '#ffe9b0'; ink.fillText('SERVER CLOCK: 00:00 · PLAYERS REMAINING: 42', 640, 86); ink.restore(); } }
+  if (sc === 'finale') { const flashK = clamp(1 - Math.abs(t - (L('goku-now') + 2.5)) / .7); if (flashK > 0) { ink.fillStyle = `rgba(255,248,230,${flashK * .85})`; ink.fillRect(0, 0, 1280, 720); } }
   if (sc === 'credits') {
     const [a, b] = SC('credits'), end = story.duration - 6.6, k = (t - a) / (end - a); if (t < end) {
-      ink.save(); ink.textAlign = 'center'; CREDITS.forEach((line, i) => { const y = 720 - k * (CREDITS.length * 34 + 520) + i * 34; if (y < 40 || y > 690) return; ink.font = i === 0 ? '30px Minecraft, monospace' : '19px Minecraft, monospace'; ink.fillStyle = i === 0 ? '#ffd27a' : '#f4f0e6'; ink.globalAlpha = .92; ink.fillText(line, 640, y); }); ink.restore();
+      ink.save(); ink.textAlign = 'center'; CREDITS.forEach((line, i) => { const y = 720 - k * (CREDITS.length * 34 + 520) + i * 34; if (y < 40 || y > 690) return; ink.font = i === 0 ? '30px "Pixelify Sans", monospace' : '19px "Pixelify Sans", monospace'; ink.fillStyle = i === 0 ? '#ffd27a' : '#f4f0e6'; ink.globalAlpha = .92; ink.fillText(line, 640, y); }); ink.restore();
     }
   }
   for (const [a, b, words] of CAPTIONS) if (t > a && t < b) { ink.globalAlpha = Math.min(1, (t - a) / .2, (b - t) / .2); caption(ink, words, { y: 150, size: words.length < 10 ? 52 : 36 }); ink.globalAlpha = 1; }
@@ -768,8 +986,11 @@ const CUES = {
   roar: L('n-noise') + 1.4, borderOff: L('n-gone') - .2, nimbus: [S0('nimbus'), SC('nimbus')[1]], crashWhoosh: [S0('crash'), L('n-through') + .9], crash: L('n-through') + .9,
   squeak: E('poc-peekaboo') + .05, mailbox: [E('gabby-mailbox') - .6, E('gabby-mailbox') + 1.2], train: [L('n-outdone'), E('n-into') + 1.2], trainArrive: E('n-into') + .9,
   zombie: [L('n-zombie') + .5, E('goku-hithere') + .5], fire: [L('n-idea') - 1, SC('zfighters')[1]], cheer: [L('n-clapping'), E('grunt-tower') + 1], minecart: [E('nina-go'), E('nina-go') + 6],
-  doom: L('n-hud') - .3, rumble: [L('n-hud'), SC('march')[1]], deathBall: [L('frieza-nobody'), SC('stand')[1]], transform: L('goku-energy') + .6,
-  bomb: [L('n-hands'), L('n-dome')], dome: L('n-dome') + .2, deflect: L('n-dome') + 4, countdown: SC('spirit')[1] - 4.4, finalFlash: SC('spirit')[1] - 1,
+  alarm: L('n-green') + .4, fleetHum: [S0('invasion'), SC('finale')[1]], beams: [[L('frieza-king'), SC('backfire')[1]], [L('n-beam'), E('gohan-never')]], walls: L('gabby-walls') + .2,
+  battle: [S0('battle'), SC('backtoback')[1]], zaps: [[S0('battle'), SC('fights')[1]], [S0('backtoback'), SC('backtoback')[1]]], disc: [L('kri-disc') + .3, L('kri-disc') + 1.4], halves: L('kri-disc') + 1.4,
+  train2: [L('veg-train2') - 1, E('veg-train2') + 3], candy: L('buu-candy') + .2, blast: L('n-furious') + 1.4, nimbus2: [L('n-goodheart') - .2, L('goku-ride')], transform: S0('finale') + .2,
+  bomb: [L('n-hands'), L('goku-now')], masenko: [L('videl-together') + .2, L('n-crack') + .4], crack: L('n-crack'), launch: L('goku-now') + .3, impact: L('goku-now') + 2.5, away: [L('goku-now') + 2.6, SC('finale')[1]],
+  victoryCheer: [S0('victory'), L('zib-hello') - .5], bells: S0('wedding') + .6, fireworks: [S0('goodbye'), SC('credits')[1]], night: [S0('goodbye'), SC('credits')[1]],
   blizzard: [[S0('icepalace'), SC('icepalace')[1]], [S0('zfighters'), L('n-idea')], [S0('crash'), SC('crash')[1]]], birds: [[S0('bakery'), SC('cafe')[1]], [S0('outpost'), SC('warroom')[1]]],
   sea: [[S0('nimbus'), SC('nimbus')[1]], [S0('trade'), SC('trade')[1]]], cave: [S0('grotto'), SC('grotto')[1]],
 };
@@ -837,4 +1058,4 @@ function check(t) {
 window.pilot.check = check;
 
 // handles for scripts/render-film.mjs checks and for probing a frame from the console
-window.civ = { T, C, camera, scene, sun, renderer, W, shots, SITES, props: { islandBorders, doomBorder, clouds }, visible: () => visibleNow };
+window.civ = { T, C, camera, scene, sun, renderer, W, shots, SITES, props: { islandBorders, clouds, fleet, MS }, visible: () => visibleNow };

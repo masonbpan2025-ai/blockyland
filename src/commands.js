@@ -118,9 +118,9 @@ export const COMMANDS = [
   { name: 'clear', args: '[<targets>] [<item>] [<maxCount>]', level: 2, gate: true, help: 'Clear items from the inventory' },
   { name: 'clearchat', args: '', level: 0, help: 'Clear the chat window' },
   { name: 'help', args: '', level: 0, help: 'List the commands' },
-  // Not gated: this toggles the World Agent between the API and its offline presets. It is a setting for the
-  // player's own key rather than a way to change the world, and gating it would lock someone out of it.
-  { name: 'offline', args: '', level: 2, help: 'Toggle the World Agent offline' },
+  // Not gated: this switches the World Agent between its offline presets and the player's own AI app. It is a
+  // setting, not a way to change the world, and gating it would lock someone out of it.
+  { name: 'offline', args: '', level: 2, help: 'Switch the World Agent between offline presets and your AI app' },
   { name: 'redstone', args: '<demo|game|list> [...]', level: 2, gate: true, help: 'Build a redstone example' },
   // Java's commands added by the systems parity audit (vanillaCommands.js runs them).
   ...VANILLA_COMMAND_ROWS,

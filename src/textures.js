@@ -1,3 +1,4 @@
+import { netherPortalFrames, PORTAL_FRAMES, PORTAL_FRAME_SECONDS } from './portalTexture.js';
 import * as THREE from 'three';
 import { enableBlockEmission } from './blockGeometry.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
@@ -129,6 +130,7 @@ export class TextureManager {
       // eight times a second, for one 16 x 16 frame of animation.
       if(!this.uploadLavaTile(tile))this.atlasTexture.needsUpdate=true;
     }
+    this.animatePortal(dt);
     if (this.waterUniforms) {
       this.waterUniforms.uTime.value += dt;
 
@@ -154,6 +156,35 @@ export class TextureManager {
    * Copy the current lava frame into the atlas on the GPU, without re-uploading the rest of the atlas.
    * Returns false when there is no renderer to do it with, so the caller falls back to a full upload.
    */
+  /**
+   * The Nether portal's swirl (portalTexture.js): a frame every game tick, painted into the portal's tile and uploaded
+   * alone, as lava's frames are. A resource pack whose portal is an animated strip plays its own frames instead.
+   */
+  animatePortal(dt){
+    const tile=this.tileCoords?.['nether_portal.png'];
+    if(!tile||!this.ctx||typeof document==='undefined')return;
+    this.portalClock=(this.portalClock||0)+dt;
+    if(this.portalClock<PORTAL_FRAME_SECONDS)return;
+    this.portalClock=0;
+    const image=this.portalImage,size=this.tileSize,x=tile.col*size,y=tile.row*size;
+    const strip=image&&image.height>=image.width*2?Math.floor(image.height/image.width):0;
+    this.portalFrame=((this.portalFrame||0)+1)%(strip||PORTAL_FRAMES);
+    this.ctx.clearRect(x,y,size,size);
+    if(strip){this.ctx.drawImage(image,0,this.portalFrame*image.width,image.width,image.width,x,y,size,size);}
+    else{
+      if(!this.portalFrames){
+        this.portalFrames=netherPortalFrames();
+        this.portalFrameCanvas=document.createElement('canvas');this.portalFrameCanvas.width=this.portalFrameCanvas.height=16;
+        this.portalFrameCtx=this.portalFrameCanvas.getContext('2d');
+      }
+      this.portalFrameCtx.putImageData(new ImageData(this.portalFrames[this.portalFrame],16,16),0,0);
+      const smoothing=this.ctx.imageSmoothingEnabled;this.ctx.imageSmoothingEnabled=false;
+      this.ctx.drawImage(this.portalFrameCanvas,0,0,16,16,x,y,size,size);
+      this.ctx.imageSmoothingEnabled=smoothing;
+    }
+    if(!this.uploadLavaTile(tile))this.atlasTexture.needsUpdate=true;
+  }
+
   uploadLavaTile(tile){
     const renderer=this.renderer;
     if(!renderer?.copyTextureToTexture||!this.atlasTexture||!renderer.properties?.get(this.atlasTexture)?.__webglTexture)return false;
@@ -208,6 +239,7 @@ export class TextureManager {
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         if(fileName==='lava_still.png')this.lavaImage=img;
+        if(fileName==='nether_portal.png')this.portalImage=img;
         // If image is a vertical animation strip (e.g. water_still 16x512, lava_still 16x320),
         // take only the first square frame (0, 0, img.width, img.width) to avoid squashing 32 frames!
         const srcHeight = Math.min(img.width, img.height);
@@ -284,6 +316,7 @@ export class TextureManager {
         img.crossOrigin = 'anonymous';
         img.onload = () => {
           if (fileName === 'lava_still.png') this.lavaImage = img;
+          if (fileName === 'nether_portal.png') this.portalImage = img;
           const srcHeight = Math.min(img.width, img.height);
           if (this.ctx) this.ctx.drawImage(img, 0, 0, img.width, srcHeight, x, y, this.tileSize, this.tileSize);
           resolve();

@@ -82,6 +82,7 @@ export function createWorldView({ scene }) {
   const chunkMeshes = new Map();
   let realMobs = null;
   let mobStatus = 'none';
+  let showToken = 0;
 
   async function ensureMesher() {
     if (!mesher) {
@@ -114,10 +115,15 @@ export function createWorldView({ scene }) {
     },
 
     /** Generate and mesh a structure. Resolves with the built world. */
-    async show({ structureId, seed, biome = 'auto' }) {
+    async show({ structureId, seed, biome = 'auto', piece = null }) {
+      // Only the newest request is shown. Two builds can overlap -- the page builds one structure on load and the
+      // picker asks for another before it finishes -- and the older one finishing last used to replace the newer.
+      const token = ++showToken;
       await ensureMesher();
+      const next = await buildStructureWorld({ structureId, seed, biome, piece });
+      if (token !== showToken) return built;
       this.clear();
-      built = await buildStructureWorld({ structureId, seed, biome });
+      built = next;
       for (const entry of meshBuiltWorld(built, mesher)) placeChunk(entry);
       // The game's own mobs; coloured markers only if the mob manager cannot start here.
       try {
@@ -130,6 +136,14 @@ export function createWorldView({ scene }) {
       }
       group.visible = true;
       return built;
+    },
+
+    /** Remove the terrain's meshes and the mobs, keeping the built world: a portal trip changed its dimension. */
+    clearChunks() {
+      for (const meshes of chunkMeshes.values()) for (const mesh of meshes) { group.remove(mesh); mesh.geometry.dispose(); }
+      chunkMeshes.clear();
+      disposeGroup(mobs);
+      if (realMobs) { realMobs.dispose(); realMobs = null; }
     },
 
     clear() {
@@ -222,7 +236,7 @@ const KEYS = {
  * Pointer lock gives mouse look; without it (or when the browser refuses it) the arrow keys turn the view, so the
  * walk-through still works from the keyboard alone.
  */
-export function createWalkThrough({ renderer, scene, view, onChange = () => {} }) {
+export function createWalkThrough({ renderer, scene, view, onChange = () => {}, onStep = null }) {
   const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 500);
   camera.rotation.order = 'YXZ';
   const input = {};
@@ -300,6 +314,9 @@ export function createWalkThrough({ renderer, scene, view, onChange = () => {} }
     if (input.lookUp) walker.look(0, 1.2 * dt);
     if (input.lookDown) walker.look(0, -1.2 * dt);
     walker.step(input, dt);
+    // A portal may hold the walker (its warp) or move it (it arrived somewhere): structureInspectorPortals.js.
+    const held = onStep?.(walker, dt);
+    if (held) walker.placeAt(held.x, held.y, held.z, held.yaw ?? walker.yaw);
     camera.position.set(walker.x, walker.eyeY, walker.z);
     camera.rotation.set(walker.pitch, walker.yaw, 0);
     updateNearestMob();

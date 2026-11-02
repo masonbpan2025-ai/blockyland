@@ -633,7 +633,7 @@ export function countStructures(world, blockX, blockZ, { radiusChunks = 64 } = {
  * @returns {object} `{ structureId, chunk, centre, box, distance, biome }`
  * @throws when the world generates no structures, the id is not enabled, or nothing is within the radius
  */
-export function locateNearestStructure(world, structureId, blockX, blockZ, { maxRadiusChunks = 4096 } = {}) {
+export function locateNearestStructure(world, structureId, blockX, blockZ, { maxRadiusChunks = 4096, accept = null } = {}) {
   const integration = world && world.structures;
   if (!integration) throw new Error('this world does not generate structures');
   const id = String(structureId || integration.enabledIds[0] || '').toLowerCase();
@@ -642,7 +642,8 @@ export function locateNearestStructure(world, structureId, blockX, blockZ, { max
     // Naming what IS enabled turns a dead end into a usable answer.
     throw new Error(`${id} is not generated in this world; try: ${integration.enabledIds.join(', ')}`);
   }
-  const found = integration.engine.locate(id, Math.floor(blockX), Math.floor(blockZ), { maxRadiusChunks });
+  // `accept(start)`: only a start it approves, e.g. a village that has a given building (the Structure Inspector).
+  const found = integration.engine.locate(id, Math.floor(blockX), Math.floor(blockZ), { maxRadiusChunks, accept });
   if (!found) throw new Error(`no ${id} within ${maxRadiusChunks} chunks`);
   const box = found.start.box;
   const centre = {

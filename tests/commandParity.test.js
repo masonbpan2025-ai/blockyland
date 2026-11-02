@@ -948,14 +948,23 @@ test('/help lists every command in the table', () => {
   assert.ok(lines.every((l) => typeof l === 'string' && l.length > 0), 'no empty help lines');
 });
 
-test('/offline toggles the agent and says which way it went', () => {
+test('/offline switches the terminal between the presets and the AI app, and says which way it went', () => {
   const game = fakeGame();
+  let aiMode = false;
+  let panelOpened = 0;
+  Object.assign(game.ui, {
+    isAgentControlMode: () => aiMode,
+    setAgentControlMode: (on) => { aiMode = !!on; return aiMode; },
+    openAgentSettings: () => { panelOpened++; },
+  });
   run(game, '/offline');
-  assert.equal(game.geminiAgent.offlineMode, true);
-  assert.ok(lastChat(game).text.includes('offline mode ON'));
-  run(game, '/offline');
-  assert.equal(game.geminiAgent.offlineMode, false);
+  assert.equal(aiMode, true);
   assert.ok(lastChat(game).text.includes('offline mode OFF'));
+  assert.equal(panelOpened, 1, 'switching to the AI app opens Connect AI');
+  run(game, '/offline');
+  assert.equal(aiMode, false);
+  assert.ok(lastChat(game).text.includes('offline mode ON'));
+  assert.equal(panelOpened, 1);
 
   const missing = fakeGame({ geminiAgent: null });
   run(missing, '/offline');

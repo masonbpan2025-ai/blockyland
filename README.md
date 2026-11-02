@@ -63,27 +63,29 @@ Everything starts from one screen. Each button below leads to one of the feature
 
 **The agent sees what you see.** Each request includes the terrain around you, the buildings and creatures nearby, the room you are standing in, and a screenshot of your view. So "that gap" and "this house" mean what you'd expect. You can also paste or upload a reference image ("recreate this image").
 
-**You choose the model.** Open **⚙️ AI Settings** and pick Claude, ChatGPT, Gemini or DeepSeek, a model and an API key. Requests go straight from your browser to that provider, with no proxy in between. **Offline Mode** uses a set of built-in presets instead, so you can try the terminal without a key. The screenshots above were taken in Offline Mode.
+**Use your own AI app, with no API key.** Switch **Offline Mode** off and open **🔌 Connect AI** to let Claude Code, Gemini CLI, Codex, Cursor or any other app that supports MCP answer your requests. The AI runs in your app with your own account, and it talks with you right in the terminal. You need [Node.js](https://nodejs.org) 18 or newer. Add Blockyland to your app once:
+
+| AI app | Command |
+| --- | --- |
+| Claude Code | `claude mcp add blockyland -- npx -y blockyland-mcp@latest` |
+| Claude Code on native Windows | `claude mcp add blockyland -- cmd /c npx -y blockyland-mcp@latest` |
+| Gemini CLI | `gemini mcp add blockyland npx -y blockyland-mcp@latest` |
+| Codex | `codex mcp add blockyland -- npx -y blockyland-mcp@latest` |
+
+Then restart the app, and tell it the 6-digit code Connect AI shows: "Connect to Blockyland with code 123456". With **Offline Mode** on (the default), a set of built-in presets answers instead, so you can try the terminal without any app. The screenshots above were taken in Offline Mode. The full guide is [`docs/agent-control.md`](docs/agent-control.md).
 
 **It's safe by design.** The agent returns a plan made of the game's own actions, and the game checks the plan before carrying it out. Code written by the model is never run. Every structure remembers the blocks it replaced, so "destroy it" restores the ground while keeping your own later edits.
 
-The same terminal also drives a **player bot**, which needs no key: `mine 8 coal ore`, `go to 10 64 10`, `follow cow`, `attack zombie`. See [`docs/player-bot.md`](docs/player-bot.md).
+The same terminal also drives a **player bot**, which needs no AI app: `mine 8 coal ore`, `go to 10 64 10`, `follow cow`, `attack zombie`. See [`docs/player-bot.md`](docs/player-bot.md).
 
 <details>
-<summary><b>How API keys are stored</b></summary>
+<summary><b>What your AI app can and cannot reach</b></summary>
 
-- **Use for session** keeps a key only in this page's memory. Reloading the page or choosing **Lock / forget session** removes it.
-- **Remember key (encrypted)** saves the key in your browser:
-  - It is encrypted with your passphrase (12+ characters) using AES-256-GCM and PBKDF2-SHA-256 with 600,000 iterations.
-  - Only the encrypted copy is stored. Saved keys start locked, so you unlock them with the passphrase each session.
-  - **Delete key** removes the saved key.
-- Encryption protects the saved copy while it is locked. While a key is unlocked, it can be read by:
-  - other scripts on the page and trusted mods
-  - browser extensions
-  - malware
-- **Best practice:** use a dedicated key with an expiry date and a small hard spending limit, and revoke it at the provider when you're done. Deleting a key locally doesn't revoke it.
+- The `blockyland-mcp` server runs on your own computer and listens only on `127.0.0.1`. It accepts the game only from `blockyland.online` or a copy served from `localhost`, so another website cannot pose as it.
+- A game tab is used only after your AI app gives its code, and only while Offline Mode is off.
+- Your AI app can change the world only where you could use the terminal yourself (Creative, or cheats on). Removing things needs an explicit confirmation from the app.
+- Screenshots of your view go to the app only while **Let the AI see screenshots of my view** is checked.
 
-`npm run test:agent:vault` and `npm run test:agent:vault:browser` cover key storage. They use fake credentials and block real provider requests.
 </details>
 
 ### 2. Host a multiplayer world with no server
@@ -168,7 +170,7 @@ Mods are trusted code that is part of the build, not a sandbox for downloaded co
 
 The AI builds it in front of you. **💾 Save** writes the build into `build_studio_schematics/<name>.schem`; **📂 Open** lists the `.schem` files there, or loads one from your computer. Saving under a name that already exists asks before overwriting. The studio watches the saved file: whenever it changes on disk — usually because an AI agent rewrote it — the build reloads and redraws immediately.
 
-Clicking **⚙️ AI Settings** expands the Agent Terminal to the full settings window; clicking it again docks the terminal back under the Save/Open buttons. Your designs are also kept in the building library, so you can place them in any world.
+Clicking **🔌 Connect AI** expands the Agent Terminal to the full window; clicking it again docks the terminal back under the Save/Open buttons. Your designs are also kept in the building library, so you can place them in any world.
 
 | Building Studio panel and Agent Terminal | The castle, from above |
 |---|---|
@@ -292,4 +294,4 @@ tests/, e2e/, scripts/         unit and browser tests, tooling
 - **No real Minecraft servers:** Blockyland doesn't connect to Minecraft Java servers. Worlds are shared between browsers instead.
 - **Mods are trusted code** that is part of the build.
 - **Player bot:** it searches for ore only within 24 blocks, and it can't swim, parkour or craft yet.
-- **Unofficial:** Blockyland is a fan project, not affiliated with Mojang or Microsoft. Third-party licenses (for example mineflayer-pathfinder) are kept in `docs/licenses/` and `src/vendor/`. Add a top-level `LICENSE` before publishing.
+- **Unofficial:** Blockyland is a fan project, not affiliated with Mojang or Microsoft. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists what it uses that it didn't make, including Mojang's textures, and `public/assets/PROVENANCE.json` says where each asset came from. Blockyland's own code is under the MIT license ([LICENSE](LICENSE)); Mojang's textures and data are not.

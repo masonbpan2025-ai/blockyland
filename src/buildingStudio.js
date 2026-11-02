@@ -16,7 +16,6 @@ import {
 // Block states <-> game blocks now live in io/gameBlockStates.js; re-exported so existing callers keep working.
 export { blockIdToCanonicalState, canonicalStateToBlockId };
 
-const ACTIVE_FILE_KEY = 'minecraft_studio_active_schem_v1';
 const FILE_BUILDINGS_KEY = 'minecraft_studio_file_buildings_v1';
 
 /**
@@ -136,9 +135,10 @@ const writeStoredJson = (key, value) => {
  * it are solid but never drawn, so the player can stand, walk and build on it and cannot go beneath it, and
  * every building sits on or above it. The build origin (0, 5, 8) is on this ground.
  *
- * The studio edits one Sponge `.schem` file at a time (WorldEdit saves the same format). Save writes that file
- * into the studio's folder and Open loads one; the folder is then watched, and a file an AI agent rewrites on
- * disk is read back and redrawn without re-importing.
+ * The studio starts as an empty world every time. It edits one Sponge `.schem` file at a time (WorldEdit saves
+ * the same format): Save writes that file into the studio's folder and Open loads one. Only then is that one file
+ * watched, so a file an AI agent rewrites on disk is read back and redrawn without re-importing. Nothing is watched
+ * before the player saves or opens a file, and no earlier file is reopened.
  */
 export const STUDIO_GROUND_Y = 5;
 const STUDIO_GRID_SIZE = 128;
@@ -278,8 +278,8 @@ export class BuildingStudioManager {
   enterStudio() {
     this.isActive = true;
     this._savePrompted = false;
-    // The studio starts on the file it last watched (restored by startLiveSync), not on a build left over from
-    // the previous session: the world was torn down, so that build is no longer on screen.
+    // The studio starts empty: no build left over from a previous session and no file reopened. A file is watched
+    // only once the player saves or opens one (watchActiveFile).
     this.currentBuilding = null;
     this.currentParameters = {};
     this.placedVoxels = [];
@@ -317,14 +317,14 @@ export class BuildingStudioManager {
 
     if (typeof document !== 'undefined') {
       // The studio opens docked: the panel and the terminal share a narrow left column so the structure fills
-      // the rest of the screen. AI Settings expands the terminal (ui.js toggles this class).
+      // the rest of the screen. Connect AI expands the terminal (ui.js toggles this class).
       const modal = document.getElementById('gemini-modal');
       if (modal) {
         modal.classList.add('studio-mode');
         modal.classList.remove('studio-settings-expanded');
       }
-      document.getElementById('gemini-key-drawer')?.classList.add('hidden');
-      document.getElementById('gemini-toggle-key')?.setAttribute('aria-expanded', 'false');
+      document.getElementById('agent-connect-drawer')?.classList.add('hidden');
+      document.getElementById('agent-connect-btn')?.setAttribute('aria-expanded', 'false');
       if (this.studioPanel) this.studioPanel.classList.remove('hidden');
       this.updateFileBadge();
     }
@@ -336,7 +336,7 @@ export class BuildingStudioManager {
     if (typeof document !== 'undefined') void this.startLiveSync();
 
     this.game.ui?.addChatMessage?.(
-      '<span style="color:#38bdf8;font-weight:bold;">[Building Studio]</span> Ask the agent to build, then Save it as a .schem file. The studio watches that file, so an agent can edit it on disk and the build reloads here.'
+      '<span style="color:#38bdf8;font-weight:bold;">[Building Studio]</span> A new, empty world. Ask the agent to build, then Save it as a .schem file (or Open one). From then on the studio watches that file, so an agent can edit it on disk and the build reloads here.'
     );
   }
 
@@ -943,7 +943,6 @@ export class BuildingStudioManager {
 
       this.activeFile = filename;
       this.pendingFileName = null;
-      this.persistActiveFile();
       this.hideSaveModal();
       // Keep the Building Library in step with the file: the same save also makes the build placeable
       // from the creative Buildings tab, as it did before the file became the studio's document.
@@ -953,8 +952,9 @@ export class BuildingStudioManager {
         this.persistFileBuildings();
       }
       this.updateFileBadge();
-      // The write is ours, not an external edit: settle it so the watcher does not reload it as a change.
-      await this.liveWatcher?.settle?.(filename);
+      // Watch the saved file, and only it. A download is not in the folder, so there is nothing to watch.
+      if (wroteToFolder) await this.watchActiveFile();
+      else this.stopLiveSync();
 
       const where = wroteToFolder ? `${source.label}${filename}` : filename;
       this.game?.ui?.addChatMessage?.(
@@ -1055,19 +1055,6 @@ export class BuildingStudioManager {
     }
   }
 
-  persistActiveFile() {
-    if (!this.activeFile) {
-      writeStoredJson(ACTIVE_FILE_KEY, null);
-      return;
-    }
-    writeStoredJson(ACTIVE_FILE_KEY, { name: this.activeFile, sourceLabel: this.source?.label || '' });
-  }
-
-  readActiveFileRecord() {
-    const record = readStoredJson(ACTIVE_FILE_KEY);
-    return record && typeof record.name === 'string' ? record : null;
-  }
-
   persistFileBuildings() {
     writeStoredJson(FILE_BUILDINGS_KEY, Object.fromEntries(this.liveBuildingIds));
   }
@@ -1075,7 +1062,8 @@ export class BuildingStudioManager {
   // --- Live .schem sync: the saved file is watched -----------------------------------------------------------
 
   /**
-   * Start watching the studio's .schem file, so an agent rewriting it on disk redraws the build.
+   * Find the studio's folder, so Save and Open work. Nothing is watched yet: that starts when the player saves or
+   * opens a file (watchActiveFile).
    *
    * Running locally, the dev server's build_studio_schematics/ folder is used with no setup. A deployed build
    * has no server, so it uses the folder the player chose last time (if the browser still allows it), or asks.
@@ -1085,8 +1073,7 @@ export class BuildingStudioManager {
     this.source = null;
     const dev = new DevServerSchematicSource();
     if (await dev.probe()) {
-      await this.watchSource(dev);
-      await this.restoreActiveFile();
+      await this.connectSource(dev);
       this.updateFileBadge();
       return;
     }
@@ -1099,8 +1086,7 @@ export class BuildingStudioManager {
     if (handle) {
       const permission = (await handle.queryPermission?.({ mode: 'readwrite' })) ?? 'prompt';
       if (permission === 'granted') {
-        await this.watchSource(new DirectorySchematicSource(handle));
-        await this.restoreActiveFile();
+        await this.connectSource(new DirectorySchematicSource(handle));
         this.updateFileBadge();
         return;
       }
@@ -1145,8 +1131,7 @@ export class BuildingStudioManager {
     }
     if (!handle) return;
     await saveFolderHandle(handle);
-    await this.watchSource(new DirectorySchematicSource(handle, { writable }));
-    await this.restoreActiveFile();
+    await this.connectSource(new DirectorySchematicSource(handle, { writable }));
     this.updateFileBadge();
   }
 
@@ -1155,24 +1140,58 @@ export class BuildingStudioManager {
     let writable = permission === 'granted';
     if (!writable) permission = await handle.requestPermission?.({ mode: 'read' });
     if (permission === 'granted') {
-      await this.watchSource(new DirectorySchematicSource(handle, { writable }));
-      await this.restoreActiveFile();
+      await this.connectSource(new DirectorySchematicSource(handle, { writable }));
       this.updateFileBadge();
     } else {
       await this.chooseLiveFolder();
     }
   }
 
-  async watchSource(source) {
+  /**
+   * Use a folder for Save and Open. A different folder ends watching the previous one's file: that file is not here.
+   */
+  async connectSource(source) {
+    try {
+      await source.list();
+    } catch (error) {
+      this.source = null;
+      this.setLiveStatus('warn', `Cannot read ${source.label}: ${error.message}`, { label: '📁 Choose folder', run: () => this.chooseLiveFolder() });
+      return false;
+    }
+    if (this.source && this.source.label !== source.label) this.activeFile = null;
     this.stopLiveSync();
     this.source = source;
+    if (this.activeFile) await this.watchActiveFile();
+    else this.setLiveStatus('on', `${source.label} · Save or Open a .schem file to watch it`, this.changeFolderButton());
+    this.updateSaveDialog();
+    return true;
+  }
+
+  /**
+   * Watch the file the player saved or opened, and only that file. Called again for the same file it keeps the
+   * running watcher; for another file in the same folder it retargets it.
+   */
+  async watchActiveFile() {
+    if (!this.activeFile || !this.source) {
+      this.stopLiveSync();
+      return;
+    }
+    if (this.liveWatcher?.source === this.source) {
+      if (String(this.liveWatcher.only || '').toLowerCase() !== this.activeFile.toLowerCase()) {
+        this.liveWatcher.only = this.activeFile;
+        // The file's current bytes are what is on screen: only a later change is news.
+        await this.liveWatcher.settle?.(this.activeFile);
+      }
+      this.setLiveStatus('on', `Watching ${this.activeFile}`, this.changeFolderButton());
+      return;
+    }
+    this.stopLiveSync();
     const watcher = new SchematicWatcher({
-      source,
+      source: this.source,
+      only: this.activeFile,
       // Two quick polls: the file has to hold still for one interval before it is read, so an agent's write
       // lands in about a second rather than two.
       intervalMs: 500,
-      // Only the studio's own file is the document. Other files an agent leaves in the folder are listed in
-      // Open, but do not replace what is on screen.
       onChange: (name, bytes) => this.handleWatchedFileChange(name, bytes),
       onStatus: (status) => {
         if (status.state === 'error' && status.name) {
@@ -1181,53 +1200,17 @@ export class BuildingStudioManager {
       }
     });
     try {
-      await watcher.start();
+      await watcher.start(); // the file as it is now is the baseline: what is on screen
     } catch (error) {
-      this.source = null;
-      this.setLiveStatus('warn', `Cannot read ${source.label}: ${error.message}`, { label: '📁 Choose folder', run: () => this.chooseLiveFolder() });
+      this.setLiveStatus('warn', `Cannot watch ${this.activeFile}: ${error.message}`, this.changeFolderButton());
       return;
     }
     this.liveWatcher = watcher;
-    this.setLiveStatus('on', this.activeFile ? `Watching ${this.activeFile}` : `${source.label} · no file yet`, this.changeFolderButton());
-    this.updateSaveDialog();
+    this.setLiveStatus('on', `Watching ${this.activeFile}`, this.changeFolderButton());
   }
 
   changeFolderButton() {
     return canPickFolder() ? { label: '📁 Change', run: () => this.chooseLiveFolder() } : null;
-  }
-
-  /** Reopen the file this studio was last editing, if it is still in the folder. */
-  async restoreActiveFile() {
-    const record = this.readActiveFileRecord();
-    if (!record || !this.source || record.sourceLabel !== this.source.label) {
-      if (record) writeStoredJson(ACTIVE_FILE_KEY, null);
-      this.activeFile = null;
-      this.updateFileBadge();
-      return false;
-    }
-    let files;
-    try {
-      files = await this.source.list();
-    } catch {
-      return false;
-    }
-    if (!files.some((f) => f.name === record.name)) {
-      writeStoredJson(ACTIVE_FILE_KEY, null);
-      this.activeFile = null;
-      this.updateFileBadge();
-      this.setLiveStatus('warn', `${record.name} is no longer in ${this.source.label}`, this.changeFolderButton());
-      return false;
-    }
-    try {
-      await this.liveWatcher?.settle?.(record.name);
-      const bytes = await this.source.read(record.name);
-      await this.applyLiveSchematic(record.name, bytes, { teleportPlayer: true });
-      this.setLiveStatus('on', `Watching ${record.name}`, this.changeFolderButton());
-      return true;
-    } catch (error) {
-      this.setLiveStatus('warn', `Could not reopen ${record.name}: ${error.message}`, this.changeFolderButton());
-      return false;
-    }
   }
 
   /** Prompt for a file as soon as a build exists, so the studio always has a document to watch. */
@@ -1251,7 +1234,6 @@ export class BuildingStudioManager {
     if (active) {
       this.activeFile = filename;
       this.pendingFileName = null;
-      this.persistActiveFile();
     } else {
       // Opened from the computer: remember the name so Save proposes the same .schem filename.
       this.pendingFileName = filename;
@@ -1291,6 +1273,7 @@ export class BuildingStudioManager {
       this.renderOpenBuildingList(this.openSearch?.value || '');
     }
     if (active) {
+      await this.watchActiveFile();
       this.setLiveStatus('on', `Watching ${filename} · reloaded ${new Date().toLocaleTimeString()}`, this.changeFolderButton());
     } else {
       this.setLiveStatus('warn', `Opened ${filename}; save it into the studio folder to watch it`, this.changeFolderButton());
@@ -1496,6 +1479,12 @@ export class BuildingStudioManager {
       active = await this.fileExists(filename);
     } catch { active = false; }
     this.pendingFileName = filename;
+    if (!active) {
+      // The build on screen is now this file, which is not in the studio folder: stop watching any earlier one,
+      // or its next change would replace what the player opened.
+      this.activeFile = null;
+      this.stopLiveSync();
+    }
     try {
       const building = await this.applyLiveSchematic(filename, bytes, { active, teleportPlayer: true });
       this.hideOpenModal();

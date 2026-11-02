@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { rawUrl } from './dataLock.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -66,7 +67,7 @@ const missingInputs = COMPOSER_INPUTS.filter((f) => !existsSync(path.join(root, 
 if (missingInputs.length) {
   console.log(`\n--- ${missingInputs.length} composer inputs absent; fetching them`);
   // Reuse the downloader's mirror logic by fetching here, so this script stays self-contained.
-  const MIRROR = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4';
+  const MIRROR = rawUrl('minecraft-assets', 'data/1.21.4');
   const { writeFileSync } = await import('node:fs');
   for (const file of missingInputs) {
     try {
@@ -122,7 +123,7 @@ const ENTITY_SHEETS = [
     console.log('\n--- all entity skin sheets and composer inputs already present');
   } else {
     console.log(`\n--- ${absent.length} entity/composer input(s) absent; fetching them`);
-    const MIRROR = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4';
+    const MIRROR = rawUrl('minecraft-assets', 'data/1.21.4');
     const { writeFileSync, mkdirSync } = await import('node:fs');
     for (const entry of absent) {
       const { rel, dir } = resolve(entry);

@@ -11,6 +11,8 @@
 
 import { createStructureEngine, STRUCTURES, STRUCTURE_SETS, GeneratorFamily, getSetForStructure } from './worldgen/index.js';
 import { BLOCKS } from './blocks.js';
+import { VILLAGE_TYPE_OF } from './worldgen/generators/villageStyles.js';
+import { houseEntries } from './worldgen/generators/villageCatalogue.js';
 
 /** Preview volume: a fixed height range, so a preview never depends on world height settings. */
 export const PREVIEW_MIN_Y = 40;
@@ -87,6 +89,12 @@ export function createPreviewWorld({ biome = 'plains', surface = 70 } = {}) {
   };
 }
 
+/** The buildings a village structure draws from (its type's house pool), or [] for anything else. */
+export function villageBuildings(structureId) {
+  const type = VILLAGE_TYPE_OF[structureId];
+  return type ? houseEntries(type).map((e) => e.name) : [];
+}
+
 /** The picker list: every registry structure, with whether a generator exists yet. */
 export function inspectorStructures(registry = STRUCTURES) {
   return Object.entries(registry)
@@ -136,6 +144,7 @@ export function createStructureInspectorSession(options = {}) {
     chunkX: options.chunkX ?? 0,
     chunkZ: options.chunkZ ?? 0,
     biomeOverride: null,
+    piece: options.piece ?? null,
     surface: options.surface ?? 70,
     showChunkGrid: true,
     showPieceBoxes: true,
@@ -260,6 +269,14 @@ export function createStructureInspectorSession(options = {}) {
       return entry;
     },
 
+    /** Look for a village that has this building (an element name such as plains_temple_4), or any village (null). */
+    setPiece(name) {
+      state.piece = name || null;
+      lastPlanKey = null;
+      log(`village building = ${state.piece ?? 'any'}`);
+      return state.piece;
+    },
+
     setChunk(chunkX, chunkZ) {
       state.chunkX = Math.trunc(chunkX);
       state.chunkZ = Math.trunc(chunkZ);
@@ -313,11 +330,14 @@ export function createStructureInspectorSession(options = {}) {
       applyStructureDefaults();
       const engine = buildEngine();
       world.clear();
-      const found = engine.locate(state.structureId, state.chunkX * 16, state.chunkZ * 16, { maxRadiusChunks });
+      // A chosen village building: the nearest village that has it (the plains temple's tower is in about one in five).
+      const piece = state.piece && villageBuildings(state.structureId).includes(state.piece) ? state.piece : null;
+      const accept = piece ? (start) => start.pieces.some((p) => p.meta?.element === piece) : null;
+      const found = engine.locate(state.structureId, state.chunkX * 16, state.chunkZ * 16, { maxRadiusChunks, accept });
     lastPlan = found;
       if (!found) {
         plan = null;
-        log(`no ${state.structureId} within ${maxRadiusChunks} chunks of ${state.chunkX}, ${state.chunkZ}`);
+        log(`no ${state.structureId}${piece ? ` with ${piece}` : ''} within ${maxRadiusChunks} chunks of ${state.chunkX}, ${state.chunkZ}`);
         return null;
       }
       state.chunkX = found.chunk[0];

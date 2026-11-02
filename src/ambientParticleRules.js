@@ -23,6 +23,8 @@ export const AMBIENT_PARTICLES=Object.freeze({
   falling_lava:{color:0xffab40,size:.07,vy:-.7,life:4,shape:4,glow:1,gravity:3},
   falling_obsidian_tear:{color:0xb268ec,size:.07,vy:-.5,life:4,shape:4,glow:.8,gravity:2},
   end_rod:{color:0xf2e5c5,size:.07,vy:.06,life:3,shape:3,glow:1},
+  // Nether portal (wiki: Particles, "portal"): purple specks that appear around a portal and drift into it.
+  portal:{color:0xa047e8,size:.09,vy:0,life:1.6,shape:0,glow:1.4},
   firefly:{color:0xdbed75,size:.055,vy:.03,life:4,shape:5,glow:2},
 });
 const NETHER={soul_sand_valley:'ash',basalt_deltas:'white_ash',crimson_forest:'crimson_spore',warped_forest:'warped_spore'};
@@ -60,6 +62,7 @@ export function blockParticleSources(id){
   if([B.SOUL_FIRE,B.SOUL_TORCH,B.SOUL_WALL_TORCH,B.SOUL_CAMPFIRE].includes(id))return ['soul_fire_flame','smoke'];
   if(id===B.WET_SPONGE)return ['falling_water'];
   if(id===B.CRYING_OBSIDIAN)return ['falling_obsidian_tear'];
+  if(id===B.NETHER_PORTAL)return ['portal'];
   if(id===B.END_ROD)return ['end_rod'];
   if(id===B.FIREFLY_BUSH)return ['firefly'];
   return [];

@@ -130,6 +130,8 @@ These generate like ores rather than through structure sets, and cannot be locat
 | Exit Portal (End podium) | `end_podium` | `NEAR PARITY` | At 0,0 on the island top; the wiki's grid; inactive until the dragon falls, then 20 portal blocks and the egg. |
 | End Gateway | `end_gateway_delayed` / `_return` | `PARTIAL` | The 20 spots, one per dragon defeat, each the /Structure drawing; the teleport to the outer islands is not built. |
 | End Platform | `end_platform` | `NEAR PARITY` | 5x5 obsidian at x 100, regenerated on every entry with three layers cleared; the arrival point. |
+| Nether portal (Inspector only) | `nether_portal` | `FUNCTIONAL` | Not generated in worlds: a lit 4x5 portal at 0,0 for the Structure Inspector, whose walk-through travels through it 8:1 to the Nether and back. |
+| End portal (Inspector only) | `end_portal` | `FUNCTIONAL` | Not generated in worlds: twelve filled frames round a 3x3 portal at 0,0; walking in travels to the End platform, whose small portal leads home. |
 | Void Start Platform | `void_start_platform` | `NEAR PARITY` | 33x33 stone, cobblestone at 8,8, from -8 to 24 (at y 30, the Void world's level). |
 | Pile, Coral Reef, Forest Rock, Disk, Ice Spike, Ice Patch, Iceberg | (see the wiki's structure-like list) | `NOT STARTED` | Present on the 1.21.4 page's list; their configs are documented but none is implemented. |
 

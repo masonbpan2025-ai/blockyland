@@ -44,25 +44,32 @@ test('every element the front-end looks up exists in index.html', () => {
   assert.deepEqual(missing, [], `unresolved DOM selectors:\n${missing.join('\n')}`);
 });
 
-test('the agent terminal exposes the multi-vendor controls', () => {
+test('the agent terminal offers Offline Mode and Connect AI, and no API-key settings', () => {
   const html = read('index.html');
   for (const id of [
-    'gemini-vendor-row',
-    'gemini-model-select',
-    'gemini-effort-select',
-    'gemini-view-toggle',
-    'gemini-thinking-toggle',
-    'gemini-key-input',
-    'gemini-save-key-btn',
-    'gemini-clear-key-btn',
-    'gemini-offline-btn'
+    'gemini-offline-btn',
+    'agent-connect-btn',
+    'agent-connect-drawer',
+    'agent-connect-status',
+    'agent-connect-code',
+    'agent-connect-setup',
+    'agent-connect-copy-setup',
+    'agent-connect-copy-prompt',
+    'agent-connect-new-code',
+    'agent-connect-collapse',
+    'agent-connect-details',
+    'agent-activity',
+    'gemini-compact-btn',
+    'gemini-view-toggle'
   ]) {
     assert.match(html, new RegExp(`id="${id}"`), `missing #${id}`);
   }
-  for (const vendor of ['gemini', 'deepseek', 'chatgpt', 'claude']) {
-    assert.match(html, new RegExp(`data-vendor="${vendor}"`), `missing vendor button ${vendor}`);
+  // Keys are gone from the page: the player's own AI app brings its own account.
+  for (const id of ['gemini-key-input', 'gemini-vault-passphrase', 'gemini-vendor-row', 'gemini-model-select']) {
+    assert.doesNotMatch(html, new RegExp(`id="${id}"`), `#${id} should be gone`);
   }
-  // The player's view is capture-gated by a checkbox that starts checked.
+  // Offline Mode starts ON, and the view checkbox starts checked.
+  assert.match(html, /id="gemini-offline-btn"[^>]*aria-checked="true"/);
   assert.match(html, /id="gemini-view-toggle"[^>]*checked/);
 });
 
@@ -70,6 +77,4 @@ test('the terminal is opened by the C key and still uses the chat/escape handler
   const ui = read('src/ui.js');
   assert.match(ui, /e\.code === 'KeyC'/);
   assert.match(ui, /toggleGeminiTerminal\(\)/);
-  // The agent receives the captured view through executePrompt options.
-  assert.match(ui, /executePrompt\(effectivePrompt, image, \{ viewImage \}\)/);
 });

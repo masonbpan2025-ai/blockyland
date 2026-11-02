@@ -12,12 +12,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
-import { createStructureInspectorSession, inspectorStructures, PREVIEW_MIN_Y, PREVIEW_MAX_Y } from './structureInspectorSession.js';
+import { createStructureInspectorSession, inspectorStructures, villageBuildings, PREVIEW_MIN_Y, PREVIEW_MAX_Y } from './structureInspectorSession.js';
 import { renderStructurePanels } from './structureInspectorPanelsUi.js';
 import { createVoxelGeometry, createVoxelMaterial, applyInstanceColours } from './structureInspectorGeometry.js';
 import { fillInspectorSource, inspectorContent } from './mods/inspectorSelector.js';
 import { runAuditAndRender, runAuditAllAndRender } from './structureInspectorAudit.js';
 import { createWorldView, createWalkThrough, renderThumbnail, gallerySeeds } from './structureInspectorWorldView.js';
+import { createPortalTravel } from './structureInspectorPortals.js';
+import { AmbientParticles } from './ambientParticles.js';
 import { lootView, blockEntitiesView } from './structureInspectorWorld.js';
 import { buildEvidence, evidenceName } from './structureInspectorEvidence.js';
 
@@ -335,9 +337,28 @@ function refresh({ reflowCamera = false } = {}) {
 
 // --- textured world view, walk-through, gallery, evidence --------------------------------------------
 const worldView = createWorldView({ scene });
-const walk = createWalkThrough({ renderer, scene, view: worldView, onChange: renderWalkHud });
+// Portals: walking into the Nether portal or the End portal takes the walk-through to the other dimension, behind a
+// progress bar, by the game's own portal code (structureInspectorPortals.js).
+function showTravel(state) {
+  const box = $('travel-progress');
+  if (!box) return;
+  box.hidden = !state;
+  if (!state) return;
+  $('travel-title').textContent = state.title;
+  $('travel-fill').style.width = `${Math.round(state.percent)}%`;
+}
+const portalTravel = createPortalTravel({
+  view: worldView, renderer, onProgress: showTravel,
+  onTrip: (trip) => applyViewMode() ?? log(`${trip.message ?? 'Travelled'}: ${trip.from} → ${trip.to}, at ${trip.at.x.toFixed(1)}, ${trip.at.y.toFixed(1)}, ${trip.at.z.toFixed(1)}`)
+});
+window.__portalTravel = portalTravel;
+const walk = createWalkThrough({ renderer, scene, view: worldView, onChange: renderWalkHud, onStep: (walker, dt) => portalTravel.tick(walker, dt) });
+// The game's ambient particles, for the purple specks round a portal (and the flames, the leaves...).
+const particles = new AmbientParticles(scene);
+window.__walk = walk;
 const SKY = new THREE.Color('#9bc4f0');
 const SPACE = new THREE.Color('#1d2634');
+const DIMENSION_SKY = { nether: new THREE.Color('#330808'), the_end: new THREE.Color('#0a0515') };
 let texturedKey = null;
 let buildToken = 0;
 let lastAuditResult = null;
@@ -418,7 +439,8 @@ function applyViewMode() {
   worldGrid.visible = !textured;
   worldOverlay.visible = textured;
   worldView.group.visible = textured && Boolean(worldView.built);
-  scene.background = textured ? SKY : SPACE;
+  // The textured view's sky is the dimension's: a portal trip can take the walk-through to the Nether or the End.
+  scene.background = textured ? (DIMENSION_SKY[worldView.built?.world?.dimension] ?? SKY) : SPACE;
 }
 
 /** Build the textured world for the current structure and seed when it changed. Never throws into the page. */
@@ -428,12 +450,13 @@ async function syncTextured({ reflowCamera = false, force = false } = {}) {
   const structureId = session.state.structureId;
   const info = session.info;
   if (!info || info.implemented === false) { setStatus('no generator for this structure yet'); return null; }
-  const key = `${structureId}|${session.state.seed}`;
+  const piece = villageBuildings(structureId).includes(session.state.piece) ? session.state.piece : null;
+  const key = `${structureId}|${session.state.seed}|${piece ?? ''}`;
   if (!force && key === texturedKey && worldView.built) return worldView.built;
   const token = ++buildToken;
   setStatus(`generating ${structureId} at seed ${session.state.seed}...`);
   try {
-    const built = await worldView.show({ structureId, seed: session.state.seed });
+    const built = await worldView.show({ structureId, seed: session.state.seed, piece });
     if (token !== buildToken) return null;
     texturedKey = key;
     renderWorldOverlay(built);
@@ -441,7 +464,10 @@ async function syncTextured({ reflowCamera = false, force = false } = {}) {
     applyViewMode();
     // Rebuilt while walking: the walker still points at the old world, so put it at the new structure.
     if (walk.active) walk.rebind();
-    setStatus(`${structureId}, seed ${built.seed}, chunk ${built.found.chunk.join(',')}, ${built.found.biome} biome (${built.biomeMode} world); ${worldView.mobStatus}`);
+    // A chosen village building: where it is and what job site it holds (the temple's brewing stand), so it can be found.
+    const where = built.focus ? `; ${built.focus.piece} at ${built.focus.box[0]},${built.focus.box[2]}${built.focus.workstations.length ? ` -- ${built.focus.workstations.map((w) => `${w.name} at ${w.x},${w.y},${w.z}`).join(', ')}` : ''}; Walk through it starts outside it` : '';
+    setStatus(`${structureId}, seed ${built.seed}, chunk ${built.found.chunk.join(',')}, ${built.found.biome} biome (${built.biomeMode} world); ${worldView.mobStatus}${where}`);
+    if (built.focus) log(`${built.focus.piece}: ${built.focus.workstations.map((w) => `${w.name} at ${w.x}, ${w.y}, ${w.z}`).join('; ') || 'no job site'}`);
     if (reflowCamera || force) {
       const { box } = built;
       const cx = (box.minX + box.maxX) / 2; const cy = (box.minY + box.maxY) / 2; const cz = (box.minZ + box.maxZ) / 2;
@@ -587,6 +613,7 @@ $('btn-regenerate').onclick = async () => {
 
 $('structure').onchange = (event) => {
   session.setStructure(event.target.value);
+  fillVillageBuildings();
   $('biome').value = session.world.biome;
   log(`selected ${event.target.value}`);
   // PLAN it, rather than only re-rendering: selecting another structure and leaving the previous structure's
@@ -598,6 +625,26 @@ $('structure').onchange = (event) => {
     log(`selected ${event.target.value}, but it could not be planned here: ${error.message}`);
     refresh({ reflowCamera: true });
   }
+};
+// A village's buildings: pick one and the nearest village that has it is planned (the plains temple's cobblestone tower
+// with its brewing stand, say, which only about one village in five has).
+function fillVillageBuildings() {
+  const names = villageBuildings(session.state.structureId);
+  $('village-building-row').hidden = !names.length;
+  const select = $('village-building');
+  select.replaceChildren(new Option('any village', ''), ...names.map((n) => new Option(n, n)));
+  if (!names.includes(session.state.piece)) session.setPiece(null);
+  select.value = session.state.piece ?? '';
+}
+$('village-building').onchange = async (event) => {
+  try {
+    session.setPiece(event.target.value);
+    // From the origin, as the textured world searches, so the plan and the world are the same village.
+    $('chunk-x').value = '0';
+    $('chunk-z').value = '0';
+    planNearestAndRefresh();
+    await syncTextured({ force: true, reflowCamera: true });
+  } catch (error) { log(`error: ${error.message}`); refresh(); }
 };
 $('btn-reset-view').onclick = () => refresh({ reflowCamera: true });
 
@@ -668,6 +715,9 @@ if (requestedStructure) {
     log(`ignored the structure in the link: ${error.message}`);
   }
 }
+// `&building=plains_temple_4`: the nearest village with that building.
+if (bootParams.get('building')) session.setPiece(bootParams.get('building'));
+fillVillageBuildings();
 const requestedSeed = bootParams.get('seed');
 if (requestedSeed && requestedSeed.trim() !== '') {
   try { session.setSeed(requestedSeed); } catch (error) { log(`ignored the seed in the link: ${error.message}`); }
@@ -704,5 +754,11 @@ renderer.setAnimationLoop(() => {
   last = now;
   controls.update(dt);
   worldView.tickMobs(dt, walk.active ? walk.camera.position : controls.target);
+  // The textured view's animated blocks (the portal's swirl, lava) and particles, as in the game.
+  if (worldView.built && worldView.textures) {
+    worldView.textures.renderer ??= renderer;
+    worldView.textures.update(dt);
+    particles.update(dt, walk.active ? walk.camera.position : camera.position, { world: worldView.built.world, renderer });
+  }
   renderer.render(scene, walk.active ? walk.camera : camera);
 });

@@ -24,6 +24,8 @@ Rules run in the shared authoritative worker, at fixed 240-Hz physics steps. The
 
 Validation: `node --test --test-isolation=none tests/voxelDash.test.js`, `npm run test:mods`, `npm run build`. Course search/replay, every level or one by index: `node scripts/verify-voxel-dash-courses.mjs [index]`. To reimport: `node scripts/import-geometry-dash-levels.mjs path/to/official_levels.json`.
 
+Look: on the level page, LOOK → CHANGE opens a picker of twenty characters: the default Voxel Cube (a creeper face in the level's colour) or the head of Steve, a zombie, skeleton, wither skeleton, creeper, piglin, husk, drowned, stray, sheep, cow, pig, chicken, spider, blaze, villager, iron golem, witch or pillager. Each face is cut from that mob's own skin in `public/assets/entity` (`client/characters.js`), and is drawn on the cube, in the ship and UFO, and round the ball, in 2D and 3D. Beside it, Biome or Plain picks the backdrop: Plain drops the hills, trees, stars and glows for the level's flat background colour with a faint grid (in 3D, a flat sky with no hills or pillars). Both choices are remembered.
+
 3D view: on the level page, beside Play, VIEW picks the side view (always where the page opens) or a 3D view (V there too). Choosing 3D opens a small preview beside the button: drag (or arrow keys, Page Up/Down) to turn the camera round the player, scroll (or + and -) to zoom; the angle is remembered and is the one the run is played from
 (`client/painter3d.js`). The run is the same simulation; the course is laid along a fixed, winding path through a
 blocky world (`client/track3d.js`), with a chase camera behind and beside the creeper head, as Minecraft's Sonic the

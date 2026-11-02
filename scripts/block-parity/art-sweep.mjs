@@ -7,12 +7,13 @@
 // reported as art-blocked.
 import { readFileSync } from 'node:fs';
 import { compareBlockLists } from '../../src/blockNameMatch.js';
+import { rawUrl } from '../dataLock.mjs';
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const MIRRORS = {
-  '1.21.4': 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4/blocks',
-  '1.20.2': 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.2/blocks',
-  entity: 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4/entity',
+  '1.21.4': rawUrl('minecraft-assets', 'data/1.21.4/blocks'),
+  '1.20.2': rawUrl('minecraft-assets', 'data/1.20.2/blocks'),
+  entity: rawUrl('minecraft-assets', 'data/1.21.4/entity'),
 };
 
 const vanilla = JSON.parse(readFileSync(root + '.cache/mc-data/blocks.json', 'utf8'));

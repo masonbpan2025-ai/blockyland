@@ -29,12 +29,17 @@ export function endColumn(world, x, z) {
     const value = 1 - radius + world.detailNoise.noise2D(x * .055, z * .055) * .07;
     if (value > strength) { strength = value; small = isSmall; }
   }
-  if (strength <= 0) return { top: 0, bottom: 0, biome: 'small_end_islands' };
+  if (strength <= 0) return { top: 0, bottom: 0, biome: 'small_end_islands', island: null };
   const top = Math.floor((small ? 20 : 24) + strength * (small ? 5 : 9));
   const bottom = Math.max(6, Math.floor(top - 4 - strength * (small ? 6 : 16)));
   let biome = small ? 'small_end_islands' : strength > .45 ? 'end_highlands' : strength > .16 ? 'end_midlands' : 'end_barrens';
+  // `island` and `natural` are what the terrain itself is, whatever biome a world forces onto it: the End's spawn
+  // choices look for a small or a big island by them (dimensionSpawns.js).
+  const natural = biome;
   if (world.selectedBiome !== 'the_end' && ['end_highlands','end_midlands','end_barrens','small_end_islands'].includes(world.selectedBiome)) biome = world.selectedBiome;
-  return { top, bottom, biome };
+  // A Chorus Forest world: every big island is highlands, the chorus biome (small ones stay small).
+  if (world.selectedBiome === 'chorus_forest' && !small) biome = 'end_highlands';
+  return { top, bottom, biome, island: small ? 'small' : 'big', natural, strength };
 }
 
 export function decorateEndChunk(world, chunk) {
@@ -45,9 +50,11 @@ export function decorateEndChunk(world, chunk) {
   };
   // A global candidate grid allows branching across chunk borders without
   // writing or generating neighbours; generation order cannot clip a tree.
+  // A Chorus Forest world grows them two and a half times as thick.
+  const density = world.selectedBiome === 'chorus_forest' ? .6 : .24;
   for (let gx = Math.floor((ox-5)/8); gx <= Math.floor((ox+20)/8); gx++) for (let gz = Math.floor((oz-5)/8); gz <= Math.floor((oz+20)/8); gz++) {
     const r = salt => coordinateRandom(world.seed,gx,0,gz,salt);
-    if (r(221) > .24) continue;
+    if (r(221) > density) continue;
     const x = gx*8+1+Math.floor(r(223)*6), z = gz*8+1+Math.floor(r(225)*6);
     const column = endColumn(world,x,z);
     if (column.top === 0 || column.biome !== 'end_highlands') continue;

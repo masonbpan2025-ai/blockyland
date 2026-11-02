@@ -70,7 +70,7 @@ export class AmbientParticles {
       if(emitted>=48||Math.hypot(s.x+.5-eye.x,s.y+.5-eye.y,s.z+.5-eye.z)>32||world.getVoxel(s.x,s.y,s.z)!==s.id)continue;
       for(const kind of s.kinds){
         const profile=AMBIENT_PARTICLES[kind],leaf=profile.leaf;
-        if(r()>(leaf?.025:kind==='lava'?.025:kind==='flame'||kind==='soul_fire_flame'?.12:.055))continue;
+        if(r()>(leaf?.025:kind==='lava'?.025:kind==='flame'||kind==='soul_fire_flame'?.12:kind==='portal'?.6:.055))continue;
         if(kind==='firefly'&&!isFireflyNight(game?.worldTime))continue;
         let x=s.x+r(),z=s.z+r(),y=s.y+1.03;
         if(leaf||kind==='falling_spore_blossom'||s.seep||kind==='falling_water'){y=s.y-.03;}
@@ -78,6 +78,13 @@ export class AmbientParticles {
         if(kind==='firefly'){x+=(r()-.5)*5;z+=(r()-.5)*5;y+=r()*2;}
         if(kind==='end_rod'){x+=(r()-.5);z+=(r()-.5);y=s.y+r();}
         if(kind==='falling_obsidian_tear'){x=s.x+(r()<.5?-.03:1.03);y=s.y+r();}
+        // A speck a little way out from the portal, moving in towards its middle.
+        if(kind==='portal'){
+          x=s.x+.5+(r()-.5)*2.4;y=s.y+r()*1.4-.2;z=s.z+.5+(r()-.5)*2.4;
+          const vx=(s.x+.5-x)/.9,vy=(s.y+.5-y)/.9,vz=(s.z+.5-z)/.9;
+          if(this.spawn(kind,x,y,z,world,{color:r()<.5?profile.color:0xc77dff,vx,vy,vz,life:.9}))emitted++;
+          continue;
+        }
         const color=kind==='tinted_leaves'?leafTint(s.id,world.getBiome?.(s.x,s.z)??world.selectedBiome):profile.color;
         if(this.spawn(kind,x,y,z,world,{color}))emitted++;
       }

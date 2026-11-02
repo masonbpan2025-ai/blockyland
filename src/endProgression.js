@@ -27,7 +27,9 @@ export function restoreEndState(world, saved) {
     state.kills = Math.max(0, Math.min(100000, Math.floor(Number(saved.kills) || 0)));
     state.health = Math.max(0, Math.min(200, Number(saved.health) || 0));
     state.crystals = Array.from({length:10},(_,i)=>saved.crystals?.[i] !== false);
-    state.gateways = (Array.isArray(saved.gateways) ? saved.gateways : []).filter(g=>[g.x,g.y,g.z].every(Number.isFinite)).map(g=>({x:g.x,y:g.y,z:g.z,destination:g.destination && [g.destination.x,g.destination.y,g.destination.z].every(Number.isFinite)?{...g.destination}:null}));
+    state.gateways = (Array.isArray(saved.gateways) ? saved.gateways : []).filter(g=>[g.x,g.y,g.z].every(Number.isFinite)).map(g=>({x:g.x,y:g.y,z:g.z,destination:g.destination && [g.destination.x,g.destination.y,g.destination.z].every(Number.isFinite)?{...g.destination}:null,
+      // The dragon's small gateways to the End city and back (dimensionSpawns.js openEndCityLinks).
+      ...(typeof g.link==='string'?{link:g.link}:{}),...(g.small&&[g.small.x,g.small.groundY,g.small.z].every(Number.isFinite)?{small:{x:g.small.x,groundY:g.small.groundY,z:g.small.z}}:{})}));
     // A save during the ritual restarts the ritual on next arena entry.
     state.respawning = saved.respawning === true;
     state.residents=(Array.isArray(saved.residents)?saved.residents:[]).filter(m=>m&&['enderman','shulker'].includes(m.type)&&[m.x,m.y,m.z,m.health].every(Number.isFinite));
@@ -69,12 +71,34 @@ export function addEndGateway(world, x, y, z, destination=null) {
   const canvas=new CellCanvas();buildGateway(canvas,x,y,z);writeEndCanvas(world,canvas);
   return gateway;
 }
+/**
+ * A small portal's blocks (dimensionSpawns.js), on a 3x3 bedrock floor at `groundY` with the ring above it cleared:
+ *   - an End portal (to the Overworld) is the exit portal in little: one portal block set into the middle of the floor,
+ *     stepped onto, with bedrock under it (the portal block is a thin surface, so it cannot stand in the air);
+ *   - an End gateway (the dragon's links to an End city) stands two high in the middle under a bedrock cap, and is
+ *     walked into from any side.
+ * @returns {Array<[number,number,number,number]>} x, y, z, block id
+ */
+export function smallPortalCells(x, groundY, z, block = B.END_PORTAL) {
+  const cells = [];
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    cells.push([x + dx, groundY, z + dz, B.BEDROCK]);
+    if (dx || dz) for (let dy = 1; dy <= 3; dy++) cells.push([x + dx, groundY + dy, z + dz, B.AIR]);
+  }
+  if (block === B.END_PORTAL) cells.push([x, groundY, z, block], [x, groundY + 1, z, B.AIR], [x, groundY - 1, z, B.BEDROCK]);
+  else cells.push([x, groundY + 1, z, block], [x, groundY + 2, z, block], [x, groundY + 3, z, B.BEDROCK], [x, groundY - 1, z, B.BEDROCK]);
+  return cells;
+}
 /** A freshly generated End chunk gets back any recorded gateway that stands in it. */
 export function restoreEndGatewaysInChunk(world,chunk) {
   const state=world.endState;if(!state?.gateways?.length)return;
   const x0=chunk.cx*16,z0=chunk.cz*16;
   for(const g of state.gateways) {
     if(g.x<x0-3||g.x>x0+18||g.z<z0-3||g.z>z0+18)continue;
+    if(g.small){
+      for(const [x,y,z,id] of smallPortalCells(g.small.x,g.small.groundY,g.small.z,B.END_GATEWAY)){const lx=x-x0,lz=z-z0;if(lx>=0&&lx<16&&lz>=0&&lz<16&&y>=0&&y<64)chunk.setVoxel(lx,y,lz,id);}
+      continue;
+    }
     const canvas=new CellCanvas();buildGateway(canvas,g.x,g.y,g.z);
     for(const cell of canvas.cells.values()) {
       const id=B[cell.name.toUpperCase()],lx=cell.x-x0,lz=cell.z-z0;

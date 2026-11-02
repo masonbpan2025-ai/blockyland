@@ -1031,6 +1031,53 @@ test('Survival Scenario 11: Nether Portal construction, ignition, and dimensiona
   assert.equal(f.game.currentDimension, 'nether', 'Bot should have traveled through portal to the Nether');
 });
 
+// The Agent Terminal case: an AI app built a frame and asked the bot to light it from where the player stood. The bot
+// had no such command (it read "look at -95 28 69" as a creature), so the frame stayed dark.
+function standingPortalFrame(world) {
+  // Vanilla's smallest frame (Nether portal, Minecraft Wiki): 4 wide, 5 tall, opening x 1..2, y 2..4, at z = 0.
+  for (let x = 0; x <= 3; x++) { world.setVoxel(x, 1, 0, BLOCKS.OBSIDIAN); world.setVoxel(x, 5, 0, BLOCKS.OBSIDIAN); }
+  for (let y = 2; y <= 4; y++) { world.setVoxel(0, y, 0, BLOCKS.OBSIDIAN); world.setVoxel(3, y, 0, BLOCKS.OBSIDIAN); }
+}
+const OPENING = [[1, 2], [2, 2], [1, 3], [2, 3], [1, 4], [2, 4]];
+
+for (const [what, target] of [['the bottom obsidian of the opening', '1 1 0'], ['a block of the opening', '2 3 0']]) {
+  test(`light portal at ${what}: the bot walks over, lights it, and does not step into it`, async () => {
+    const f = createSurvivalFixture({ playerPos: [1.5, 1, 9.5] });
+    f.player.gamemode = 'creative';
+    f.game.portalManager = new NetherPortalManager(f.game);
+    standingPortalFrame(f.world);
+
+    const result = await f.drive(f.bot.run(`light portal at ${target}`));
+    assert.equal(result.ok, true, result.message);
+    for (const [x, y] of OPENING) assert.equal(f.world.getVoxel(x, y, 0), BLOCKS.NETHER_PORTAL, `portal at ${x} ${y} 0`);
+    for (let i = 0; i < 120; i++) f.step();
+    const p = f.player.position;
+    assert.ok(Math.hypot(1.5 - p.x, 2 - p.y, 0.5 - p.z) < 6, 'the player walked within reach');
+    assert.ok(!(Math.floor(p.z) === 0 && p.x >= 1 && p.x < 3), `the player is not standing in the opening (${p.x}, ${p.z})`);
+    assert.notEqual(f.game.currentDimension, 'nether', 'still in the Overworld');
+  });
+}
+
+test('light portal at an incomplete frame says what a frame needs', async () => {
+  const f = createSurvivalFixture({ playerPos: [1.5, 1, 3.5] });
+  f.player.gamemode = 'creative';
+  standingPortalFrame(f.world);
+  f.world.setVoxel(3, 3, 0, BLOCKS.AIR); // a gap in the right pillar
+  const result = await f.drive(f.bot.run('light portal at 1 1 0'));
+  assert.equal(result.ok, false);
+  assert.match(result.message, /no complete obsidian portal frame.*4 wide and 5 tall/i);
+  assert.equal(f.world.getVoxel(1, 2, 0), BLOCKS.AIR, 'nothing lit');
+});
+
+test('look at X Y Z turns the player to that block, rather than looking for a creature', async () => {
+  const f = createSurvivalFixture({ playerPos: [0.5, 1, 0.5] });
+  const result = await f.drive(f.bot.run('look at 5 1 0'));
+  assert.equal(result.ok, true, result.message);
+  // A yaw looks along (-sin yaw, -cos yaw), as a three.js camera looks down -Z: the block is along +X.
+  const facing = { x: -Math.sin(f.player.yaw), z: -Math.cos(f.player.yaw) };
+  assert.ok(facing.x > 0.9, `facing +X (got ${facing.x.toFixed(2)}, ${facing.z.toFixed(2)})`);
+});
+
 test('Survival Scenario 12: End Portal frame construction, eye insertion, activation, and dimensional travel in Creative mode', async () => {
   const f = createSurvivalFixture({ playerPos: [10.5, 1, 10.5] });
   f.player.gamemode = 'creative';

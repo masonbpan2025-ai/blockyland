@@ -604,8 +604,38 @@ function polarBear() {
   R.legL = legs[0]; R.legR = legs[1]; R.quadruped = true; R.dims = { height: 1.3 }; return R;
 }
 
+/**
+ * The Grumblers: little green aliens in Pocoyo's round, toy-like style (an original design): a big head, big eyes under
+ * cross brows, one antenna with a glowing tip, and a silver space suit with a purple belt. kind: 'grunt' (one of the
+ * 3,000), 'boss' (Commander Grumbleflux: three eyes, purple armour, a red cape and a three-pronged crest) or 'kid' (Zib,
+ * the littlest one, the only Grumbler who smiles).
+ */
+function grumbler(kind = 'grunt') {
+  const boss = kind === 'boss', kid = kind === 'kid', skin = boss ? '#5fbf3f' : kid ? '#a6ec7a' : '#7ed957';
+  const suit = boss ? '#4a2f7a' : kid ? '#f2a0d0' : '#a9b2c4', belt = boss ? '#e8c04a' : '#7b3fa0', tip = kid ? '#ff7fc8' : boss ? '#ff4a3a' : '#ffe14a';
+  const R = humanoid({
+    head: boss ? [.72, .62, .6] : [.66, .58, .56], body: boss ? [.6, .66, .36] : [.42, .42, .3], arm: boss ? [.2, .6] : [.14, .38], leg: boss ? [.24, .58] : [.16, .3],
+    skin, faceRes: 48,
+    bodyFaces: { front: (p, w, h) => { const f = F(p, w, h); f.r(0, 0, 1, 1, suit); f.r(0, .78, 1, .12, belt); f.r(.4, .3, .2, .2, boss ? '#e8c04a' : '#5fd0ff'); }, back: suit, sides: suit, top: suit },
+    armFaces: () => ({ all: suit }), pants: suit, shoes: boss ? '#2a1a3a' : '#5a5f6e', hands: skin,
+    face: f => {
+      if (boss) for (const [x, y] of [[.2, .4], [.5, .3], [.8, .4]]) eyeRect(f, x - .08, y, .16, .18, { white: '#fffbe0', pupil: '#c0182a', pw: .5, ph: .7, lid: skin });
+      else eyes(f, { y: .38, gap: .19, ew: .2, eh: .24, iris: kid ? '#1b1b1b' : '#b0102a', pupil: .55, brows: !kid, browTilt: kid ? 0 : -2.6, browC: '#2f6a1f' });
+      if (boss) { f.r(.22, .24, .2, .05, '#2f6a1f'); f.r(.58, .24, .2, .05, '#2f6a1f'); }
+      mouth(f, { kind: kid ? 'smile' : boss ? 'grin' : 'frown', y: .78, w: kid ? .2 : .26, c: '#2f4a1f', tongue: '#e05a6a' });
+    },
+  });
+  const { hh } = R.dims, glow = new T.MeshBasicMaterial({ color: tip });
+  const stalk = (x, lean) => { const s = cube(R.head, [.04, .3, .04], [x, hh + .14, 0], { all: skin }); s.rotation.z = lean; const b = new T.Mesh(new T.BoxGeometry(.12, .12, .12), glow); b.position.set(x - Math.sin(lean) * .17, hh + .3, 0); R.head.add(b); };
+  if (boss) { stalk(-.18, .35); stalk(0, 0); stalk(.18, -.35); } else stalk(0, 0);
+  if (boss) { const cape = cube(R.torso, [.66, .9, .04], [0, .28, .22], { all: '#b8233a' }); cape.rotation.x = .1; R.extras.cape = cape; for (const s of [-1, 1]) cube(R.torso, [.22, .12, .4], [s * .32, .62, 0], { all: '#e8c04a' }); }
+  R.root.scale.setScalar(boss ? 1.25 : kid ? .7 : .9); R.alien = true; return R;
+}
+
 // ------------------------------------------------------------------ registry
 export const CAST = {
+  alien: { name: 'Grumbler', show: 'aliens', make: () => grumbler('grunt') }, alien_boss: { name: 'Commander Grumbleflux', show: 'aliens', make: () => grumbler('boss') },
+  alien_kid: { name: 'Zib', show: 'aliens', make: () => grumbler('kid') },
   goku: { name: 'Goku', show: 'db', make: () => goku() }, goku_ssj: { name: 'Goku (Super Saiyan)', show: 'db', make: () => goku({ ssj: true }) },
   vegeta: { name: 'Vegeta', show: 'db', make: vegeta }, frieza: { name: 'Frieza', show: 'db', make: frieza },
   bulma: { name: 'Bulma', show: 'db', make: bulma }, drbriefs: { name: 'Dr. Briefs', show: 'db', make: drBriefs },

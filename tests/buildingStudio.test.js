@@ -196,7 +196,7 @@ describe('Building Studio and Structure Library System', () => {
 
       const css = readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8');
       assert.match(css, /#gemini-modal\.studio-mode \.studio-workspace-wrapper/, 'studio mode docks the panels');
-      assert.match(css, /studio-settings-expanded/, 'AI Settings expands the terminal');
+      assert.match(css, /studio-settings-expanded/, 'Connect AI expands the terminal');
 
       const ui = readFileSync(resolve(process.cwd(), 'src/ui.js'), 'utf8');
       assert.match(ui, /setStudioPanelExpanded/, 'the settings toggle changes the studio layout');
@@ -430,6 +430,8 @@ describe('Building Studio and Structure Library System', () => {
         await studio.confirmSave();
         assert.ok(files.get('bridge.schem').length > 1, 'the .schem file is rewritten');
         assert.strictEqual(studio.activeFile, 'bridge.schem', 'the saved file becomes the watched document');
+        assert.strictEqual(studio.liveWatcher?.only, 'bridge.schem', 'and only it is watched');
+        studio.stopLiveSync();
         assert.ok(studio.saveModal.classList.contains('hidden'));
 
         // 3. Render open structure list and check buttons

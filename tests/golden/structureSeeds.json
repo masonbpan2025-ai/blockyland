@@ -263,6 +263,26 @@
       "contentHash": 2261071589
     },
     {
+      "id": "end_portal",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "plains",
+      "chunkX": 0,
+      "chunkZ": 0,
+      "planHash": 1004412120,
+      "pieces": 1,
+      "box": [
+        -3,
+        70,
+        -3,
+        3,
+        73,
+        3
+      ],
+      "blockCount": 64,
+      "contentHash": 2677031413
+    },
+    {
       "id": "end_spike",
       "seed": 20250401,
       "dimension": "the_end",
@@ -441,6 +461,26 @@
       ],
       "blockCount": 5888,
       "contentHash": 2526054534
+    },
+    {
+      "id": "nether_portal",
+      "seed": 20250401,
+      "dimension": "overworld",
+      "biome": "plains",
+      "chunkX": 0,
+      "chunkZ": 0,
+      "planHash": 3681354999,
+      "pieces": 1,
+      "box": [
+        -1,
+        70,
+        -1,
+        2,
+        74,
+        1
+      ],
+      "blockCount": 23,
+      "contentHash": 1088306679
     },
     {
       "id": "ocean_ruin_cold",
@@ -760,7 +800,7 @@
         78
       ],
       "blockCount": 272,
-      "contentHash": 1929632154
+      "contentHash": 2103329866
     },
     {
       "id": "village_savanna",

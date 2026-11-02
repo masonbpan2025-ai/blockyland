@@ -1,16 +1,18 @@
 // The checks that must pass before code leaves this machine: run by the git pre-push hook (.githooks/pre-push) and by
 // `npm run deploy:cloudflare`. They are the few that prove the game still starts for a player, kept to a few minutes:
+//   0. the public-tree check (scripts/checkPublicTree.mjs): no game code, and every asset has provenance,
 //   1. the start-screen wiring unit tests,
 //   2. a production build,
 //   3. the start-screen click suite in a real browser (e2e/startButtons.pw.js): every button answers, and Generate
 //      New World -> Create World builds a world.
 // The button suite exists because buttons once did nothing and no test noticed: the world-start suite called
 // game.generateNewWorld() directly instead of clicking.
-//   node scripts/preflight.mjs               all three
+//   node scripts/preflight.mjs               all four
 //   node scripts/preflight.mjs --skip-build  when the caller builds next anyway (the deploy script)
 import { spawnSync } from 'node:child_process';
 
 const steps = [
+  ['Public tree: no game code, every asset accounted for', 'node', ['scripts/checkPublicTree.mjs']],
   ['Start-screen wiring tests', 'node', ['--test', '--test-isolation=none', 'tests/startScreenBinding.test.js', 'tests/domWiring.test.js']],
   !process.argv.includes('--skip-build') && ['Production build', 'npm', ['run', 'build']],
   ['Start-screen buttons, clicked in a browser', 'npx', ['playwright', 'test', '-c', 'playwright.startButtons.config.js']],

@@ -332,8 +332,8 @@ test('offline mode: direct slash command fallback and build intent protection', 
   await agent.executePrompt('/seed');
   assert.equal(agent.lastError, null);
 
-  // explicit build requests without API key must continue to explain API key requirement
+  // a free-form build the presets cannot make points to the player's own AI app
   await agent.executePrompt('build a flying dragon');
   assert.equal(agent.lastError, null);
-  assert.ok(logs.some((l) => /API key/.test(l.message)));
+  assert.ok(logs.some((l) => /Connect AI/.test(l.message)));
 });

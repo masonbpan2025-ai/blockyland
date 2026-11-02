@@ -108,18 +108,28 @@ export class DirectorySchematicSource {
   }
 }
 
+/** The default timer. In Node (tests, tools) it does not keep the process alive; browsers ignore that. */
+function pollTimer(fn, ms) {
+  const id = setInterval(fn, ms);
+  id?.unref?.();
+  return id;
+}
+
 /**
  * Poll a source and call `onChange(name, bytes)` once per settled change.
+ *
+ * With `only`, just that one file is watched: the studio watches the file it saved or opened, nothing else.
  *
  * Files already in the folder when watching starts are the baseline and are not imported. A new or changed file is
  * read on the first poll where its stamp matches the previous poll's. If reading or `onChange` throws (say, a truncated
  * gzip), the error is reported and that stamp is not tried again; the file's next write is.
  */
 export class SchematicWatcher {
-  constructor({ source, onChange, onStatus = () => {}, intervalMs = 1000, setIntervalImpl = (fn, ms) => setInterval(fn, ms), clearIntervalImpl = (id) => clearInterval(id) }) {
+  constructor({ source, onChange, onStatus = () => {}, only = null, intervalMs = 1000, setIntervalImpl = pollTimer, clearIntervalImpl = (id) => clearInterval(id) }) {
     this.source = source;
     this.onChange = onChange;
     this.onStatus = onStatus;
+    this.only = only;
     this.intervalMs = intervalMs;
     // Kept as arrows, not bare window.setInterval: called as a method it throws "Illegal invocation" in browsers.
     this.setInterval = setIntervalImpl;
@@ -131,9 +141,17 @@ export class SchematicWatcher {
     this.started = false;
   }
 
+  /** The files this watcher looks at: all of them, or just `only`. */
+  async watched() {
+    const files = await this.source.list();
+    if (!this.only) return files;
+    const only = String(this.only).toLowerCase();
+    return files.filter((f) => String(f.name).toLowerCase() === only);
+  }
+
   async start() {
     this.stop();
-    const files = await this.source.list();
+    const files = await this.watched();
     this.handled = new Map(files.map((f) => [f.name, f.stamp]));
     this.pending.clear();
     this.started = true;
@@ -170,7 +188,7 @@ export class SchematicWatcher {
     this.polling = true;
     const delivered = [];
     try {
-      const files = await this.source.list();
+      const files = await this.watched();
       const present = new Set();
       for (const { name, stamp } of files) {
         present.add(name);

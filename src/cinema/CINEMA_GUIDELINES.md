@@ -248,6 +248,15 @@ which was clearly better than the same castle placed block by block from the sam
 - **Movers face their travel.** Riders (a cloud, a cart, a train) take the vehicle's heading;
   check the yaw convention once (`yaw` faces −z) instead of adding π by habit. Two flyers and two
   cart racers flew and raced backwards.
+- **Keep crowds out of the lens.** A crowd scattered with `gather()` around the action also lands around the camera, and
+  the nearest heads fill the frame. Filter the crowd to the far side of the subject, or drop everyone within a few
+  metres of the lens. Three invasion key frames opened on a wall of heads.
+- **Glow never sits on a face.** An aura, a tractor beam or an energy ball between the lens and a face, or a big glow
+  just out of frame with bloom on, washes the face to white. Keep auras off close-ups, thin a beam (`soft`) when
+  someone is inside it, and shrink or dim a Spirit Bomb that shares the frame with the lens looking up at it.
+- **Shoot a big event high and from the side.** A wedding or a battle seen at eye level from inside the crowd shows
+  a few heads; a crane view from the side (6–8 m up) shows the arch, the couple, the rows of guests and the cake at
+  once. Save eye level for the two-shots.
 - **Time motion from the line it serves, not from the scene start.** A run loop, a turn or a
   pop-up timed from `SC(scene)[0]` drifts away from its line when clips change length. Anchor it
   to the line (`L('goku-back') - 2.65`) so the shout still lands on the stretch that faces the

@@ -346,7 +346,8 @@ export class HostileMobBehaviors {
       }
 
       // H. Drowned: Underwater Swimming & Trident Throwing
-      if (mob.type === 'drowned') {
+      // Wiki: only a drowned that "spawns with a trident" has the ranged attack; the rest only punch.
+      if (mob.type === 'drowned' && mob.hasTrident) {
         mob.tridentCooldown = (mob.tridentCooldown || 3.5) - dt;
         const dist = mob.mesh.position.distanceTo(player.position);
         if (dist < 18 && mob.tridentCooldown <= 0) {
@@ -480,6 +481,8 @@ export class HostileMobBehaviors {
       position: mesh.position.clone(),
       velocity: dir.multiplyScalar(20),
       isTrident: true,
+      // Wiki (Java): a thrown trident deals 5 / 8 / 12 by difficulty.
+      damage: { peaceful: 0, easy: 5, normal: 8, hard: 12 }[this.mobManager.game?.difficulty] ?? 8,
       age: 0
     });
   }
@@ -542,7 +545,7 @@ export class HostileMobBehaviors {
           player.takeDamage?.(5, 'blaze_fireball');
           player.setOnFire?.(5.0);
         } else if (p.isTrident) {
-          player.takeDamage?.(8, 'trident');
+          player.takeDamage?.(p.damage ?? 8, 'trident');
         } else if (p.isPotion) {
           if (p.potionType === 'harm') player.takeDamage?.(6, 'magic');
           else if (p.potionType === 'poison') player.applyStatusEffect?.('poison', 6.0, 1);

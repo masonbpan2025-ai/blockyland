@@ -1,0 +1,36 @@
+{
+  "name": "blockyland-mcp",
+  "version": "1.0.0",
+  "description": "Let your AI app (Claude Code, Gemini CLI, Codex, Cursor or any MCP client) play in the Blockyland game you have open in your browser.",
+  "type": "module",
+  "bin": {
+    "blockyland-mcp": "bin/blockyland-mcp.mjs"
+  },
+  "main": "server.mjs",
+  "exports": {
+    ".": "./server.mjs",
+    "./protocol": "./protocol.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin/",
+    "server.mjs",
+    "protocol.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "keywords": ["mcp", "model-context-protocol", "blockyland", "voxel", "game", "claude", "ai-agent"],
+  "homepage": "https://github.com/masonbpan2025-ai/blockyland/blob/master/docs/agent-control.md",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/masonbpan2025-ai/blockyland.git",
+    "directory": "packages/blockyland-mcp"
+  },
+  "license": "MIT"
+}

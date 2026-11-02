@@ -704,3 +704,11 @@ export function gridRepairResult(grid) {
   for (const e of [...(a.enchantments || []), ...(b.enchantments || [])]) if (CURSES.has(e?.id) && !curses.some((c) => c.id === e.id)) curses.push({ ...e });
   return { id: a.id, isBlock: false, count: 1, durability: Math.min(uses(a) + uses(b) + Math.floor(max / 20), max), maxDurability: max, enchantments: curses, repair: true };
 }
+
+/**
+ * The comparison key the crafting grid uses for a recipe's ingredient and for a stack, so the recipe book
+ * (recipeBook.js) counts and takes items exactly as the grid would match them -- an item and a block that share a
+ * number never mix.
+ */
+export const recipeIngredientKey = (value) => ingredientValue(value);
+export const stackKey = (stack) => matchValue(stack);

@@ -8,6 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WorldAgent } from '../src/worldAgent.js';
+import { runGameTool, describeWorld } from '../src/agentControl/gameTools.js';
 import { BuildingStudioManager } from '../src/buildingStudio.js';
 import { BuildingLibrary } from '../src/buildingLibrary.js';
 import { BLOCKS } from '../src/blocks.js';
@@ -36,20 +37,7 @@ function fixture({ studioOpen = true } = {}) {
   };
   studio.game = game;
   const agent = new WorldAgent(game);
-  agent.setVendor('deepseek');
-  agent.setApiKey('k');
   return { agent, studio, game, world };
-}
-
-function sse(content) {
-  const encoder = new TextEncoder();
-  const body = encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\ndata: [DONE]\n\n`);
-  let sent = false;
-  return {
-    ok: true, status: 200, statusText: 'OK',
-    headers: { get: n => (n.toLowerCase() === 'content-type' ? 'text/event-stream' : null) },
-    body: { getReader: () => ({ read: async () => (sent ? { done: true, value: undefined } : (sent = true, { done: false, value: body })) }) }
-  };
 }
 
 // --- resolution -------------------------------------------------------------
@@ -77,67 +65,52 @@ test('nothing resolves to the studio when it is closed', () => {
 
 // --- the reported failure ---------------------------------------------------
 
-test('an invented structure id is redirected to the open studio structure', async t => {
-  const { agent } = fixture();
+test('an invented structure id is redirected to the open studio structure', async () => {
+  const { agent, game } = fixture();
   const logs = [];
   agent.onLog = (message, type) => logs.push({ message, type });
 
-  // Exactly the failing case: the model names a structure that does not exist.
-  t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify({
+  // Exactly the failing case: the AI names a structure that does not exist.
+  const { result } = await runGameTool('run_plan', { plan: {
     action: 'edit',
     targetBuilding: 'custom_castle_with_bridge_muo14677',
     name: 'Castle Bridge',
     dimensions: { width: 4, height: 2, depth: 4 },
     operations: [{ type: 'fill_box', min: [0, 0, 0], max: [3, 1, 3], block: 'OAK_PLANKS' }],
     explanation: 'Adding a bridge beside the gate'
-  })));
+  } }, { game, agent });
 
-  await agent.executePrompt('create a bridge next to the entrance of the castle');
-
-  assert.equal(agent.lastError, null, `should no longer fail: ${agent.lastError?.message}`);
+  assert.equal(result.ok, true);
   assert.ok(logs.some(entry => /is not a known structure; applying this to "Castle"/.test(entry.message)),
     'the redirect is explained to the player');
-  assert.match(agent.conversationHistory.at(-1).text, /completed/, 'the plan actually ran');
 });
 
-test('a wrong id still fails when no studio structure is open', async t => {
-  const { agent } = fixture({ studioOpen: false });
-  t.mock.method(console, 'error', () => {});
-  t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify({
-    action: 'edit',
-    targetBuilding: 'custom_castle_with_bridge_muo14677',
-    operations: [{ type: 'fill_box', min: [0, 0, 0], max: [1, 1, 1], block: 'STONE' }]
-  })));
-
-  await agent.executePrompt('edit that');
-  assert.ok(agent.lastError, 'a genuinely unknown target is still an error');
-  assert.match(agent.lastError.message, /Structure not found/);
+test('a wrong id still fails when no studio structure is open', async () => {
+  const { agent, game } = fixture({ studioOpen: false });
+  await assert.rejects(
+    runGameTool('run_plan', { plan: {
+      action: 'edit',
+      targetBuilding: 'custom_castle_with_bridge_muo14677',
+      operations: [{ type: 'fill_box', min: [0, 0, 0], max: [1, 1, 1], block: 'STONE' }]
+    } }, { game, agent }),
+    err => err.kind === 'failed' && /Structure not found/.test(err.message),
+    'a genuinely unknown target is still an error',
+  );
 });
 
-test('a destroy with a wrong id is redirected too, since it is likewise unambiguous', async t => {
-  const { agent } = fixture();
+test('a destroy with a wrong id is redirected too, since it is likewise unambiguous', async () => {
+  const { agent, game } = fixture();
   agent.onLog = () => {};
-  t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify({
-    action: 'destroy',
-    targetBuilding: 'made_up_id_123',
-    explanation: 'Removing it'
-  })));
-
-  await agent.executePrompt('destroy it');
-  assert.equal(agent.lastError, null, `destroy should redirect as well: ${agent.lastError?.message}`);
+  const { result } = await runGameTool('run_plan', {
+    plan: { action: 'destroy', targetBuilding: 'made_up_id_123', explanation: 'Removing it' }, confirm: true,
+  }, { game, agent });
+  assert.equal(result.ok, true);
 });
 
-test('the prompt gives the model the exact id to use and forbids inventing one', async t => {
+test('the world description gives the AI the exact id to use and forbids inventing one', () => {
   const { agent } = fixture();
-  const calls = [];
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    calls.push(JSON.parse(options.body));
-    return sse(JSON.stringify({ action: 'message', explanation: 'ok' }));
-  });
-
-  await agent.executePrompt('what is open?');
-  const system = calls[0].messages[0].content;
-  assert.match(system, /id: studio_castle/, 'the usable id is stated');
-  assert.match(system, /NEVER invent a structure id/, 'and inventing one is forbidden');
-  assert.match(system, /does not exist and the request will fail/, 'with the consequence spelled out');
+  const world = describeWorld(agent);
+  assert.match(world, /id: studio_castle/, 'the usable id is stated');
+  assert.match(world, /NEVER invent a structure id/, 'and inventing one is forbidden');
+  assert.match(world, /does not exist and the request will fail/, 'with the consequence spelled out');
 });

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BlockyLand</title>
-  <meta name="description" content="High performance Minecraft replica in browser featuring 3D voxel terrain, procedural generation, mobs like villagers, iron golems, and pillagers, authentic physics, and crafting.">
+  <meta name="description" content="Blockyland is a free voxel sandbox game that runs in your browser: explore generated worlds, mine, craft and build, meet villagers and fend off monsters, and share your world with friends. Nothing to install.">
   <link rel="stylesheet" href="/src/style.css">
   <link rel="icon" type="image/png" href="/assets/blocks/grass_block_side.png">
 </head>
@@ -72,7 +72,7 @@
 
   <!-- Debug Screen (F3) -->
   <div id="debug-screen">
-    <div>Minecraft 1.20.2 (WebGL Browser Edition)</div>
+    <div>Blockyland (WebGL)</div>
     <div id="dbg-fps">60 fps</div>
     <div id="dbg-pos">XYZ: 0.00 / 0.00 / 0.00</div>
     <div id="dbg-block">Block: 0 0 0</div>
@@ -730,6 +730,9 @@
             <optgroup label="🌌 The End Biomes">
               <option value="the_end">The End</option>
               <option value="small_end_islands">Small End Islands</option>
+              <option value="big_end_islands">Big End Islands</option>
+              <option value="chorus_forest">Chorus Fruit Forest</option>
+              <option value="end_city">End City</option>
               <option value="end_midlands">End Midlands</option>
               <option value="end_highlands">End Highlands</option>
               <option value="end_barrens">End Barrens</option>
@@ -974,99 +977,52 @@
             </span>
           </div>
           <div class="gemini-header-actions">
-            <button type="button" class="gemini-offline-toggle" id="gemini-offline-btn" role="switch" aria-checked="false" title="Use built-in offline presets; saved vendor keys are kept.">
-              <span>Offline Mode</span><span class="gemini-offline-track" aria-hidden="true"></span><span id="gemini-offline-state">OFF</span>
+            <button type="button" class="gemini-offline-toggle" id="gemini-offline-btn" role="switch" aria-checked="true" title="On: the built-in offline presets answer. Off: your own AI app (Claude Code, Gemini CLI, Codex...) answers.">
+              <span>Offline Mode</span><span class="gemini-offline-track" aria-hidden="true"></span><span id="gemini-offline-state">ON</span>
             </button>
-            <button type="button" class="gemini-icon-btn" id="gemini-toggle-key" aria-controls="gemini-key-drawer" aria-expanded="false" title="Choose vendor, model and API key">⚙️ AI Settings</button>
+            <button type="button" class="gemini-icon-btn" id="agent-connect-btn" aria-controls="agent-connect-drawer" aria-expanded="false" title="Connect your AI app">🔌 Connect AI</button>
+            <button type="button" class="gemini-icon-btn" id="gemini-compact-btn" aria-pressed="false" title="Make the terminal small, so you can watch the world while the agent works">▁ Small</button>
             <button class="gemini-close-btn" id="gemini-close-btn" title="Close Terminal (ESC or C)">✕</button>
           </div>
         </div>
 
-        <!-- Vendor / model / key / view settings drawer -->
-        <fieldset id="gemini-key-drawer" class="gemini-key-drawer hidden">
+        <!-- Connect AI: pair the player's own AI app (Claude Code, Gemini CLI, Codex...) through MCP. No API key enters
+             the game. src/agentControl/, scripts/blockyland-mcp.mjs, docs/agent-control.md -->
+        <fieldset id="agent-connect-drawer" class="gemini-key-drawer agent-connect-drawer hidden" disabled>
           <div class="gemini-key-desc">
-            <span>AI Vendor</span>
-            <small>Pick one vendor and model. The agent sends your prompt, the conversation, the world state and a live screenshot of your view.</small>
+            <span>Connect your AI app</span>
+            <small>Use Claude Code, Gemini CLI, Codex, Cursor or any app that supports MCP. It runs on your computer with your own account, so no API key goes into Blockyland.</small>
           </div>
-          <div class="gemini-vendor-row" id="gemini-vendor-row">
-            <button type="button" class="gemini-vendor-btn" data-vendor="gemini">
-              <span class="gemini-vendor-name">Gemini</span>
-              <span class="gemini-vendor-key-state" data-key-state="gemini">key needed</span>
-            </button>
-            <button type="button" class="gemini-vendor-btn" data-vendor="deepseek">
-              <span class="gemini-vendor-name">DeepSeek</span>
-              <span class="gemini-vendor-key-state" data-key-state="deepseek">key needed</span>
-            </button>
-            <button type="button" class="gemini-vendor-btn" data-vendor="chatgpt">
-              <span class="gemini-vendor-name">ChatGPT</span>
-              <span class="gemini-vendor-key-state" data-key-state="chatgpt">key needed</span>
-            </button>
-            <button type="button" class="gemini-vendor-btn" data-vendor="claude">
-              <span class="gemini-vendor-name">Claude</span>
-              <span class="gemini-vendor-key-state" data-key-state="claude">key needed</span>
-            </button>
+          <div class="agent-connect-status-row">
+            <div class="agent-connect-status" id="agent-connect-status" role="status" aria-live="polite">Looking for your AI app…</div>
+            <button type="button" class="gemini-btn-sm" id="agent-connect-collapse" aria-controls="agent-connect-details" aria-expanded="true" title="Hide or show the setup steps">▴ Hide steps</button>
           </div>
-          <div class="gemini-controls-row">
-            <label class="gemini-field">
-              <span class="gemini-field-label">Model</span>
-              <select id="gemini-model-select"></select>
-            </label>
-            <label class="gemini-field" id="gemini-effort-field">
-              <span class="gemini-field-label">Reasoning effort</span>
-              <select id="gemini-effort-select">
-                <option value="minimal">Minimal</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="max">Max</option>
-              </select>
-            </label>
-          </div>
-          <!-- The model list comes from the vendor itself when a key is saved, so new models appear without an
-               update; a model id can also be typed, and the newest of a family can be followed automatically. -->
-          <div class="gemini-model-tools">
-            <button type="button" class="gemini-btn-sm" id="gemini-refresh-models-btn" title="Ask the vendor which models this key can use">↻ Refresh list</button>
-            <input type="text" id="gemini-custom-model-input" placeholder="or type a model id…" autocomplete="off" spellcheck="false">
-            <button type="button" class="gemini-btn-sm" id="gemini-custom-model-btn">Use</button>
-            <label class="gemini-check" for="gemini-autoupgrade-toggle">
-              <input type="checkbox" id="gemini-autoupgrade-toggle">
-              <span>Always use the newest in this family</span>
-            </label>
-            <span class="gemini-vendor-hint" id="gemini-model-source"></span>
-          </div>
-          <div class="gemini-key-row">
-            <input type="password" id="gemini-key-input" placeholder="sk-..." autocomplete="off">
-            <button type="button" class="gemini-btn-sm" id="gemini-save-key-btn">Use for session</button>
-            <button type="button" class="gemini-btn-sm" id="gemini-clear-key-btn">Delete key</button>
-          </div>
-          <div class="gemini-key-vault">
-            <label class="gemini-check"><input type="checkbox" id="gemini-remember-key">Remember key (encrypted)</label>
-            <div class="gemini-key-row">
-              <input type="password" id="gemini-vault-passphrase" placeholder="Vault passphrase (at least 12 characters to save)" aria-label="Vault passphrase" autocomplete="off">
-              <button type="button" class="gemini-btn-sm" id="gemini-unlock-key-btn">Unlock</button>
-              <button type="button" class="gemini-btn-sm" id="gemini-lock-key-btn">Lock / forget session</button>
-            </div>
-            <div id="gemini-key-storage-status" class="gemini-vendor-hint" role="status" aria-live="polite"></div>
-            <div class="gemini-vendor-hint">Default: key stays in this page only and is lost on reload. Remember requires HTTPS or localhost. Keep your passphrase safe; it cannot be recovered. Use an expiring key with a small spending limit or prepaid balance where supported. Encryption protects a locked key, not an unlocked key from malicious page scripts.</div>
-          </div>
+          <div id="agent-connect-details" class="agent-connect-details">
+          <ol class="agent-connect-steps">
+            <li>
+              <span>Add Blockyland to your AI app, once. In a terminal:</span>
+              <div class="agent-connect-cmd"><code id="agent-connect-setup">claude mcp add blockyland -- npx -y blockyland-mcp@latest</code><button type="button" class="gemini-btn-sm" id="agent-connect-copy-setup">Copy</button></div>
+              <small class="gemini-vendor-hint" id="agent-connect-setup-hint">Needs <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js</a> 18 or newer. Gemini CLI: <code>gemini mcp add blockyland npx -y blockyland-mcp@latest</code> · Codex: <code>codex mcp add blockyland -- npx -y blockyland-mcp@latest</code> · then restart the app.</small>
+            </li>
+            <li>
+              <span>Tell your AI app:</span>
+              <div class="agent-connect-cmd"><code id="agent-connect-prompt">Connect to Blockyland with code <b id="agent-connect-code">------</b></code><button type="button" class="gemini-btn-sm" id="agent-connect-copy-prompt">Copy</button></div>
+            </li>
+            <li><span>Type your requests in this terminal. Your AI app reads them, builds, and answers here.</span></li>
+          </ol>
           <div class="gemini-view-row">
             <label class="gemini-check" for="gemini-view-toggle">
               <input type="checkbox" id="gemini-view-toggle" checked>
-              <span>Send a screenshot of my current view with every request</span>
+              <span>Let the AI see screenshots of my view</span>
             </label>
-            <label class="gemini-check" for="gemini-thinking-toggle">
-              <input type="checkbox" id="gemini-thinking-toggle" checked>
-              <span>Show live thinking and elapsed time in the terminal</span>
-            </label>
-            <span class="gemini-vendor-hint" id="gemini-vendor-hint"></span>
+            <button type="button" class="gemini-btn-sm" id="agent-connect-new-code" title="Make a new code; an AI app already connected is disconnected">New code</button>
           </div>
-
-
+          </div>
         </fieldset>
 
         <!-- Console / Terminal Feed -->
         <div class="gemini-terminal-body" id="gemini-log-feed">
-          <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Switch Offline Mode off and configure a vendor API key in ⚙️ AI Settings for free-form prompts.</div>
+          <div class="gemini-log-entry system">✦ Build, edit, and remove structures. Offline Mode answers with built-in presets. For free-form requests, switch it off and connect your own AI app (Claude Code, Gemini CLI, Codex...) in 🔌 Connect AI: no API key needed.</div>
           <div class="gemini-log-entry hint">💡 Prompt examples: "build an aquarium", "build a skyscraper", "recreate this image", "make it rain", "summon 3 iron golems".</div>
           <div class="gemini-log-entry hint">📷 The agent sees what you see: the room you are standing in, the buildings and creatures around you, and a screenshot of your view. Talk naturally, e.g. "decorate the house with some paintings" while inside it, or "build a bridge over that water". You can also paste (Ctrl+V) or upload a reference image.</div>
         </div>
@@ -1085,6 +1041,13 @@
         <div class="gemini-progress-wrapper" id="gemini-progress-wrapper">
           <div class="gemini-progress-bar" id="gemini-progress-bar"></div>
           <div class="gemini-progress-label" id="gemini-progress-label">Ready</div>
+        </div>
+
+        <!-- What your AI app is doing with your request: sent, working (and on what), done -->
+        <div id="agent-activity" class="agent-activity hidden" role="status" aria-live="polite">
+          <span class="agent-activity-icon" id="agent-activity-icon"></span>
+          <span class="agent-activity-text" id="agent-activity-text"></span>
+          <span class="agent-activity-time" id="agent-activity-time"></span>
         </div>
 
         <!-- Terminal Input Form -->
@@ -1239,6 +1202,8 @@
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-packs">🎨 Packs & Skins</button>
       <button class="mc-btn mc-btn-large mc-btn-designed" id="btn-start-join">🌐 Join</button>
     </div>
+    <p class="start-legal" id="start-legal">Blockyland is an independent fan project. It is not affiliated with, endorsed by or
+      associated with Mojang Studios or Microsoft. Minecraft is a trademark of Mojang Synergies AB.</p>
     <!-- Join a friend's world by its four-digit code. Sharing your own is in the pause menu, once you are in a world. -->
     <div id="join-code-modal" class="game-modal hidden">
       <div class="map-modal-card biome-modal-card" style="max-width: 360px;">
@@ -1264,6 +1229,7 @@
           <button class="mc-btn mc-btn-large" id="btn-pick-inspector-item">Item<span class="inspector-picker-note">Stats, recipes and drops</span></button>
           <button class="mc-btn mc-btn-large" id="btn-pick-inspector-block">Block<span class="inspector-picker-note">Blocks with no item form</span></button>
           <button class="mc-btn mc-btn-large" id="btn-pick-inspector-mob">Mob<span class="inspector-picker-note">Models and behaviour</span></button>
+          <button class="mc-btn mc-btn-large" id="btn-pick-inspector-biome">Biome<span class="inspector-picker-note">Terrain, spawn and portals</span></button>
         </div>
         <button class="mc-btn" id="btn-close-inspector-picker">Cancel</button>
       </div>

@@ -208,6 +208,44 @@ test('breaking a door removes both halves, bedrock at y 0 is never broken, and a
   if (floor && floor.y === 0) assert.deepEqual(walker.breakBlock(), []);
 });
 
+test('breaking a portal block, or the obsidian beside the portal, removes the whole portal', async () => {
+  const { BLOCKS } = await import('../src/blocks.js');
+  const { built, walker } = await arriveAt('swamp_hut');
+  const world = built.world;
+  // A 4x5 frame (2x3 portal) standing on x = ox..ox+3 at z = oz, high in the air so nothing else is in the way.
+  const ox = Math.floor(walker.x) + 4; const oy = 50; const oz = Math.floor(walker.z);
+  const buildPortal = () => {
+    for (let dx = 0; dx < 4; dx++) for (let dy = 0; dy < 5; dy++) {
+      const edge = dx === 0 || dx === 3 || dy === 0 || dy === 4;
+      world.setVoxel(ox + dx, oy + dy, oz, edge ? BLOCKS.OBSIDIAN : BLOCKS.NETHER_PORTAL);
+    }
+  };
+  const portalLeft = () => {
+    let n = 0;
+    for (let dx = 1; dx < 3; dx++) for (let dy = 1; dy < 4; dy++) if (world.getVoxel(ox + dx, oy + dy, oz) === BLOCKS.NETHER_PORTAL) n++;
+    return n;
+  };
+  const aimAt = (x, y, z) => {
+    walker.placeAt(x + 0.5, y + 0.5 - 1.62, z + 3.5, 0, 0);
+    const hit = walker.targetBlock(5);
+    assert.ok(hit && hit.x === x && hit.y === y && hit.z === z, `aimed at ${x},${y},${z}, saw ${JSON.stringify(hit)}`);
+  };
+
+  buildPortal();
+  aimAt(ox + 1, oy + 2, oz);
+  const fromPortal = walker.breakBlock();
+  assert.equal(fromPortal.length, 6, 'the hit block and the five other portal blocks');
+  assert.equal(portalLeft(), 0);
+  assert.equal(world.getVoxel(ox, oy + 2, oz), BLOCKS.OBSIDIAN, 'the frame stays');
+
+  buildPortal();
+  aimAt(ox + 3, oy + 2, oz);
+  const fromFrame = walker.breakBlock();
+  assert.equal(fromFrame[0].id, BLOCKS.OBSIDIAN);
+  assert.equal(fromFrame.length, 7, 'the obsidian and all six portal blocks');
+  assert.equal(portalLeft(), 0);
+});
+
 // ---- Real mobs (the game's MobManager) instead of coloured boxes ---------------------------------------------------
 
 test('the swamp hut\'s witch and black cat are the game\'s own mobs, and they survive being ticked', async () => {

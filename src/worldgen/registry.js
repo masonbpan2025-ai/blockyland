@@ -185,6 +185,18 @@ export const STRUCTURES = {
     type: 'end_platform', dimension: END, family: GeneratorFamily.FEATURE, implementation: 'endPlatform', terrainAdaptation: 'none', biomes: [],
     notes: 'A feature: the 5x5 obsidian arrival platform at (100, 48, 0).'
   },
+  // The Structure Inspector's portals (generators/portals.js): not structures Minecraft places, so `inspectorOnly`
+  // and in no world's structure list -- here to look at and to walk into.
+  nether_portal: {
+    type: 'nether_portal', dimension: OVERWORLD, family: GeneratorFamily.FEATURE, implementation: 'netherPortal', terrainAdaptation: 'none', biomes: [],
+    inspectorOnly: true,
+    notes: 'Inspector only: a lit 4x5 Nether portal at 0, 0 on the surface. Walk into it to travel (8:1 to the Nether).'
+  },
+  end_portal: {
+    type: 'end_portal', dimension: OVERWORLD, family: GeneratorFamily.FEATURE, implementation: 'endPortal', terrainAdaptation: 'none', biomes: [],
+    inspectorOnly: true,
+    notes: 'Inspector only: an active End portal (twelve filled frames) at 0, 0. Step in to travel to the End platform.'
+  },
   end_city: {
     type: 'end_city', dimension: END, family: GeneratorFamily.TEMPLATE,
     biomeTag: 'has_structure/end_city', biomes: ['end_midlands', 'end_highlands'], implementation: 'endCity',
@@ -258,6 +270,9 @@ export const STRUCTURE_SETS = [
   { name: 'end_spikes', structures: [['end_spike', 1]], spacing: 1, separation: 0, salt: 1, frequency: 1, feature: true },
   { name: 'end_podiums', structures: [['end_podium', 1]], spacing: 1, separation: 0, salt: 2, frequency: 1, feature: true },
   { name: 'end_platforms', structures: [['end_platform', 1]], spacing: 1, separation: 0, salt: 3, frequency: 1, feature: true },
+  // The Inspector's portals, each at the origin (generators/portals.js).
+  { name: 'inspector_nether_portal', structures: [['nether_portal', 1]], spacing: 1, separation: 0, salt: 4, frequency: 1, feature: true, inspectorOnly: true },
+  { name: 'inspector_end_portal', structures: [['end_portal', 1]], spacing: 1, separation: 0, salt: 5, frequency: 1, feature: true, inspectorOnly: true },
   { name: 'end_cities', structures: [['end_city', 1]], spacing: 20, separation: 11, salt: 10387313 },
   { name: 'igloos', structures: [['igloo', 1]], spacing: 32, separation: 8, salt: 14357618 },
   { name: 'jungle_temples', structures: [['jungle_pyramid', 1]], spacing: 32, separation: 8, salt: 14357619 },

@@ -5,7 +5,7 @@ import { TEMPLATES, TEMPLATE_IDS } from './templates.js';
 import { packsFor, PACKS } from './packs.js';
 
 const CSS = `
-.skywars-root { position: fixed; inset: 0; pointer-events: none; z-index: 60; font-family: 'Minecraft', 'Press Start 2P', monospace; color: #fff; }
+.skywars-root { position: fixed; inset: 0; pointer-events: none; z-index: 60; font-family: var(--ui-font, system-ui, sans-serif); color: #fff; }
 .skywars-root .sw-panel { pointer-events: auto; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   min-width: 340px; max-width: min(92vw, 520px); max-height: 92vh; overflow-y: auto; background: rgba(9, 13, 22, 0.92); border: 2px solid #38bdf8; border-radius: 10px;
   padding: 18px 20px; box-shadow: 0 0 24px rgba(56, 189, 248, 0.35); text-align: center; }

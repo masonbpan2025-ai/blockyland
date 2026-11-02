@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { getBiomeDef } from './biomes.js';
+import { spawnPortalLink } from './dimensionSpawns.js';
 
 /**
  * Validates whether an obsidian frame exists around ignition coordinates (x, y, z)
@@ -500,6 +502,31 @@ export function findPortalSite(world, targetX, targetY, targetZ, { radius = 16, 
   return null;
 }
 
+/**
+ * Where a traveller steps out of the portal whose bottom block is at (x, y, z): one block off its face, on the
+ * ground, facing away from it -- arriving in the Nether or back in the Overworld, not inside the portal. The face is
+ * across the portal's plane (a portal along x is stepped out of north or south); the first side with room to stand
+ * (feet and head clear, solid underfoot, no lava or fire) wins, then two blocks out, then a block up or down.
+ * @returns {{x:number, y:number, z:number, yaw:number}|null}
+ */
+export function portalExit(world, x, y, z) {
+  const fx = Math.floor(x), fy = Math.floor(y), fz = Math.floor(z);
+  const P = BLOCKS.NETHER_PORTAL;
+  const alongX = world.getVoxel(fx + 1, fy, fz) === P || world.getVoxel(fx - 1, fy, fz) === P;
+  const sides = alongX ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
+  const hazard = (id) => id === BLOCKS.LAVA || id === BLOCKS.FIRE || id === BLOCKS.SOUL_FIRE || id === P;
+  const open = (id) => !hazard(id) && (id === BLOCKS.AIR || id === BLOCKS.CAVE_AIR || BLOCK_DEFS[id]?.solid === false) && !BLOCK_DEFS[id]?.liquid;
+  const ground = (id) => id !== undefined && id !== BLOCKS.AIR && !hazard(id) && id !== BLOCKS.MAGMA_BLOCK && BLOCK_DEFS[id]?.solid !== false && !BLOCK_DEFS[id]?.liquid;
+  for (const dist of [1, 2]) for (const dy of [0, 1, -1]) for (const [dx, dz] of sides) {
+    const ex = fx + dx * dist, ey = fy + dy, ez = fz + dz * dist;
+    if (open(world.getVoxel(ex, ey, ez)) && open(world.getVoxel(ex, ey + 1, ez)) && ground(world.getVoxel(ex, ey - 1, ez))) {
+      // Facing (dx, dz): the yaw convention the player and the camera share (yaw 0 looks towards -z).
+      return { x: ex + 0.5, y: ey, z: ez + 0.5, yaw: Math.atan2(-dx || 0, -dz || 0) };
+    }
+  }
+  return null;
+}
+
 /** Find a site and build the destination portal there; failing that, the forced platform at the target. */
 export function placeDestinationPortal(world, x, y, z) {
   // The search reads real terrain: the chunks it covers are generated first.
@@ -517,8 +544,17 @@ export class NetherPortalManager {
   constructor(game) {
     this.game = game;
     this.portalTimer = 0;
-    this.maxSurvivalDelay = 4.0; // 4.0s (80 ticks) in survival
-    this.maxCreativeDelay = 0.5; // 0.5s in creative
+    // Stepping into a portal commits the trip: the player is held in it while the warp builds, then travels. Walking
+    // through and out of the other side, which used to be possible, is not. (Java's 80-tick wait is for standing in a
+    // portal you are free to leave; held, a shorter warp reads as being drawn in.)
+    this.maxSurvivalDelay = 1.5;
+    this.maxCreativeDelay = 0.5;
+    /** The trip under way: where the player is held, or null. */
+    this.warp = null;
+    /** Travelling: the destination is loading. */
+    this.travelling = false;
+    /** After arriving in a portal, it does nothing until the player has stepped out of it (as in Java). */
+    this.mustLeave = false;
     this.portalCooldown = 0;
     this.isInPortal = false;
     this.ambientSoundTimer = 0;
@@ -640,60 +676,68 @@ export class NetherPortalManager {
 
     const inPortal = !player.ridingMob && this.isPlayerInPortal(player, game.world);
     this.isInPortal = inPortal;
+    if (!inPortal) this.mustLeave = false;
+    if (this.travelling) return;
 
     const overlay = this.getOverlay();
     const isCreative = player.gamemode === 'creative';
     const targetDelay = isCreative ? this.maxCreativeDelay : this.maxSurvivalDelay;
 
-    if (inPortal) {
+    // Stepping in starts the trip, and it cannot be walked out of.
+    if (inPortal && !this.warp && this.portalCooldown <= 0 && !this.mustLeave) {
+      this.warp = { x: player.position.x, y: player.position.y, z: player.position.z };
+      this.portalTimer = 0;
+    }
+
+    if (this.warp) {
+      player.position.set(this.warp.x, this.warp.y, this.warp.z);
+      player.velocity?.set?.(0, 0, 0);
       // Ambient sound
       this.ambientSoundTimer -= dt;
       if (this.ambientSoundTimer <= 0) {
         game.sounds?.playPortalAmbience?.();
         this.ambientSoundTimer = 3.5;
       }
+      this.portalTimer += dt;
+      const progress = Math.min(1.0, this.portalTimer / targetDelay);
 
-      if (this.portalCooldown <= 0) {
-        this.portalTimer += dt;
-        const progress = Math.min(1.0, this.portalTimer / targetDelay);
+      // Update portal distortion overlay
+      if (overlay) {
+        overlay.style.opacity = (0.2 + progress * 0.75).toFixed(2);
+        overlay.classList.add('active');
+      }
 
-        // Update portal distortion overlay
-        if (overlay) {
-          overlay.style.opacity = (0.2 + progress * 0.75).toFixed(2);
-          overlay.classList.add('active');
-        }
+      // Camera wobble / nausea effect
+      if (game.renderer?.domElement) {
+        const wobble = Math.sin(Date.now() * 0.006) * progress * 2.5;
+        const scale = 1.0 + progress * 0.05;
+        game.renderer.domElement.style.transform = `scale(${scale.toFixed(3)}) rotate(${wobble.toFixed(2)}deg)`;
+      }
 
-        // Camera wobble / nausea effect
-        if (game.renderer?.domElement) {
-          const wobble = Math.sin(Date.now() * 0.006) * progress * 2.5;
-          const scale = 1.0 + progress * 0.05;
-          game.renderer.domElement.style.transform = `scale(${scale.toFixed(3)}) rotate(${wobble.toFixed(2)}deg)`;
-        }
+      if (this.portalTimer >= targetDelay) {
+        this.teleportDimension(player, game);
+      }
+      return;
+    }
 
-        if (this.portalTimer >= targetDelay) {
-          this.teleportDimension(player, game);
-        }
+    // Not travelling: fade out what is left of the overlay.
+    if (this.portalTimer > 0) {
+      this.portalTimer = Math.max(0, this.portalTimer - dt * 2.0);
+      const progress = this.portalTimer / targetDelay;
+      if (overlay) {
+        overlay.style.opacity = (progress * 0.6).toFixed(2);
+      }
+      if (game.renderer?.domElement) {
+        const scale = 1.0 + progress * 0.03;
+        game.renderer.domElement.style.transform = progress > 0.01 ? `scale(${scale.toFixed(3)})` : 'none';
       }
     } else {
-      // Not in portal: fade out portal timer & overlay
-      if (this.portalTimer > 0) {
-        this.portalTimer = Math.max(0, this.portalTimer - dt * 2.0);
-        const progress = this.portalTimer / targetDelay;
-        if (overlay) {
-          overlay.style.opacity = (progress * 0.6).toFixed(2);
-        }
-        if (game.renderer?.domElement) {
-          const scale = 1.0 + progress * 0.03;
-          game.renderer.domElement.style.transform = progress > 0.01 ? `scale(${scale.toFixed(3)})` : 'none';
-        }
-      } else {
-        if (overlay) {
-          overlay.style.opacity = '0';
-          overlay.classList.remove('active');
-        }
-        if (game.renderer?.domElement) {
-          game.renderer.domElement.style.transform = 'none';
-        }
+      if (overlay) {
+        overlay.style.opacity = '0';
+        overlay.classList.remove('active');
+      }
+      if (game.renderer?.domElement) {
+        game.renderer.domElement.style.transform = 'none';
       }
     }
   }
@@ -704,10 +748,15 @@ export class NetherPortalManager {
 
     // 1. Calculate destination coordinates
     const sourcePos = player.position.clone();
-    const destCoords = getDestinationCoordinates(currentDim, sourcePos.x, sourcePos.y, sourcePos.z);
+    // A Nether world's spawn portal leads to its random Overworld biome, and back (dimensionSpawns.js); any other
+    // portal keeps the 8:1 rule.
+    const link = spawnPortalLink(game.world, currentDim, sourcePos);
+    const destCoords = link ?? getDestinationCoordinates(currentDim, sourcePos.x, sourcePos.y, sourcePos.z);
 
-    // 2. Clear timer & reset overlay
+    // 2. Clear timer & reset overlay; the hold ends here, so the arrival position is not overwritten.
     this.portalTimer = 0;
+    this.warp = null;
+    this.mustLeave = true;
     this.portalCooldown = 4.0; // 4 second grace period before next teleportation
     const overlay = this.getOverlay();
     if (overlay) {
@@ -718,11 +767,24 @@ export class NetherPortalManager {
       game.renderer.domElement.style.transform = 'none';
     }
 
-    // 3. Perform game dimension switch
-    if (game.switchDimension) {
-      game.switchDimension(targetDim, { x: destCoords.x + 0.5, y: destCoords.y, z: destCoords.z + 0.5 });
+    const arrive = () => this.arrive(player, game, targetDim, destCoords, link);
+    // 3. Perform game dimension switch. The game builds the destination behind a progress bar (main.js
+    // travelToDimension) and then arrives; a game without one switches at once.
+    const target = { x: destCoords.x + 0.5, y: destCoords.y, z: destCoords.z + 0.5 };
+    if (game.travelToDimension) {
+      this.travelling = true;
+      const title = targetDim === 'nether' ? 'Entering the Nether' : 'Returning to the Overworld';
+      return Promise.resolve(game.travelToDimension(targetDim, target, { title, arrive }))
+        .catch((error) => console.error('[Portal] The trip failed:', error))
+        .finally(() => { this.travelling = false; });
     }
+    if (game.switchDimension) game.switchDimension(targetDim, target);
+    arrive();
+    return null;
+  }
 
+  /** Arrive: at the portal already near the destination, or at a new one built there. */
+  arrive(player, game, targetDim, destCoords, link) {
     // 4. Look for existing portal or generate a new one
     // Nether portals: "If going to the Nether it searches a 33x33 block area"; "If going to the Overworld, it searches
     // a much larger area, 17x17 chunks" -- 16 and 128 blocks either way.
@@ -738,15 +800,19 @@ export class NetherPortalManager {
       }
     }
 
-    // 5. Position player inside the portal
+    // 5. Position the player in front of the portal, stepped out of it and facing away; inside it only when there is
+    // no room at all beside it.
     if (player.position) {
-      player.position.set(targetSpawn.spawnX, targetSpawn.spawnY, targetSpawn.spawnZ);
+      const out = portalExit(game.world, targetSpawn.spawnX, targetSpawn.spawnY, targetSpawn.spawnZ);
+      player.position.set(out?.x ?? targetSpawn.spawnX, out?.y ?? targetSpawn.spawnY, out?.z ?? targetSpawn.spawnZ);
+      if (out) player.yaw = out.yaw;
       if (player.velocity) player.velocity.set(0, 0, 0);
     }
 
     // 6. Audio and UI feedback
     game.sounds?.playPortalTravel?.();
     const dimName = targetDim === 'nether' ? 'The Nether' : 'The Overworld';
-    game.ui?.addChatMessage?.(`Teleported to ${dimName}`, 'system');
+    const biomeName = link?.biome ? getBiomeDef(link.biome)?.name : null;
+    game.ui?.addChatMessage?.(`Teleported to ${dimName}${biomeName ? ` (${biomeName})` : ''}`, 'system');
   }
 }

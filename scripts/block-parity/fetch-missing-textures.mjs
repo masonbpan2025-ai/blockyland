@@ -15,12 +15,13 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { rawUrl } from '../dataLock.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const APPLY = process.argv.includes('--apply');
 
-const MIRROR = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data';
+const MIRROR = rawUrl('minecraft-assets', 'data');
 // Newest first: a name present in several should come from the version the game's data is pinned to.
 const VERSIONS = ['1.21.4', '1.21.1', '1.20.2', '1.19.1'];
 

@@ -105,7 +105,7 @@
 .announcer-badge {
   background: linear-gradient(135deg, #d97706, #f59e0b);
   color: #111111;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 11px;
   font-weight: 900;
   padding: 6px 10px;
@@ -125,7 +125,7 @@
 
 .announcer-title {
   color: #fcd34d;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 13px;
   font-weight: bold;
   text-transform: uppercase;
@@ -135,7 +135,7 @@
 
 .announcer-text {
   color: #ffffff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 15px;
   line-height: 1.35;
   text-shadow: 1px 1px 2px #000000;
@@ -200,7 +200,7 @@
 
 .champion-title {
   color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 38px;
   font-weight: 900;
   letter-spacing: 3px;
@@ -211,7 +211,7 @@
 
 .champion-subtitle {
   color: #f59e0b;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 18px;
   font-weight: bold;
   letter-spacing: 2px;
@@ -222,7 +222,7 @@
 
 .champion-quote {
   color: #ffffff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 16px;
   font-style: italic;
   max-width: 480px;
@@ -234,7 +234,7 @@
 
 .champion-firework-text {
   color: #a855f7;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 13px;
   font-weight: bold;
   letter-spacing: 1px;
@@ -282,7 +282,7 @@
 
 
 .ki-charge-title {
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 1.5px;
@@ -291,7 +291,7 @@
 
 
 .ki-charge-level {
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 13px;
   font-weight: bold;
   color: #fef08a;
@@ -330,7 +330,7 @@
 
 
 .ki-charge-hint {
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 11px;
   color: #94a3b8;
   margin-top: 5px;
@@ -382,7 +382,7 @@
 .dungeon-badge {
   background: linear-gradient(135deg, #b45309, #d97706);
   color: #fff;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 11px;
   font-weight: 900;
   padding: 2px 7px;
@@ -395,7 +395,7 @@
 
 .dungeon-zone-title {
   color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 16px;
   font-weight: 900;
   letter-spacing: 1px;
@@ -407,7 +407,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 13px;
 }
 
@@ -442,7 +442,7 @@
 
 .dungeon-ctrl-item {
   color: #cbd5e1;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 11px;
   display: flex;
   align-items: center;
@@ -517,7 +517,7 @@
 
 .dungeon-cleared-title {
   color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 32px;
   font-weight: 900;
   letter-spacing: 2px;
@@ -528,7 +528,7 @@
 
 .dungeon-cleared-sub {
   color: #94a3b8;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 14px;
   text-shadow: 1px 1px 0 #000;
 }
@@ -576,7 +576,7 @@
 .p2-badge {
   background: linear-gradient(135deg, #ea580c, #f59e0b);
   color: #111111;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 10px;
   font-weight: 900;
   padding: 2px 7px;
@@ -587,7 +587,7 @@
 
 .p2-name {
   color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 13px;
   font-weight: bold;
   text-shadow: 1px 1px 0 #000;
@@ -617,7 +617,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 11px;
 }
 
@@ -712,7 +712,7 @@
 
 .tournament-section-title {
   color: #fef08a;
-  font-family: 'Minecraft', sans-serif;
+  font-family: var(--ui-font, system-ui, sans-serif);
   font-size: 13px;
   font-weight: bold;
   letter-spacing: 0.5px;

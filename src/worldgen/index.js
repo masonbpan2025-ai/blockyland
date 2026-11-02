@@ -28,6 +28,7 @@ import { generateNetherFossil, realizeNetherFossil } from './generators/netherFo
 import { generateShipwreck, realizeShipwreck } from './generators/shipwreck.js';
 import { generateOceanRuin, realizeOceanRuin } from './generators/oceanRuin.js';
 import { generateDesertPyramid, realizeDesertPyramid } from './generators/desertPyramid.js';
+import { generateNetherPortal, generateEndPortal, realizePortal } from './generators/portals.js';
 import { generateSwampHut, realizeSwampHut } from './generators/swampHut.js';
 import { adaptToTerrain, adaptationFor } from './terrainAdaptation.js';
 import { generatePillagerOutpost, realizePillagerOutpost } from './generators/pillagerOutpost.js';
@@ -81,7 +82,9 @@ export const GENERATORS = {
   endSpike: { generate: generateEndSpikes, realize: realizeEndFeature },
   endPodium: { generate: generatePodium, realize: realizeEndFeature },
   endPlatform: { generate: generatePlatform, realize: realizeEndFeature },
-  voidPlatform: { generate: generateVoidPlatform, realize: realizeVoidPlatform }
+  voidPlatform: { generate: generateVoidPlatform, realize: realizeVoidPlatform },
+  netherPortal: { generate: generateNetherPortal, realize: realizePortal },
+  endPortal: { generate: generateEndPortal, realize: realizePortal }
 };
 
 /** Structures that have a generator, and those that do not (the Inspector shows both). */

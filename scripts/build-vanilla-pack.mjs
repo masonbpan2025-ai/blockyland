@@ -11,9 +11,11 @@
 // Run: node scripts/build-vanilla-pack.mjs
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { rawUrl, treeUrl, pin } from './dataLock.mjs';
 
 /** Pinned, not "latest". The layout and the schema both changed in 1.21.5, and the adapters target this. */
-export const VANILLA_PACK_REF = '1.21.4-data';
+// The ref the pinned commit comes from (data-lock.json); written into the pack's metadata.
+export const VANILLA_PACK_REF = pin('mcmeta').follows;
 export const VANILLA_PACK_FILE = 'public/datapacks/vanilla-1.21.4.json';
 export const VANILLA_PACK_META = 'public/datapacks/vanilla-1.21.4.meta.json';
 
@@ -35,7 +37,7 @@ export const VANILLA_PACK_MCMETA_FALLBACK = Object.freeze({
 /** The vanilla data pack's own `pack.mcmeta`, or the fallback when it cannot be read. */
 async function fetchVanillaPackMeta() {
   try {
-    const res = await fetch(`https://raw.githubusercontent.com/misode/mcmeta/${VANILLA_PACK_REF}/pack.mcmeta`);
+    const res = await fetch(rawUrl('mcmeta', 'pack.mcmeta'));
     if (!res.ok) return { meta: VANILLA_PACK_MCMETA_FALLBACK, fetched: false };
     const json = JSON.parse(await res.text());
     if (!json?.pack || typeof json.pack !== 'object') return { meta: VANILLA_PACK_MCMETA_FALLBACK, fetched: false };
@@ -102,7 +104,7 @@ async function main() {
   }
 
   console.log(`  listing ${VANILLA_PACK_REF}...`);
-  const treeRes = await fetch(`https://api.github.com/repos/misode/mcmeta/git/trees/${VANILLA_PACK_REF}?recursive=1`);
+  const treeRes = await fetch(treeUrl('mcmeta'));
   if (!treeRes.ok) throw new Error(`tree: HTTP ${treeRes.status}`);
   const tree = await treeRes.json();
   if (tree.truncated) throw new Error('the tree listing was truncated; refusing to build a partial pack');
@@ -118,7 +120,7 @@ async function main() {
   const files = {};
   const failed = [];
   await pool(wanted, async (path) => {
-    const url = `https://raw.githubusercontent.com/misode/mcmeta/${VANILLA_PACK_REF}/${path}`;
+    const url = rawUrl('mcmeta', path);
     try {
       const json = await fetchJson(url);
       if (json !== null) files[path] = json;

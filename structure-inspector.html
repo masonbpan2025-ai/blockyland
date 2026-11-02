@@ -63,6 +63,11 @@
   #audit-all tr.verdict-incomplete td:nth-child(2) { color: #fbbf24; }
   #audit-all tr.verdict-pass td:nth-child(2) { color: #34d399; }
   #audit-all tr.verdict-no-generator td { color: #7f8ea3; }
+  .portal-overlay { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle at center, rgba(168, 85, 247, 0.45) 0%, rgba(107, 33, 168, 0.75) 60%, rgba(59, 7, 100, 0.95) 100%); mix-blend-mode: screen; transition: opacity 0.15s ease-out; }
+  #travel-progress { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #0b1220e6; font-size: 15px; }
+  #travel-progress[hidden] { display: none; }
+  .travel-bar { width: min(360px, 70%); height: 10px; background: #1e293b; border: 1px solid #33445a; border-radius: 5px; overflow: hidden; }
+  #travel-fill { height: 100%; width: 0; background: linear-gradient(90deg, #22c55e, #6ee7b7); }
   #walk-hud { position: absolute; left: 10px; bottom: 10px; padding: 8px 10px; background: #0b1220cc; border: 1px solid #33445a; border-radius: 4px; display: none; white-space: pre; pointer-events: none; }
   #walk-help { position: absolute; left: 10px; top: 10px; padding: 8px 10px; background: #0b1220cc; border: 1px solid #33445a; border-radius: 4px; display: none; pointer-events: none; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border: 1px solid #ffffffaa; border-radius: 50%; display: none; pointer-events: none; }
@@ -89,6 +94,10 @@
       <select id="content-source"></select>
       <label for="structure">registry id</label>
       <select id="structure"></select>
+      <div id="village-building-row" hidden>
+        <label for="village-building">village building</label>
+        <select id="village-building" title="Find the nearest village that has this building, e.g. plains_temple_4, the plains cleric's cobblestone tower with its brewing stand"></select>
+      </div>
       <div class="row">
         <div><label for="seed">seed</label><input type="text" id="seed" value="4242"></div>
         <div><button class="primary" id="btn-regenerate" title="generate the structure again from the seed in the box">Regenerate</button></div>
@@ -152,6 +161,8 @@
     <div id="crosshair"></div>
     <div id="walk-help">CREATIVE &middot; WASD walk &middot; mouse look (click the view first) &middot; Space jump, <b>double-tap Space to fly</b> (hold Space up, Shift down) &middot; Ctrl sprint<br><b>left click break</b> &middot; <b>right click place</b> (or open the door you look at) &middot; 1-9 choose block &middot; E door &middot; arrow keys turn &middot; Esc leave</div>
     <div id="walk-hud"></div>
+    <div id="portal-overlay" class="portal-overlay"></div>
+    <div id="travel-progress" hidden><div id="travel-title">Travelling</div><div class="travel-bar"><div id="travel-fill"></div></div></div>
     <div id="view-status"></div>
   </div>
 

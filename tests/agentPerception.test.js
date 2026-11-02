@@ -13,13 +13,8 @@ import {
 import { hangPaintingsInRoom, wallRuns } from '../src/agentDecor.js';
 import { PaintingManager, FACINGS } from '../src/paintings.js';
 import { WorldAgent } from '../src/worldAgent.js';
-import { AgentSettings } from '../src/agentProviders.js';
+import { runGameTool } from '../src/agentControl/gameTools.js';
 import { houseGame, houseWorld } from './helpers/houseWorld.js';
-
-const memoryStorage = () => {
-  const map = new Map();
-  return { getItem: k => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: k => map.delete(k) };
-};
 
 // --- directions ---------------------------------------------------------------------------------------------
 
@@ -189,58 +184,41 @@ test('wall runs split at windows and doors', () => {
 function agentInHouse() {
   const game = houseGame();
   const agent = new WorldAgent(game);
-  agent.settings = new AgentSettings(memoryStorage());
-  agent.firstTokenTimeoutMs = 2000;
-  agent.idleTimeoutMs = 2000;
-  agent.reloadSettings();
   const logs = [];
   agent.onLog = (message, type) => logs.push({ message, type });
-  return { agent, game, logs };
+  const ctx = { game, agent, ui: null, clientLabel: () => 'Claude Code', allowScreenshots: () => true };
+  return { agent, game, logs, ctx };
 }
 
-const chatReply = plan => ({ choices: [{ message: { content: JSON.stringify(plan) }, finish_reason: 'stop' }] });
+test('"decorate the house with some paintings" inside a house decorates that house', async () => {
+  const { agent, game, logs, ctx } = agentInHouse();
+  // The AI app is told where the player is, without the player saying (look_around, plan_reference).
+  const world = (await runGameTool('look_around', {}, ctx)).result.description;
+  assert.match(world, /INDOORS: the player is inside a building/);
+  assert.match(world, /"current_room"|current_room/);
+  const reference = (await runGameTool('plan_reference', {}, ctx)).result.reference;
+  assert.match(reference, /RESOLVING WHAT THE PLAYER MEANS/);
+  assert.match(reference, /hang_paintings/);
 
-test('"decorate the house with some paintings" inside a house decorates that house', async t => {
-  const { agent, game, logs } = agentInHouse();
-  agent.setVendor('deepseek');
-  agent.setApiKey('k');
-  const bodies = [];
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    bodies.push(JSON.parse(options.body));
-    return { ok: true, json: async () => chatReply({ action: 'hang_paintings', target: 'current_room', explanation: 'Hanging paintings around this room' }) };
-  });
-  await agent.executePrompt('decorate the house with some paintings');
-  assert.equal(agent.lastError, null, agent.lastError?.message);
-
-  // The model was told where the player is, without the player saying.
-  const system = bodies[0].messages[0].content;
-  assert.match(system, /INDOORS: the player is inside a building/);
-  assert.match(system, /"current_room"/);
-  assert.match(system, /RESOLVING WHAT THE PLAYER MEANS/);
-  assert.match(system, /hang_paintings/);
-
+  await runGameTool('run_plan', { plan: { action: 'hang_paintings', target: 'current_room', explanation: 'Hanging paintings around this room' } }, ctx);
   const room = analyzeEnclosure(game.world, { x: 4.5, y: 11.1, z: 3.5 });
   assert.ok(game.paintings.paintings.length >= 4);
   for (const p of game.paintings.paintings) assertOnPlainWall(game, room, p);
   assert.ok(logs.some(l => l.type === 'success' && /Hung \d+ paintings/.test(l.message)));
 });
 
-test('an edit aimed at the room the player is in uses the room as its origin', async t => {
-  const { agent, game } = agentInHouse();
-  agent.setVendor('deepseek');
-  agent.setApiKey('k');
+test('an edit aimed at the room the player is in uses the room as its origin', async () => {
+  const { agent, game, ctx } = agentInHouse();
   // Origin is the room's minimum corner with walls: (0, 10, 0). A lantern hung from the middle of the ceiling.
-  t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => chatReply({
+  await runGameTool('run_plan', { plan: {
     action: 'edit', targetBuilding: 'current_room', dimensions: { width: 9, height: 5, depth: 7 },
-    operations: [{ type: 'set_voxels', voxels: [{ x: 4, y: 3, z: 3, block: 'LANTERN' }] }]
-  }) }));
-  await agent.executePrompt('hang a lantern from the ceiling');
-  assert.equal(agent.lastError, null, agent.lastError?.message);
+    operations: [{ type: 'set_voxels', voxels: [{ x: 4, y: 3, z: 3, block: 'LANTERN' }] }],
+  } }, ctx);
   assert.equal(game.world.getVoxel(4, 13, 3), BLOCKS.LANTERN);
   assert.equal(agent.builtStructures.length, 0, 'the house is not recorded as the agent\'s build');
 });
 
-test('without an API key the offline terminal still decorates the room', async () => {
+test('the offline terminal still decorates the room', async () => {
   const { agent, game } = agentInHouse();
   await agent.executePrompt('decorate the house with some paintings');
   assert.equal(agent.lastError, null, agent.lastError?.message);

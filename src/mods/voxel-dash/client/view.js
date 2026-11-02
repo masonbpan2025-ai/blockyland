@@ -3,6 +3,7 @@ import { createGame } from '../server/game.js';
 import css from './style.css?raw';
 import { createPainter } from './painter.js';
 import { createScore } from './audio.js';
+import { CHARACTERS, DEFAULT_CHARACTER, characterById, loadFace } from './characters.js';
 
 export function createDashView(api) {
   const container=document.createElement('div');container.dataset.gameMod='voxel_dash';container.style.cssText='position:fixed;inset:0;z-index:100;pointer-events:auto;background:#06161b';
@@ -12,11 +13,14 @@ export function createDashView(api) {
   <section class="hero"><div class="eyebrow">MINECRAFT × GEOMETRY DASH</div><h1>A new world.<span>Every beat.</span></h1><p>Leap through luminous biomes. Ride the portals.<br>Find your flow, one block at a time.</p></section>
   <nav class="levels" aria-label="Choose a level">${LEVELS.map((l,i)=>`<button class="level" data-level="${i}" aria-pressed="${i===0}"><span class="num">${String(i+2).padStart(2,'0')}</span><span class="tile" style="background:${l.color}"></span><span><div class="name">${l.name}</div><div class="sub">${l.biome} · ${l.difficulty}</div></span><span class="rating">${l.stars} ★<small data-best="${i}">BEST 0%</small></span></button>`).join('')}</nav>
   <div class="viewpick" role="group" aria-label="View"><span class="small">VIEW</span><button class="pick" data-view="2d" aria-pressed="true"><b>2D</b> Side view</button><button class="pick" data-view="3d" aria-pressed="false"><b>3D</b> Run through the world</button><div class="anglepick" hidden><canvas class="angle-preview" tabindex="0" aria-label="Camera angle preview. Drag, or use the arrow keys, to turn; scroll, or + and -, to zoom"></canvas><div class="angle-row"><span>Drag to turn · scroll to zoom</span><button class="angle-reset" type="button">RESET</button></div></div></div>
+  <div class="viewpick lookpick"><span class="small">LOOK</span><button class="pick character-open" type="button" aria-haspopup="dialog" title="Choose your character"><canvas class="face-icon" width="32" height="32" aria-hidden="true"></canvas><span class="character-name">Voxel Cube</span><span class="change">CHANGE ▸</span></button><span class="backdrop-pick" role="group" aria-label="Backdrop"><button class="pick" data-backdrop="biome" aria-pressed="true" title="The level's biome scenery behind the course">▲ Biome</button><button class="pick" data-backdrop="plain" aria-pressed="false" title="A plain colour behind the course, no scenery">▦ Plain</button></span></div>
   <div class="launch"><button class="primary" data-action="start">PLAY LEVEL ▷</button><button class="ghost" data-action="practice">PRACTICE OFF</button></div>
   <footer class="footer"><span>SPACE / CLICK / TAP<br>Jump · hold to fly</span><span>P / ESC<br>Pause the run</span><span>R / C<br>Retry / checkpoint</span><span>V<br>2D / 3D view</span></footer>
   <aside class="preview-label"><div class="eyebrow">02 / SUNLIT MEADOW</div><h2>Back On Track</h2><p>Find your rhythm</p><div class="small">Original level layout · Minecraft biome</div></aside></main>
   <section class="hud" hidden><div class="hud-top"><div><div class="hud-title"></div><div class="hud-sub"></div></div><div class="progress"><i></i></div><span class="percent">0%</span><button class="ghost" data-action="pause">Ⅱ PAUSE</button><button class="ghost sound">SOUND ON</button></div><div class="hint"></div></section>
-  <section class="dialog" hidden role="dialog" aria-modal="true" aria-label="Run status"><article><div class="badge"></div><h2></h2><p></p><div class="launch"><button class="primary" data-action="retry">TRY AGAIN ▷</button><button class="ghost" data-action="menu">LEVELS</button></div></article></section><div class="status" role="status"></div>`;
+  <section class="dialog" hidden role="dialog" aria-modal="true" aria-label="Run status"><article><div class="badge"></div><h2></h2><p></p><div class="launch"><button class="primary" data-action="retry">TRY AGAIN ▷</button><button class="ghost" data-action="menu">LEVELS</button></div></article></section><div class="status" role="status"></div>
+  <section class="charpick" hidden role="dialog" aria-modal="true" aria-label="Choose your character"><article><header><div><div class="eyebrow">PLAY AS</div><h2>Choose your character</h2></div><button class="ghost charpick-close" type="button">CLOSE ✕</button></header>
+  <div class="char-grid">${CHARACTERS.map((c)=>`<button class="char" type="button" data-character="${c.id}" aria-pressed="false"><canvas width="48" height="48" aria-hidden="true"></canvas><span>${c.name}</span></button>`).join('')}</div></article></section>`;
   document.body.append(container);
   if(document.pointerLockElement)document.exitPointerLock();
   if(api.game?.player)api.extend(api.game.player,{controlsDisabled:true});
@@ -38,6 +42,7 @@ export function createDashView(api) {
     anglePick.hidden=!want;painter3d?.setPreview(want?anglePreview:null);
     if(want&&!painter3d&&!loading3d)loading3d=import('./painter3d.js').then(({createPainter3d})=>{
       if(disposed)return;painter3d=createPainter3d(canvas3d);if(cameraAngle)painter3d.setCameraAngle(cameraAngle);painter3d.setPreview(view3d?anglePreview:null);
+      painter3d.setCharacter(face);painter3d.setBackdrop(backdrop);
     }).catch(error=>{console.warn('[Voxel Dash] 3D view unavailable:',error);status('The 3D view could not start here; showing the side view.');setView(false);}).finally(()=>{loading3d=null;});
   }
   // The preview's own pixels, matched to the 3D view's resolution so it is copied across one for one.
@@ -58,6 +63,43 @@ export function createDashView(api) {
     const change={ArrowLeft:{azimuth:0.1},ArrowRight:{azimuth:-0.1},PageUp:{elevation:0.08},PageDown:{elevation:-0.08},Equal:{zoom:0.9},NumpadAdd:{zoom:0.9},Minus:{zoom:1.1},NumpadSubtract:{zoom:1.1}}[event.code];
     if(change){event.preventDefault();turnCamera(change);}
   },{signal:abort.signal});
+  // Who the player plays as (characters.js) and the backdrop behind the course, both chosen on the level page and
+  // remembered. A face is cut from its mob's skin when first chosen; until it has loaded the last one stays on.
+  const picker=root.querySelector('.charpick'),openButton=root.querySelector('.character-open');
+  let character=characterById(DEFAULT_CHARACTER),face=null,faceRequest=0,backdrop='biome',iconsDrawn=false;
+  /** A character's face, as the picker and the level page show it; the default cube is drawn in the level's colour. */
+  function drawIcon(canvas,c,image){
+    const g=canvas.getContext('2d'),n=canvas.width;g.imageSmoothingEnabled=false;g.clearRect(0,0,n,n);
+    if(image){g.drawImage(image,0,0,n,n);return;}
+    if(c.skin)return;
+    const u=n/8;g.fillStyle=LEVELS[state?.levelIndex??0].color;g.fillRect(0,0,n,n);g.fillStyle='#17372b';
+    for(const [x,y,w,h] of [[1,2,2,2],[5,2,2,2],[3,4,2,1],[2,5,4,2],[2,7,1,1],[5,7,1,1]])g.fillRect(x*u,y*u,w*u,h*u);
+  }
+  function showCharacter(){
+    openButton.querySelector('.character-name').textContent=character.name;drawIcon(openButton.querySelector('canvas'),character,face);
+    for(const b of root.querySelectorAll('[data-character]'))b.setAttribute('aria-pressed',String(b.dataset.character===character.id));
+  }
+  function chooseCharacter(id,{remember=true}={}){
+    const next=characterById(id),request=++faceRequest;
+    if(remember)try{localStorage.setItem('voxel_dash:character',next.id);}catch{}
+    loadFace(next).then(image=>{
+      if(disposed||request!==faceRequest)return;
+      character=next;face=image;painter.setCharacter(face);painter3d?.setCharacter(face);showCharacter();
+    }).catch(error=>{if(request!==faceRequest)return;console.warn('[Voxel Dash] character unavailable:',error);status(`${next.name} could not load; playing as the ${character.name}.`);});
+  }
+  function setBackdrop(kind,{remember=true}={}){
+    backdrop=kind==='plain'?'plain':'biome';painter.setBackdrop(backdrop);painter3d?.setBackdrop(backdrop);
+    for(const b of root.querySelectorAll('[data-backdrop]'))b.setAttribute('aria-pressed',String(b.dataset.backdrop===backdrop));
+    if(remember)try{localStorage.setItem('voxel_dash:backdrop',backdrop);}catch{}
+  }
+  function openPicker(){
+    picker.hidden=false;
+    if(!iconsDrawn){iconsDrawn=true;for(const b of root.querySelectorAll('[data-character]')){const c=characterById(b.dataset.character),canvas=b.querySelector('canvas');drawIcon(canvas,c,null);loadFace(c).then(image=>{if(!disposed)drawIcon(canvas,c,image);}).catch(()=>{});}}
+    (root.querySelector('[data-character][aria-pressed="true"]')??root.querySelector('[data-character]')).focus();
+  }
+  function closePicker(){if(picker.hidden)return;picker.hidden=true;openButton.focus();}
+  {let saved=null,savedBackdrop=null;try{saved=localStorage.getItem('voxel_dash:character');savedBackdrop=localStorage.getItem('voxel_dash:backdrop');}catch{}
+    setBackdrop(savedBackdrop,{remember:false});if(saved&&saved!==DEFAULT_CHARACTER)chooseCharacter(saved,{remember:false});}
   // The run is played here, on the page, not in a worker 30 times a second. A dash game is timing: the course moves
   // every displayed frame, and a press counts at the moment it happens. The game advances by real elapsed time -- every
   // frame, and again at each press, before the press -- in its own 240 Hz physics ticks (simulation.js), so a jump
@@ -86,6 +128,7 @@ export function createDashView(api) {
     const l=LEVELS[state.levelIndex],menu=state.phase==='menu',modal=['dead','paused','complete'].includes(state.phase),percent=Math.floor(state.x/l.length*100);
     container.style.setProperty('--accent',l.color);
     root.querySelector('.shell').hidden=!menu;root.querySelector('.shade').hidden=!menu;root.querySelector('.hud').hidden=menu;root.querySelector('.dialog').hidden=!modal;
+    if(!menu)picker.hidden=true;showCharacter();
     for(const button of root.querySelectorAll('[data-level]')){const chosen=Number(button.dataset.level)===state.levelIndex;button.classList.toggle('selected',chosen);button.setAttribute('aria-pressed',String(chosen));}
     const label=root.querySelector('.preview-label');label.querySelector('.eyebrow').textContent=`${String(state.levelIndex+2).padStart(2,'0')} / ${l.biome.toUpperCase()}`;label.querySelector('h2').textContent=l.name;label.querySelector('p').textContent=l.tag;
     root.querySelector('[data-action="practice"]').textContent=`PRACTICE ${state.practice?'ON':'OFF'}`;
@@ -100,8 +143,14 @@ export function createDashView(api) {
     for(const el of root.querySelectorAll('[data-best]')){const i=Number(el.dataset.best);el.textContent=savedDone[i]?'COMPLETE ✓':`BEST ${Math.max(savedBest[i],state.best[i])}%`;}
     lastPhase=state.phase;
   }
+  // A click on the dim around the picker closes it.
+  picker.addEventListener('click',event=>{if(event.target===picker)closePicker();},{signal:abort.signal});
   root.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;
     if(button.dataset.view){setView(button.dataset.view==='3d');return;}
+    if(button.dataset.backdrop){setBackdrop(button.dataset.backdrop);return;}
+    if(button.classList.contains('character-open')){openPicker();return;}
+    if(button.dataset.character){chooseCharacter(button.dataset.character);closePicker();return;}
+    if(button.classList.contains('charpick-close')){closePicker();return;}
     if(button.classList.contains('angle-reset')){if(painter3d){painter3d.setCameraAngle(null);cameraAngle=painter3d.cameraAngle;try{localStorage.removeItem('voxel_dash:camera');}catch{}}return;}
     if(button.classList.contains('sound')){score.unlock();const on=score.toggle();for(const b of root.querySelectorAll('.sound'))b.textContent=`SOUND ${on?'ON':'OFF'}`;return;}
     if(button.dataset.level!==undefined){input({type:'select',level:Number(button.dataset.level)});return;}
@@ -113,6 +162,8 @@ export function createDashView(api) {
   }
   for(const type of ['keydown','keyup'])window.addEventListener(type,event=>{
     if(!['Space','ArrowUp','KeyW','KeyP','Escape','KeyR','KeyC','Enter','KeyV'].includes(event.code))return;
+    // With the character picker open, the keys are the picker's: Escape closes it, Space and Enter press a face.
+    if(!picker.hidden){if(event.code==='Escape'){event.preventDefault();event.stopImmediatePropagation();if(type==='keydown')closePicker();}return;}
     event.preventDefault();event.stopImmediatePropagation();if(event.repeat)return;
     const down=type==='keydown';if(['Space','ArrowUp','KeyW'].includes(event.code)){score.unlock();if(down&&state?.phase==='menu')send('start');else input({type:'jump',down});}
     else if(down){if(['KeyP','Escape'].includes(event.code))send('pause');if(event.code==='KeyR')send('retry');if(event.code==='KeyC')send('checkpoint');if(event.code==='KeyV'&&state?.phase==='menu')setView(!view3d);if(event.code==='Enter')send(state?.phase==='menu'?'start':state?.phase==='paused'?'pause':'retry');}

@@ -1,0 +1,26 @@
+{
+  "about": "The exact commits Blockyland's data and asset scripts read from. Every script fetches through scripts/dataLock.mjs, so running one again reproduces the committed output. Move to newer data with: node scripts/dataLock.mjs --update <name>. tests/dataLock.test.js checks that every pin is a full commit SHA and that no script fetches from a branch.",
+  "sources": {
+    "minecraft-data": {
+      "repo": "PrismarineJS/minecraft-data",
+      "commit": "bd8b5c6048e5af9694374b83f25f5b4aade619cc",
+      "follows": "master",
+      "pinnedOn": "2026-11-01",
+      "note": "blocks, items, recipes (pc/1.21.4), foods (pc/1.21.1) and entityLoot (pc/1.20) are byte-identical to the cache src/blockHarvestData.js, src/mobLootData.js and src/foodData.js were generated from (2026-10-09)."
+    },
+    "minecraft-assets": {
+      "repo": "PrismarineJS/minecraft-assets",
+      "commit": "6c571b0825ee27b81f01127c2bd0d4ba2c89abb9",
+      "follows": "master",
+      "pinnedOn": "2026-11-01",
+      "note": "1,868 files under public/assets are byte-identical to files at this commit (public/assets/PROVENANCE.json)."
+    },
+    "mcmeta": {
+      "repo": "misode/mcmeta",
+      "commit": "277751c76153ac1a084813188ac7ceea2028b625",
+      "follows": "1.21.4-data",
+      "pinnedOn": "2026-11-01",
+      "note": "The 1.21.4-data tag: the vanilla data pack as Minecraft 1.21.4's own data generator writes it."
+    }
+  }
+}

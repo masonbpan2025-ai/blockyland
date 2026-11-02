@@ -28,6 +28,7 @@ test('each picker choice opens the Inspector that owns it', () => {
     closeInspectorPicker: () => { opened.push('close'); },
     openStructureInspector: () => { opened.push('structure'); return '/structure-inspector.html'; },
     openMobInspector: () => { opened.push('mob'); return '/mob-debug.html'; },
+    openBiomeInspector: () => { opened.push('biome'); return '/biome-inspector.html'; },
     openResourceInspector: ({ kind = null } = {}) => {
       opened.push(`resource:${kind}`);
       return kind === 'block' ? '/block-debug.html' : '/item-debug.html';
@@ -39,11 +40,12 @@ test('each picker choice opens the Inspector that owns it', () => {
   assert.equal(openInspector.call(stub, 'mob'), '/mob-debug.html');
   assert.equal(openInspector.call(stub, 'item'), '/item-debug.html');
   assert.equal(openInspector.call(stub, 'block'), '/block-debug.html');
+  assert.equal(openInspector.call(stub, 'biome'), '/biome-inspector.html');
   // Case should not matter: the picker's ids are lower case, the method is called by hand too.
   assert.equal(openInspector.call(stub, 'MOB'), '/mob-debug.html');
   assert.equal(openInspector.call(stub, 'nonsense'), null, 'an unknown choice opens nothing');
   assert.deepEqual(opened, [
-    'close', 'structure', 'close', 'mob', 'close', 'resource:item', 'close', 'resource:block', 'close', 'mob', 'close',
+    'close', 'structure', 'close', 'mob', 'close', 'resource:item', 'close', 'resource:block', 'close', 'biome', 'close', 'mob', 'close',
   ], 'the picker closes before every navigation');
 });
 
@@ -67,10 +69,10 @@ test('the picker shows and hides the modal it owns', () => {
   }
 });
 
-test('the picker markup offers the four choices in the order the request named them', () => {
+test('the picker markup offers the five choices: the four the request named, then Biome', () => {
   const html = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
   const options = [...html.matchAll(/id="btn-pick-inspector-([a-z]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(options, ['structure', 'item', 'block', 'mob']);
+  assert.deepEqual(options, ['structure', 'item', 'block', 'mob', 'biome']);
   assert.match(html, /id="btn-start-inspector"/, 'behind one start-screen button');
   for (const old of ['btn-start-mob-inspector', 'btn-start-resource-inspector', 'btn-start-structure-inspector']) {
     assert.doesNotMatch(html, new RegExp(`id="${old}"`), `${old} should be gone`);

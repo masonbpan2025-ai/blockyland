@@ -44,7 +44,11 @@ test('Biome catalog includes all 68 Minecraft Wiki biomes + "all" dynamic option
     }
   }
 
-  assert.equal(totalCategorizedBiomes, 68, 'All 68 Minecraft Wiki biomes must be cataloged');
+  // The End's spawn choices (Big End Islands, Chorus Fruit Forest, End City) are places to start, not wiki biomes: their
+  // terrain keeps its own biomes (dimensionSpawns.js).
+  const spawnChoices = BIOME_CATEGORIES.flatMap((c) => c.biomes).filter((id) => BIOMES[id].spawnChoice);
+  assert.deepEqual(spawnChoices, ['big_end_islands', 'chorus_forest', 'end_city']);
+  assert.equal(totalCategorizedBiomes - spawnChoices.length, 68, 'All 68 Minecraft Wiki biomes must be cataloged');
   assert.ok(BIOMES.all, '"all" dynamic multi-biome option must exist');
 });
 

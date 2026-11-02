@@ -132,6 +132,9 @@ export const BIOME_CATEGORIES = [
     biomes: [
       'the_end',
       'small_end_islands',
+      'big_end_islands',
+      'chorus_forest',
+      'end_city',
       'end_midlands',
       'end_highlands',
       'end_barrens'
@@ -1530,6 +1533,78 @@ export const BIOMES = {
     skyColor: 0x090614,
     fogColor: 0x140e2b,
     mobs: ['enderman']
+  },
+  big_end_islands: {
+    id: 'big_end_islands',
+    name: 'Big End Islands',
+    category: 'end',
+    dimension: 'end',
+    // A spawn choice on the outer End islands rather than a biome of its own (dimensionSpawns.js END_SPAWNS): the
+    // terrain keeps its natural biomes; the spawn is on a big island.
+    spawnChoice: true,
+    surfaceBlock: BLOCKS.END_STONE,
+    subsurfaceBlock: BLOCKS.END_STONE,
+    deepBlock: BLOCKS.END_STONE,
+    waterBlock: BLOCKS.AIR,
+    isEnd: true,
+    seaLevel: 0,
+    baseHeight: 28,
+    heightScale: 7,
+    treeType: 'chorus',
+    treeDensity: 0.2,
+    floraType: 'none',
+    floraDensity: 0,
+    skyColor: 0x090614,
+    fogColor: 0x140e2b,
+    mobs: ['enderman']
+  },
+  chorus_forest: {
+    id: 'chorus_forest',
+    name: 'Chorus Fruit Forest',
+    category: 'end',
+    dimension: 'end',
+    // A spawn choice on the outer End islands rather than a biome of its own (dimensionSpawns.js END_SPAWNS): the
+    // terrain keeps its natural biomes: every big island is End Highlands, with chorus plants two and a half times as thick.
+    spawnChoice: true,
+    surfaceBlock: BLOCKS.END_STONE,
+    subsurfaceBlock: BLOCKS.END_STONE,
+    deepBlock: BLOCKS.END_STONE,
+    waterBlock: BLOCKS.AIR,
+    isEnd: true,
+    seaLevel: 0,
+    baseHeight: 28,
+    heightScale: 7,
+    treeType: 'chorus',
+    treeDensity: 0.2,
+    floraType: 'none',
+    floraDensity: 0,
+    skyColor: 0x090614,
+    fogColor: 0x140e2b,
+    mobs: ['enderman']
+  },
+  end_city: {
+    id: 'end_city',
+    name: 'End City',
+    category: 'end',
+    dimension: 'end',
+    // A spawn choice on the outer End islands rather than a biome of its own (dimensionSpawns.js END_SPAWNS): the
+    // terrain keeps its natural biomes; the spawn is beside the nearest End city.
+    spawnChoice: true,
+    surfaceBlock: BLOCKS.END_STONE,
+    subsurfaceBlock: BLOCKS.END_STONE,
+    deepBlock: BLOCKS.END_STONE,
+    waterBlock: BLOCKS.AIR,
+    isEnd: true,
+    seaLevel: 0,
+    baseHeight: 28,
+    heightScale: 7,
+    treeType: 'chorus',
+    treeDensity: 0.2,
+    floraType: 'none',
+    floraDensity: 0,
+    skyColor: 0x090614,
+    fogColor: 0x140e2b,
+    mobs: ['enderman', 'shulker']
   },
   end_midlands: {
     id: 'end_midlands',

@@ -810,7 +810,7 @@ function overlay(ink, t, shot) {
   if (sc === 'budokai') banner(ink, 'TENKAICHI BUDOKAI', t > L('gohan-winner') ? 'Junior final · winner: MARRON!' : 'Junior final', { color: '#ffd23a' });
   if (sc === 'credits') {
     const [a] = SC('credits'), end = story.duration - 6.6, k = (t - a) / (end - a); if (t < end) {
-      ink.save(); ink.textAlign = 'center'; CREDITS.forEach((line, i) => { const y = 720 - k * (CREDITS.length * 34 + 520) + i * 34; if (y < 40 || y > 690) return; ink.font = i === 0 ? '30px Minecraft, monospace' : '19px Minecraft, monospace'; ink.fillStyle = i === 0 ? '#ffd27a' : '#f4f0e6'; ink.globalAlpha = .92; ink.fillText(line, 640, y); }); ink.restore();
+      ink.save(); ink.textAlign = 'center'; CREDITS.forEach((line, i) => { const y = 720 - k * (CREDITS.length * 34 + 520) + i * 34; if (y < 40 || y > 690) return; ink.font = i === 0 ? '30px "Pixelify Sans", monospace' : '19px "Pixelify Sans", monospace'; ink.fillStyle = i === 0 ? '#ffd27a' : '#f4f0e6'; ink.globalAlpha = .92; ink.fillText(line, 640, y); }); ink.restore();
     }
   }
   for (const [a, b, words] of CAPTIONS) if (t > a && t < b) { ink.globalAlpha = Math.min(1, (t - a) / .2, (b - t) / .2); caption(ink, words, { y: 150, size: words.length < 12 ? 52 : 36 }); ink.globalAlpha = 1; }

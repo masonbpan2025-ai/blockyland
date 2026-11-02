@@ -1,8 +1,6 @@
 // Agent History recording and diagnostic persistence.
 //
-// Records the full request sent to the agent and the full response received
-// across all 4 supported vendors (Gemini, DeepSeek, ChatGPT, Claude) as well as
-// offline execution.
+// Records each Agent Terminal turn: the prompt, the plan the built-in presets made and how it went.
 //
 // Persists turn records so they are immediately accessible on disk:
 //   - agent_history.json (recent turns)
@@ -20,92 +18,6 @@ export const STORAGE_LATEST_KEY = 'mc_agent_history_latest';
 // In-memory ring buffer of turns
 export const AGENT_HISTORY_MEMORY = [];
 export let LAST_TURN_MEMORY = null;
-
-/**
- * Mask an API key or sensitive token, showing only a small prefix and suffix.
- */
-export function maskSecret(secret, { showStart = 4, showEnd = 4 } = {}) {
-  if (!secret || typeof secret !== 'string') return '';
-  const str = secret.trim();
-  if (str.length <= showStart + showEnd + 2) {
-    return '***';
-  }
-  return `${str.slice(0, showStart)}***${str.slice(-showEnd)}`;
-}
-
-/**
- * Sanitize HTTP headers to mask API keys and credentials while preserving header keys.
- */
-export function sanitizeHeaders(headers = {}) {
-  if (!headers || typeof headers !== 'object') return {};
-  const sanitized = {};
-  for (const [key, value] of Object.entries(headers)) {
-    const lower = key.toLowerCase();
-    if (lower === 'authorization') {
-      if (typeof value === 'string' && value.startsWith('Bearer ')) {
-        sanitized[key] = `Bearer ${maskSecret(value.slice(7))}`;
-      } else {
-        sanitized[key] = maskSecret(String(value));
-      }
-    } else if (lower === 'x-api-key' || lower === 'x-goog-api-key' || lower === 'api-key') {
-      sanitized[key] = maskSecret(String(value));
-    } else {
-      sanitized[key] = value;
-    }
-  }
-  return sanitized;
-}
-
-/**
- * Sanitize URL query parameters that might carry an API key.
- */
-export function sanitizeUrl(url) {
-  if (!url || typeof url !== 'string') return '';
-  return url.replace(/([?&]key=)([^&]+)/gi, (_, prefix, secret) => `${prefix}${maskSecret(secret)}`);
-}
-
-/**
- * Deep-clone a request body, summarizing large base64 image data so the JSON history
- * file does not get bloated with megabytes of raw pixels while preserving prompt,
- * system prompt, and schema intact.
- */
-export function sanitizeRequestBody(body) {
-  if (!body || typeof body !== 'object') return body;
-
-  try {
-    return JSON.parse(JSON.stringify(body), (key, value) => {
-      // Gemini inlineData
-      if (key === 'inlineData' && value && typeof value === 'object') {
-        const dataStr = value.data || '';
-        return {
-          mimeType: value.mimeType || 'image/png',
-          dataLengthChars: dataStr.length,
-          preview: dataStr.length > 32 ? `${dataStr.slice(0, 32)}...` : dataStr
-        };
-      }
-      // Claude image source base64
-      if (key === 'source' && value?.type === 'base64' && typeof value.data === 'string') {
-        return {
-          type: 'base64',
-          media_type: value.media_type,
-          dataLengthChars: value.data.length,
-          preview: value.data.length > 32 ? `${value.data.slice(0, 32)}...` : value.data
-        };
-      }
-      // ChatGPT / DeepSeek image_url
-      if (key === 'image_url' && value?.url?.startsWith?.('data:image')) {
-        const parts = value.url.split(',');
-        return {
-          ...value,
-          url: `${parts[0]},[base64 image data: ${parts[1]?.length || 0} chars]`
-        };
-      }
-      return value;
-    });
-  } catch {
-    return body;
-  }
-}
 
 /**
  * Factory for creating a complete agent turn record.
@@ -161,50 +73,6 @@ export function createAgentTurnRecord({
     error: null
   };
 
-  /** Record an outgoing HTTP request attempt */
-  record.recordRequestAttempt = function({ url, method = 'POST', headers = {}, body = {}, stream = false, label = '' }) {
-    const sanitizedReq = {
-      attemptNumber: record.attempts.length + 1,
-      timestamp: new Date().toISOString(),
-      label: label || `Attempt ${record.attempts.length + 1}`,
-      method,
-      url: sanitizeUrl(url),
-      stream,
-      headers: sanitizeHeaders(headers),
-      body: sanitizeRequestBody(body)
-    };
-
-    record.attempts.push(sanitizedReq);
-    record.request = sanitizedReq;
-    return sanitizedReq;
-  };
-
-  /** Record response data for the current attempt */
-  record.recordResponse = function({
-    status = 200,
-    statusText = 'OK',
-    headers = {},
-    rawText = '',
-    reasoning = '',
-    finishReason = '',
-    usage = null
-  } = {}) {
-    record.response = {
-      status,
-      statusText,
-      headers: sanitizeHeaders(headers),
-      rawText,
-      reasoning,
-      finishReason,
-      usage
-    };
-
-    if (record.attempts.length > 0) {
-      record.attempts[record.attempts.length - 1].response = record.response;
-    }
-    return record.response;
-  };
-
   /** Record an error during network, parsing, plan validation, or execution */
   record.recordError = function(err, type = 'runtime') {
     const message = err?.message || String(err || 'Unknown error');
@@ -224,19 +92,6 @@ export function createAgentTurnRecord({
       record.attempts[record.attempts.length - 1].error = errorObj;
     }
     return errorObj;
-  };
-
-  /** Record parsed plan and validation outcome */
-  record.recordPlan = function({ parsedPlan = null, validatedPlan = null, unreadable = false, error = null } = {}) {
-    record.plan = {
-      parsedPlan,
-      validatedPlan,
-      unreadable,
-      action: validatedPlan?.action || parsedPlan?.action || null,
-      explanation: validatedPlan?.explanation || parsedPlan?.explanation || null,
-      error: error ? String(error) : null
-    };
-    return record.plan;
   };
 
   /** Record offline planning outcome */

@@ -98,6 +98,9 @@ function onShowcaseReport(report){
     const passed=scored.filter(r=>r.status==='observed').length;
     log(`Showcase finished: ${passed}/${scored.length} scenarios passed`);
   }
+  // A scenario that builds something -- a roof over a zombie at noon, a pool -- is framed with it, so what the mob
+  // is reacting to is in view and not cut off above the frame.
+  else if(report.id&&session.world.edits.size){syncArena();frameWithArena();}
   showReadout();
 }
 
@@ -147,6 +150,19 @@ function fitCamera(direction){
   camera.updateProjectionMatrix();
   controls.update();
 }
+/** The mob and the scenario's blocks together, from the front and a little to the side. */
+function frameWithArena(){
+  const box=new THREE.Box3();
+  if(session.mob?.mesh)box.expandByObject(session.mob.mesh);
+  for(const block of arenaBlocks.children)box.expandByPoint(block.position.clone().addScalar(.5)).expandByPoint(block.position.clone().subScalar(.5));
+  if(box.isEmpty())return;
+  const centre=box.getCenter(new THREE.Vector3()),radius=Math.min(12,box.getSize(new THREE.Vector3()).length()*0.5);
+  const distance=(radius*0.85)/Math.tan(camera.fov*Math.PI/360);
+  controls.target.copy(centre);
+  // Low, so the view goes in under a roof to the mob rather than looking down on top of it.
+  camera.position.copy(centre).addScaledVector(new THREE.Vector3(0.45,0.08,1).normalize(),Math.max(distance,3));
+  controls.update();
+}
 /** The default view: straight on, from the front and slightly above. */
 function front(){
   const h=session.mob?.height||session.manager.getMobDimensions(selected).height;
@@ -157,7 +173,7 @@ angleView.onclick=()=>{const h=session.mob?.height||session.manager.getMobDimens
 const topView=document.createElement('button');topView.textContent='Top view';angleView.after(topView);
 topView.onclick=()=>{fitCamera(new THREE.Vector3(0.01,2.5,0.4));};
 function reset(){if (!$('mob').value) { paused=true;session.manager.clearMobs();return; }paused=true;$('pause').textContent='Play';selected=$('mob').value;events.length=0;$('error').textContent='';const coatParam=new URLSearchParams(location.search).get('coat');session.reset(coatParam?{type:selected,coat:coatParam}:selected);$('test-case').replaceChildren(new Option('All cases',''),...mobScenarios(selected).map(c=>new Option(c.label,c.id)));$('distance').value=6;$('distance-value').textContent='6';front();log(`Spawned ${selected}`);$('wiki').href=`https://minecraft.wiki/w/${selected.split('_').map(s=>s[0].toUpperCase()+s.slice(1)).join('_')}`;$('checklist').replaceChildren();for(const text of checklists[selected] || ['Inspect every side for missing textures.','Use Combat to observe targeting, movement and attacks.','Hit tests damage feedback; Kill records drops and XP.']){const li=document.createElement('li');li.textContent=text;$('checklist').append(li);}history.replaceState(null,'',(selectedMod ? `?mod=${encodeURIComponent(selectedMod)}&` : '?') + (coatParam?`mob=${encodeURIComponent(selected)}&coat=${coatParam}`:`mob=${encodeURIComponent(selected)}`));updateReadout();}
-function updateReadout(){const s=session.snapshot();$('badge').textContent=`${selected.replaceAll('_',' ')} · ${paused?'paused':$('mode').value} · ${s.health?.toFixed(1)} / ${s.maxHealth} HP`;$('telemetry').textContent=Object.entries(s).filter(([,v])=>v!==undefined).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join('\n');}
+function updateReadout(){const s=session.snapshot();const time=session.manager.game.worldTime;const clock=time===undefined?'':(time%24000<12000?' · ☀ day':' · ☾ night');const fire=session.mob?.isBurning?' · 🔥 burning':'';$('badge').textContent=`${selected.replaceAll('_',' ')} · ${paused?'paused':$('mode').value} · ${s.health?.toFixed(1)} / ${s.maxHealth} HP${clock}${fire}`;$('telemetry').textContent=Object.entries(s).filter(([,v])=>v!==undefined).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join('\n');}
 $('mob').onchange=()=>{stopShowcase();reset();};$('reset').onclick=()=>{stopShowcase();reset();};$('front').onclick=front;
 $('showcase').onclick=runShowcase;$('showcase-stop').onclick=()=>stopShowcase(true);
 $('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Play':'Pause';updateReadout();};
@@ -166,7 +182,7 @@ function tick(){if(selected==='zombified_piglin')session.mob.frozen=$('mode').va
 $('step').onclick=()=>{paused=true;$('pause').textContent='Play';try{for(let i=0;i<6;i++)tick();updateReadout();}catch(e){fail(e);}};
 $('hit').onclick=()=>{session.hit();updateReadout();};$('kill').onclick=()=>{session.hit(10000);updateReadout();};
 $('distance').oninput=()=>{session.player.position.set(0,0,+$('distance').value);$('distance-value').textContent=$('distance').value;};
-$('lighting').onchange=()=>{const nether=$('lighting').value==='nether';ambient.color.set(nether?0xff7133:0xffffff);ambient.groundColor.set(nether?0x371718:0x708099);sun.color.set(nether?0xff9d28:0xffffff);scene.background.set(nether?0x360f12:0x233044);};
+$('lighting').onchange=()=>{const nether=$('lighting').value==='nether';sun.intensity=2;ambient.intensity=2;ambient.color.set(nether?0xff7133:0xffffff);ambient.groundColor.set(nether?0x371718:0x708099);sun.color.set(nether?0xff9d28:0xffffff);scene.background.set(nether?0x360f12:0x233044);};
 $('fluid').onchange=()=>{session.world.fluid=({air:BLOCKS.AIR,water:BLOCKS.WATER,lava:BLOCKS.LAVA})[$('fluid').value];fluidMesh.visible=$('fluid').value!=='air';fluidMesh.material.color.set($('fluid').value==='lava'?0xff7700:0x2786cb);};
 function fail(e){paused=true;$('pause').textContent='Play';$('error').textContent=e.stack || e.message;}
 const resize=new ResizeObserver(()=>{const w=$('view').clientWidth,h=$('view').clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe($('view'));
@@ -195,8 +211,12 @@ installSquidInspector(session,log);
 installWitherSkeletonInspector(session,log);
 installZombifiedInspector(session,log);
 installStriderInspector(session,log);
-renderer.setAnimationLoop(now=>{flushPendingSkinBindings();const dt=Math.min(.1,(now-last)/1000);last=now;try{if(!paused){accumulator+=dt*+$('speed').value;while(accumulator>=1/60){if(showcase?.running)tickShowcase();else if(!paused)tick();accumulator-=1/60;}}else accumulator=0;dummy.position.copy(session.player.position).y+=.9;dummy.visible=session.player.gamemode==='survival';fluidMesh.visible=session.world.fluid!==BLOCKS.AIR;fluidMesh.material.color.set(session.world.fluid===BLOCKS.LAVA?0xff7700:session.world.fluid===BLOCKS.POWDER_SNOW?0xe9efff:0x2786cb);syncArena();if(['strider','squid','glow_squid'].includes(selected)&&session.mob?.mesh){const target=session.mob.mesh.position.clone();target.y+=(session.mob.isBaby?.5:1);const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}controls.update();renderer.render(scene,camera);refresh+=dt;if(refresh>.1){updateReadout();refresh=0;}}catch(e){fail(e);}});
+renderer.setAnimationLoop(now=>{flushPendingSkinBindings();const dt=Math.min(.1,(now-last)/1000);last=now;try{if(!paused){accumulator+=dt*+$('speed').value;while(accumulator>=1/60){if(showcase?.running)tickShowcase();else if(!paused)tick();accumulator-=1/60;}}else accumulator=0;dummy.position.copy(session.player.position).y+=.9;dummy.visible=session.player.gamemode==='survival';fluidMesh.visible=session.world.fluid!==BLOCKS.AIR;fluidMesh.material.color.set(session.world.fluid===BLOCKS.LAVA?0xff7700:session.world.fluid===BLOCKS.POWDER_SNOW?0xe9efff:0x2786cb);syncArena();syncSky();if(['strider','squid','glow_squid'].includes(selected)&&session.mob?.mesh){const target=session.mob.mesh.position.clone();target.y+=(session.mob.isBaby?.5:1);const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}controls.update();renderer.render(scene,camera);refresh+=dt;if(refresh>.1){updateReadout();refresh=0;}}catch(e){fail(e);}});
 
 const arenaBlocks=new THREE.Group();scene.add(arenaBlocks);
 const arenaGeometry=new THREE.BoxGeometry(1,1,1),arenaMaterial=new THREE.MeshLambertMaterial({color:0x65738a});let arenaSignature='';
+// The sky follows the scenario's clock, so a daylight scenario looks like day (zombies burning in the sun, sheltering under
+// a roof) and a night one like night. Without a clock it is the studio backdrop the Lighting choice sets.
+let skyState=null;
+function syncSky(){const time=session.manager.game.worldTime;const state=time===undefined?'studio':(time%24000<12000?'day':'night');if(state===skyState)return;skyState=state;if(state==='studio'){$('lighting').onchange();return;}const day=state==='day';scene.background.set(day?0x8ec5ff:0x0b1020);sun.intensity=day?2.6:.35;ambient.intensity=day?2.2:.7;}
 function syncArena(){const entries=[...session.world.edits].filter(([,id])=>id!==BLOCKS.AIR);const signature=JSON.stringify(entries);if(signature===arenaSignature)return;arenaSignature=signature;arenaBlocks.clear();for(const [key] of entries.slice(0,256)){const block=new THREE.Mesh(arenaGeometry,arenaMaterial);block.position.fromArray(key.split(',').map(n=>+n+.5));arenaBlocks.add(block);}}

@@ -64,6 +64,9 @@ function castSheet(ids, title, { spacing = 1.35, fov = 34, camY = 1.5, grooms = 
   };
 }
 
+// shared with the other key-frame sets (invasionFrames.js)
+export { actor, lens, mix, CROSS, tags, big, inHand, castSheet, headTop, ground };
+
 // ------------------------------------------------------------------ the beats
 // Blocking: two people talking face each other "cheated" toward the lens (mix(partner, lens, k)), the lens sits in front
 // of whoever speaks, and the sun comes from behind the lens so the faces are lit.

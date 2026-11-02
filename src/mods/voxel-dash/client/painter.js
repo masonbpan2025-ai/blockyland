@@ -1,5 +1,5 @@
 import { LEVELS, createCourse } from '../levels.js';
-import { levelPalette } from './theme.js';
+import { levelPalette, isLightLevel } from './theme.js';
 const fract=n=>n-Math.floor(n),rand=n=>fract(Math.sin(n*127.1+311.7)*43758.5453);
 // Drawing at the display's rate is the whole job, so nothing here is built per frame that can be built once: glows are
 // pre-drawn sprites (a radial gradient per call, and canvas shadowBlur, were most of a frame's cost), the sky, the light
@@ -39,7 +39,12 @@ export function createPainter(canvas) {
   function rect(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(Math.round(x),Math.round(y),w,h);}
   function glow(x,y,r,color,alpha=1){const a=ctx.globalAlpha;ctx.globalAlpha=a*alpha;ctx.drawImage(glowSprite(color),x-r,y-r,r*2,r*2);ctx.globalAlpha=a;}
   function block(x,y,w,h,color){rect(x,y,w,h,color);rect(x,y,w,5,'#ffffff30');rect(x+w-6,y,6,h,'#0003');for(let i=0;i<w/12;i++)rect(x+5+i*12,y+10+rand(i+x)*Math.max(1,h-20),5,4,'#0002');}
-  function cube(px,py,angle,color){ctx.save();ctx.translate(px+15,py+15);ctx.rotate(angle);if(outline)glow(0,0,34,color,.55);block(-15,-15,30,30,color);
+  // The chosen character's face (characters.js), or null for the default creeper cube in the level's colour.
+  let face=null,plain=false;
+  function drawFace(x,y,w,h){ctx.imageSmoothingEnabled=false;ctx.drawImage(face,x,y,w,h);ctx.imageSmoothingEnabled=true;}
+  function cube(px,py,angle,color){ctx.save();ctx.translate(px+15,py+15);ctx.rotate(angle);if(outline)glow(0,0,34,color,.55);
+    if(face){drawFace(-15,-15,30,30);ctx.beginPath();ctx.rect(-16,-16,32,32);stroke();ctx.restore();return;}
+    block(-15,-15,30,30,color);
     ctx.beginPath();ctx.rect(-16,-16,32,32);stroke();rect(-10,-7,7,7,'#17372b');rect(3,-7,7,7,'#17372b');rect(-4,0,8,9,'#17372b');rect(-8,5,4,8,'#17372b');rect(4,5,4,8,'#17372b');ctx.restore();}
   function ship(px,py,angle,color,inverted=false){
     ctx.save();ctx.translate(px+15,py+15);ctx.rotate(angle);if(inverted)ctx.scale(1,-1);
@@ -48,24 +53,27 @@ export function createPainter(canvas) {
     // A forward-pointing Minecraft rocket hull; the cockpit does not inherit
     // a cube's spinning animation. Only the flight path supplies its pitch.
     ctx.fillStyle='#d7c6ff';ctx.beginPath();ctx.moveTo(-22,5);ctx.lineTo(11,5);ctx.lineTo(25,11);ctx.lineTo(10,16);ctx.lineTo(-17,16);ctx.closePath();ctx.fill();
-    stroke();rect(-18,13,26,4,'#8765c1');block(-8,-12,19,19,color);ctx.beginPath();ctx.rect(-9,-13,21,21);stroke();
-    rect(-5,-7,4,4,'#17372b');rect(3,-7,4,4,'#17372b');rect(-1,-2,5,6,'#17372b');
+    stroke();rect(-18,13,26,4,'#8765c1');if(face)drawFace(-8,-12,19,19);else block(-8,-12,19,19,color);ctx.beginPath();ctx.rect(-9,-13,21,21);stroke();
+    if(!face){rect(-5,-7,4,4,'#17372b');rect(3,-7,4,4,'#17372b');rect(-1,-2,5,6,'#17372b');}
     rect(13,7,7,4,'#9cfbff');ctx.restore();
   }
   // The ball: a slime block rolled round, its face turning with it.
   function ball(px,py,angle,color){
     ctx.save();ctx.translate(px+15,py+15);ctx.rotate(angle);glow(0,0,32,color,.5);
-    ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#ffffff40';ctx.beginPath();ctx.arc(-4,-5,9,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#17372b';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.stroke();
-    rect(-8,-6,5,5,'#17372b');rect(3,-6,5,5,'#17372b');rect(-4,3,8,3,'#17372b');
+    if(face){ctx.save();ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.clip();drawFace(-15,-15,30,30);ctx.restore();}
+    else{
+      ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ffffff40';ctx.beginPath();ctx.arc(-4,-5,9,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#17372b';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.stroke();
+      rect(-8,-6,5,5,'#17372b');rect(3,-6,5,5,'#17372b');rect(-4,3,8,3,'#17372b');
+    }
     ctx.beginPath();ctx.arc(0,0,16.5,0,Math.PI*2);stroke();ctx.restore();
   }
   // The UFO: a minecart under a glass dome, with the cube riding in it.
   function ufo(px,py,angle,color,inverted=false){
     ctx.save();ctx.translate(px+15,py+15);ctx.rotate(angle);if(inverted)ctx.scale(1,-1);
     glow(0,14,26,'#9cfbff',.35);ctx.fillStyle='#bfe9ff66';ctx.beginPath();ctx.arc(0,-1,12,Math.PI,0);ctx.fill();
-    block(-7,-10,14,12,color);rect(-4,-7,3,3,'#17372b');rect(2,-7,3,3,'#17372b');
+    if(face)drawFace(-7,-11,14,14);else{block(-7,-10,14,12,color);rect(-4,-7,3,3,'#17372b');rect(2,-7,3,3,'#17372b');}
     block(-18,1,36,9,'#7d7d7d');
     rect(-18,1,36,3,'#a9a9a9');rect(-13,9,6,5,'#3a3a3a');rect(7,9,6,5,'#3a3a3a');
     ctx.beginPath();ctx.arc(0,-1,13,Math.PI,0);ctx.lineTo(19,0);ctx.lineTo(19,11);ctx.lineTo(-19,11);ctx.lineTo(-19,0);ctx.closePath();stroke();ctx.restore();
@@ -90,7 +98,20 @@ export function createPainter(canvas) {
     if(kind==='mineshaft'){block(px+4,top-80,8,80,'#6b4a26');block(px+size-12,top-80,8,80,'#6b4a26');block(px,top-86,size,9,'#8a6432');for(let k=0;k<size;k+=12)rect(px+k,top-3,8,3,'#7d7d7d');if(r>.6){ctx.save();ctx.globalAlpha=.35;ctx.strokeStyle='#ddd';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px+12,top-77);ctx.lineTo(px+30,top-60);ctx.moveTo(px+30,top-77);ctx.lineTo(px+12,top-60);ctx.stroke();ctx.restore();}if(r<.3){rect(px+size*.5,top-40,6,8,'#ffcf6b');glow(px+size*.5+3,top-36,22,'#ffb347',.45);}}
     if(kind==='stronghold'){block(px+size*.15,top-90,22,90,'#5d6660');for(let k=0;k<6;k++)rect(px+size*.15,top-90+k*15,22,2,'#3c4440');if(r>.55){block(px+size*.5,top-24,size*.4,10,'#9fb09c');rect(px+size*.5+4,top-30,size*.4-8,6,'#1d5a4a');glow(px+size*.7,top-27,26,'#7cff9e',.35);}}
   }
+  // The plain backdrop: no hills, trees, stars, sun or beam -- the level's own background colour, flat, with a faint
+  // grid of large squares drifting slowly behind the course, and the same floor and flight corridor. The colour is the
+  // lower sky, which the level's palette is already chosen to stand out from (theme.js), so nothing gets harder to read.
+  function plainBackground(l,scroll,floor,ceiling,flight,flightFloor){
+    rect(0,0,960,540,l.sky[1]);
+    const ink=isLightLevel(l)?'#00000012':'#ffffff10',shade=isLightLevel(l)?'#00000008':'#ffffff07',size=120,offset=(scroll*.1)%size;
+    for(let i=-1;i<960/size+2;i++)for(let j=0;j<540/size+1;j++){const px=i*size-offset,py=j*size;if((i+j+Math.floor(scroll*.1/size))%2===0)rect(px,py,size,size,shade);}
+    ctx.fillStyle=ink;for(let i=-1;i<960/size+2;i++)ctx.fillRect(Math.round(i*size-offset),0,2,540);for(let j=1;j<540/size+1;j++)ctx.fillRect(0,j*size,960,2);
+    if(floor<540)for(let xx=-40;xx<1000;xx+=40){const px=xx-(scroll%40);rect(px,floor,40,540-floor,l.stone);rect(px,floor,40,4,l.ground);rect(px,floor+4,1,540-floor,'#0002');}
+    if(floor<540)rect(0,floor,960,2,'#ffffffa0');
+    if(flight){rect(0,ceiling-10,960,10,l.ground);rect(0,0,960,ceiling-10,l.stone);if(flightFloor<floor){rect(0,flightFloor,960,8,l.ground);rect(0,flightFloor+8,960,Math.max(0,floor-flightFloor-8),l.stone);}}
+  }
   function background(l,index,t,scroll,floor,ceiling,flight=false,flightFloor=floor) {
+    if(plain){plainBackground(l,scroll,floor,ceiling,flight,flightFloor);return;}
     if(skyLevel!==index){skyLevel=index;const [c,g]=sky??layer(960,540);const grad=g.createLinearGradient(0,0,0,540);grad.addColorStop(0,l.sky[0]);grad.addColorStop(1,l.sky[1]);g.fillStyle=grad;g.fillRect(0,0,960,540);sky=[c,g];}
     ctx.drawImage(sky[0],0,0);
     glow(index===2?750:680,130,230,l.color,.18);
@@ -171,5 +192,10 @@ ctx.fillStyle=pal.light?'#262b30':'#d5dbe1';ctx.beginPath();for(let k=0;k<16;k++
     if(state?.checkpoint!==null&&state?.checkpoint!==undefined){const cx=state.checkpoint-scroll;rect(cx,floor-65,3,65,'#76ffd7');rect(cx,floor-65,28,16,'#76ffd7');}
     const finish=l.length-scroll;if(finish<1000){glow(finish,270,150,l.color,.35);rect(finish,ceiling,7,300,l.color);}
     ctx.drawImage(vignetteLayer,0,0);
-  },dispose(){resize?.disconnect();glowSprites.clear();}};
+  },
+  /** The player's face: a canvas from characters.js loadFace, or null for the default cube. */
+  setCharacter(next){face=next??null;},
+  /** 'biome' (the level's scenery) or 'plain' (a flat background with a faint grid). */
+  setBackdrop(kind){plain=kind==='plain';},
+  dispose(){resize?.disconnect();glowSprites.clear();}};
 }

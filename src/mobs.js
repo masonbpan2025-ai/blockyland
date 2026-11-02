@@ -55,7 +55,7 @@ import { updateWaterAnimalAirSupply } from './waterAnimalAirSupply.js';
 import { updateCreeper, CREEPER_FOLLOW_RANGE } from './creeperBehavior.js';
 import { angerWolf, updateAngryWolf } from './wolfCombat.js';
 import { updateFrogspawn, updatePregnantFrog } from './frogspawn.js';
-import { meleeCanReach, holdsTemptFood, onAxolotlHurt, updateAxolotlPlayDead, updateDrowning, updateWaterSensitivity, updateSheepGrazing, rollKillXp, meleeDamage, knockbackFactor, applyUnconsumedKnockback, SUN_BURNING_TYPES } from './mobEnvironment.js';
+import { meleeCanReach, holdsTemptFood, onAxolotlHurt, updateAxolotlPlayDead, updateDrowning, updateWaterSensitivity, updateSheepGrazing, rollKillXp, meleeDamage, knockbackFactor, applyUnconsumedKnockback, SUN_BURNING_TYPES, canSeeSky } from './mobEnvironment.js';
 import { breachedArmourFraction } from './maceSmash.js';
 import { applyNaturalZombieSpawn, dismountIfChickenDead, lavaChickenDrop, tearsDrop, JOCKEY_CHICKEN_XP } from './chickenJockey.js';
 import { SALMON_SIZES, rollSalmonSize, salmonBonusDrops } from './salmonBehavior.js';
@@ -333,6 +333,13 @@ const DROWNED_SKIN_PATH = '/assets/entity/zombie/drowned.png';
 
 /** Wiki: baby drowned, known as "gurgles", "make up 5% of drowned spawns". */
 const GURGLE_CHANCE = 0.05;
+/** Wiki: a naturally spawned drowned "has a 6.25% chance to spawn with a trident". */
+const DROWNED_TRIDENT_CHANCE = 0.0625;
+/**
+ * Wiki (Bedrock): "a drowned with a trident also uses a melee attack if their target is within a 3 blocks
+ * distance", for 6.5 / 11 / 16.5. Java dropped that stab in 26.3, but the drowned here uses it as both.
+ */
+const DROWNED_TRIDENT_MELEE = { reach: 3, damage: { peaceful: 0, easy: 6.5, normal: 11, hard: 16.5 } };
 const STRAY_SKIN_PATH = '/assets/entity/skeleton/stray.png';
 const BOGGED_SKIN_PATH = '/assets/entity/skeleton/bogged.png';
 const SNOW_GOLEM_SKIN_PATH = '/assets/entity/snow_golem.png';
@@ -7854,10 +7861,15 @@ export class MobManager {
    * drowned-farming mechanic turns on this -- a gurgle's head is too low to drown, which is why the tutorial
    * says baby zombies "don't drown because they're too short", and here it falls out of the head-height test
    * rather than needing a special case.
+   *
+   * The trident is rolled the same way, after the gurgle: 6.25% of natural spawns carry one, and a summoned
+   * drowned or a converted zombie carries one only when `options.trident` asks for it. The model is always
+   * built and shown only when held, so a save that restores `hasTrident` can show it again.
    */
   spawnDrowned(x, y, z, options = {}) {
     const roll = this.random ?? Math.random;
     const isBaby = options.isBaby !== undefined ? !!options.isBaby : (!!options.natural && roll() < GURGLE_CHANCE);
+    const hasTrident = options.trident !== undefined ? !!options.trident : (!!options.natural && roll() < DROWNED_TRIDENT_CHANCE);
     const group = new THREE.Group();
     const drownedMat = new THREE.MeshLambertMaterial({ map: this.textures.drowned });
 
@@ -7920,6 +7932,7 @@ export class MobManager {
     prongRight.position.set(0.11, 0.96, 0);
     tridentGroup.add(prongRight);
 
+    tridentGroup.visible = hasTrident;
     rightArmGroup.add(tridentGroup);
     group.add(rightArmGroup);
 
@@ -7944,6 +7957,7 @@ export class MobManager {
       leftArm: leftArm,
       rightArm: rightArmGroup,
       trident: tridentGroup,
+      hasTrident,
       isHostile: true,
       health: 20,
       maxHealth: 20,
@@ -9792,7 +9806,7 @@ export class MobManager {
     }
 
     // 2. Name & HP text
-    ctx.font = 'bold 16px "Minecraft", "Segoe UI", Arial, sans-serif';
+    ctx.font = 'bold 16px system-ui, "Segoe UI", Roboto, Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'left';
     ctx.shadowColor = '#000000';
@@ -10214,7 +10228,8 @@ export class MobManager {
         // the time. Neither row existed, so a nautilus shell -- which is what a conduit is made of -- and a
         // trident had no source in the game at all. `mobLootData.js` carries the same two rows, and its
         // generator has them written down; see `MOB_LOOT_ADDITIONS` there, because that file is regenerated.
-        ['nautilus_shell', false, 1, 1, 0.03], ['trident', false, 1, 1, 0.085]],
+        // Wiki: only "a drowned holding a trident" can drop one, so an unarmed drowned never does.
+        ['nautilus_shell', false, 1, 1, 0.03], ...(mob.hasTrident ? [['trident', false, 1, 1, 0.085]] : [])],
       warden: [[BLOCKS.SCULK_CATALYST, true, 1, 1]],
       wither: [['nether_star', false, 1, 1]],
 
@@ -11118,7 +11133,9 @@ export class MobManager {
       const isDaytime = (this.game?.worldTime ?? 6000) % 24000 < 12000;
       // Wiki: undead are safe from the sun in water and in rain; neither rain nor a roof can be assumed away.
       const wet = exposedToRain(this.game?.weather,this.world,{x:ux,y:uy,z:uz}) || this.world.getVoxel(ux, Math.floor(mob.mesh.position.y + 0.2), uz) === BLOCKS.WATER;
-      const exposed = burnsInSun === true && isDaytime && skyLight > 11 && !wet;
+      // And only under open sky: any block overhead is shelter, as in Java (`canSeeSky`), the head's cell upward.
+      const exposed = burnsInSun === true && isDaytime && skyLight > 11 && !wet
+        && canSeeSky(this.world, mob.mesh.position.x, mob.mesh.position.y + (mob.height ?? 1.8) * 0.9, mob.mesh.position.z);
       if (exposed && !mob.isBurning) { mob.isBurning = true; mob.burnTimer = 8; }
       if (!exposed && mob.isBurning && mob.burnTimer <= 0) { mob.isBurning = false; mob.burnTick = undefined; }
       if (mob.isBurning && mob.type !== 'phantom') {
@@ -11713,15 +11730,9 @@ export class MobManager {
         mob.state = mob.tame ? 'tame' : 'idle';
       }
 
-      // Wiki: the zombie horse burns in sunlight; the skeleton horse explicitly does not.
-      if (mob.burnsInDaylight && this.game?.worldTime !== undefined) {
-        const time = ((this.game.worldTime % 24000) + 24000) % 24000;
-        const day = time < 12000;
-        if (day) { mob.isBurning = true; mob.health -= 1 * dt; }
-        else mob.isBurning = false;
-      } else {
-        mob.isBurning = false;
-      }
+      // Wiki: the zombie horse burns in sunlight; the skeleton horse explicitly does not. That is the shared sunlight
+      // rule at the top of updateMobTypeBehavior, read from `burnsInDaylight`; a second rule here set it alight all day,
+      // under a roof or in the rain, and burned it twice over in the open.
 
       moveGroundMob(this, mob, dt);
       mob.horsePhase = (mob.horsePhase || 0) + dt;
@@ -13141,9 +13152,13 @@ export class MobManager {
           if (mob.rightLeg) mob.rightLeg.rotation.x = -Math.sin((mob.timer || 0) * 5.0) * 0.6;
         }
 
-        if (distToPlayer < 2.0 && mob.attackCooldown <= 0) {
+        // A drowned holding a trident stabs with it, from further away and harder than a bare hand.
+        const reach = mob.hasTrident ? DROWNED_TRIDENT_MELEE.reach : 2.0;
+        if (distToPlayer < reach && mob.attackCooldown <= 0) {
           mob.attackCooldown = 1.2;
-          const dmg = meleeDamage('drowned', this.game?.difficulty, 5);
+          const dmg = mob.hasTrident
+            ? (DROWNED_TRIDENT_MELEE.damage[this.game?.difficulty] ?? DROWNED_TRIDENT_MELEE.damage.normal)
+            : meleeDamage('drowned', this.game?.difficulty, 5);
           if (typeof player.takeDamage === 'function') {
             player.takeDamage(dmg, 'Drowned');
           } else if (player.health !== undefined) {

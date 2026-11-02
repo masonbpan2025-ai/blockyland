@@ -155,3 +155,69 @@ test('Voxel Dash 3D view: chosen on the level page (2D by default), its camera a
   expect(await page.evaluate(() => localStorage.getItem('voxel_dash:view')), 'the view is not carried to the next visit').toBeNull();
   expect(errors).toEqual([]);
 });
+
+test('Voxel Dash look: a CHANGE button opens a picker of up to twenty heads, the chosen face is drawn, and a plain backdrop drops the scenery', async ({ page }) => {
+  test.setTimeout(300000);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/', { waitUntil: 'commit' });
+  await page.waitForFunction(() => window.game?.ui, null, { timeout: 240000 });
+  await page.evaluate(() => { localStorage.removeItem('voxel_dash:character'); localStorage.removeItem('voxel_dash:backdrop'); });
+  await page.click('#btn-start-designed-world');
+  await page.waitForFunction(() => /Voxel Dash/.test(document.getElementById('map-designed-list')?.textContent ?? ''), null, { timeout: 60000 });
+  await page.locator('#map-designed-list > *', { hasText: 'Voxel Dash' }).first().getByRole('button').first().click();
+  await page.waitForFunction(() => window.game?.modRuntime?.render && document.querySelector('[data-game-mod="voxel_dash"]'), null, { timeout: 120000 });
+  const shadow = (sel) => page.locator('[data-game-mod="voxel_dash"]').locator(sel);
+
+  /** The 2D canvas's pixels in a box given in the painter's 960x540 frame, after a fresh frame. */
+  const pixels = (x, y, w, h) => page.evaluate(async ([x, y, w, h]) => {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const canvas = document.querySelector('[data-game-mod="voxel_dash"]').shadowRoot.querySelector('canvas.world'), sx = canvas.width / 960, sy = canvas.height / 540;
+    return Array.from(canvas.getContext('2d').getImageData(Math.round(x * sx), Math.round(y * sy), Math.round(w * sx), Math.round(h * sy)).data);
+  }, [x, y, w, h]);
+  // In the menu the cube stands at (685, 410), 30 across.
+  const cubeBox = [690, 415, 20, 20];
+
+  // The default is the Voxel cube; the button opens the picker, which lists every character.
+  await expect(shadow('.character-open .character-name')).toHaveText('Voxel Cube');
+  const before = await pixels(...cubeBox);
+  await shadow('.character-open').click();
+  await expect(shadow('.charpick')).toBeVisible();
+  const names = await shadow('.char span').allTextContents();
+  expect(names.length).toBeLessThanOrEqual(20);
+  for (const name of ['Steve', 'Zombie', 'Skeleton', 'Creeper', 'Sheep', 'Cow', 'Pig', 'Piglin']) expect(names).toContain(name);
+
+  // Choosing the sheep closes the picker, names it on the page, and the cube is now the sheep's face: its pale wool
+  // and tan skin, which the level's green creeper cube has none of.
+  await shadow('[data-character="sheep"]').click();
+  await expect(shadow('.charpick')).toBeHidden();
+  await expect(shadow('.character-open .character-name')).toHaveText('Sheep');
+  await page.waitForTimeout(300);
+  const after = await pixels(...cubeBox);
+  // Wool (grey-white) and skin (tan): bright, and never green over red, as every pixel of the level's green cube is.
+  const pinkOrPale = (px) => { let n = 0; for (let i = 0; i < px.length; i += 4) if (px[i] > 140 && px[i] >= px[i + 1]) n++; return n / (px.length / 4); };
+  expect(pinkOrPale(before), 'the default cube has no wool').toBeLessThan(0.05);
+  expect(pinkOrPale(after), 'the sheep face is mostly wool and skin').toBeGreaterThan(0.4);
+
+  // Escape closes the picker without choosing.
+  await shadow('.character-open').click();
+  await page.keyboard.press('Escape');
+  await expect(shadow('.charpick')).toBeHidden();
+  await expect(shadow('.character-open .character-name')).toHaveText('Sheep');
+
+  // The plain backdrop: up the middle of the sky, where the biome draws hills and trees, nothing but a flat colour
+  // and the faint grid -- no step between neighbouring pixels larger than the grid's.
+  const steps = async () => { const px = await pixels(480, 150, 1, 270); let worst = 0; for (let i = 4; i < px.length; i += 4) worst = Math.max(worst, Math.abs(px[i] - px[i - 4]) + Math.abs(px[i + 1] - px[i - 3]) + Math.abs(px[i + 2] - px[i - 2])); return worst; };
+  const biome = await steps();
+  await shadow('[data-backdrop="plain"]').click();
+  await expect(shadow('[data-backdrop="plain"]')).toHaveAttribute('aria-pressed', 'true');
+  const plain = await steps();
+  expect(biome, 'the biome backdrop has hills with edges').toBeGreaterThan(40);
+  expect(plain, 'the plain backdrop has none').toBeLessThan(30);
+
+  // Both choices are remembered, and the run is played as the sheep.
+  expect(await page.evaluate(() => [localStorage.getItem('voxel_dash:character'), localStorage.getItem('voxel_dash:backdrop')])).toEqual(['sheep', 'plain']);
+  await shadow('[data-action="start"]').click();
+  await page.waitForFunction(() => window.game.modRuntime.state?.phase === 'play');
+  expect(errors).toEqual([]);
+});

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Biome Inspector</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#111722;color:#e7edf7;font:14px system-ui}main{display:grid;grid-template-columns:320px 1fr;height:100vh}
+aside{padding:20px;overflow:auto;border-right:1px solid #344256}h1{font-size:23px;margin:0 0 4px}small{color:#94a9c2}
+label{display:block;margin:14px 0 6px;color:#b9cbe0}select,input,button{font:inherit}select,input{width:100%;background:#223249;color:#eef5ff;border:1px solid #425875;border-radius:7px;padding:8px}
+button{background:#223249;color:#eef5ff;border:1px solid #425875;border-radius:7px;padding:8px 12px;cursor:pointer}button:hover:not(:disabled){background:#354d6e}button:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}.row>*{flex:1}
+.back{display:inline-block;margin:0 0 14px;padding:7px 12px;border:1px solid #425875;border-radius:7px;background:#223249;color:#eef5ff;text-decoration:none}
+#checks{list-style:none;padding:0;margin:8px 0}#checks li{margin:0 0 8px;padding:8px 10px;border-radius:7px;background:#1b2739;border:1px solid #33455e;line-height:1.4}
+#checks li.ok{border-color:#2f6b45;background:#16301f}#checks li.fail{border-color:#7a3434;background:#341818}#checks li span{display:block;color:#a9b8ca;font-size:12px;margin-top:2px}
+#summary{font:12px/1.55 monospace;white-space:pre-wrap;color:#b9cbe0;background:#152030;border-radius:7px;padding:10px}
+#view{position:relative;min-width:0}canvas{display:block;width:100%;height:100%}
+#badge{position:absolute;top:16px;left:18px;background:#152030d9;padding:9px 13px;border-radius:9px;pointer-events:none}
+#status{margin-top:10px;color:#9fc6ea;font-size:12px;min-height:16px}
+@media(max-width:760px){main{grid-template-columns:1fr;grid-template-rows:auto 60vh;height:auto}aside{border-right:0;border-bottom:1px solid #344256}}
+</style></head><body><main><aside>
+<a class="back" href="/">&larr; Back to Main</a>
+<h1>Biome Inspector</h1><small>The game's own terrain · the spawn a new world picks · no game started</small>
+<label for="biome">Biome</label><select id="biome"></select>
+<div class="row"><div><label for="seed">Seed</label><input id="seed" type="text" value="4242"></div></div>
+<div class="row"><button id="regenerate">Regenerate</button><button id="random-seed" title="A new random seed">🎲 Seed</button></div>
+<div class="row"><button id="dragon" title="Open the gateways the dragon's death opens: one on the main island to an End city, and one there back" hidden>Defeat the dragon</button><button id="play" title="Start a new world of this biome in the game">▶ Play this biome</button></div>
+<div id="status" aria-live="polite"></div>
+<label>What this biome's spawn should have</label><ul id="checks"></ul>
+<label>Spawn</label><div id="summary"></div>
+<p><small>Drag to orbit · scroll to zoom · right-drag to pan. The red box is where the player starts.</small></p>
+</aside><section id="view" aria-label="3D view of the biome's spawn"><div id="badge">Loading…</div></section></main>
+<script type="module" src="/src/biomeInspector.js"></script></body></html>

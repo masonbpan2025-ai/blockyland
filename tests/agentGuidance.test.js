@@ -8,8 +8,7 @@ import assert from 'node:assert/strict';
 import {
   CAPABILITIES,
   explainFailure,
-  explainFailureBriefly,
-  isExternalFailure
+  explainFailureBriefly
 } from '../src/agentCapabilities.js';
 import { WorldAgent } from '../src/worldAgent.js';
 import { BLOCKS } from '../src/blocks.js';
@@ -43,21 +42,13 @@ test('every failure explanation offers at least one way forward', () => {
   }
 });
 
-test('credential and rate-limit failures are not mistaken for scripting requests', () => {
-  // "API HTTP 401" contains "API"; an earlier version matched it as a scripting
-  // request and answered an auth failure with advice about running code.
-  assert.match(explainFailure(new Error('DeepSeek API HTTP 401: Unauthorized')).summary, /key was turned down/i);
-  assert.match(explainFailure(new Error('OpenAI API HTTP 429')).summary, /slow down/i);
-  assert.match(explainFailure(new Error('DeepSeek API HTTP 402')).summary, /out of credit/i);
-  // And a genuine scripting request still routes to the scripting advice.
+test('a scripting request routes to the scripting advice', () => {
   assert.match(explainFailure(new Error('Unsupported action: execute_javascript')).summary, /cannot run code/i);
   assert.match(explainFailure(new Error('ok'), { prompt: 'run this javascript for me' }).summary, /cannot run code/i);
 });
 
 test('the player-facing wording avoids jargon a new player would not know', () => {
   const reasons = [
-    'API HTTP 401', 'API HTTP 402', 'API HTTP 429', 'API HTTP 400',
-    'idle timeout', 'no json plan was returned', 'was malformed',
     'Unsupported action: execute_javascript', 'Structure not found: x',
     'no tracked blocks', 'exceeds world height', 'something odd'
   ];
@@ -71,22 +62,11 @@ test('the player-facing wording avoids jargon a new player would not know', () =
   }
 });
 
-test('an external failure is distinguishable from the player asking the impossible', () => {
-  // Used to decide whether to say "that was not your fault".
-  assert.equal(isExternalFailure(new Error('DeepSeek API HTTP 402')), true);
-  assert.equal(isExternalFailure(new Error('idle timeout')), true);
-  assert.equal(isExternalFailure(new Error('The reply was malformed')), true);
-  // A limit of the game is not a malfunction.
-  assert.equal(isExternalFailure(new Error('Unsupported action: execute_javascript')), false);
-  assert.equal(isExternalFailure(new Error('Structure not found: x')), false);
-});
-
 test('a request naming something the engine lacks is explained, not just refused', () => {
   const cases = [
     ['can we play together?', /share this world/i],
     ['make a redstone logic circuit that counts', /does not think/i],
     ['install a shaderpack', /cannot run code/i],
-    ['build a nether portal to another dimension', /one world here/i],
     ['import a custom model', /fixed set/i],
     ['spawn 500 golems', /more than one request can carry/i]
   ];
@@ -95,6 +75,16 @@ test('a request naming something the engine lacks is explained, not just refused
     assert.match(explanation.summary, expected, `for prompt "${prompt}"`);
     assert.ok(explanation.alternatives.length >= 1);
   }
+});
+
+// The game has the Nether and the End, and portals to both work: a failure while making one is never explained as
+// "this engine has no portals" (it was, which sent an AI app away from a portal it had nearly finished).
+test('a failure on a portal request is not explained as portals not existing', () => {
+  const unrelated = explainFailure(new Error('No living cow nearby.'), { prompt: 'build a nether portal and light it' });
+  assert.doesNotMatch(unrelated.summary, /one world|not something this engine has|no portals/i);
+  const frame = explainFailure(new Error('There is no complete obsidian portal frame at 1 64 1.'), { prompt: 'light the portal' });
+  assert.match(frame.summary, /4 wide and 5 tall/, 'an incomplete frame is explained with its vanilla size');
+  assert.ok(frame.alternatives.length >= 1);
 });
 
 test('the brief form is one line with a concrete suggestion', () => {
@@ -149,34 +139,21 @@ function fixture() {
     rebuildChunkMesh() {}
   };
   const agent = new WorldAgent(game);
-  agent.setVendor('deepseek');
-  agent.setApiKey('k');
   return { agent, game };
 }
 
-function sse(content) {
-  const encoder = new TextEncoder();
-  const body = encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\ndata: [DONE]\n\n`);
-  let sent = false;
-  return {
-    ok: true, status: 200, statusText: 'OK',
-    headers: { get: n => (n.toLowerCase() === 'content-type' ? 'text/event-stream' : null) },
-    body: { getReader: () => ({ read: async () => (sent ? { done: true, value: undefined } : (sent = true, { done: false, value: body })) }) }
-  };
-}
-
-test('a failure the model reported as an unknown action reaches the player as guidance', async t => {
+test('a plan with an unknown action reaches the player as guidance', async t => {
   const { agent } = fixture();
   t.mock.method(console, 'error', () => {});
   const logs = [];
   agent.onLog = (message, type) => logs.push({ message, type });
 
-  // The shape that produced "Unsupported action: execute_javascript".
-  t.mock.method(globalThis, 'fetch', async () => sse(JSON.stringify({
+  // The shape that once produced "Unsupported action: execute_javascript", arriving as a plan.
+  t.mock.method(agent, 'parseIntentLocally', () => ({
     action: 'multi',
     steps: [{ action: 'build', structureType: 'custom', operations: [{ type: 'fill_box', min: [0, 0, 0], max: [1, 1, 1], block: 'STONE' }] },
       { action: 'execute_javascript', code: 'while(true){}' }]
-  })));
+  }));
 
   await agent.executePrompt('make a redstone computer');
 
@@ -188,34 +165,4 @@ test('a failure the model reported as an unknown action reaches the player as gu
   // The conversation memory keeps the advice, plus the reason for diagnosing.
   assert.match(agent.conversationHistory.at(-1).text, /I could not do that one/);
   assert.match(agent.conversationHistory.at(-1).text, /technical reason/);
-});
-
-test('a failure that was not the player\u2019s doing says so', async t => {
-  const { agent } = fixture();
-  t.mock.method(console, 'error', () => {});
-  const logs = [];
-  agent.onLog = (message, type) => logs.push({ message, type });
-  t.mock.method(globalThis, 'fetch', async () => {
-    const error = new Error('simulated drop');
-    error.name = 'TypeError';
-    throw error;
-  });
-
-  await agent.executePrompt('build a castle');
-  assert.ok(agent.lastError, 'still recorded');
-  assert.ok(logs.some(entry => /not your fault/i.test(entry.message)),
-    'a dropped connection is visibly not the player\u2019s fault');
-});
-
-test('a network failure gives recovery steps rather than a bare status', async t => {
-  const { agent } = fixture();
-  t.mock.method(console, 'error', () => {});
-  const logs = [];
-  agent.onLog = (message, type) => logs.push({ message, type });
-  t.mock.method(globalThis, 'fetch', async () => ({ ok: false, status: 402, statusText: 'Payment Required' }));
-
-  await agent.executePrompt('build a castle');
-  assert.match(agent.lastError.message, /402/);
-  assert.ok(logs.some(entry => /out of credit/i.test(entry.message)), 'explains the situation');
-  assert.ok(logs.some(entry => entry.type === 'info' && /• /.test(entry.message)), 'and offers next steps');
 });

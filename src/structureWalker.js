@@ -188,6 +188,20 @@ export class StructureWalker {
       this.world.setVoxel(x, y, z, BLOCKS.AIR);
       changed.push({ x, y, z, id });
     }
+    // A portal cannot outlive its frame: breaking a portal block, or the obsidian beside one, takes the whole connected
+    // sheet of portal with it, as breaking it in the game does (`NetherPortalManager.onBlockBroken`).
+    const [first] = changed;
+    if (first && (first.id === BLOCKS.NETHER_PORTAL || first.id === BLOCKS.OBSIDIAN)) {
+      const NEIGHBOURS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+      const queue = NEIGHBOURS.map(([dx, dy, dz]) => [first.x + dx, first.y + dy, first.z + dz]);
+      while (queue.length) {
+        const [x, y, z] = queue.pop();
+        if (this.world.getVoxel(x, y, z) !== BLOCKS.NETHER_PORTAL) continue;
+        this.world.setVoxel(x, y, z, BLOCKS.AIR);
+        changed.push({ x, y, z, id: BLOCKS.NETHER_PORTAL });
+        for (const [dx, dy, dz] of NEIGHBOURS) queue.push([x + dx, y + dy, z + dz]);
+      }
+    }
     return changed;
   }
 

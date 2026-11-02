@@ -141,6 +141,9 @@ export function teardownWorld(game) {
     player.bedBlockPosition = null;
     player.anchorSpawn = null;
     player.commandSpawnPosition = null;
+    // The recipe book starts over too (recipeBook.js): only the crafting table is known in a new world.
+    player.knownRecipes = new Set();
+    player.recipeBookSeen = new Set();
   });
   step('inventory', () => {
     game.inventory?.clearAll?.();

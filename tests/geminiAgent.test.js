@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { GeminiAgent } from '../src/worldAgent.js';
 import { BLOCKS } from '../src/blocks.js';
 import { validatePlan } from '../src/agentPlans.js';
+import { runGameTool, describeWorld } from '../src/agentControl/gameTools.js';
 
 function fixture() {
   const cells = new Map();
@@ -17,8 +18,6 @@ function fixture() {
     rebuildChunkMesh() {}, weather: { setWeather() {} },
   };
   const agent = new GeminiAgent(game);
-  // This file covers the Google Gemini wire format specifically.
-  agent.setVendor('gemini');
   const logs = [];
   agent.onLog = (message, type) => logs.push({ message, type });
   return { agent, game, cells, natural, logs };
@@ -47,38 +46,21 @@ test('offline lighthouse deletion restores terrain and attached stairs, preservi
   for (const v of house.voxels.values()) assert.equal(game.world.getVoxel(v.x, v.y, v.z), v.id);
 });
 
-test('arbitrary Gemini prompts receive live context and support build, in-place edit, and pronoun deletion', async t => {
+test('plans build, edit in place and destroy, keeping the player\'s own edits, and the AI sees its build', async () => {
   const { agent, game } = fixture();
-  agent.apiKey = 'test-only';
-  agent.parseIntentLocally = () => { throw new Error('Must not use keyword parser'); };
-  const requests = [];
-  const responses = [customBuild];
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    requests.push({ url, options, body: JSON.parse(options.body) });
-    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(responses.shift()) }] } }] }) };
-  });
-  const prompt = 'Could the harbor have a guiding light for ships?';
-  await agent.executePrompt(prompt);
-  assert.equal(agent.lastError, null);
+  await agent.runPlan(customBuild, 'Could the harbor have a guiding light for ships?');
   const s = agent.lastBuiltStructure;
   game.world.setVoxel(s.startX, s.baseY + 2, s.startZ, BLOCKS.GLASS);
-  responses.push({ action: 'edit', targetStructure: s.id, operations: [{ type: 'replace_blocks', from: 'SNOW', block: 'BRICKS' }] });
-  await agent.executePrompt('Give that beacon brickwork, keeping my window.');
+  // What an AI app reads before its next plan names the building, by id.
+  assert.ok(describeWorld(agent).includes(s.id));
+  await agent.runPlan({ action: 'edit', targetStructure: s.id, operations: [{ type: 'replace_blocks', from: 'SNOW', block: 'BRICKS' }] }, 'Give that beacon brickwork, keeping my window.');
   assert.equal(agent.builtStructures.length, 1);
   assert.equal(game.world.getVoxel(s.startX, s.baseY + 2, s.startZ), BLOCKS.GLASS);
   assert.equal(game.world.getVoxel(s.startX + 1, s.baseY + 1, s.startZ), BLOCKS.BRICKS);
-  assert.ok(requests[1].body.systemInstruction.parts[0].text.includes(s.id));
-  assert.ok(requests[1].body.systemInstruction.parts[0].text.includes('GLASS'));
-  assert.equal(requests[0].body.contents.flatMap(c => c.parts).filter(p => p.text?.includes(prompt)).length, 1);
-  assert.ok(requests[1].body.contents.some(c => c.role === 'model'));
-  assert.ok(!requests[0].url.includes('test-only'));
-  responses.push({ action: 'destroy', targetStructure: s.id });
-  await agent.executePrompt('Actually, take it down.');
-  assert.equal(agent.lastError, null);
+  await agent.runPlan({ action: 'destroy', targetStructure: s.id }, 'Actually, take it down.');
   assert.equal(agent.builtStructures.length, 0);
   assert.equal(game.world.getVoxel(s.startX, s.baseY + 2, s.startZ), BLOCKS.GLASS);
 });
-
 test('edits can extend outside original bounds and remove blocks with AIR', async () => {
   const { agent, game, natural } = fixture();
   await agent.runPlan(customBuild, 'build');
@@ -118,32 +100,12 @@ test('missing named targets and partial offline removals never destroy an unrela
   assert.equal(agent.builtStructures.length, 0);
 });
 
-test('API failures remain errors, release the terminal, and never execute a local substitute', async t => {
-  const { agent, cells } = fixture();
-  agent.apiKey = 'test-only';
-  let completed = false;
-  agent.onComplete = () => { completed = true; };
-  t.mock.method(console, 'error', () => {});
-  t.mock.method(globalThis, 'fetch', async () => ({ ok: false, status: 403, statusText: 'Forbidden' }));
-  await agent.executePrompt('build a lighthouse');
-  assert.match(agent.lastError.message, /HTTP 403/);
-  assert.equal(agent.isExecuting, false);
-  assert.equal(completed, true);
-  assert.equal(cells.size, 0);
-  // The failure is recorded as a failure, with the technical reason retained. The
-  // player-facing wording is now plain and, for a rejected key, says it was not
-  // their fault; the raw status is kept for diagnosis.
-  assert.match(agent.conversationHistory.at(-1).text, /not your fault|I could not do that one/);
-  assert.match(agent.conversationHistory.at(-1).text, /HTTP 403/);
-});
-
-test('invalid model plans are rejected before any step mutates the world', async t => {
-  const { agent, cells } = fixture();
-  agent.apiKey = 'test-only';
-  t.mock.method(console, 'error', () => {});
-  t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ action: 'multi', steps: [customBuild, { action: 'execute_javascript' }] }) }] } }] }) }));
-  await agent.executePrompt('a complex request');
-  assert.match(agent.lastError.message, /Unsupported action/);
+test('invalid plans are rejected before any step mutates the world', async () => {
+  const { agent, game, cells } = fixture();
+  await assert.rejects(
+    runGameTool('run_plan', { plan: { action: 'multi', steps: [customBuild, { action: 'execute_javascript' }] } }, { game, agent }),
+    err => err.kind === 'usage' && /Unsupported action/.test(err.message),
+  );
   assert.equal(cells.size, 0);
   assert.equal(agent.builtStructures.length, 0);
   for (const operation of [
@@ -154,10 +116,9 @@ test('invalid model plans are rejected before any step mutates the world', async
   ]) assert.throws(() => validatePlan({ ...customBuild, operations: [operation] }));
   assert.throws(() => validatePlan({ action: 'build', structureType: 'dragon' }), /voxel operations/);
 });
-
-test('offline unsupported prompts explain the API requirement without an unwanted generic build', async () => {
+test('offline unsupported prompts point to the AI app without an unwanted generic build', async () => {
   const { agent, cells, logs } = fixture();
   await agent.executePrompt('build a flying dragon');
   assert.equal(cells.size, 0);
-  assert.ok(logs.some(l => /API key/.test(l.message)));
+  assert.ok(logs.some(l => /Connect AI/.test(l.message)), 'the player is told how to get a free-form build');
 });

@@ -48,7 +48,7 @@ function createNametagSprite(name, isHost = false) {
 
   // Text
   ctx.fillStyle = isHost ? '#38bdf8' : '#ffffff';
-  ctx.font = 'bold 50px "Minecraft", "Segoe UI", sans-serif';
+  ctx.font = 'bold 50px system-ui, "Segoe UI", Roboto, Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';

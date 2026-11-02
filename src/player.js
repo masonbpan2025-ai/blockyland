@@ -181,7 +181,11 @@ export class Player {
     }
     const ui = this.game?.ui || this.ui;
     if (ui) {
-      if (ui.isChatOpen || (typeof ui.isGeminiOpen === 'function' && ui.isGeminiOpen()) || (typeof ui.isModalOpen === 'function' && ui.isModalOpen())) {
+      // The Agent Terminal blocks only while it has the mouse: clicked back into the world, the player plays beside it.
+      const terminalBlocks = typeof ui.isTerminalBlocking === 'function'
+        ? ui.isTerminalBlocking()
+        : (typeof ui.isGeminiOpen === 'function' && ui.isGeminiOpen());
+      if (ui.isChatOpen || terminalBlocks || (typeof ui.isModalOpen === 'function' && ui.isModalOpen())) {
         return true;
       }
     }
@@ -198,7 +202,7 @@ export class Player {
         }
       }
       const geminiModal = document.getElementById('gemini-modal');
-      if (geminiModal && !geminiModal.classList.contains('hidden')) {
+      if (!ui?.isTerminalBlocking && geminiModal && !geminiModal.classList.contains('hidden')) {
         return true;
       }
       const chatWrapper = document.getElementById('chat-input-wrapper');

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { contentsUrl } from './dataLock.mjs';
 
 const PUBLIC_ITEMS_DIR = path.resolve('public/assets/items');
 const DIST_ITEMS_DIR = path.resolve('dist/assets/items');
@@ -22,9 +23,9 @@ async function main() {
 
   console.log('1. Fetching authentic asset manifests from PrismarineJS (1.21.4 & 1.20.2)...');
   const [items21, items20, blocks21] = await Promise.all([
-    fetchJSON('https://api.github.com/repos/PrismarineJS/minecraft-assets/contents/data/1.21.4/items'),
-    fetchJSON('https://api.github.com/repos/PrismarineJS/minecraft-assets/contents/data/1.20.2/items'),
-    fetchJSON('https://api.github.com/repos/PrismarineJS/minecraft-assets/contents/data/1.21.4/blocks'),
+    fetchJSON(contentsUrl('minecraft-assets', 'data/1.21.4/items')),
+    fetchJSON(contentsUrl('minecraft-assets', 'data/1.20.2/items')),
+    fetchJSON(contentsUrl('minecraft-assets', 'data/1.21.4/blocks')),
   ]);
 
   const itemMap = new Map();

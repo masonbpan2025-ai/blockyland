@@ -20,6 +20,18 @@ export const SUN_BURNING_TYPES = new Set(['zombie', 'zombie_villager', 'skeleton
 const BREATHES = new Set(MOB_BREATHES_UNDERWATER);
 
 /**
+ * Whether nothing at all is above (x, y, z): the sun burns undead only where they can see the sky (Java's
+ * `canSeeSky`, the WORLD_SURFACE height map, where any block counts -- glass and leaves too). Light level alone let
+ * sky light leaking in sideways set a zombie under a roof alight. https://minecraft.wiki/w/Zombie#Behavior
+ */
+export function canSeeSky(world, x, y, z) {
+  if (!world?.getVoxel) return true;
+  const fx = Math.floor(x), fz = Math.floor(z), top = world.maxHeight ?? 64;
+  for (let cy = Math.max(0, Math.floor(y)); cy < top; cy++) if (world.getVoxel(fx, cy, fz)) return false;
+  return true;
+}
+
+/**
  * Experience dropped when a player (or tamed wolf) kills a mob, from the wiki's Drops section. A mob the wiki gives no
  * value for falls back to the 1-3 every animal drops.
  */

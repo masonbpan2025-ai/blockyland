@@ -34,7 +34,7 @@ test('Tutorial 5.1: Nether Expedition & Portals - Obsidian frame, ignition, dime
   // 3. Dimensional shift: step into portal
   f.player.position.set(1.5, 1, 0);
   assert.ok(f.game.portalManager.isPlayerInPortal(f.player, f.world), 'Player should be detected inside nether portal');
-  // Update portal manager until teleportation triggers (survival takes 4 seconds)
+  // Update portal manager until teleportation triggers (stepping in holds the player for a 1.5-second warp in survival)
   for (let i = 0; i < 90; i++) f.step(0.05);
   assert.equal(f.game.currentDimension, 'nether', 'Game dimension should transition to nether');
 

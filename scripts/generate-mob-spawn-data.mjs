@@ -21,10 +21,11 @@
 // back silently to plains.
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { rawUrl, contentsUrl, pin } from './dataLock.mjs';
 
-const BRANCH = '1.21.4-data';
-const RAW = `https://raw.githubusercontent.com/misode/mcmeta/${BRANCH}/data/minecraft/worldgen/biome`;
-const STRUCTURE_RAW = `https://raw.githubusercontent.com/misode/mcmeta/${BRANCH}/data/minecraft/worldgen/structure`;
+const BRANCH = pin('mcmeta').follows; // the pinned commit's tag (data-lock.json)
+const RAW = rawUrl('mcmeta', 'data/minecraft/worldgen/biome');
+const STRUCTURE_RAW = rawUrl('mcmeta', 'data/minecraft/worldgen/structure');
 const CACHE = join(process.cwd(), '.cache', 'mc-data', 'biomes');
 const STRUCTURE_CACHE = join(process.cwd(), '.cache', 'mc-data', 'structures');
 const offline = process.argv.includes('--offline');
@@ -59,6 +60,10 @@ const ENGINE_ONLY_BIOMES = {
  */
 const ENGINE_ONLY_BIOME_RUNTIME_ALIASES = {
   dappled_forest: 'forest',
+  // The End's spawn choices (dimensionSpawns.js): places to start, whose terrain keeps the End biomes they stand on.
+  big_end_islands: 'end_midlands',
+  chorus_forest: 'end_highlands',
+  end_city: 'end_highlands',
 };
 
 /**
@@ -149,7 +154,7 @@ console.log('Fetching vanilla biome spawn tables...');
 // The registry MUST come from the same versioned branch as the biome files. `summary` tracks the
 // latest snapshot, whose biome list is not 1.21.4's -- using it silently fetched a later version's
 // `dappled_forest` and 404'd, which is exactly the version-mixing this task forbids.
-const REGISTRY_SOURCE = `https://api.github.com/repos/misode/mcmeta/contents/data/minecraft/worldgen/biome?ref=${BRANCH}`;
+const REGISTRY_SOURCE = contentsUrl('mcmeta', 'data/minecraft/worldgen/biome');
 const registry = await (async () => {
   const cached = join(CACHE, `_registry-${BRANCH}.json`);
   if (existsSync(cached)) return JSON.parse(readFileSync(cached, 'utf8'));

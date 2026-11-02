@@ -23,34 +23,40 @@ export const COSTUMES = {
   cat: { skin: 0x8e97a8, hair: 0x8e97a8, body: 0x6e4bb5, legs: 0x8e97a8, arms: 0x8e97a8, ears: 0x8e97a8, kid: true, w: .9 },
   cakey: { skin: 0xf6c39a, hair: 0xf2a3c4, body: 0x6cc7d8, legs: 0xe9b98a, arms: 0xe9b98a, ears: 0xf2a3c4, kid: true, w: .6 },
   leather: { skin: 0xf5c9a3, hair: 0x3b2a1a, body: 0x8a5a36, legs: 0x6e4529, arms: 0x8a5a36, w: 0 },
+  // the Grumbler army (civCast.js grumbler): green heads, silver suits; the "ears" stand in for the antenna tips
+  alien: { skin: 0x7ed957, hair: 0x7ed957, body: 0xa9b2c4, legs: 0xa9b2c4, arms: 0x7ed957, ears: 0xffe14a, kid: true, bigHead: true, w: 0 },
 };
 /** The crowd's face (the head's −z side): eyes and a smile on white, tinted by each player's skin colour. */
 let faceMats;
-function headMaterials(emissive) {
-  if (!faceMats?.[emissive]) {
+function headMaterials(emissive, angry = false) {
+  const key = emissive + (angry ? '/angry' : '');
+  if (!faceMats?.[key]) {
     const c = document.createElement('canvas'); c.width = c.height = 16; const p = c.getContext('2d');
-    p.fillStyle = '#ffffff'; p.fillRect(0, 0, 16, 16); p.fillStyle = '#1b1b1d'; p.fillRect(4, 7, 2, 3); p.fillRect(10, 7, 2, 3);
-    p.fillStyle = '#5a2626'; p.fillRect(6, 12, 4, 1); p.fillRect(5, 11, 1, 1); p.fillRect(10, 11, 1, 1);
+    p.fillStyle = '#ffffff'; p.fillRect(0, 0, 16, 16); p.fillStyle = angry ? '#b0102a' : '#1b1b1d'; p.fillRect(4, 7, 2, 3); p.fillRect(10, 7, 2, 3);
+    if (angry) { // cross brows sloping down to the nose, and a frown
+      p.fillStyle = '#244a18'; p.fillRect(3, 5, 2, 1); p.fillRect(5, 6, 2, 1); p.fillRect(11, 5, 2, 1); p.fillRect(9, 6, 2, 1);
+      p.fillStyle = '#5a2626'; p.fillRect(6, 11, 4, 1); p.fillRect(5, 12, 1, 1); p.fillRect(10, 12, 1, 1);
+    } else { p.fillStyle = '#5a2626'; p.fillRect(6, 12, 4, 1); p.fillRect(5, 11, 1, 1); p.fillRect(10, 11, 1, 1); }
     const tex = new T.CanvasTexture(c); Object.assign(tex, { magFilter: T.NearestFilter, minFilter: T.NearestMipmapLinearFilter, colorSpace: T.SRGBColorSpace });
     const plain = new T.MeshLambertMaterial({ color: 0xffffff, emissive }), face = new T.MeshLambertMaterial({ color: 0xffffff, emissive, map: tex });
-    (faceMats ??= {})[emissive] = [plain, plain, plain, plain, plain, face];
+    (faceMats ??= {})[key] = [plain, plain, plain, plain, plain, face];
   }
-  return faceMats[emissive];
+  return faceMats[key];
 }
 const pickCostume = (r, allowed) => { const list = allowed.map(k => [k, COSTUMES[k]]), total = list.reduce((a, [, c]) => a + c.w, 0); let x = r * total; for (const [k, c] of list) { x -= c.w; if (x <= 0) return k; } return list[0][0]; };
 
 /**
  * people: [{ x, y, z, yaw, costume?, walk?, armUp? }]. Returns a Group of instanced meshes.
- * opts.mix: costume keys to draw from when a person has none.
+ * opts.mix: costume keys to draw from when a person has none; opts.angry: every face scowls (the Grumbler army).
  */
-export function crowd(people, { mix = Object.keys(COSTUMES).filter(k => COSTUMES[k].w), seed = 1, emissive = 0 } = {}) {
+export function crowd(people, { mix = Object.keys(COSTUMES).filter(k => COSTUMES[k].w), seed = 1, emissive = 0, angry = false } = {}) {
   const n = people.length, group = new T.Group();
   const parts = {
     legs: [.44, .72, .24], body: [.5, .7, .26], arms: [.2, .66, .2], head: [.5, .5, .5], hair: [.54, .14, .54], spike: null, ears: [.12, .14, .06],
   };
   const make = (geo, count = n, mat = new T.MeshLambertMaterial({ color: 0xffffff, emissive })) => { const m = new T.InstancedMesh(geo, mat, count); m.castShadow = m.receiveShadow = true; m.instanceMatrix.setUsage(T.StaticDrawUsage); group.add(m); return m; };
   const box = s => new T.BoxGeometry(...s);
-  const legs = make(box(parts.legs)), body = make(box(parts.body)), armL = make(box(parts.arms)), armR = make(box(parts.arms)), head = make(box(parts.head), n, headMaterials(emissive)), hair = make(box(parts.hair));
+  const legs = make(box(parts.legs)), body = make(box(parts.body)), armL = make(box(parts.arms)), armR = make(box(parts.arms)), head = make(box(parts.head), n, headMaterials(emissive, angry)), hair = make(box(parts.hair));
   // spiky hair: three small blades merged into one shape
   const spikeGeo = new T.BufferGeometry(); { const parts = [[-.16, .12, -.5], [0, .0, 0], [.16, .12, .5]].map(([x, z, r]) => { const c = new T.ConeGeometry(.17, .34, 4); c.rotateY(Math.PI / 4); c.rotateZ(r); c.translate(x, 0, z); return c; }); spikeGeo.copy(mergeGeo(parts)); } const spikes = make(spikeGeo);
   const ears = make(box(parts.ears), n * 2);

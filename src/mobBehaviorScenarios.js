@@ -178,8 +178,21 @@ export function universalScenarios(type, SCENARIO_SKIP) {
     }
   }
   if (BURNS_IN_DAYLIGHT.has(type)) {
-    add('daylight_burn', 'Catches fire and takes damage in sunlight', 4, s => { s.manager.game.worldTime = 6000; s.manager.game.isDaytime = true; },
-      s => ({ ok: hurt(s) || !!s.mob.isBurning, detail: `burning=${!!s.mob.isBurning}, health ${s.mob.health}/${s.mob.maxHealth}` }));
+    // Shown, not only measured: noon (the Inspector turns its sky blue), the target out of reach so the mob stays in
+    // front of the camera instead of walking past it, and the mob held where it stands.
+    const noon = (s) => { s.manager.game.worldTime = 6000; s.manager.game.isDaytime = true; s.player.position.set(0, 0, 80); };
+    const stay = (s) => { if (s.mob?.mesh && type !== 'phantom') { s.mob.mesh.position.x = 0; s.mob.mesh.position.z = 0; s.mob.yaw = 0; s.mob.mesh.rotation.y = 0; } };
+    add('daylight_burn', 'Sun: catches fire and takes damage in direct sunlight (noon, open sky)', 4, noon,
+      s => ({ ok: hurt(s) || !!s.mob.isBurning, detail: `burning=${!!s.mob.isBurning}, health ${s.mob.health}/${s.mob.maxHealth}` }), stay);
+    // Wiki (Zombie, Skeleton): they burn "when exposed to sunlight", and are safe under any block -- a roof, a tree. The
+    // phantom flies above the roof, so it is left out. The roof is small enough for the Inspector to draw it.
+    if (type !== 'phantom') {
+      add('daylight_shaded', 'Shade: protected from the sun under a roof (noon, no fire, no damage)', 4, s => {
+        noon(s);
+        // Just over the head (every sun-burning mob is under two blocks tall), so the roof is in the camera's view.
+        for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) s.world.setVoxel(x, 2, z, BLOCKS.OAK_PLANKS);
+      }, s => ({ ok: s.mob.health === s.mob.maxHealth && !s.mob.isBurning, detail: `burning=${!!s.mob.isBurning}, health ${s.mob.health}/${s.mob.maxHealth}` }), stay);
+    }
   }
   if (SUN_SAFE_UNDEAD.has(type)) {
     add('daylight_safe', 'Does not burn in sunlight', 4, s => { s.manager.game.worldTime = 6000; s.manager.game.isDaytime = true; },

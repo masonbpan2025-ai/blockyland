@@ -1,10 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { rawUrl } from './dataLock.mjs';
 
-const BASE_120 = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.2';
-const BASE_119 = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.19.1';
+const BASE_120 = rawUrl('minecraft-assets', 'data/1.20.2');
+const BASE_119 = rawUrl('minecraft-assets', 'data/1.19.1');
 // Pale oak is a 1.21.4 addition, so its texture is only in the newer asset tree.
-const BASE_1214 = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4';
+const BASE_1214 = rawUrl('minecraft-assets', 'data/1.21.4');
 
 const blocks = [
   'dirt.png', 'grass_block_top.png', 'grass_block_side.png', 'stone.png', 'cobblestone.png',

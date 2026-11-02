@@ -23,14 +23,14 @@ import { runAdvancedCommand } from './advancedCommands.js';
 
 /** The fields a command may touch, and where the game gets each one. Recorded so the surface is visible. */
 export const COMMAND_CONTEXT_FIELDS = Object.freeze({
-  ui: 'the chat window and the modals: addChatMessage, openMapModal, openAgentSettings, updateHotbar, updateStats',
+  ui: 'the chat window and the modals: addChatMessage, openMapModal, openAgentSettings, isAgentControlMode, setAgentControlMode, updateHotbar, updateStats',
   player: 'the player, for gamemode and position',
   inventory: 'the item container /give fills',
   world: 'the voxel world: getVoxel, setVoxel, getOrCreateChunk, structures',
   weather: 'setWeather',
   entities: 'spawnDroppedItem, for the /give overflow',
   mobs: 'the spawn methods /summon calls',
-  geminiAgent: 'offlineMode, setOfflineMode, vendorLabel, apiKey',
+  geminiAgent: 'present when the World Agent is available (/offline)',
   settings: 'gamemode and cheats, for the permission checks',
 });
 
@@ -282,19 +282,19 @@ function cmdClear(context) {
 }
 
 function cmdOffline(context) {
-  const agent = context.geminiAgent;
-  if (!agent?.setOfflineMode) {
+  // Offline Mode ON: the Agent Terminal's built-in presets answer. OFF: the player's own AI app does (Agent Control).
+  const ui = context.ui;
+  if (!context.geminiAgent || typeof ui?.setAgentControlMode !== 'function') {
     context.say(unavailable('The World Agent'), 'error');
     return true;
   }
-  const nowOffline = !agent.offlineMode;
-  agent.setOfflineMode(nowOffline);
+  const aiMode = ui.setAgentControlMode(!ui.isAgentControlMode());
   context.say(
-    nowOffline
-      ? `World Agent offline mode ON (${agent.vendorLabel} key kept). Type /offline again to re-enable the API.`
-      : `World Agent offline mode OFF.${agent.apiKey ? '' : ' No API key is saved yet, so the terminal still runs offline.'}`,
+    aiMode
+      ? 'World Agent offline mode OFF: your own AI app answers. Connect it in the Agent Terminal (press C, then 🔌 Connect AI).'
+      : 'World Agent offline mode ON: the built-in presets answer. Type /offline again to use your AI app.',
   );
-  context.ui?.openAgentSettings?.();
+  if (aiMode) ui.openAgentSettings?.();
   return true;
 }
 

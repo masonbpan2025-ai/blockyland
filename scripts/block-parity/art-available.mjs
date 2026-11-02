@@ -8,10 +8,11 @@
 // Usage: node scripts/block-parity/art-available.mjs [--limit N]
 import { readFileSync } from 'node:fs';
 import { compareBlockLists } from '../../src/blockNameMatch.js';
+import { rawUrl } from '../dataLock.mjs';
 
 const here = new URL('.', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
-const MIRROR = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21.4';
+const MIRROR = rawUrl('minecraft-assets', 'data/1.21.4');
 
 const limitArg = process.argv.indexOf('--limit');
 const LIMIT = limitArg >= 0 ? Number(process.argv[limitArg + 1]) : Infinity;

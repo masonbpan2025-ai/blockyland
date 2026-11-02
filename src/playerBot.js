@@ -68,6 +68,10 @@ export function parsePlayerCommand(prompt) {
   if (enchantMatch) return { type: 'enchant', item: enchantMatch[1].trim().replace(/\s+/g, '_'), slot: enchantMatch[2] !== undefined ? Number(enchantMatch[2]) : 2, position: [Number(enchantMatch[3]), Number(enchantMatch[4]), Number(enchantMatch[5])] };
   let tradeMatch = text.match(/^trade\s+(?:(\d+)\s+)?(?:(?:a\s+|an\s+|the\s+)?(.+?)\s+)?with\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
   if (tradeMatch) return { type: 'trade', count: Number(tradeMatch[1] || 1), item: tradeMatch[2] ? tradeMatch[2].trim().replace(/\s+/g, '_') : null, mob: tradeMatch[3].trim().replace(/\s+/g, '_') };
+  // `light portal at X Y Z`: flint and steel on a Nether portal frame (an obsidian block on the bottom of the opening,
+  // or a block of the opening).
+  let portalMatch = text.match(/^(?:light|ignite|activate|open)\s+(?:the\s+|a\s+)?(?:nether\s+)?portal(?:\s+frame)?\s+(?:at\s+)?(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
+  if (portalMatch) return { type: 'use', item: 'flint_and_steel', portal: true, position: portalMatch.slice(1, 4).map(Number) };
   let useMatch = text.match(/^use\s+(?:a\s+|an\s+|the\s+)?(.+?)\s+at\s+(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)$/);
   if (useMatch) return { type: 'use', item: useMatch[1].trim().replace(/\s+/g, '_'), position: [Number(useMatch[2]), Number(useMatch[3]), Number(useMatch[4])] };
   let feedMatch = text.match(/^(?:feed|give)\s+(?:a\s+|an\s+|the\s+)?(.+?)\s+to\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
@@ -85,6 +89,9 @@ export function parsePlayerCommand(prompt) {
   // Another player in a shared world: `fight player`, `fight player Ann with crits`, `attack player 5 hits with sprint hits`.
   m = text.match(/^(?:fight|attack|kill|hit)\s+(?:the\s+|a\s+|another\s+)?player(?:\s+(?!with\b)(?!\d+\s+hits?\b)([^\s].*?))?(?:\s+(\d+)\s+hits?)?(?:\s+(?:with|using)\s+(crits?|critical hits?|sprint(?:\s+hits?)?|w-?taps?|plain hits?))?$/);
   if (m) return { type: 'pvp', player: m[1] ? m[1].trim() : null, hits: Number(m[2] || 5), style: /^crit/.test(m[3] || '') ? 'crit' : /^(sprint|w)/.test(m[3] || '') ? 'sprint' : 'plain' };
+  // `look at X Y Z`: turn to face a block. Before the creature form, which read the numbers as a mob's name.
+  m = text.match(/^(?:look|face)\s+(?:at\s+|toward\s+|towards\s+)?(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$/);
+  if (m) return { type: 'look', position: m.slice(1, 4).map(Number) };
   m = text.match(/^(follow|attack|kill|look at)\s+(?:the\s+|a\s+|an\s+)?(.+)$/);
   if (m) return { type: m[1] === 'kill' ? 'attack' : m[1] === 'look at' ? 'look' : m[1], mob: m[2].replace(/\s+/g, '_') };
   m = text.match(/^(?:equip|hold|select)\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
@@ -137,7 +144,9 @@ export function validatePlayerCommand(command) {
     if (typeof command.block !== 'string' || !command.block.trim() || command.block.length > 80) throw new Error('Mining needs a block name.');
     if (!Number.isInteger(command.count ?? 3) || (command.count ?? 3) < 1 || (command.count ?? 3) > 64) throw new Error('Mine between 1 and 64 blocks at a time.');
   }
-  if (['follow','attack','look','equip'].includes(command.type) && (typeof command[command.type === 'equip' ? 'item' : 'mob'] !== 'string' || !command[command.type === 'equip' ? 'item' : 'mob'].trim())) throw new Error('Specify an item or creature.');
+  if (command.type === 'look' && command.position !== undefined) {
+    if (!Array.isArray(command.position) || command.position.length !== 3 || command.position.some(v => !Number.isFinite(v) || Math.abs(v) > 30000000)) throw new Error('Look at needs three finite world coordinates.');
+  } else if (['follow','attack','look','equip'].includes(command.type) && (typeof command[command.type === 'equip' ? 'item' : 'mob'] !== 'string' || !command[command.type === 'equip' ? 'item' : 'mob'].trim())) throw new Error('Specify an item or creature.');
   if (command.type === 'feed' && (!command.item || !command.mob)) throw new Error('Specify an item and creature to feed.');
   if (command.type === 'pillar') {
     if (!Number.isInteger(command.count ?? 1) || (command.count ?? 1) < 1 || (command.count ?? 1) > 64) throw new Error('Pillar height must be between 1 and 64.');
@@ -846,6 +855,12 @@ export class PlayerBot {
         return;
       }
       if (t.command.type === 'pvp') { this.tickPvp(t, dt); return; }
+      if (t.command.type === 'look' && t.command.position) {
+        const [x, y, z] = t.command.position;
+        this.lookAt({ x: x + 0.5, y: y + 0.5, z: z + 0.5 });
+        this.finish(true, `Looking at ${x} ${y} ${z}.`);
+        return;
+      }
       if (['follow', 'attack', 'look', 'feed'].includes(t.command.type)) mobTask: {
         if (t.command.type === 'attack') t.dropsBefore ??= new Set(this.game.entities?.droppedItems || []);
         if (t.command.type === 'feed') {

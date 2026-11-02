@@ -123,6 +123,20 @@ test('an anvil deals 2 HP per block fallen after the first, and may degrade 5% p
   assert.equal(world.getVoxel(6, 1, 0), BLOCKS.AIR, 'a damaged anvil that degrades breaks');
 });
 
+test('an anvil placed with nothing under it falls like sand, and is drawn with the anvil texture', async () => {
+  const { BLOCK_DEFS } = await import('../src/blocks.js');
+  for (const n of ['ANVIL', 'CHIPPED_ANVIL', 'DAMAGED_ANVIL']) {
+    assert.equal(BLOCK_DEFS[BLOCKS[n]].textures.all, 'anvil.png', `${n} used to be drawn as blackstone`);
+  }
+  const { world, run } = makeWorld();
+  world.setVoxel(0, 3, 0, BLOCKS.STONE);
+  world.setVoxel(0, 12, 0, BLOCKS.ANVIL);
+  assert.equal(world.getVoxel(0, 12, 0), BLOCKS.ANVIL, 'it stays put for a moment, as sand does');
+  run(3);
+  assert.equal(world.getVoxel(0, 12, 0), BLOCKS.AIR, 'it fell');
+  assert.ok([BLOCKS.ANVIL, BLOCKS.CHIPPED_ANVIL].includes(world.getVoxel(0, 4, 0)), 'it rests on the stone');
+});
+
 test('suspicious sand "breaks" on landing and drops nothing', () => {
   const { world, drops, run } = makeWorld();
   world.setVoxel(0, 4, 0, BLOCKS.SUSPICIOUS_SAND);

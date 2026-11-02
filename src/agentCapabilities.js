@@ -74,66 +74,9 @@ export const CAPABILITIES = {
 };
 
 /**
- * Requests that cannot be satisfied as asked.
- *
- * Ordered deliberately: connection and key problems are checked before the general
- * feature rules, because "DeepSeek API HTTP 401" contains "API" and would otherwise
- * be answered with advice about running code.
+ * Requests that cannot be satisfied as asked, matched against the failure and the player's words.
  */
 const IMPOSSIBLE_PATTERNS = [
-  {
-    match: /API HTTP (401|403)/i,
-    summary: 'The key was turned down, so nothing was ever sent. That is a settings thing, not something you did.',
-    alternatives: [
-      're-enter the key in ⚙️ AI Settings',
-      'or switch to another vendor whose key already works'
-    ]
-  },
-  {
-    match: /API HTTP 402|insufficient_quota|out of credit|current quota/i,
-    summary: 'The account has run out of credit, so the request never went through.',
-    alternatives: [
-      'top up your credit balance with the vendor and ask me again',
-      'switch to Google Gemini in AI Settings (Google AI Studio provides a free tier without a credit card)',
-      'or switch on Offline Mode in the terminal header and I will build from my built-in rules instead'
-    ]
-  },
-  {
-    match: /API HTTP 429/i,
-    summary: 'The vendor is asking us to slow down — that is a temporary limit, or an account with no credit balance.',
-    alternatives: [
-      'if using OpenAI, make sure your account has a positive credit balance in Billing',
-      'switch to Google Gemini in AI Settings (it includes a free tier with no payment needed)',
-      'give it a few seconds and ask again',
-      'lower the reasoning effort in AI Settings so each request costs less'
-    ]
-  },
-  {
-    match: /API HTTP (400|404)/i,
-    summary: 'The vendor refused the request or the model was not found. Most of the time that means the model selected in AI Settings is not available on this key.',
-    alternatives: [
-      'pick a different model in AI Settings (such as Gemini 2.5 Flash)',
-      'or switch vendor'
-    ]
-  },
-  {
-    match: /sent nothing|stopped sending data|failed after|idle timeout|network|fetch failed/i,
-    summary: 'The connection dropped part-way through. Nothing in your world was changed.',
-    alternatives: [
-      'ask me again — this nearly always works on the retry',
-      'if it keeps happening, check your connection',
-      'or switch to Offline Mode, which needs no connection at all'
-    ]
-  },
-  {
-    match: /no json plan|not a usable plan|empty response|was malformed|was truncated|finish reason/i,
-    summary: 'The model got itself in a tangle and never sent me a usable instruction, so nothing was executed. Nothing is broken.',
-    alternatives: [
-      'ask again — this is almost always a one-off',
-      'say it in fewer words, which gives the model less to trip over',
-      'or change the reasoning effort in AI Settings'
-    ]
-  },
   {
     match: /\b(multiplayer|multi-player|another player|other players|with (my )?friends?|play together|play with me|co-?op|pvp|lan|join (my|a) (friend|server)|server)\b/i,
     summary: 'You can play together here, just not on servers: open the pause menu and choose Share This World to get a link. Friends who click it join your world straight from their browser (up to 8 players). Your computer is the server, so keep your tab open, and there are no public servers to join.',
@@ -160,11 +103,12 @@ const IMPOSSIBLE_PATTERNS = [
     ]
   },
   {
-    match: /\b(port(al)?|new dimension|nether|end dimension|another world)\b/i,
-    summary: 'There is one world here — extra dimensions and working portals are not something this engine has.',
+    // Only a failure to light a frame: the Nether and the End exist, and portals to them work.
+    match: /no complete obsidian portal frame/i,
+    summary: 'Nether portals work here, but that frame is not one yet: it needs obsidian at least 4 wide and 5 tall around a 2-wide, 3-tall opening (the corners can be left out).',
     alternatives: [
-      'I can build a portal frame as a landmark, which looks the part',
-      'or start a new world when you want a different landscape'
+      'fill the gaps in the frame with obsidian, then light it with flint and steel on the bottom of the opening',
+      'or ask me to build the frame and light it for you'
     ]
   },
   {
@@ -252,14 +196,3 @@ export function explainFailureBriefly(error, context = {}) {
   return `${summary}${first}`;
 }
 
-/**
- * Is this failure the machinery misbehaving rather than the player's own doing?
- *
- * Used to keep the tone honest and kind: a dropped connection or a confused model
- * should be visibly not their fault, whereas a limitation of the game is simply a
- * limitation.
- */
-export function isExternalFailure(error) {
-  const raw = typeof error === 'string' ? error : (error?.message || '');
-  return /API HTTP|sent nothing|stopped sending data|failed after|idle timeout|network|fetch failed|finish reason|no json plan|was malformed|was truncated/i.test(raw);
-}

@@ -2,7 +2,8 @@
 // already downloads from, so a missing texture is discovered here rather than as a grey tile in game.
 //
 //   node scripts/block-parity/check-assets.mjs deepslate_coal_ore.png copper_ore.png ...
-const BASE = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.2';
+import { rawUrl } from '../dataLock.mjs';
+const BASE = rawUrl('minecraft-assets', 'data/1.20.2');
 
 const names = process.argv.slice(2);
 if (!names.length) {

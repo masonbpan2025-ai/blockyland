@@ -5,9 +5,10 @@
 // version, which is why it is written down here and in the fixtures' README rather than fetched "latest".
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { rawUrl, pin } from './dataLock.mjs';
 
-const REF = '1.21.4-data';
-const BASE = `https://raw.githubusercontent.com/misode/mcmeta/${REF}/data/minecraft`;
+const REF = pin('mcmeta').follows; // the pinned commit's tag (data-lock.json)
+const BASE = rawUrl('mcmeta', 'data/minecraft');
 
 const WANTED = [
   ['worldgen/biome/plains', 'biome/plains.json'],

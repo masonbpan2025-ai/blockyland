@@ -21,7 +21,7 @@ export function textSprite(lines = [], { scale = 1 } = {}) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = 'bold 44px "Minecraft", "Press Start 2P", monospace';
+    ctx.font = 'bold 44px system-ui, "Segoe UI", Roboto, Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     list.forEach(([text, color], i) => {

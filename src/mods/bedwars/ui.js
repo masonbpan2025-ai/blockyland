@@ -7,7 +7,7 @@ import { THEMES, THEME_IDS } from './arena.js';
 import { ITEM_SHOP, CATEGORIES, UPGRADES, TRAPS, RESOURCE_NAMES, priceOf, whyNot, upgradeCost, trapCost, resourcesOf, canAfford, PICKAXES, AXES } from './shop.js';
 
 const CSS = `
-.bw-root { position: fixed; inset: 0; pointer-events: none; z-index: 60; font-family: 'Minecraft', 'Press Start 2P', monospace; color: #fff; }
+.bw-root { position: fixed; inset: 0; pointer-events: none; z-index: 60; font-family: var(--ui-font, system-ui, sans-serif); color: #fff; }
 .bw-root .bw-panel { pointer-events: auto; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); min-width: 360px;
   max-width: min(94vw, 640px); max-height: 92vh; overflow-y: auto; background: rgba(12, 10, 18, 0.94); border: 2px solid #ff5555; border-radius: 10px;
   padding: 16px 18px; box-shadow: 0 0 24px rgba(255, 85, 85, 0.35); text-align: center; }

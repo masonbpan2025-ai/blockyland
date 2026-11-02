@@ -95,9 +95,20 @@ export function createPainter3d(canvas) {
   function clearWorld() {
     if (!world) return;
     scene.remove(world.root);
-    world.root.traverse((o) => { if (o.geometry && !disposables.includes(o.geometry)) o.geometry.dispose(); const m = o.material; for (const mm of Array.isArray(m) ? m : m ? [m] : []) { mm.map?.dispose(); mm.dispose(); } });
-    scene.background?.dispose?.();
+    disposeTree(world.root);
+    world.sky.dispose(); scene.background = null;
     world = null;
+  }
+  function disposeTree(root) {
+    root.traverse((o) => { if (o.geometry && !disposables.includes(o.geometry)) o.geometry.dispose(); const m = o.material; for (const mm of Array.isArray(m) ? m : m ? [m] : []) { mm.map?.dispose(); mm.dispose(); } });
+  }
+  // The chosen character's face (characters.js), or null for the default creeper head; and the backdrop, 'biome' or
+  // 'plain' (no hills or pillars, a flat sky in the level's lower sky colour).
+  let face = null, plain = false;
+  function applyBackdrop() {
+    if (!world) return;
+    for (const mesh of world.scenery) mesh.visible = !plain;
+    scene.background = plain ? new THREE.Color(level.sky[1]) : world.sky;
   }
 
   /** Set an instance's matrix: a box `w` long, `h` tall and `d` across, centred on course point (x, y units) at `across` blocks. */
@@ -115,12 +126,11 @@ export function createPainter3d(canvas) {
     levelIndex = index; level = LEVELS[index]; pal = levelPalette(level);
     const course = createCourse(index); track = buildTrack(level.length, index);
     const root = new THREE.Group(); scene.add(root);
-    scene.background = skyTexture(level);
     scene.fog = new THREE.Fog(new THREE.Color(level.sky[1]), 40, 150);
     hemi.color.set(mix(level.sky[0], '#ffffff', 0.6)); hemi.groundColor.set(mix(level.ground, '#000000', 0.3));
     hemi.intensity = pal.light ? 1.6 : 2.6; sun.intensity = pal.light ? 2.4 : 2.8;
     rim.color.set(mix(level.color, '#ffffff', 0.3)); carried.color.set(level.color);
-    world = { root, course, moving: [], used: null };
+    world = { root, course, moving: [], used: null, sky: skyTexture(level), scenery: [] };
 
     // The ground: the track bed along the whole run, three blocks across, its curbs striped like a Sonic road.
     const runBlocks = Math.ceil(track.length + LEAD_IN);
@@ -139,7 +149,7 @@ export function createPainter3d(canvas) {
     const pillars = instanced(unitBox, new THREE.MeshLambertMaterial({ color: mix(level.stone, '#000000', 0.25), map: noiseTexture(4) }), Math.ceil(runBlocks / 9));
     n = 0;
     for (let b = 4; b < runBlocks; b += 9) placeBox(pillars, n++, (b - LEAD_IN) * UNIT, -9 * UNIT, 1.2, 17, 1.2);
-    pillars.count = n; root.add(pillars);
+    pillars.count = n; root.add(pillars); world.scenery.push(pillars);
 
     // Blocks and wall insides, a cube per 30-unit cell, every cell the width of the track.
     const cells = (type) => {
@@ -241,14 +251,14 @@ export function createPainter3d(canvas) {
       placeBox(hillMesh, n, b * UNIT, (h / 2 - 14) * UNIT, w, h, w, across);
       hillMesh.setColorAt(n++, tempColor.set(hills[2 - layer]));
     }
-    hillMesh.count = n; root.add(hillMesh);
+    hillMesh.count = n; root.add(hillMesh); world.scenery.push(hillMesh);
 
     // The flight corridor's roof and raised floor, laid near the player each frame while flying.
     const corridorMaterial = new THREE.MeshLambertMaterial({ color: level.stone, map: noiseTexture(9), transparent: true, opacity: 0.55 });
     world.corridor = instanced(unitBox, corridorMaterial, 140 * TRACK_WIDTH * 2); world.corridor.count = 0; root.add(world.corridor);
 
-    world.player = buildPlayer(level.color); root.add(world.player.root);
-    world.player.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    setPlayer();
+    applyBackdrop();
     // The burst of a crash: bits of the player flying apart.
     world.burst = instanced(unitBox, glowMaterial(level.color), 30); world.burst.count = 0; root.add(world.burst);
     world.checkpoint = new THREE.Group();
@@ -257,10 +267,24 @@ export function createPainter3d(canvas) {
     world.checkpoint.add(pole, flag); world.checkpoint.visible = false; root.add(world.checkpoint);
   }
 
-  /** The player in each of its forms: the creeper head (cube), and the ship, ball and UFO it rides. */
+  /** Build (or rebuild, for a new character) the player into the current level's world. */
+  function setPlayer() {
+    if (world.player) { world.root.remove(world.player.root); disposeTree(world.player.root); }
+    world.player = buildPlayer(level.color); world.root.add(world.player.root);
+    world.player.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  }
+  /** The chosen face as a texture, sharp; and its average colour for the top and bottom of the head. */
+  function faceTextures() {
+    const texture = new THREE.CanvasTexture(face);
+    texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestMipmapLinearFilter; texture.colorSpace = THREE.SRGBColorSpace;
+    const top = pixelTexture(1, (ctx) => { ctx.drawImage(face, 0, 0, 1, 1); });
+    return [texture, top];
+  }
+  /** The player in each of its forms: the creeper head or the chosen character's (cube), and the ship, ball and UFO it rides. */
   function buildPlayer(color) {
     const root = new THREE.Group(), spin = new THREE.Group(); root.add(spin);
-    const faceMaterial = new THREE.MeshLambertMaterial({ map: creeperTexture(color) }), topMaterial = new THREE.MeshLambertMaterial({ map: creeperTexture(color, false) });
+    const [faceMap, topMap] = face ? faceTextures() : [creeperTexture(color), creeperTexture(color, false)];
+    const faceMaterial = new THREE.MeshLambertMaterial({ map: faceMap }), topMaterial = new THREE.MeshLambertMaterial({ map: topMap });
     const head = new THREE.Mesh(unitBox, [faceMaterial, faceMaterial, topMaterial, topMaterial, faceMaterial, faceMaterial]);
     const outline = new THREE.LineSegments(new THREE.EdgesGeometry(unitBox), new THREE.LineBasicMaterial({ color: pal.outline }));
     head.add(outline);
@@ -407,6 +431,10 @@ export function createPainter3d(canvas) {
     get cameraAngle() { return { ...angle }; },
     /** The level page's angle preview: a 2D canvas to draw it into while the menu shows, or null. */
     setPreview(canvas) { preview = canvas ?? null; },
+    /** The player's face: a canvas from characters.js loadFace, or null for the default creeper head. */
+    setCharacter(next) { face = next ?? null; if (world) setPlayer(); },
+    /** 'biome' (hills and pillars round the road, the level's sky) or 'plain' (none of it, a flat sky). */
+    setBackdrop(kind) { plain = kind === 'plain'; applyBackdrop(); },
     /** Whether the glow is on: off where it cost the frame rate. For the tests. */
     get glow() { return bloom.enabled; },
     dispose() {

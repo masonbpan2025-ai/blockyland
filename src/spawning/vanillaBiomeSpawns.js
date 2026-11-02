@@ -1455,7 +1455,10 @@ export const ENGINE_ONLY_BIOME_ALIASES = {
  * These are handled at lookup time rather than copied here, because there is nothing to copy.
  */
 export const ENGINE_ONLY_BIOME_RUNTIME_ALIASES = {
-  "dappled_forest": "forest"
+  "dappled_forest": "forest",
+  "big_end_islands": "end_midlands",
+  "chorus_forest": "end_highlands",
+  "end_city": "end_highlands"
 };
 
 /** The vanilla biomes the table knows about. */

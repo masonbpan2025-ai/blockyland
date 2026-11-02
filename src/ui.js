@@ -1,7 +1,17 @@
+import { RecipeBookPanel } from './recipeBookUi.js';
 import { compassTarget, needleAngle } from './compass.js';
 import { renderHorseInventory } from './horseInventory.js';
 import { packsModal } from './packsModal.js';
 import { syncAgentTerminalControls } from './agentTerminalControls.js';
+import { AgentControlBridge } from './agentControl/bridge.js';
+import { runGameTool } from './agentControl/gameTools.js';
+import { forgetOldAgentKeys } from './agentControl/forgetOldKeys.js';
+import { RequestTracker } from './agentControl/requestTracker.js';
+
+// Offline Mode off: the Agent Terminal's requests go to the player's own AI app (src/agentControl/).
+const AGENT_CONTROL_STORAGE = 'mc_agent_control';
+// The small terminal (docked in a corner over a clear view of the world).
+const TERMINAL_COMPACT_STORAGE = 'mc_agent_terminal_compact';
 import { allowsAgentTerminal } from './sessionSettings.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
 import { durabilityFraction, maxDurabilityFor } from './durability.js';
@@ -160,6 +170,8 @@ export function facingLabel(yaw = 0) {
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds, game = null) {
     this.inv = inventory;
+    // The recipe book beside the crafting grids (recipeBookUi.js).
+    this.recipeBook = new RecipeBookPanel(this);
     this.player = player;
     this.world = world;
     this.mobs = mobs;
@@ -268,32 +280,28 @@ export class UIManager {
     this.geminiProgressWrapper = document.getElementById('gemini-progress-wrapper');
     this.geminiProgressBar = document.getElementById('gemini-progress-bar');
     this.geminiProgressLabel = document.getElementById('gemini-progress-label');
-    this.geminiKeyDrawer = document.getElementById('gemini-key-drawer');
-    this.geminiKeyInput = document.getElementById('gemini-key-input');
-    this.geminiSaveKeyBtn = document.getElementById('gemini-save-key-btn');
-    this.geminiClearKeyBtn = document.getElementById('gemini-clear-key-btn');
-    this.geminiRememberKey = document.getElementById('gemini-remember-key');
-    this.geminiVaultPassphrase = document.getElementById('gemini-vault-passphrase');
-    this.geminiUnlockKeyBtn = document.getElementById('gemini-unlock-key-btn');
-    this.geminiLockKeyBtn = document.getElementById('gemini-lock-key-btn');
-    this.geminiKeyStorageStatus = document.getElementById('gemini-key-storage-status');
     this.geminiOfflineBtn = document.getElementById('gemini-offline-btn');
     this.geminiOfflineState = document.getElementById('gemini-offline-state');
-    this.geminiToggleKeyBtn = document.getElementById('gemini-toggle-key');
     this.geminiCloseBtn = document.getElementById('gemini-close-btn');
-    this.geminiVendorRow = document.getElementById('gemini-vendor-row');
-    this.geminiVendorButtons = Array.from(document.querySelectorAll('.gemini-vendor-btn'));
-    this.geminiModelSelect = document.getElementById('gemini-model-select');
-    this.geminiRefreshModelsBtn = document.getElementById('gemini-refresh-models-btn');
-    this.geminiCustomModelInput = document.getElementById('gemini-custom-model-input');
-    this.geminiCustomModelBtn = document.getElementById('gemini-custom-model-btn');
-    this.geminiAutoUpgradeToggle = document.getElementById('gemini-autoupgrade-toggle');
-    this.geminiModelSource = document.getElementById('gemini-model-source');
-    this.geminiEffortField = document.getElementById('gemini-effort-field');
-    this.geminiEffortSelect = document.getElementById('gemini-effort-select');
     this.geminiViewToggle = document.getElementById('gemini-view-toggle');
-    this.geminiThinkingToggle = document.getElementById('gemini-thinking-toggle');
-    this.geminiVendorHint = document.getElementById('gemini-vendor-hint');
+    // Connect AI: the player's own AI app, through Agent Control (src/agentControl/)
+    this.agentConnectBtn = document.getElementById('agent-connect-btn');
+    this.agentConnectDrawer = document.getElementById('agent-connect-drawer');
+    this.agentConnectStatus = document.getElementById('agent-connect-status');
+    this.agentConnectCode = document.getElementById('agent-connect-code');
+    this.agentConnectSetup = document.getElementById('agent-connect-setup');
+    this.agentConnectPrompt = document.getElementById('agent-connect-prompt');
+    this.agentConnectCopySetup = document.getElementById('agent-connect-copy-setup');
+    this.agentConnectCopyPrompt = document.getElementById('agent-connect-copy-prompt');
+    this.agentConnectNewCode = document.getElementById('agent-connect-new-code');
+    this.agentConnectCollapse = document.getElementById('agent-connect-collapse');
+    this.agentConnectDetails = document.getElementById('agent-connect-details');
+    this.agentActivity = document.getElementById('agent-activity');
+    this.agentActivityIcon = document.getElementById('agent-activity-icon');
+    this.agentActivityText = document.getElementById('agent-activity-text');
+    this.agentActivityTime = document.getElementById('agent-activity-time');
+    this.geminiCompactBtn = document.getElementById('gemini-compact-btn');
+    this.agentControl = null;
 
     // Attached-image (vision) elements
     this.geminiImagePreviewContainer = document.getElementById('gemini-image-preview-container');
@@ -304,10 +312,6 @@ export class UIManager {
     this.geminiFileInput = document.getElementById('gemini-file-input');
     this.geminiTerminalCard = document.querySelector('.gemini-terminal-card');
     this.currentAttachedImage = null;
-
-    // Live thinking display state
-    this.liveThoughtEntry = null;
-    this.lastLiveThoughtAt = 0;
 
     this.geminiAgent = null;
 
@@ -446,7 +450,14 @@ export class UIManager {
 
       // Hotbar selection 1-9, or the second half of a Creative toolbar activator (C + 1-9 saves the row,
       // X + 1-9 restores one).
-      if (e.code >= 'Digit1' && e.code <= 'Digit9' && !this.isChatOpen && !this.isGeminiOpen() && !this.isModalOpen()) {
+      // Playing beside the Agent Terminal: Enter or T goes back to typing in it, rather than opening chat.
+      if ((e.code === 'Enter' || e.code === 'KeyT') && !e.repeat && !this.isChatOpen && this.isPlayingBesideTerminal()) {
+        e.preventDefault();
+        this.focusTerminalPrompt();
+        return;
+      }
+
+      if (e.code >= 'Digit1' && e.code <= 'Digit9' && !this.isChatOpen && !this.isTerminalBlocking() && !this.isModalOpen()) {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
         if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
           const index = parseInt(e.code.replace('Digit', '')) - 1;
@@ -530,7 +541,11 @@ export class UIManager {
         } else if (this.isChatOpen) {
           this.closeChat();
         } else if (this.isGeminiOpen()) {
-          this.closeGeminiTerminal();
+          // Escape closes only the terminal, never also the pause menu. Playing beside it, the browser drops the
+          // pointer lock on the same key (some browsers deliver the key too, some only the lock loss): noted here so
+          // that loss is not read as "pause".
+          if (this.isPlayingBesideTerminal()) this.terminalClosedByKeyAt = performance.now();
+          this.closeGeminiTerminal({ relock: !this.isPlayingBesideTerminal() });
         } else if (this.isModalOpen()) {
           this.closeAllModals();
         } else if (document.pointerLockElement) {
@@ -560,7 +575,7 @@ export class UIManager {
 
     // Mouse scroll wheel cycles hotbar slots
     window.addEventListener('wheel', (e) => {
-      if (this.isModalOpen() || this.isChatOpen || this.isGeminiOpen()) return;
+      if (this.isModalOpen() || this.isChatOpen || this.isTerminalBlocking()) return;
       if (e.deltaY > 0) {
         this.inv.activeSlot = (this.inv.activeSlot + 1) % 9;
       } else if (e.deltaY < 0) {
@@ -605,7 +620,8 @@ export class UIManager {
     if (deathOverlay && !deathOverlay.classList.contains('hidden')) return true;
 
     if (typeof document !== 'undefined') {
-      const anyGameModal = document.querySelector('.game-modal:not(.hidden)');
+      // The Agent Terminal counts only while it has the mouse (isTerminalBlocking, below): beside it the world plays.
+      const anyGameModal = document.querySelector('.game-modal:not(.hidden):not(#gemini-modal)');
       if (anyGameModal) return true;
     }
 
@@ -622,7 +638,7 @@ export class UIManager {
            (this.biomeModal && !this.biomeModal.classList.contains('hidden')) ||
            Boolean(isDefeatOpen) ||
            Boolean(this.game?.modRuntime?.isModalOpen?.()) ||
-           this.isGeminiOpen();
+           this.isTerminalBlocking();
   }
 
   closeAllModals() {
@@ -632,6 +648,7 @@ export class UIManager {
       this.closeBrewingModal();
     }
     this.invModal.classList.add('hidden');
+    if (this.inv) this.inv.recipeGhost = null;
     if (this.villagerModal) this.villagerModal.classList.add('hidden');
     if (this.activeVillager) this.activeVillager.tradingWith = false;
     this.activeVillager = null;
@@ -769,6 +786,8 @@ export class UIManager {
   }
 
   updateHotbar() {
+    // Anything new in the inventory unlocks the recipes it goes into (recipeBook.js).
+    this.recipeBook?.learn();
     if (!this.hotbarEl) return;
     const slots = this.hotbarEl.children;
     for (let i = 0; i < 9; i++) {
@@ -1720,6 +1739,7 @@ export class UIManager {
     if (this.playerPreviewBox) {
       renderPlayerDoll(this.playerPreviewBox, this.inv.armor);
     }
+    this.recipeBook?.render('inventory');
 
     // Off-hand equipment slot
     const offhandSlot = document.getElementById('inv-offhand-slot');
@@ -1777,6 +1797,7 @@ export class UIManager {
 
     const resSlot = document.getElementById('craft3x3-result');
     this.renderSlotContent(resSlot, this.inv.craft3x3Result);
+    this.recipeBook?.render('crafting');
     this.updateFloatingCursor();
   }
 
@@ -4207,6 +4228,11 @@ export class UIManager {
     if (this.worldSeedInput) {
       this.worldSeedInput.value = '';
     }
+    // The Biome Inspector's "Play this biome" opens the game with ?biome= (and ?seed=): the new world is set up with them.
+    const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+    const wanted = query?.get('biome');
+    if (wanted && this.worldBiomeSelect && [...(this.worldBiomeSelect.options ?? [])].some((o) => o.value === wanted)) this.worldBiomeSelect.value = wanted;
+    if (query?.get('seed') && this.worldSeedInput) this.worldSeedInput.value = query.get('seed');
     this.updateBiomeInfoCard();
   }
 
@@ -4916,6 +4942,61 @@ export class UIManager {
     return this.geminiModal && !this.geminiModal.classList.contains('hidden');
   }
 
+  /**
+   * The terminal is on screen and the game holds the mouse: the player clicked back into the world and moves, looks
+   * and mines with the terminal still showing.
+   */
+  isPlayingBesideTerminal() {
+    if (!this.isGeminiOpen() || typeof document === 'undefined') return false;
+    const locked = document.pointerLockElement;
+    const canvas = this.game?.renderer?.domElement;
+    return Boolean(locked && canvas && (locked === canvas || locked === this.game?.container || locked.contains?.(canvas)));
+  }
+
+  /** The terminal has the keyboard and mouse: open, and the player has not clicked back into the world. */
+  isTerminalBlocking() {
+    return Boolean(this.isGeminiOpen()) && !this.isPlayingBesideTerminal();
+  }
+
+  /** A click on the world around the terminal: take the mouse back and play, leaving the terminal open. */
+  playBesideTerminal() {
+    if (!this.isGeminiOpen() || this.isChatOpen) return;
+    if (document.activeElement?.blur) document.activeElement.blur();
+    if (this.player) this.player.keys = {};
+    this.requestGamePointerLock();
+    if (!this.playBesideHintShown) {
+      this.playBesideHintShown = true;
+      this.addGeminiLog?.('Playing with the terminal open. Press Enter to type here again, or Esc to close the terminal.', 'info');
+    }
+  }
+
+  /** Back to typing in the terminal (Enter or T while playing beside it). */
+  focusTerminalPrompt() {
+    if (this.isPlayingBesideTerminal()) {
+      this.terminalReleasingLock = true;
+      document.exitPointerLock();
+    }
+    if (this.player) this.player.keys = {};
+    this.geminiPromptInput?.focus();
+  }
+
+  /**
+   * The game lost the mouse. Returns true when that belongs to the terminal and must not open the pause menu:
+   * the terminal itself let go of it, or the player pressed Escape while playing beside it, which closes the terminal.
+   */
+  handleTerminalLockLoss() {
+    if (this.terminalReleasingLock) {
+      this.terminalReleasingLock = false;
+      return true;
+    }
+    if (this.isGeminiOpen()) {
+      this.closeGeminiTerminal({ relock: false });
+      return true;
+    }
+    // Escape arrived as a key as well, and has already closed the terminal.
+    return performance.now() - (this.terminalClosedByKeyAt ?? -Infinity) < 600;
+  }
+
   toggleGeminiTerminal() {
     if (this.isGeminiOpen()) {
       this.closeGeminiTerminal();
@@ -4925,6 +5006,8 @@ export class UIManager {
   }
 
   openGeminiTerminal(options = {}) {
+    // The lock goes because the terminal is opening, not because the player pressed Escape.
+    if (document.pointerLockElement) this.terminalReleasingLock = true;
     document.exitPointerLock();
     this.closeAllModals();
     if (this.player) {
@@ -4935,39 +5018,29 @@ export class UIManager {
     if (this.geminiModal) {
       this.geminiModal.classList.remove('hidden');
       this.refreshAgentControls?.();
-      const showSettings=options.showSettings&&!this.geminiAgent?.offlineMode;
-      if (showSettings && this.geminiKeyDrawer) {
-        this.geminiKeyDrawer.classList.remove('hidden');
-        this.geminiToggleKeyBtn?.setAttribute('aria-expanded','true');
-      }
-      this.setStudioPanelExpanded(showSettings || Boolean(this.geminiKeyDrawer && !this.geminiKeyDrawer.classList.contains('hidden')));
-      setTimeout(() => {
-        if (showSettings && this.geminiKeyInput) {
-          this.geminiKeyInput.focus();
-        } else if (this.geminiPromptInput) {
-          this.geminiPromptInput.focus();
-        }
-      }, 50);
+      const showConnect = options.showSettings && this.isAgentControlMode();
+      if (showConnect) this.setConnectPanelOpen(true);
+      this.setStudioPanelExpanded(showConnect || Boolean(this.agentConnectDrawer && !this.agentConnectDrawer.classList.contains('hidden')));
+      setTimeout(() => this.geminiPromptInput?.focus(), 50);
     }
   }
 
   /**
    * Building Studio docks the Agent Terminal under the Save/Open buttons so the structure fills the screen.
-   * AI Settings expands it to the big settings window; closing the drawer docks it again.
+   * Connect AI expands it to the big window; closing the panel docks it again.
    */
   setStudioPanelExpanded(expanded) {
     if (!this.geminiModal?.classList.contains('studio-mode')) return;
-    this.geminiModal.classList.toggle('studio-settings-expanded', !!expanded);
+    // The small terminal stays small: Connect AI then opens inside it.
+    this.geminiModal.classList.toggle('studio-settings-expanded', !!expanded && !this.isTerminalCompact());
   }
 
-  /** Open the terminal; AI settings remain locked while Offline Mode is on. */
+  /** Open the terminal on its Connect AI panel (the /offline command uses it). Locked while Offline Mode is on. */
   openAgentSettings() {
     this.openGeminiTerminal({ showSettings: true });
   }
 
-  closeGeminiTerminal() {
-    if (this.geminiKeyInput) this.geminiKeyInput.value = '';
-    if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
+  closeGeminiTerminal({ relock = true } = {}) {
     if (this.geminiModal) {
       this.geminiModal.classList.add('hidden');
     }
@@ -4975,194 +5048,272 @@ export class UIManager {
     if (this.player) {
       this.player.keys = {};
     }
-    if (!this.isModalOpen() && !this.isChatOpen) {
+    if (relock && !this.isModalOpen() && !this.isChatOpen) {
       this.requestGamePointerLock();
     }
   }
 
+  /**
+   * Whether the terminal hands requests to the player's own AI app (Offline Mode off). Off until the player turns it
+   * on, so a player who never does never has the page reaching for 127.0.0.1.
+   */
+  isAgentControlMode() {
+    if (typeof this.agentControlMode === 'boolean') return this.agentControlMode;
+    try {
+      this.agentControlMode = localStorage.getItem(AGENT_CONTROL_STORAGE) === '1';
+    } catch {
+      this.agentControlMode = false;
+    }
+    return this.agentControlMode;
+  }
+
+  setAgentControlMode(on) {
+    this.agentControlMode = !!on;
+    try {
+      if (on) localStorage.setItem(AGENT_CONTROL_STORAGE, '1');
+      else localStorage.removeItem(AGENT_CONTROL_STORAGE);
+    } catch {
+      // Storage unavailable; the mode just will not persist across reloads.
+    }
+    if (on) this.agentControl?.enable();
+    else this.agentControl?.disable();
+    this.refreshAgentControls?.();
+    return this.agentControlMode;
+  }
+
+  setConnectPanelOpen(open) {
+    if (!this.agentConnectDrawer) return;
+    this.agentConnectDrawer.classList.toggle('hidden', !open);
+    this.setStudioPanelExpanded(open);
+    if (open) this.loadAgentSetupCommand();
+    syncAgentTerminalControls(this, { aiMode: this.isAgentControlMode() });
+  }
+
+  /**
+   * The command that adds Blockyland to Claude Code. Normally the npm package (blockyland-mcp), which needs nothing
+   * but Node; on the dev server, this checkout's own script (server/agentControlVite.js), so unpublished changes to
+   * the server are what runs.
+   */
+  async loadAgentSetupCommand() {
+    if (this.agentSetupScript === undefined) {
+      this.agentSetupScript = null;
+      try {
+        const res = await fetch('/__agent-control/setup');
+        if (res.ok && (res.headers.get('content-type') || '').includes('json')) {
+          this.agentSetupScript = (await res.json()).script || null;
+        }
+      } catch {
+        // Not the dev server: keep the placeholder.
+      }
+    }
+    if (this.agentConnectSetup) {
+      // Claude Code on native Windows starts npx through cmd (its MCP docs).
+      const windows = /win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
+      this.agentConnectSetup.textContent = this.agentSetupScript
+        ? `claude mcp add blockyland -- node "${this.agentSetupScript.replace(/\\/g, '/')}"`
+        : `claude mcp add blockyland -- ${windows ? 'cmd /c ' : ''}npx -y blockyland-mcp@latest`;
+    }
+  }
+
+  /** An answer from the player's AI app: in the terminal, and in chat when the terminal is closed. */
+  addAgentReply(text, label = 'Your AI app') {
+    const entry = this.addGeminiLog(`${label}: ${text}`, 'ai-reply');
+    if (!this.isGeminiOpen()) this.addChatMessage?.(`[${label}] ${text}`, 'system');
+    return entry;
+  }
+
+  /** Fold the Connect AI steps away to one status line (they unfold again with the same button). */
+  setConnectDetailsCollapsed(collapsed) {
+    this.agentConnectDrawer?.classList.toggle('collapsed', !!collapsed);
+    this.agentConnectDetails?.classList.toggle('hidden', !!collapsed);
+    if (this.agentConnectCollapse) {
+      this.agentConnectCollapse.textContent = collapsed ? '▾ Show steps' : '▴ Hide steps';
+      this.agentConnectCollapse.setAttribute('aria-expanded', String(!collapsed));
+    }
+  }
+
+  /**
+   * The small terminal: docked in a corner over a clear view of the world, so the player can watch the agent build.
+   * Remembered across visits.
+   */
+  isTerminalCompact() {
+    if (typeof this.terminalCompact === 'boolean') return this.terminalCompact;
+    try { this.terminalCompact = localStorage.getItem(TERMINAL_COMPACT_STORAGE) === '1'; } catch { this.terminalCompact = false; }
+    return this.terminalCompact;
+  }
+
+  setTerminalCompact(compact) {
+    this.terminalCompact = !!compact;
+    try {
+      if (compact) localStorage.setItem(TERMINAL_COMPACT_STORAGE, '1');
+      else localStorage.removeItem(TERMINAL_COMPACT_STORAGE);
+    } catch {
+      // Storage unavailable; the choice just will not persist.
+    }
+    this.geminiModal?.classList.toggle('agent-compact', this.terminalCompact);
+    // Building Studio widens the terminal while Connect AI is open; Small docks it again, steps folded.
+    this.setStudioPanelExpanded(!this.terminalCompact && Boolean(this.agentConnectDrawer && !this.agentConnectDrawer.classList.contains('hidden')));
+    if (this.geminiCompactBtn) {
+      this.geminiCompactBtn.textContent = this.terminalCompact ? '⤢ Large' : '▁ Small';
+      this.geminiCompactBtn.setAttribute('aria-pressed', String(this.terminalCompact));
+      this.geminiCompactBtn.title = this.terminalCompact
+        ? 'Make the terminal large again'
+        : 'Make the terminal small, so you can watch the world while the agent works';
+    }
+    if (this.terminalCompact) this.setConnectDetailsCollapsed(true);
+    if (this.geminiLogFeed) this.geminiLogFeed.scrollTop = this.geminiLogFeed.scrollHeight;
+    return this.terminalCompact;
+  }
+
   initGemini(geminiAgent) {
     this.geminiAgent = geminiAgent;
+    // Requests go to the built-in presets or, with Offline Mode off, to the player's own AI app (Agent Control).
+    // An API key an older version saved is wiped: the game no longer calls any AI vendor itself.
+    forgetOldAgentKeys();
 
-    const vendorLabel = () => {
-      const config = geminiAgent.constructor.vendors?.[geminiAgent.vendor];
-      return config?.label || geminiAgent.vendor;
-    };
+    const appName = () => control.aiApp || 'Your AI app';
+    // ?agent-control-port=N matches a server started with BLOCKYLAND_MCP_PORT=N (and lets tests use a free port).
+    let port;
+    try {
+      const asked = Number(new URLSearchParams(location.search).get('agent-control-port'));
+      if (Number.isInteger(asked) && asked > 0 && asked < 65536) port = asked;
+    } catch {
+      // No location (tests): the default port.
+    }
+    const control = new AgentControlBridge({
+      ...(port ? { port } : {}),
+      runTool: (name, args) => runGameTool(name, args, {
+        game: geminiAgent.game,
+        agent: geminiAgent,
+        ui: this,
+        clientLabel: appName,
+        allowScreenshots: () => this.isViewCaptureEnabled(),
+      }),
+      onMessageReceived: () => {
+        tracker.pickedUp();
+        this.addGeminiLog(`${appName()} picked up your request and is working on it.`, 'info');
+      },
+      onToolCall: (tool, args) => tracker.toolCall(tool, args),
+      onAiWaiting: () => tracker.aiWaiting(),
+      gameInfo: () => ({ title: 'Blockyland', mode: geminiAgent.game?.player?.gamemode || null }),
+    });
+    this.agentControl = control;
+
+    // What the AI app is doing with the player's latest request: a status line above the input, the pill in the
+    // header, and a clear "Done" when it finishes (src/agentControl/requestTracker.js).
+    let doneShownUntil = 0;
+    let ticker = null;
+    const tracker = new RequestTracker({
+      onChange: view => {
+        if (this.agentActivity) {
+          this.agentActivity.classList.toggle('hidden', view.state === 'idle');
+          this.agentActivity.dataset.state = view.state;
+          if (this.agentActivityIcon) this.agentActivityIcon.textContent = view.icon;
+          if (this.agentActivityText) this.agentActivityText.textContent = view.state === 'working' ? `${appName()} — ${view.text}` : view.text;
+          if (this.agentActivityTime) this.agentActivityTime.textContent = view.state === 'sent' || view.state === 'working' ? view.elapsed : '';
+        }
+        if (tracker.active && !ticker) ticker = setInterval(() => tracker.tick(), 1000);
+        if (!tracker.active && ticker) { clearInterval(ticker); ticker = null; }
+        if (view.state === 'done' || view.state === 'interrupted') {
+          const asked = tracker.request.length > 60 ? `${tracker.request.slice(0, 57)}…` : tracker.request;
+          if (view.state === 'done') {
+            this.addGeminiLog(`✓ Done: ${appName()} finished “${asked}” in ${view.elapsed}. Type your next request when you are ready.`, 'done');
+            this.game?.sounds?.playLevelUp?.();
+            if (!this.isGeminiOpen()) this.addChatMessage?.(`✓ ${appName()} finished “${asked}”.`, 'system');
+          } else {
+            this.addGeminiLog(`✗ ${view.text}`, 'warning');
+          }
+          doneShownUntil = Date.now() + 6000;
+          setTimeout(() => { if (Date.now() >= doneShownUntil) refreshAgentStatus(); }, 6100);
+        }
+        refreshAgentStatus();
+      },
+    });
+    this.agentRequestTracker = tracker;
 
     const refreshAgentStatus = () => {
-      if (!this.geminiStatusText || geminiAgent.isExecuting) return;
-      if (geminiAgent.lastError) {
-        this.geminiStatusText.textContent = 'ERROR';
-      } else if (geminiAgent.offlineMode) {
-        this.geminiStatusText.textContent = 'OFFLINE MODE';
-      } else if (!geminiAgent.apiKey) {
-        this.geminiStatusText.textContent = geminiAgent.keyStatus?.().locked ? 'KEY LOCKED' : 'NO KEY';
+      if (!this.geminiStatusText) return;
+      this.geminiStatusPill?.classList.toggle('busy', tracker.active || geminiAgent.isExecuting);
+      if (tracker.active) {
+        const { elapsed } = tracker.view();
+        this.geminiStatusText.textContent = tracker.state === 'sent' ? `SENT ${elapsed}` : `WORKING ${elapsed}`;
+        return;
+      }
+      if (geminiAgent.isExecuting) return;
+      if (Date.now() < doneShownUntil) {
+        this.geminiStatusText.textContent = tracker.state === 'done' ? 'DONE ✓' : 'STOPPED';
+        return;
+      }
+      if (!this.isAgentControlMode()) {
+        this.geminiStatusText.textContent = geminiAgent.lastError ? 'ERROR' : 'OFFLINE MODE';
+      } else if (control.status === 'connected') {
+        this.geminiStatusText.textContent = `${appName().toUpperCase()} CONNECTED`;
+      } else if (control.status === 'waiting') {
+        this.geminiStatusText.textContent = 'WAITING FOR CODE';
       } else {
-        this.geminiStatusText.textContent = `${vendorLabel().toUpperCase()} READY`;
+        this.geminiStatusText.textContent = 'LOOKING FOR AI APP';
       }
     };
 
-    const refreshModelOptions = () => {
-      if (!this.geminiModelSelect) return;
-      const models = geminiAgent.getVendorModels();
-      const active = geminiAgent.model;
-      this.geminiModelSelect.innerHTML = '';
-      for (const model of models) {
-        const option = document.createElement('option');
-        option.value = model.id;
-        const label = `${model.isNew ? '✦ ' : ''}${model.label || model.id}`;
-        option.textContent = model.note ? `${label} — ${model.note}` : model.isNew ? `${label} — new from ${vendorLabel()}` : label;
-        this.geminiModelSelect.appendChild(option);
-      }
-      // The chosen model stays selectable even when it is not listed: a typed custom id, an env override, or a
-      // model the live list no longer shows (the agent replaces a retired one on its first failed request).
-      if (active && !models.some(model => model.id === active)) {
-        const option = document.createElement('option');
-        option.value = active;
-        option.textContent = `${active} (custom)`;
-        this.geminiModelSelect.appendChild(option);
-      }
-      this.geminiModelSelect.value = active;
-      if (this.geminiAutoUpgradeToggle) this.geminiAutoUpgradeToggle.checked = !!geminiAgent.autoUpgrade;
-      if (this.geminiModelSource) {
-        const info = geminiAgent.modelListInfo?.() || { source: 'built-in' };
-        if (info.source === 'live') {
-          const minutes = Math.max(0, Math.round((Date.now() - info.fetchedAt) / 60000));
-          const age = minutes < 1 ? 'just now' : minutes < 120 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
-          this.geminiModelSource.textContent = `${info.count} models from ${vendorLabel()}'s live list (updated ${age}).`;
-        } else {
-          this.geminiModelSource.textContent = geminiAgent.apiKey
-            ? `Built-in list. Press ↻ Refresh list to fetch ${vendorLabel()}'s current models.`
-            : `Built-in list. Save a key to see ${vendorLabel()}'s current models.`;
-        }
-      }
-    };
-
-    // Fetch the vendor's live list (cached for a day) and repaint. Quiet unless asked, or unless something changed.
-    const refreshLiveModels = async ({ force = false, announce = false } = {}) => {
-      if (geminiAgent.offlineMode || !geminiAgent.apiKey || typeof geminiAgent.refreshModels !== 'function') {
-        refreshModelOptions();
-        return null;
-      }
-      if (this.geminiRefreshModelsBtn) this.geminiRefreshModelsBtn.disabled = true;
-      try {
-        const result = await geminiAgent.refreshModels({ force });
-        refreshModelOptions();
-        refreshAgentStatus();
-        if (announce) {
-          this.addGeminiLog(result.error
-            ? `Could not fetch ${vendorLabel()}'s model list (${result.error}); using the ${result.source === 'live' ? 'last fetched' : 'built-in'} list.`
-            : `${vendorLabel()} lists ${result.models.length} models for this key.`, result.error ? 'warning' : 'info');
-        }
-        return result;
-      } finally {
-        syncAgentTerminalControls(this,geminiAgent);
-      }
-    };
-    this.refreshLiveModels = refreshLiveModels;
-
-    const refreshEffortOptions = () => {
-      const supported = geminiAgent.constructor.supportsEffort(geminiAgent.vendor);
-      if (this.geminiEffortField) this.geminiEffortField.classList.toggle('hidden', !supported);
-      if (!this.geminiEffortSelect) return;
-      this.geminiEffortSelect.disabled = !supported;
-      const effort = geminiAgent.effort;
-      if (supported && effort) this.geminiEffortSelect.value = effort;
-    };
-
-    const refreshKeyState = () => {
-      const keyStatus = geminiAgent.keyStatus?.() || {remembered:false,active:!!geminiAgent.apiKey};
-      if (this.keyVaultVendor !== geminiAgent.vendor) {
-        this.keyVaultVendor = geminiAgent.vendor;
-        if (this.geminiRememberKey) this.geminiRememberKey.checked = keyStatus.remembered;
-        if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
-        if (this.geminiKeyInput) this.geminiKeyInput.value = '';
-      }
-      if (this.geminiKeyStorageStatus) this.geminiKeyStorageStatus.textContent = keyStatus.locked
-        ? 'Encrypted key is locked. Enter its passphrase and choose Unlock.'
-        : keyStatus.active ? (keyStatus.remembered ? 'Remembered key unlocked for this page.' : 'Session-only key: lost on reload or closing this page.')
-        : 'No active key. Keys are session-only unless you choose Remember.';
-      if (this.geminiSaveKeyBtn) {
-        this.geminiSaveKeyBtn.textContent = this.geminiRememberKey?.checked ? 'Remember encrypted' : 'Use for session';
-        this.geminiSaveKeyBtn.disabled = !!this.keyVaultBusy;
-      }
-      if (this.geminiUnlockKeyBtn) { this.geminiUnlockKeyBtn.hidden = !keyStatus.remembered; this.geminiUnlockKeyBtn.disabled = !!this.keyVaultBusy || !keyStatus.locked; }
-      if (this.geminiLockKeyBtn) this.geminiLockKeyBtn.disabled = !!this.keyVaultBusy || !keyStatus.active;
-      if (this.geminiClearKeyBtn) this.geminiClearKeyBtn.disabled = !!this.keyVaultBusy;
-      if (this.geminiRememberKey) this.geminiRememberKey.disabled = !!this.keyVaultBusy || !globalThis.crypto?.subtle || !geminiAgent.settings.store;
-      if (this.geminiVaultPassphrase) {
-        this.geminiVaultPassphrase.hidden = !keyStatus.remembered && !this.geminiRememberKey?.checked;
-        this.geminiVaultPassphrase.disabled = !!this.keyVaultBusy;
-      }
-      if (this.geminiKeyInput) {
-        const key = geminiAgent.apiKey;
-        // Keep a draft while changing Remember/model options. Clear explicitly
-        // on save, vendor switch, lock/delete or closing the terminal.
-        this.geminiKeyInput.placeholder = geminiAgent.apiKey
-          ? `Active key ••••${geminiAgent.apiKey.slice(-4)} (type to replace)`
-          : (geminiAgent.constructor.vendors?.[geminiAgent.vendor]?.keyPlaceholder || 'API key');
-        this.geminiKeyInput.dataset.hasKey = key ? 'true' : 'false';
-      }
-      if (this.geminiVendorButtons) {
-        for (const button of this.geminiVendorButtons) {
-          const vendorId = button.getAttribute('data-vendor');
-          const config = geminiAgent.constructor.vendors?.[vendorId];
-          button.classList.toggle('active', vendorId === geminiAgent.vendor);
-          if (config) {
-            const defaultModel = geminiAgent.constructor.defaultModelFor(vendorId);
-            const effort = geminiAgent.constructor.supportsEffort(vendorId)
-              ? `, effort ${geminiAgent.constructor.defaultEffortFor(vendorId) || 'high'}`
-              : '';
-            button.title = `Use ${config.label} — default ${defaultModel}${effort}`;
-          }
-          const state = button.querySelector('[data-key-state]');
-          if (state) {
-            const hasKey = !!geminiAgent.getApiKey(vendorId);
-            state.textContent = hasKey ? 'key active' : geminiAgent.keyStatus?.(vendorId).locked ? 'key locked' : 'key needed';
-            state.classList.toggle('ready', hasKey);
-          }
-        }
-      }
-      if (this.geminiVendorHint) {
-        const config = geminiAgent.constructor.vendors?.[geminiAgent.vendor];
-        this.geminiVendorHint.innerHTML = config
-          ? `Add a key from <a href="${config.docsUrl}" target="_blank" rel="noopener">${config.docsLabel}</a> for free-form prompts. ${config.keyHint}`
-          : '';
-      }
-    };
-
-    // The header switch controls all vendors together and locks the AI drawer.
-    const refreshOfflineButton = () => {
-      syncAgentTerminalControls(this,geminiAgent);
+    const renderConnectPanel = () => {
+      if (this.agentConnectCode) this.agentConnectCode.textContent = control.code || '------';
+      this.agentConnectDrawer?.setAttribute('data-status', control.status);
+      if (!this.agentConnectStatus) return;
+      const found = control.aiApp && control.aiApp !== 'your AI app' ? control.aiApp : 'your AI app';
+      const status = {
+        connected: `✓ Connected to ${appName()} (code ${control.code}). Type your requests below; it answers here.`,
+        waiting: `Found ${found}. Now tell it the code below.`,
+        searching: 'Looking for your AI app… Do step 1 once, then start your AI app. Blockyland checks every few seconds.',
+        off: 'Switch Offline Mode off to connect your AI app.',
+      }[control.status] || '';
+      const outdated = control.status === 'off' ? null : {
+        server: ` ⚠ Your AI app runs an older Blockyland server (${control.serverVersion || 'unknown version'}) than this game expects: restart your AI app so npx fetches the newest (the command in step 1 ends in @latest).`,
+        game: ' ⚠ Your AI app runs a newer Blockyland server than this game: reload the page to get the newest game.',
+      }[control.outdated];
+      this.agentConnectStatus.textContent = status + (outdated || '');
     };
 
     const refreshAgentControls = () => {
-      refreshModelOptions();
-      refreshEffortOptions();
-      refreshKeyState();
-      refreshOfflineButton();
+      syncAgentTerminalControls(this, { aiMode: this.isAgentControlMode() });
+      renderConnectPanel();
       refreshAgentStatus();
     };
+    this.refreshAgentControls = refreshAgentControls;
 
-    const applyVendor = (vendorId) => {
-      if (this.keyVaultBusy || geminiAgent.offlineMode || !vendorId || vendorId === geminiAgent.vendor) return;
-      geminiAgent.setVendor(vendorId);
+    let lastStatus = control.status;
+    control.onStatus = ({ status }) => {
       refreshAgentControls();
-      this.addGeminiLog(`Vendor switched to ${vendorLabel()} (${geminiAgent.model}${geminiAgent.effort ? `, effort ${geminiAgent.effort}` : ''}).`, 'info');
-      refreshLiveModels().catch(() => {});
+      if (status === 'connected' && lastStatus !== 'connected') {
+        this.addGeminiLog(`✓ ${appName()} is connected. Type a request here and it answers in this terminal.`, 'success');
+        // Connected: the setup steps have done their job, so they fold away and the log gets the room.
+        this.setConnectDetailsCollapsed(true);
+      } else if (lastStatus === 'connected' && status !== 'connected') {
+        tracker.disconnected();
+        if (status !== 'off') {
+          this.addGeminiLog('Your AI app disconnected. Blockyland reconnects by itself when the app comes back; otherwise give it the new code in 🔌 Connect AI.', 'warning');
+          this.setConnectDetailsCollapsed(false);
+        }
+      }
+      lastStatus = status;
     };
 
-    this.refreshAgentControls=refreshAgentControls;
-    geminiAgent.onSettingsChanged=refreshAgentControls;
-    refreshAgentControls();
-    if (geminiAgent.settings.vault?.migratedVendors.length) this.addGeminiLog('Old unencrypted saved keys were removed from browser storage. Recovered keys are available for this page only; choose Remember key to store an encrypted copy.', 'warning');
-    if (geminiAgent.settings.vault?.migrationErrors.length) this.addGeminiLog('Could not remove an old saved key from browser storage. Clear this site’s storage manually before using Remember key.', 'error');
+    // The small terminal and the foldable steps
+    this.setTerminalCompact(this.isTerminalCompact());
+    if (this.geminiCompactBtn) this.geminiCompactBtn.onclick = () => this.setTerminalCompact(!this.isTerminalCompact());
+    // A click on the world around the terminal (not on its panels) takes the mouse back to play, terminal still open.
+    this.geminiModal?.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.target?.closest?.('.gemini-terminal-card, .building-parameter-panel')) return;
+      e.preventDefault();
+      this.playBesideTerminal();
+    });
+    if (this.agentConnectCollapse) {
+      this.agentConnectCollapse.onclick = () => this.setConnectDetailsCollapsed(!this.agentConnectDrawer?.classList.contains('collapsed'));
+    }
 
-    // Explain a forced-offline start, so a saved key does not look broken.
-    if (geminiAgent.offlineMode) {
-      this.addGeminiLog(
-        `Offline mode is ON: the terminal uses built-in presets. Switch Offline Mode off in the header to enable AI Settings.`,
-        'info'
-      );
+    refreshAgentControls();
+    if (this.isAgentControlMode()) {
+      control.enable();
+      this.addGeminiLog('Offline Mode is OFF: your AI app answers your requests. Open 🔌 Connect AI to connect it.', 'info');
     }
 
     // Connect agent callbacks
@@ -5177,36 +5328,6 @@ export class UIManager {
     this.addGeminiLog('Player bot: try "mine some iron ore", "go to 10 64 10", "follow cow", or "test movement". Stop bot releases control.', 'info');
     geminiAgent.onLog = (msg, type) => {
       this.addGeminiLog(msg, type);
-    };
-
-    // Live reasoning: one line that is rewritten as tokens stream in, so a long
-    // chain of thought never floods the terminal but always shows activity.
-    geminiAgent.onThought = ({ phase, reasoning, content, elapsedMs }) => {
-      if (!geminiAgent.thinkingEnabled) return;
-      const now = Date.now();
-      const force = phase === 'start' || phase === 'end';
-      if (!force && now - this.lastLiveThoughtAt < 350) return;
-      this.lastLiveThoughtAt = now;
-
-      if (phase === 'start') {
-        this.liveThoughtEntry = null;
-        return;
-      }
-
-      const seconds = (Math.max(0, elapsedMs || 0) / 1000).toFixed(1);
-      const text = (reasoning || content || '').trim();
-      const body = text
-        ? (text.length > 1200 ? `…${text.slice(-1200)}` : text)
-        : 'connected, waiting for the model\'s first tokens';
-      const label = `🧠 thinking (${seconds}s): `;
-      const message = `${label}${body}`;
-
-      if (!this.liveThoughtEntry) {
-        this.liveThoughtEntry = this.addGeminiLog(message, 'thought');
-        return;
-      }
-      this.liveThoughtEntry.textContent = message;
-      if (this.geminiLogFeed) this.geminiLogFeed.scrollTop = this.geminiLogFeed.scrollHeight;
     };
 
     geminiAgent.onProgress = (pct, label) => {
@@ -5237,9 +5358,7 @@ export class UIManager {
       if (this.geminiStatusPill) {
         this.geminiStatusPill.classList.remove('busy');
       }
-      this.liveThoughtEntry = null;
       refreshAgentStatus();
-      refreshKeyState();
       if (this.geminiExecBtn) {
         this.geminiExecBtn.disabled = false;
       }
@@ -5250,116 +5369,49 @@ export class UIManager {
         this.geminiStatusPill.classList.remove('busy');
         this.geminiStatusText.textContent = 'ERROR';
       }
-      this.liveThoughtEntry = null;
       if (this.geminiExecBtn) {
         this.geminiExecBtn.disabled = false;
       }
     };
 
-    // Close button
-    if (this.geminiCloseBtn) {
-      this.geminiCloseBtn.onclick = () => this.closeGeminiTerminal();
-    }
-
-    // Toggle the settings drawer
-    if (this.geminiToggleKeyBtn) {
-      this.geminiToggleKeyBtn.onclick = () => {
-        if(geminiAgent.offlineMode)return;
-        if (this.geminiKeyDrawer) {
-          this.geminiKeyDrawer.classList.toggle('hidden');
-          const expanded = !this.geminiKeyDrawer.classList.contains('hidden');
-          // In Building Studio the terminal is docked small; settings is the one time it needs the big window.
-          this.setStudioPanelExpanded(expanded);
-          syncAgentTerminalControls(this,geminiAgent);
-          // Opening Settings brings the model list up to date (a cached list younger than a day is reused).
-          if (expanded) refreshLiveModels().catch(() => {});
-          else {
-            if (this.geminiKeyInput) this.geminiKeyInput.value = '';
-            if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
-          }
+    // Offline Mode: ON = built-in presets, OFF = the player's own AI app
+    if (this.geminiOfflineBtn) {
+      this.geminiOfflineBtn.onclick = () => {
+        const aiMode = this.setAgentControlMode(!this.isAgentControlMode());
+        if (aiMode) {
+          this.addGeminiLog('Offline Mode OFF: your own AI app will answer. Follow the steps in 🔌 Connect AI.', 'success');
+          this.setConnectPanelOpen(true);
+        } else {
+          this.addGeminiLog('Offline Mode ON: the built-in presets answer, and your AI app is disconnected.', 'info');
         }
       };
     }
 
-    // Vendor picker
-    for (const button of this.geminiVendorButtons) {
-      button.onclick = () => applyVendor(button.getAttribute('data-vendor'));
-    }
-
-    // Model picker (applies and persists immediately)
-    if (this.geminiModelSelect) {
-      this.geminiModelSelect.onchange = () => {
-        if(geminiAgent.offlineMode)return;
-        geminiAgent.setModel(this.geminiModelSelect.value);
-        geminiAgent.lastError = null;
-        refreshAgentStatus();
-        this.addGeminiLog(`Model set to ${geminiAgent.model} for ${vendorLabel()}.`, 'info');
+    // The Connect AI panel
+    if (this.agentConnectBtn) {
+      this.agentConnectBtn.onclick = () => {
+        if (!this.isAgentControlMode()) return;
+        this.setConnectPanelOpen(this.agentConnectDrawer?.classList.contains('hidden'));
       };
     }
-
-    // Ask the vendor for its current models now, ignoring the day-long cache.
-    if (this.geminiRefreshModelsBtn) {
-      this.geminiRefreshModelsBtn.onclick = () => {
-        if (!geminiAgent.apiKey) {
-          this.addGeminiLog(`Save a ${vendorLabel()} key first: the model list is fetched with it.`, 'warning');
-          return;
-        }
-        refreshLiveModels({ force: true, announce: true }).catch(() => {});
-      };
-    }
-
-    // Any model id, for one too new to be listed or a private one.
-    const useCustomModel = () => {
-      if(geminiAgent.offlineMode)return;
-      const id = (this.geminiCustomModelInput?.value || '').trim();
-      if (!id) return;
-      if (!/^[\w.:/-]{2,128}$/.test(id)) {
-        this.addGeminiLog(`"${id}" does not look like a model id (letters, digits, dots, dashes).`, 'warning');
-        return;
-      }
-      geminiAgent.setModel(id);
-      geminiAgent.lastError = null;
-      this.geminiCustomModelInput.value = '';
-      refreshModelOptions();
-      refreshAgentStatus();
-      this.addGeminiLog(`Model set to ${id} for ${vendorLabel()}. If ${vendorLabel()} does not serve it, the next request says so.`, 'info');
+    const copy = (text, what) => {
+      const done = () => this.addGeminiLog(`Copied ${what}.`, 'info');
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, () => this.addGeminiLog(`Could not copy; select the ${what} and copy it by hand.`, 'warning'));
+      else this.addGeminiLog(`Select the ${what} and copy it by hand.`, 'info');
     };
-    if (this.geminiCustomModelBtn) this.geminiCustomModelBtn.onclick = useCustomModel;
-    if (this.geminiCustomModelInput) {
-      this.geminiCustomModelInput.addEventListener('keydown', (e) => {
-        e.stopPropagation();
-        if (e.key === 'Enter') { e.preventDefault(); useCustomModel(); }
-      });
-    }
-
-    // Follow the newest model of the chosen family as the vendor releases them.
-    if (this.geminiAutoUpgradeToggle) {
-      this.geminiAutoUpgradeToggle.onchange = () => {
-        if(geminiAgent.offlineMode)return;
-        const before = geminiAgent.model;
-        geminiAgent.setAutoUpgrade(this.geminiAutoUpgradeToggle.checked);
-        refreshModelOptions();
-        this.addGeminiLog(this.geminiAutoUpgradeToggle.checked
-          ? `Will switch to the newest ${vendorLabel()} model of this family as soon as it is listed${geminiAgent.model !== before ? ` (now ${geminiAgent.model})` : ''}.`
-          : `Staying on ${geminiAgent.model} until you choose another.`, 'info');
-        if (this.geminiAutoUpgradeToggle.checked) refreshLiveModels().catch(() => {});
+    if (this.agentConnectCopySetup) this.agentConnectCopySetup.onclick = () => copy(this.agentConnectSetup?.textContent || '', 'the setup command');
+    if (this.agentConnectCopyPrompt) this.agentConnectCopyPrompt.onclick = () => copy(this.agentConnectPrompt?.textContent || '', 'the message for your AI app');
+    if (this.agentConnectNewCode) {
+      this.agentConnectNewCode.onclick = () => {
+        control.newCode();
+        this.addGeminiLog(`New code: ${control.code}. Any AI app that was connected must connect again with it.`, 'info');
       };
     }
 
-    // Reasoning effort picker
-    if (this.geminiEffortSelect) {
-      this.geminiEffortSelect.onchange = () => {
-        if(geminiAgent.offlineMode)return;
-        geminiAgent.setEffort(this.geminiEffortSelect.value);
-        this.addGeminiLog(`Reasoning effort set to ${geminiAgent.effort} for ${vendorLabel()}.`, 'info');
-      };
-    }
-
-    // Current-view screenshot toggle
+    // Whether the AI app may see the player's view: with each request, and through its screenshot tool
     if (this.geminiViewToggle) {
       this.geminiViewToggle.checked = this.isViewCaptureEnabled();
       this.geminiViewToggle.onchange = () => {
-        if(geminiAgent.offlineMode)return;
         this.viewCaptureEnabled = this.geminiViewToggle.checked;
         try {
           localStorage.setItem('mc_agent_capture_view', this.viewCaptureEnabled ? '1' : '0');
@@ -5368,115 +5420,10 @@ export class UIManager {
         }
         this.addGeminiLog(
           this.viewCaptureEnabled
-            ? 'Current-view screenshots enabled: every request will include what you are looking at.'
-            : 'Current-view screenshots disabled: the agent will rely on world state only.',
+            ? 'Your AI app may see screenshots of your view.'
+            : 'Screenshots off: your AI app sees the world only as text.',
           'info'
         );
-      };
-    }
-
-    // Live thinking display toggle
-    if (this.geminiThinkingToggle) {
-      geminiAgent.thinkingEnabled = this.isThinkingDisplayEnabled();
-      this.geminiThinkingToggle.checked = geminiAgent.thinkingEnabled;
-      this.geminiThinkingToggle.onchange = () => {
-        if(geminiAgent.offlineMode)return;
-        geminiAgent.thinkingEnabled = this.geminiThinkingToggle.checked;
-        try {
-          localStorage.setItem('mc_agent_show_thinking', geminiAgent.thinkingEnabled ? '1' : '0');
-        } catch {
-          // Storage unavailable; the preference just will not persist.
-        }
-        this.addGeminiLog(
-          geminiAgent.thinkingEnabled
-            ? 'Live thinking display enabled: the terminal shows the model\'s reasoning and elapsed time.'
-            : 'Live thinking display disabled.',
-          'info'
-        );
-      };
-    }
-
-    // A new turn always starts with a fresh live line.
-    if (this.geminiForm) {
-      this.geminiForm.addEventListener('submit', () => {
-        this.liveThoughtEntry = null;
-      });
-    }
-
-    this.geminiRememberKey?.addEventListener('change', refreshKeyState);
-    const runKeyAction = async action => {
-      if (geminiAgent.offlineMode || this.keyVaultBusy) return;
-      this.keyVaultBusy = true;
-      const vendor = geminiAgent.vendor;
-      const key = (this.geminiKeyInput?.value || '').trim() || geminiAgent.getApiKey(vendor);
-      const passphrase = this.geminiVaultPassphrase?.value || '';
-      const remember = !!this.geminiRememberKey?.checked;
-      if (this.geminiKeyInput) this.geminiKeyInput.value = '';
-      if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
-      refreshKeyState();
-      try {
-        if (action === 'unlock') await geminiAgent.unlockApiKey(passphrase, vendor);
-        else if (remember) await geminiAgent.rememberApiKey(key, passphrase, vendor);
-        else {
-          if (!key) throw new Error('Enter an API key, or unlock the remembered key first.');
-          geminiAgent.setApiKey(key, vendor);
-        }
-        if (this.geminiRememberKey) this.geminiRememberKey.checked = geminiAgent.keyStatus(vendor).remembered;
-        this.addGeminiLog(action === 'unlock' ? 'Key unlocked for this page.' : remember ? 'Encrypted key remembered. Its passphrase will be required after reload.' : 'Key available for this page only. It will be lost on reload.', 'success');
-        // Keys are sent only to the vendor, including this model-list refresh.
-        refreshLiveModels({force:true}).catch(() => {});
-      } catch (error) {
-        this.addGeminiLog(error.message || 'Could not update the API key.', 'error');
-        if (this.geminiKeyStorageStatus) this.geminiKeyStorageStatus.textContent = error.message;
-        this.keyVaultError = error.message;
-      } finally {
-        this.keyVaultBusy = false; refreshAgentControls();
-        if (this.keyVaultError && this.geminiKeyStorageStatus) this.geminiKeyStorageStatus.textContent = this.keyVaultError;
-        this.keyVaultError = null;
-      }
-    };
-    if (this.geminiSaveKeyBtn) this.geminiSaveKeyBtn.onclick = () => runKeyAction('save');
-    if (this.geminiUnlockKeyBtn) this.geminiUnlockKeyBtn.onclick = () => runKeyAction('unlock');
-    if (this.geminiLockKeyBtn) this.geminiLockKeyBtn.onclick = () => {
-      if (this.keyVaultBusy || geminiAgent.offlineMode) return;
-      geminiAgent.lockApiKey();
-      if (this.geminiKeyInput) this.geminiKeyInput.value = '';
-      if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
-      refreshAgentControls();
-      this.addGeminiLog('Active key forgotten by this page. Any encrypted copy remains locked. Requests already sent are not recalled.', 'info');
-    };
-
-    // Clear the stored key for the active vendor only
-    if (this.geminiClearKeyBtn) {
-      this.geminiClearKeyBtn.onclick = () => {
-        if(geminiAgent.offlineMode || this.keyVaultBusy)return;
-        if (this.geminiKeyInput) this.geminiKeyInput.value = '';
-        if (this.geminiVaultPassphrase) this.geminiVaultPassphrase.value = '';
-        try { geminiAgent.setApiKey(''); }
-        catch { this.addGeminiLog('Could not delete the stored key. Clear this site’s browser storage manually.', 'error'); refreshAgentControls(); return; }
-        if (this.geminiRememberKey) this.geminiRememberKey.checked = false;
-        geminiAgent.lastError = null;
-        refreshAgentControls();
-        this.addGeminiLog(`${vendorLabel()} API key removed. Offline preset mode supports limited commands.`, 'info');
-      };
-    }
-
-    // Force offline presets without discarding the saved key
-    if (this.geminiOfflineBtn) {
-      this.geminiOfflineBtn.onclick = () => {
-        const offline = !geminiAgent.offlineMode;
-        geminiAgent.setOfflineMode(offline);
-        refreshAgentControls();
-        if (!offline && !geminiAgent.apiKey) {
-          this.addGeminiLog(`Offline Mode OFF. Open AI Settings to add a ${vendorLabel()} API key.`, 'warning');
-        } else if (offline) {
-          this.addGeminiLog(
-            `Offline mode ON. Requests go to the built-in presets; your ${vendorLabel()} key is kept. Type /offline to jump back here.`,
-            'success'
-          );
-        } else {
-          this.addGeminiLog(`Offline mode OFF. Free-form ${vendorLabel()} requests are enabled again.`, 'success');
-        }
       };
     }
 
@@ -5543,24 +5490,43 @@ export class UIManager {
       };
     }
 
-    // Form submit
+    // Form submit: to the player's AI app when one is connected, otherwise to the offline presets
     if (this.geminiForm) {
       this.geminiForm.onsubmit = (e) => {
         e.preventDefault();
         const prompt = this.geminiPromptInput.value.trim();
         const image = this.currentAttachedImage;
-
-        // Capture the player's current view synchronously, before the modal
-        // loses focus and the world keeps moving.
-        const viewImage = this.captureCurrentView();
-
         if (!prompt && !image) return;
-
         const effectivePrompt = prompt || (image ? 'Reconstruct this image in 3D Minecraft voxels' : '');
+
+        if (this.isAgentControlMode()) {
+          if (!control.connected) {
+            this.addGeminiLog('Your AI app is not connected yet. Follow the steps in 🔌 Connect AI, or switch Offline Mode on to use the built-in presets.', 'warning');
+            this.setConnectPanelOpen(true);
+            return;
+          }
+          // The view is captured now, before the world moves on.
+          const images = [];
+          const view = this.captureCurrentView();
+          if (view?.base64) images.push({ mimeType: view.mimeType || 'image/jpeg', data: view.base64 });
+          if (image?.base64) images.push({ mimeType: image.mimeType || 'image/png', data: image.base64 });
+          if (!control.sendPlayerMessage(effectivePrompt, images)) {
+            this.addGeminiLog('Could not reach your AI app just now. Try again in a moment.', 'warning');
+            return;
+          }
+          this.geminiPromptInput.value = '';
+          this.clearAttachedImage();
+          geminiAgent.conversationHistory?.push({ role: 'user', text: effectivePrompt, timestamp: Date.now() });
+          this.addGeminiLog(`You → ${appName()}: ${effectivePrompt}${images.length ? ` (with ${images.length} image${images.length > 1 ? 's' : ''})` : ''}`, 'prompt');
+          tracker.start(effectivePrompt);
+          // The steps are not needed while a request runs; the log and the world get the room.
+          this.setConnectDetailsCollapsed(true);
+          return;
+        }
+
         this.geminiPromptInput.value = '';
         this.clearAttachedImage();
-        if (viewImage) this.addGeminiLog('📷 Attached a screenshot of your current view.', 'info');
-        geminiAgent.executePrompt(effectivePrompt, image, { viewImage });
+        geminiAgent.executePrompt(effectivePrompt, image, {});
       };
     }
 
@@ -5571,7 +5537,7 @@ export class UIManager {
     }
   }
 
-  /** Whether each request should carry a screenshot of the player's view. */
+  /** Whether the AI app may see the player's view (the Connect AI checkbox). */
   isViewCaptureEnabled() {
     if (typeof this.viewCaptureEnabled === 'boolean') return this.viewCaptureEnabled;
     try {
@@ -5583,23 +5549,10 @@ export class UIManager {
     return this.viewCaptureEnabled;
   }
 
-  /** Whether the terminal should show the model's reasoning as it streams in. */
-  isThinkingDisplayEnabled() {
-    if (typeof this.thinkingDisplayEnabled === 'boolean') return this.thinkingDisplayEnabled;
-    try {
-      const stored = localStorage.getItem('mc_agent_show_thinking');
-      this.thinkingDisplayEnabled = stored === null ? true : stored === '1';
-    } catch {
-      this.thinkingDisplayEnabled = true;
-    }
-    return this.thinkingDisplayEnabled;
-  }
-
-  /** Ask the game for a framed screenshot; returns null when unavailable. */
+  /** Ask the game for a framed screenshot; returns null when unavailable or not allowed. */
   captureCurrentView() {
     const agent = this.geminiAgent;
     if (!agent || !this.isViewCaptureEnabled()) return null;
-    if (!agent.constructor.vendors?.[agent.vendor]?.supportsImages) return null;
     const provider = agent.viewCaptureProvider || this.viewCaptureProvider;
     if (typeof provider !== 'function') return null;
     try {

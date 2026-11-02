@@ -296,16 +296,64 @@ test('Nether Portal - NetherPortalManager Transition Logic & Cooldown', () => {
   // Verify player is recognized as in portal
   assert.equal(manager.isPlayerInPortal(fakePlayer, world), true);
 
-  // In survival, needs 4.0 seconds (80 ticks) to teleport
-  manager.update(1.5, fakePlayer, fakeGame);
-  assert.equal(manager.portalTimer, 1.5);
-  assert.equal(switchedDim, null, 'Should not have switched dimension before 4.0s');
+  // Stepping in starts the trip: the player is held in the portal while the warp builds (1.5 s in Survival).
+  manager.update(1.0, fakePlayer, fakeGame);
+  assert.equal(manager.portalTimer, 1.0);
+  assert.ok(manager.warp, 'the trip is under way');
+  assert.equal(switchedDim, null, 'Should not have switched dimension before the warp is complete');
+  // Trying to walk on through: held where the player stepped in.
+  fakePlayer.position.x += 3;
+  fakePlayer.velocity.set(4, 0, 0);
+  manager.update(0.25, fakePlayer, fakeGame);
+  assert.equal(fakePlayer.position.x, 10.5, 'held in the portal, not walked out of the other side');
+  assert.equal(fakePlayer.velocity.x, 0);
 
-  // Update more time to pass 4.0s
-  manager.update(2.6, fakePlayer, fakeGame);
-  assert.equal(switchedDim, 'nether', 'Should have switched to nether after 4.0s');
+  manager.update(0.3, fakePlayer, fakeGame);
+  assert.equal(switchedDim, 'nether', 'Should have switched to nether once the warp is complete');
   assert.equal(manager.portalCooldown, 4.0, 'Grace cooldown must be active to prevent immediate bounce');
   assert.equal(manager.portalTimer, 0, 'Timer resets upon transition');
+  assert.equal(manager.warp, null);
+
+  // Arrived standing in the Nether's portal: it does nothing until the player has stepped out and back in.
+  manager.portalCooldown = 0;
+  fakePlayer.position.set(switchedPos.x, switchedPos.y, switchedPos.z);
+  const arrivedAt = fakePlayer.position.clone();
+  const inNetherPortal = manager.isPlayerInPortal(fakePlayer, world);
+  manager.update(2, fakePlayer, fakeGame);
+  assert.equal(fakeGame.currentDimension, 'nether', 'no bounce straight back');
+  if (inNetherPortal) assert.equal(manager.warp, null);
+  fakePlayer.position.set(arrivedAt.x + 40, arrivedAt.y, arrivedAt.z);
+  manager.update(0.1, fakePlayer, fakeGame);
+  assert.equal(manager.mustLeave, false, 'stepping out re-arms it');
+});
+
+test('Nether Portal - with a loading screen, the trip goes through travelToDimension and arrives after it', async () => {
+  const world = createTestWorld();
+  const calls = [];
+  const fakeGame = {
+    world, currentDimension: 'overworld',
+    async travelToDimension(dim, pos, { title, arrive }) {
+      calls.push(['travel', dim, title]);
+      fakeGame.currentDimension = dim;
+      fakePlayer.position.set(pos.x, pos.y, pos.z);
+      await null;
+      arrive();
+      calls.push(['arrived', fakeGame.currentDimension]);
+    },
+    sounds: { playPortalTravel: () => {}, playPortalAmbience: () => {} },
+    ui: { addChatMessage: (m) => calls.push(['chat', m]) }
+  };
+  const fakePlayer = { position: new THREE.Vector3(10.5, 21.0, 10.5), velocity: new THREE.Vector3(), gamemode: 'creative' };
+  const manager = new NetherPortalManager(fakeGame);
+  generateDestinationPortal(world, 10, 20, 10, 'x');
+  manager.update(0.6, fakePlayer, fakeGame);
+  assert.equal(manager.travelling, true, 'loading');
+  manager.update(5, fakePlayer, fakeGame);
+  assert.equal(calls.filter((c) => c[0] === 'travel').length, 1, 'one trip, however long the loading takes');
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(calls.map((c) => c[0]), ['travel', 'chat', 'arrived']);
+  assert.equal(calls[0][2], 'Entering the Nether');
+  assert.equal(manager.travelling, false);
 });
 
 test('Nether Portal - Creative Mode Instant/Fast Transition', () => {
@@ -377,4 +425,25 @@ test('Nether Portal - Overworld portal blocks spawn zombified piglins on the fra
   assert.equal(rolls, 0, 'never on Peaceful');
   world.setVoxel(10, 21, 10, BLOCKS.AIR); world.setVoxel(11, 21, 10, BLOCKS.AIR);
   assert.equal(world.portalBlocks.overworld.size, 4, 'a broken portal block is forgotten');
+});
+
+test('Nether Portal - a traveller steps out in front of the arrival portal, facing away, not inside it', async () => {
+  const { portalExit } = await import('../src/netherPortal.js');
+  const world = createTestWorld();
+  // A portal along x on its obsidian platform, in open air: out to the south (+z) first, facing south.
+  const spawn = generateDestinationPortal(world, 10, 20, 10, 'x', { platform: true });
+  const out = portalExit(world, spawn.spawnX, spawn.spawnY, spawn.spawnZ);
+  assert.deepEqual([out.x, out.y, out.z], [10.5, 21, 11.5]);
+  assert.equal(world.getVoxel(10, 20, 11), BLOCKS.OBSIDIAN, 'on the platform');
+  assert.ok(Math.abs(out.yaw - Math.PI) < 1e-9, 'facing south, away from the portal');
+  // That side walled up: the other side, facing north.
+  world.setVoxel(10, 21, 11, BLOCKS.STONE);
+  const other = portalExit(world, spawn.spawnX, spawn.spawnY, spawn.spawnZ);
+  assert.deepEqual([other.x, other.z], [10.5, 9.5]);
+  assert.ok(Math.abs(other.yaw) < 1e-9, 'facing north');
+  // Never into lava, and inside the portal only when there is no room at all.
+  world.setVoxel(10, 21, 9, BLOCKS.LAVA);
+  for (const [x, z] of [[10, 12], [10, 8]]) world.setVoxel(x, 21, z, BLOCKS.STONE);
+  for (const [x, z] of [[10, 11], [10, 9], [10, 12], [10, 8]]) { world.setVoxel(x, 22, z, BLOCKS.STONE); world.setVoxel(x, 20, z, BLOCKS.STONE); }
+  assert.equal(portalExit(world, spawn.spawnX, spawn.spawnY, spawn.spawnZ), null);
 });

@@ -1051,7 +1051,14 @@ export class World {
     if (this.selectedBiome && this.selectedBiome !== 'all' && !getBiomeDef(this.selectedBiome)?.isEnd && !getBiomeDef(this.selectedBiome)?.isNether) {
       return this.selectedBiome;
     }
+    return this.mixedOverworldBiome(wx, wz);
+  }
 
+  /**
+   * The mixed Overworld's biome at a column, whatever dimension the world is in now: a Nether or End world's Overworld
+   * is this mix, and its spawn portal looks here for the biome it leads to (dimensionSpawns.js).
+   */
+  mixedOverworldBiome(wx, wz) {
     // Dynamic Multi-Biome Overworld generator
     const temp = this.biomeNoise.noise2D(wx * 0.003, wz * 0.003);
     const humid = this.detailNoise.noise2D(wx * 0.003 + 500, wz * 0.003 + 500);
@@ -1461,7 +1468,9 @@ export class World {
         if (height >= this.seaLevel && height < CHUNK_HEIGHT - 10 && chunk.getVoxel(lx,height,lz)!==BLOCKS.AIR) {
           const plantHash = Math.abs(Math.sin(wx * 54.123 + wz * 31.987));
           if (def.floraType === 'sunflowers' && plantHash < 0.3) {
-            chunk.setVoxel(lx, height + 1, lz, BLOCKS.SUNFLOWER);
+            // Two blocks tall: the stalk, then the head (blocks.js SUNFLOWER_STALK).
+            chunk.setVoxel(lx, height + 1, lz, BLOCKS.SUNFLOWER_STALK);
+            chunk.setVoxel(lx, height + 2, lz, BLOCKS.SUNFLOWER);
           } else if (def.floraType === 'cherry_petals' && plantHash < 0.25) {
             chunk.setVoxel(lx, height + 1, lz, BLOCKS.POPPY);
           } else if (def.floraType === 'wildflowers' || def.floraType === 'dense_flowers') {

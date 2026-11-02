@@ -452,14 +452,14 @@ test('the paste type list is offered, and matches what the loader handles', asyn
 
 // --- the markup ---------------------------------------------------------------------------------------
 
-test('the data pack panel lives in the pause menu outside AI Settings', () => {
+test('the data pack panel lives in the pause menu, outside the Agent Terminal', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   for (const id of ['gemini-datapack-section', 'datapack-list', 'datapack-add-bundled', 'datapack-paste-open',
     'datapack-file-input', 'datapack-apply', 'datapack-revert', 'datapack-paste-area', 'datapack-paste-type',
     'datapack-paste-id', 'datapack-paste-text', 'datapack-paste-load', 'datapack-status', 'datapack-warning']) {
     assert.match(html, new RegExp(`id="${id}"`), id + ' is missing');
   }
-  // Data Packs stay available in the pause menu when AI Settings is locked.
+  // Data Packs stay available in the pause menu, whatever mode the Agent Terminal is in.
   const panel = html.indexOf('id="gemini-datapack-section"');
   const pause = html.indexOf('id="pause-menu"');
   const terminal = html.indexOf('id="gemini-modal"');

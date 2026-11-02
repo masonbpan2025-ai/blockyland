@@ -52,9 +52,11 @@ function fixture(roll = () => 0) {
  * Not `getMobDeathDrops`: that returns the candidate rows and does **not** roll their chances -- the roll
  * happens in `updateDeath`, which is also what spawns them. So this drives the real path, the way the other
  * mob parity tests do: spawn one, kill it, and tick until its loot has been dropped.
+ *
+ * It holds a trident, because only one holding a trident can drop it (tests/drownedTrident.test.js).
  */
 function killDrowned({ manager, player, spawned }, over = {}) {
-  const drowned = manager.spawnMob('drowned', 0, 3, 0);
+  const drowned = manager.spawnMob('drowned', 0, 3, 0, { trident: true });
   Object.assign(drowned, over);
   manager.damageMob(drowned, 1000, null, false, player);
   for (let i = 0; i < 20 && !drowned.lootDropped; i++) manager.update(0.1, player);

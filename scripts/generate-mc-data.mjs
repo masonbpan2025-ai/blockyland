@@ -13,8 +13,9 @@
 // category has.
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { rawUrl } from './dataLock.mjs';
 
-const RAW = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-data/master/data';
+const RAW = rawUrl('minecraft-data', 'data');
 const CACHE = join(process.cwd(), '.cache', 'mc-data');
 const offline = process.argv.includes('--offline');
 
@@ -165,10 +166,22 @@ writeFileSync('src/blockHarvestData.js', header(
   'Canonical per-block mining data: hardness, the tool class and minimum tier needed to',
   'harvest it, and what it drops.\n//\n// Used by the mining path to gate harvesting and to compute break times the way the real\n// game does, instead of the flat hardness/speed divide it used before.\n//\n// `drops` lists item names; an empty array means the block drops itself, and an absent\n// `drops` key means the block is not harvestable into an item.'
 ) + `import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { FUTURE_BLOCK_DEFS } from './futureContent.js';
+import { futureHarvestRows } from './futureContentWiki.js';
 
 export const BLOCK_HARVEST = {
 ${harvestBody}
 };
+
+// Corrections to the generated rows, each from the block's wiki page and found by the wiki parity audit (B-TOOL).
+// Applied here rather than in the table above, which regeneration rewrites.
+//   crafter: its {{breaking row}} names the pickaxe as its proper tool ("Crafter|Pickaxe"); the row had none, so a
+//   pickaxe mined it no faster than a hand.
+Object.assign(BLOCK_HARVEST.crafter, { tool: 'pickaxe' });
+
+// The post-1.21.4 blocks src/futureContent.js registers: their rows from their wiki breaking data, so they stop
+// borrowing a guessed sibling's (futureContentWiki.js). A hand-written row above wins.
+for (const [name, row] of Object.entries(futureHarvestRows(FUTURE_BLOCK_DEFS))) BLOCK_HARVEST[name] ??= row;
 
 /** Tool tiers from weakest to strongest, for comparing whether a tool can harvest a block. */
 export const TOOL_TIER_ORDER = ['wooden', 'stone', 'iron', 'golden', 'diamond', 'netherite'];
@@ -199,9 +212,18 @@ for (const [id, def] of Object.entries(BLOCK_DEFS)) {
   IDS_BY_NAME.get(key).push(Number(id));
 }
 
+/**
+ * Rows whose vanilla name is not the name of the block constant of the same spelling.
+ *
+ * Vanilla's \`snow\` is the thin snow LAYER and \`snow_block\` is the cube. This game's constant \`SNOW\` is the
+ * cube, so \`BLOCKS['SNOW']\` attached the layer's row to the cube (where the \`snow_block\` row then replaced it)
+ * and the real layer, \`SNOW_LAYER\`, had no row at all.
+ */
+const ROW_BLOCK_OVERRIDES = { snow: BLOCKS.SNOW_LAYER };
+
 const BY_ID = new Map();
 for (const [name, data] of Object.entries(BLOCK_HARVEST)) {
-  const id = BLOCKS[name.toUpperCase()] ?? BY_NAME.get(name);
+  const id = ROW_BLOCK_OVERRIDES[name] ?? BLOCKS[name.toUpperCase()] ?? BY_NAME.get(name);
   if (id !== undefined) BY_ID.set(id, { name, ...data });
 }
 
@@ -321,7 +343,10 @@ export function rollLoot(mobType, random = Math.random, options = {}) {
 console.log(`  mobLootData.js: ${lootRows.length} mobs`);
 
 // --- 3. foods ---------------------------------------------------------------
-const foodRows = foods.slice().sort((a, b) => a.name.localeCompare(b.name));
+// The ominous bottle is drunk for Bad Omen, not eaten: the wiki's infobox gives it an effect and no hunger (see its
+// item in blocks.js, and main.js). minecraft-data lists it among the foods.
+const NOT_FOOD = new Set(['ominous_bottle']);
+const foodRows = foods.filter(f => !NOT_FOOD.has(f.name)).sort((a, b) => a.name.localeCompare(b.name));
 const foodBody = foodRows.map(f => {
   // Saturation is taken as-is. It was halved here, on the theory that minecraft-data reports saturation in
   // doubled internal units, and that was wrong: minecraft-data's `saturation` is exactly the wiki's

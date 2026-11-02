@@ -1,23 +1,21 @@
-// Offline Mode is a global preference, independent of vendor keys and models.
-export function syncAgentTerminalControls(ui,agent,{refreshing=false}={}) {
-  const offline=!!agent?.offlineMode;
-  ui.geminiOfflineBtn?.setAttribute('aria-checked',String(offline));
-  if(ui.geminiOfflineState)ui.geminiOfflineState.textContent=offline?'ON':'OFF';
-  if(ui.geminiToggleKeyBtn){
-    ui.geminiToggleKeyBtn.disabled=offline;
-    ui.geminiToggleKeyBtn.title=offline?'Switch Offline Mode off to configure AI settings.':'Choose vendor, model and API key';
+// The Agent Terminal has two modes. Offline Mode ON: the built-in presets answer. OFF: the player's own AI app answers
+// through Agent Control (src/agentControl/), set up in the Connect AI panel. The panel is locked while offline.
+export function syncAgentTerminalControls(ui, { aiMode = false } = {}) {
+  const offline = !aiMode;
+  ui.geminiOfflineBtn?.setAttribute('aria-checked', String(offline));
+  if (ui.geminiOfflineState) ui.geminiOfflineState.textContent = offline ? 'ON' : 'OFF';
+  if (ui.agentConnectBtn) {
+    ui.agentConnectBtn.disabled = offline;
+    ui.agentConnectBtn.title = offline ? 'Switch Offline Mode off to connect your AI app.' : 'Connect your AI app';
   }
-  if(ui.geminiKeyDrawer){
-    ui.geminiKeyDrawer.disabled=offline;
-    if(offline){
-      ui.geminiKeyDrawer.classList.add('hidden');
-      // In Building Studio a hidden settings drawer means the terminal goes back to its small docked spot.
+  if (ui.agentConnectDrawer) {
+    ui.agentConnectDrawer.disabled = offline;
+    if (offline) {
+      ui.agentConnectDrawer.classList.add('hidden');
+      // In Building Studio a hidden panel means the terminal goes back to its small docked spot.
       ui.setStudioPanelExpanded?.(false);
-      if(ui.geminiKeyInput)ui.geminiKeyInput.value='';
-      if(ui.geminiVaultPassphrase)ui.geminiVaultPassphrase.value='';
     }
-    ui.geminiToggleKeyBtn?.setAttribute('aria-expanded',String(!ui.geminiKeyDrawer.classList.contains('hidden')));
+    ui.agentConnectBtn?.setAttribute('aria-expanded', String(!ui.agentConnectDrawer.classList.contains('hidden')));
   }
-  if(ui.geminiRefreshModelsBtn)ui.geminiRefreshModelsBtn.disabled=offline||refreshing;
   return !offline;
 }
