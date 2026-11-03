@@ -2855,6 +2855,36 @@
         "items/yellow_cushion.png",
         "items/zombie_pigman_spawn_egg.png"
       ]
+    },
+    {
+      "source": "vanilla-derived",
+      "by": "scripts/generate-stained-glass-textures.mjs",
+      "note": "The vanilla glass.png in each dye colour (src/colourPalette.js), its clear middle a see-through wash of the colour.",
+      "files": [
+        "blocks/black_stained_glass.png",
+        "blocks/blue_stained_glass.png",
+        "blocks/brown_stained_glass.png",
+        "blocks/cyan_stained_glass.png",
+        "blocks/gray_stained_glass.png",
+        "blocks/green_stained_glass.png",
+        "blocks/light_blue_stained_glass.png",
+        "blocks/light_gray_stained_glass.png",
+        "blocks/lime_stained_glass.png",
+        "blocks/magenta_stained_glass.png",
+        "blocks/orange_stained_glass.png",
+        "blocks/pink_stained_glass.png",
+        "blocks/purple_stained_glass.png",
+        "blocks/red_stained_glass.png",
+        "blocks/white_stained_glass.png",
+        "blocks/yellow_stained_glass.png"
+      ]
+    },
+    {
+      "source": "generated",
+      "by": "scripts/generate-beacon-texture.mjs",
+      "files": [
+        "blocks/beacon.png"
+      ]
     }
   ]
 }
