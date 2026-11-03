@@ -155,6 +155,7 @@ import { angerPiglins } from './piglin.js';
 import { DoorManager } from './door.js';
 import { FarmingManager, isHoe, getSeedCrop, getCropInfo } from './farming.js';
 import { BeaconManager } from './beaconManager.js';
+import { BeaconBeamRenderer, BeaconFinder } from './beaconBeamRenderer.js';
 import { HiveManager, isHive } from './hives.js';
 import { EnchantingManager } from './enchanting.js';
 import { buildCommandContext, runCommand, permissionRefusal } from './commandRunner.js';
@@ -540,6 +541,10 @@ class Game {
     // Beacons and conduits: what remembers where they are and applies what they grant. Registered on
     // placement and unregistered on break, like a crop, rather than scanned for.
     this.beaconManager = new BeaconManager(this);
+    // Their beams (beaconBeamRenderer.js): found by looking through the loaded chunks, so a beacon from a save or a
+    // structure shines too, not only one placed by hand.
+    this.beaconBeams = new BeaconBeamRenderer(this.scene);
+    this.beaconFinder = new BeaconFinder();
     // Bee nests and beehives: the only source of honeycomb, and so of every waxed copper block.
     this.hiveManager = new HiveManager(this);
     this.enchantingManager = new EnchantingManager(this);
@@ -5322,6 +5327,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     if (this.beaconManager) {
       this.beaconManager.update(dt, this.player);
     }
+    this.beaconBeams?.update(dt, this.world, () => this.beaconFinder.scan(this.world), { camera: this.camera });
     if (this.hiveManager) {
       this.hiveManager.update(dt);
     }

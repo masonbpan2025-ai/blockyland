@@ -1,4 +1,7 @@
-import { BLOCKS } from './blocks.js';
+import { BLOCKS, BLOCK_DEFS } from './blocks.js';
+import { occludesWholeFace } from './blockOcclusion.js';
+import { DYE_COLOURS } from './colourPalette.js';
+import { CHUNK_HEIGHT } from './world.js';
 
 // Mineral blocks that can form a valid beacon pyramid
 export const BEACON_BASE_BLOCKS = new Set([
@@ -16,6 +19,63 @@ export const BEACON_POWERS = {
   tier3: ['speed', 'haste', 'resistance', 'jump_boost', 'strength'],
   tier4: ['regeneration']
 };
+
+/** Wiki (Beacon § Beam): "extending up 2048 blocks from the beacon block". */
+export const BEACON_BEAM_HEIGHT = 2048;
+
+/** Stained glass (block or pane) -> the dye colour it gives the beam, as [r, g, b] 0-255. */
+const BEAM_GLASS = new Map();
+for (const [colour, hex] of Object.entries(DYE_COLOURS)) {
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  for (const suffix of ['STAINED_GLASS', 'STAINED_GLASS_PANE']) {
+    const id = BLOCKS[`${colour.toUpperCase()}_${suffix}`];
+    if (id !== undefined) BEAM_GLASS.set(id, rgb);
+  }
+}
+
+/** Wiki: a beam stops at "any fully opaque block excluding bedrock (this allows beacons to be used below the Nether ceiling)". */
+export function blocksBeaconBeam(id) {
+  return id !== BLOCKS.BEDROCK && occludesWholeFace(BLOCK_DEFS[id]);
+}
+
+/**
+ * The column above a beacon, from the block above it to the top of the world: whether it is clear, and the beam it
+ * carries as coloured segments, bottom to top.
+ *
+ * Wiki (Beacon § Beam, Colors): stained glass (or a pane) anywhere above the beacon colours the beam. "The first or
+ * bottom most glass block sets the beam color, while each additional block sets the color by averaging the red,
+ * green, and blue components of the current beam color and the block's color", the colours being the dyes'. Each
+ * colour starts at its glass and runs up to the next; the last runs to 2048 blocks above the beacon.
+ *
+ * Returns { clear, segments: [{ from, to, color: [r, g, b] }], blockedAt }.
+ */
+export function beaconColumn(world, bx, by, bz, { top = CHUNK_HEIGHT } = {}) {
+  let color = [255, 255, 255], tinted = false, from = by;
+  const segments = [];
+  for (let y = by + 1; y < top; y++) {
+    const id = world.getVoxel(bx, y, bz);
+    if (blocksBeaconBeam(id)) return { clear: false, segments: [], blockedAt: y };
+    const glass = BEAM_GLASS.get(id);
+    if (!glass) continue;
+    const next = tinted ? color.map((c, i) => (c + glass[i]) / 2) : glass;
+    tinted = true;
+    if (next.some((c, i) => c !== color[i])) { segments.push({ from, to: y, color }); from = y; color = next; }
+  }
+  segments.push({ from, to: by + BEACON_BEAM_HEIGHT, color });
+  return { clear: true, segments, blockedAt: null };
+}
+
+/**
+ * The beam a beacon shows, or null when it shows none. Wiki: "A vertical beam appears from a beacon if the beacon is
+ * activated" -- on a pyramid of at least one level, with a clear column above it. Whether a power has been chosen
+ * does not matter: the power is chosen once the beam is there.
+ */
+export function beaconBeam(world, bx, by, bz, options = {}) {
+  if (world.getVoxel(bx, by, bz) !== BLOCKS.BEACON) return null;
+  const pyramid = calculateBeaconPyramid(world, bx, by, bz);
+  if (!pyramid.active) return null;
+  return { tier: pyramid.tier, segments: beaconColumn(world, bx, by, bz, options).segments };
+}
 
 /**
  * Calculates the tier of a beacon pyramid beneath (bx, by, bz)
@@ -48,15 +108,8 @@ export function calculateBeaconPyramid(world, bx, by, bz) {
     }
   }
 
-  // Beacon must have unobstructed sky view above it (only air or transparent blocks)
-  let skyClear = true;
-  for (let y = by + 1; y < 64; y++) {
-    const b = world.getVoxel(bx, y, bz);
-    if (b !== BLOCKS.AIR && b !== BLOCKS.GLASS) {
-      skyClear = false;
-      break;
-    }
-  }
+  // The beam must reach the sky: see beaconColumn.
+  const skyClear = beaconColumn(world, bx, by, bz).clear;
 
   const range = tier > 0 ? (tier * 10 + 10) : 0; // 20, 30, 40, 50
 

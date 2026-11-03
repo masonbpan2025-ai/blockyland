@@ -204,10 +204,14 @@ test('Beacon & Conduit Mechanics: Pyramid validation, Sky visibility, Buffs, and
   assert.equal(beaconCheck.range, 20, 'Tier 1 range is 20m');
   assert.ok(beaconCheck.availablePrimaries.includes('speed'));
 
-  // Obstruct sky with bedrock -> beacon deactivates
-  world.setVoxel(bx, by + 5, bz, BLOCKS.BEDROCK);
+  // Obstruct sky with an opaque block -> beacon deactivates
+  world.setVoxel(bx, by + 5, bz, BLOCKS.STONE);
   const obstructedCheck = calculateBeaconPyramid(world, bx, by, bz);
   assert.equal(obstructedCheck.active, false, 'Beacon deactivates when sky view is obstructed');
+  // Wiki (Beacon § Beam): beams stop at "any fully opaque block excluding bedrock (this allows beacons to be used
+  // below the Nether ceiling)". This test used bedrock as its obstruction, which is the one block that is not.
+  world.setVoxel(bx, by + 5, bz, BLOCKS.BEDROCK);
+  assert.equal(calculateBeaconPyramid(world, bx, by, bz).active, true, 'Bedrock does not obstruct a beacon');
   world.setVoxel(bx, by + 5, bz, BLOCKS.AIR); // restore sky
 
   // Apply Beacon Buffs to Player

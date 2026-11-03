@@ -2225,7 +2225,7 @@ export const BLOCK_DEFS = {
   [BLOCKS.ANVIL]: { name: 'Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'anvil.png' } },
   [BLOCKS.CHIPPED_ANVIL]: { name: 'Chipped Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'anvil.png' } },
   [BLOCKS.DAMAGED_ANVIL]: { name: 'Damaged Anvil', hardness: 5.0, sound: 'stone', interactable: true, textures: { all: 'anvil.png' } },
-  [BLOCKS.BEACON]: { name: 'Beacon', hardness: 3.0, sound: 'glass', light: 15, transparent: true, interactable: true, textures: { all: 'glass.png' } },
+  [BLOCKS.BEACON]: { name: 'Beacon', hardness: 3.0, sound: 'glass', light: 15, transparent: true, interactable: true, textures: { all: 'glass.png', inner: 'beacon.png' } },
   [BLOCKS.CONDUIT]: { name: 'Conduit', hardness: 3.0, sound: 'stone', light: 15, transparent: true, interactable: true, textures: { all: 'prismarine_bricks.png' } },
 
   // Mineral Storage Blocks

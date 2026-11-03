@@ -9,7 +9,8 @@
 // pixel short of a full block, the cauldron's hollow with its floor and four legs, the anvil's stepped base, waist
 // and face. Faces sample only the part of the texture their box covers, as a block model does.
 //
-// `content` names a box drawn with the block's `inner` texture (a cauldron's water, lava or powder snow).
+// `content` names a box drawn with the block's `inner` texture (a cauldron's water, lava or powder snow, a beacon's
+// core). A box with a seventh entry is drawn with that texture instead of the block's own.
 
 export const BLOCK_MODEL_SHAPES = {
   'Moss Carpet': { boxes: [[0,0,0,16,1,16]] },
@@ -28,6 +29,10 @@ export const BLOCK_MODEL_SHAPES = {
   Anvil: { boxes: anvil() },
   'Chipped Anvil': { boxes: anvil() },
   'Damaged Anvil': { boxes: anvil() },
+  // Vanilla's block/beacon model: an obsidian base [2,0.1,2]-[14,3,14], the beacon itself [3,3,3]-[13,14,13] (the
+  // `content` box, drawn with the block's `inner` texture), and a glass shell round both. A box may name its own texture.
+  // `cubeIcon`: a slot shows it as these boxes in 3D (blockIcons.js), as Minecraft shows a beacon.
+  Beacon: { boxes: [[2, 0.1, 2, 14, 3, 14, 'obsidian.png'], [0, 0, 0, 16, 16, 16]], content: [3, 3, 3, 13, 14, 13], cubeIcon: true },
   Grindstone: { boxes: [[4, 4, 2, 12, 16, 14], [2, 0, 6, 4, 13, 10], [12, 0, 6, 14, 13, 10]] },
   Bell: { boxes: [[5, 6, 5, 11, 13, 11], [4, 4, 4, 12, 6, 12], [2, 13, 7, 14, 15, 9], [0, 0, 6, 2, 16, 10], [14, 0, 6, 16, 16, 10]] },
   'Dragon Egg': {

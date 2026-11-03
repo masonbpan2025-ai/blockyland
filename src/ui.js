@@ -54,6 +54,7 @@ import { teardownWorld } from './worldTeardown.js';
 import { escapeHtml } from './multiplayer/shareProtocol.js';
 import { decorateTrimIcon } from './trimIcon.js';
 import { trimTooltipLine } from './trimVisuals.js';
+import { applyBlockIcon } from './blockIcons.js';
 import { calculateBeaconPyramid, applyBeaconBuffs, calculateConduitFrame, applyConduitPower } from './beaconConduit.js';
 import { showDifficultyDialog } from './dialogUtils.js';
 
@@ -806,6 +807,7 @@ export class UIManager {
           // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
           img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(meta.name); };
           decorateTrimIcon(img, item);
+          applyBlockIcon(img, meta);
           slot.appendChild(img);
 
           if (meta.count > 1) {
@@ -842,6 +844,7 @@ export class UIManager {
           img.src = resolveItemIcon(meta.icon, meta.name);
           // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
           img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(meta.name); };
+          applyBlockIcon(img, meta);
           offhandSlot.appendChild(img);
 
           if (meta.count > 1) {
@@ -1325,6 +1328,7 @@ export class UIManager {
       // Generated icon paths may not exist as an asset; fall back rather than showing a broken image.
       img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(item.name); };
       img.alt = item.name;
+      applyBlockIcon(img, item);
       slot.appendChild(img);
 
       if (item.count > 1) {
@@ -3543,6 +3547,8 @@ export class UIManager {
     img.onerror = () => { img.onerror = null; img.src = placeholderItemIcon(meta.name); };
     // A trimmed armour piece shows its trim on the icon, wherever the piece is drawn.
     decorateTrimIcon(img, item);
+    // A block shows as a little cube (blockIcons.js).
+    applyBlockIcon(img, meta);
     slotEl.appendChild(img);
 
     if (meta.count > 1) {
@@ -3597,6 +3603,7 @@ export class UIManager {
       icon.alt = meta.name || '';
       delete icon.dataset.trimKey;
       if (icon.src) decorateTrimIcon(icon, this.inv.cursorItem);
+      applyBlockIcon(icon, meta);
       if (!icon.src) {
         this.floatingItem.classList.add('hidden');
         return;
