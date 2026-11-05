@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyTournamentRules, keepToTrainingGrounds, trainingGroundAt } from './trainingGrounds.js';
 import { createBoxWithUV } from '../../mobs.js';
 
 // Bound to a manager instance only while this mod is loaded.
@@ -639,20 +640,8 @@ export const mobMethods = {
 
     if (this.game?.dungeonMode?.isActive) return true;
 
-    const x = mob.mesh.position.x;
-    const z = mob.mesh.position.z;
-    // Punching Yard: x [28, 72], z [-18, 18]
-    if (x >= 28 && x <= 72 && z >= -18 && z <= 18) return true;
-    // Kamehameha Range: x [-72, -28], z [-18, 18]
-    if (x >= -72 && x <= -28 && z >= -18 && z <= 18) return true;
-    // Genki Dama Crater: x [-18, 18], z [-72, -28]
-    if (x >= -18 && x <= 18 && z >= -72 && z <= -28) return true;
-    // South Parkour: x [-18, 18], z [28, 72]
-    if (x >= -18 && x <= 18 && z >= 28 && z <= 72) return true;
-    // Central Tournament Arena: x [-32, 32], z [-32, 32]
-    if (x >= -32 && x <= 32 && z >= -32 && z <= 32) return true;
-
-    return false;
+    // On one of the training grounds, or the central arena (trainingGrounds.js).
+    return trainingGroundAt(mob.mesh.position.x, mob.mesh.position.z) !== null;
   }
 };
 
@@ -903,6 +892,18 @@ export function registerMobs(api, game) {
   const manager = game?.mobs;
   if (!manager) return;
   api.extend(manager, { modSchedule: api.schedule.bind(api) });
+  // The tournament's house rules (trainingGrounds.js), around the game's own mob update and only in this world: mark
+  // the mobs before they move, keep the training mobs on their grounds after.
+  const updateMobs = manager.update;
+  api.extend(manager, {
+    update(dt, player) {
+      const tournament = game.tournament?.isTournamentMap;
+      if (tournament) applyTournamentRules(this.mobs);
+      const result = updateMobs.call(this, dt, player);
+      if (tournament) keepToTrainingGrounds(this.mobs);
+      return result;
+    },
+  });
   api.extend(manager, Object.fromEntries(Object.entries(mobMethods).map(([key, fn]) => [key, fn.bind(manager)])));
   const definitions = [
     ['tournament_host', 'spawnTournamentHost', 'createHostTexture', {width: 0.6, height: 1.95}],
