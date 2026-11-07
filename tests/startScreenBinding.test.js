@@ -24,6 +24,8 @@ const START_BUTTONS = [
   'btn-pick-inspector-item',
   'btn-pick-inspector-block',
   'btn-pick-inspector-mob',
+  'btn-pick-inspector-biome',
+  'btn-pick-inspector-weather',
 ];
 
 function bindStartScreenBody() {
@@ -330,6 +332,9 @@ test('clicking any other start screen button triggers its action handler', async
 
     await getOrCreateElement('btn-pick-inspector-mob').fire('click');
     assert.equal(actionsCalled.inspector_mob, true, 'mob inspector opened');
+
+    await getOrCreateElement('btn-pick-inspector-weather').fire('click');
+    assert.equal(actionsCalled.inspector_weather, true, 'weather inspector opened');
   } finally {
     globalThis.document = oldDoc;
   }

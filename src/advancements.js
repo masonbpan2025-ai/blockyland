@@ -83,6 +83,8 @@ export class AdvancementTracker {
     this.seenTamed = new WeakSet();
     active = this;
   }
+  /** Make this the tracker game events go to: a server with several players switches it to the player acting. */
+  activate() { active = this; }
   get earned() { const p = this.game.player; return p ? (p.advancements ??= new Set()) : new Set(); }
   has(id) { return this.earned.has(id); }
 

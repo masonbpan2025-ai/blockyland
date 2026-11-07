@@ -42,3 +42,14 @@ test('a new chunk queues only the lava that can change; lava at rest is recorded
   assert.equal(world.getVoxel(9, 6, 11), BLOCKS.OBSIDIAN);
   for (let x = 4; x <= 6; x++) for (let z = 4; z <= 6; z++) assert.equal(world.getVoxel(x, 3, z), BLOCKS.LAVA, 'the sealed pool is unchanged');
 });
+
+// Java's damage types, which pick the death message: lava "tried to swim in lava", standing in fire "went up in flames",
+// still burning afterwards "burned to death".
+test('lava and fire damage reach the player with their kind, for the death message', () => {
+  const w = world(), e = new EntityManager(new THREE.Scene(), w, {}), kinds = [];
+  const p = { position: new THREE.Vector3(5.5, 1, 5.5), takeDamage: (n, source, type) => kinds.push(type) };
+  w.setVoxel(5, 1, 5, BLOCKS.LAVA); e.updateHeat(.1, p);
+  w.setVoxel(5, 1, 5, BLOCKS.AIR); e.updateHeat(1, p);
+  w.setVoxel(5, 1, 5, BLOCKS.FIRE); e.updateHeat(1, p);
+  assert.deepEqual(kinds, ['lava', 'on_fire', 'in_fire']);
+});

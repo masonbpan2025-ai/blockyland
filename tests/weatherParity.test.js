@@ -97,3 +97,86 @@ test('lightning deals five damage, ignites actors, charges creepers and converts
 test('natural skeleton traps and fire respect difficulty/fire rule; manual bolts do not spawn traps',()=>{const f=actors();f.game.gamerules.doFireTick=true;applyLightningStrike(f.game,new THREE.Vector3(0,1,0),()=>0,{natural:true});assert.ok(f.manager.mobs.some(m=>m.type==='skeleton_horse'&&m.isTrap));assert.equal(f.world.getVoxel(0,1,0),BLOCKS.AIR);f.manager.mobs=[];applyLightningStrike(f.game,new THREE.Vector3(0,1,0),()=>0);assert.equal(f.manager.mobs.length,0);assert.equal(f.world.getVoxel(0,1,0),BLOCKS.FIRE);f.world.setVoxel(0,1,0,BLOCKS.AIR);f.game.gamerules.doFireTick=false;applyLightningStrike(f.game,new THREE.Vector3(0,1,0),()=>.5);assert.equal(f.world.getVoxel(0,1,0),BLOCKS.AIR);f.weather.dispose();});
 test('/weather accepts a duration and rejects invalid requests without mutating state',()=>{const f=fixture();f.game.settings={gameMode:'creative',cheats:true};f.game.ui={addChatMessage(){}};const ctx=buildCommandContext(f.game);runCommand(ctx,'/weather thunder 90s');assert.equal(f.weather.weatherType,'thunder');assert.equal(f.weather.clock.rainTicks,1800);runCommand(ctx,'/weather snow');runCommand(ctx,'/weather clear -5');assert.equal(f.weather.weatherType,'thunder');f.weather.dispose();});
 
+
+// --- Lightning, checked against the wiki (Thunderstorm, "Lightning") and Java's ServerLevel ---
+
+/** A player stand-in that records the damage it takes. */
+function victim(x, y, z, gamemode = 'survival') {
+  return { position: new THREE.Vector3(x, y, z), gamemode, health: 20, isDead: false, hits: [],
+    takeDamage(amount, source, type) { this.hits.push({ amount, type }); this.health -= amount; } };
+}
+
+test('a strike hits entities in the 6x12x6 region: from 3 below the target block to 9 above it, 3 to each side', () => {
+  // Wiki: "all entities within a 6x12x6 region horizontally centered on the northwest corner of the target block with
+  // the bottom edge 3 below the target block are struck".
+  const f = actors(), at = new THREE.Vector3(0, 10, 0);
+  const above = victim(0, 18.5, 0), tooHigh = victim(0, 19.5, 0), below = victim(0, 7.5, 0), tooLow = victim(0, 6.5, 0), aside = victim(3.5, 10, 0);
+  f.game.players = [above, tooHigh, below, tooLow, aside];
+  applyLightningStrike(f.game, at);
+  assert.deepEqual([above, tooHigh, below, tooLow, aside].map(v => v.hits.length), [1, 0, 1, 0, 0]);
+  f.weather.dispose();
+});
+
+test('every player in the region is struck for 5, as lightning (on a server, not only the first player)', () => {
+  // Wiki: "Most entities struck by lightning are dealt 5 damage ... and are set on fire"; the death message is
+  // "<player> was struck by lightning", so the damage is of its own kind.
+  const f = actors(), a = victim(0, 1, 0), b = victim(1, 1, 1), creative = victim(-1, 1, 0, 'creative');
+  f.game.players = [a, b, creative];
+  applyLightningStrike(f.game, new THREE.Vector3(0, 1, 0));
+  assert.deepEqual(a.hits, [{ amount: 5, type: 'lightning_bolt' }]);
+  assert.deepEqual(b.hits, [{ amount: 5, type: 'lightning_bolt' }]);
+  assert.ok(a.isOnFire && b.isOnFire);
+  assert.equal(creative.hits.length, 0, 'creative players are not hurt');
+  f.weather.dispose();
+});
+
+/** Where the next natural bolt lands: the fixture's random (0.5) picks chunk (0,0) and the column (8, 8). */
+function nextNaturalStrike(f) {
+  let landed = null;
+  f.weather.triggerLightning = (ambient, sun, strike) => { landed = strike.clone(); return true; };
+  f.weather.setWeather('thunder');
+  f.weather.naturalLightning();
+  return landed;
+}
+
+test('natural lightning strikes a living entity that can see the sky within 3 blocks of its column', () => {
+  // Java, ServerLevel.findLightningTargetAround: entities in the column's box inflated by 3 that canSeeSky.
+  const f = actors(), zombie = f.manager.spawnMob('zombie', 10.5, 1, 9.5);
+  const at = nextNaturalStrike(f);
+  assert.deepEqual(at.toArray(), [10.5, 1, 9.5]);
+  f.weather.dispose();
+});
+
+test('natural lightning passes over an entity under a roof, and one more than 3 blocks away', () => {
+  const f = actors();
+  f.manager.spawnMob('zombie', 10.5, 1, 9.5); f.world.setVoxel(10, 4, 9, BLOCKS.STONE); // roofed
+  f.manager.spawnMob('cow', 12.5, 1, 8.5); // 4 blocks from the column
+  const at = nextNaturalStrike(f);
+  assert.deepEqual([at.x, at.z], [8.5, 8.5], 'the bolt lands on the column itself');
+  f.weather.dispose();
+});
+
+test('a lightning rod in range takes the bolt before any entity in the open', () => {
+  // Java checks for a rod first (findLightningRod), then for entities.
+  const f = actors();
+  f.world.redstone = new Redstone(f.world); f.world.setVoxel(20, 3, 20, BLOCKS.LIGHTNING_ROD); f.world.redstone.notify(20, 3, 20);
+  f.manager.spawnMob('zombie', 9.5, 1, 8.5);
+  const at = nextNaturalStrike(f);
+  assert.deepEqual(at.toArray(), [20.5, 4, 20.5]);
+  f.weather.dispose();
+});
+
+test('tickGameplay runs the weather with nothing drawn: the clock turns and a storm throws lightning', () => {
+  const f = fixture(); f.game.gamerules.doWeatherCycle = true;
+  let bolts = 0; f.weather.triggerLightning = () => { bolts++; return true; };
+  f.weather.setWeather('thunder', 600);
+  // With 25 loaded chunks the mean wait is 100000 / (25 x 20) = 200 s; the fixture's random 0.5 makes it 200 ln 2.
+  f.weather.tickGameplay(150);
+  assert.equal(bolts, 1);
+  const before = f.weather.clock.rainTicks;
+  f.weather.tickGameplay(10, { advanceClock: false });
+  assert.equal(f.weather.clock.rainTicks, before, 'a world that shares another’s clock does not turn it');
+  f.weather.tickGameplay(10);
+  assert.equal(f.weather.clock.rainTicks, before - 200, '20 ticks a second');
+  f.weather.dispose();
+});

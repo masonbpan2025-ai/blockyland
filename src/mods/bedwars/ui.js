@@ -82,6 +82,7 @@ export function createBedWarsUi(manager) {
   };
   const modeButtons = row('Mode', MODE_IDS, (id) => `${MODES[id].name}`, (id) => manager.chooseMode(id));
   const paceButtons = row('Pace', ['normal', 'fast'], (id) => (id === 'normal' ? 'Normal (Hypixel times)' : 'Fast (half)'), (id) => manager.choosePace(id));
+  const diffButtons = row('Difficulty', ['easy', 'normal', 'hard'], (id) => id[0].toUpperCase() + id.slice(1), (id) => manager.chooseDifficulty?.(id));
   const themeButtons = row('Map', THEME_IDS, (id) => THEMES[id].name, (id) => manager.chooseTheme(id));
   const teamsLabel = el('div', 'bw-label', 'Teams');
   const teams = el('div', 'bw-teams');
@@ -236,6 +237,8 @@ export function createBedWarsUi(manager) {
       for (const n of [codeLabel, code, hostBlock, startRow]) n.classList.toggle('bw-hidden', !isHost);
       for (const b of modeButtons) b.setAttribute('aria-pressed', String(state?.mode === b.dataset.id));
       for (const b of paceButtons) b.setAttribute('aria-pressed', String(state?.pace === b.dataset.id));
+      const activeDiff = state?.difficulty ?? 'normal';
+      for (const b of diffButtons) b.setAttribute('aria-pressed', String(activeDiff === b.dataset.id));
       for (const b of themeButtons) b.setAttribute('aria-pressed', String(state?.map?.theme === b.dataset.id));
       const size = MODES[state?.mode]?.size ?? 1;
       teams.replaceChildren(...(state?.teams ?? []).map((t) => {

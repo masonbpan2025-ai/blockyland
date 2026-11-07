@@ -13163,7 +13163,7 @@ export class MobManager {
             ? (DROWNED_TRIDENT_MELEE.damage[this.game?.difficulty] ?? DROWNED_TRIDENT_MELEE.damage.normal)
             : meleeDamage('drowned', this.game?.difficulty, 5);
           if (typeof player.takeDamage === 'function') {
-            player.takeDamage(dmg, 'Drowned');
+            player.takeDamage(dmg, mob.mesh.position, 'mob', mob); // the drowned's position, for the knockback (was its name)
           } else if (player.health !== undefined) {
             player.health = Math.max(0, player.health - dmg);
           }
@@ -13906,8 +13906,14 @@ export class MobManager {
           mob.yaw = targetYaw;
         }
 
-        // Melee attack
-        if (dist < ENDERMAN_ATTACK_REACH && mob.attackCooldown <= 0) {
+        // Melee attack. `dist` above is horizontal (it steers the chase), so the reach also needs the height and a
+        // clear line: Java's melee reach is the attacker's box grown sideways, which must touch the target's box, so an
+        // enderman (2.9 tall) reaches a player from 1.8 below its feet to 2.9 above them, and never through blocks.
+        // Without this, an enderman in a cave struck a player standing on the surface ten blocks above it
+        // (replication run sonnet30b: Aria, killed twice through the ground).
+        const rise = player.position.y - mob.mesh.position.y;
+        if (dist < ENDERMAN_ATTACK_REACH && rise > -1.8 && rise < 2.9 && mob.attackCooldown <= 0
+          && meleeCanReach(this.world, mob, player, { vertical: 2.9, eyeHeight: 2.55 })) {
           player.takeDamage(meleeDamage('enderman', this.game?.difficulty, ENDERMAN_ATTACK_DAMAGE), mob.mesh.position, mob.type);
           if (this.sounds?.playZombie) this.sounds.playZombie();
           mob.attackCooldown = ENDERMAN_ATTACK_COOLDOWN;

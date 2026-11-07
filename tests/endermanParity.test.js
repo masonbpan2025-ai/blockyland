@@ -149,3 +149,67 @@ test('other enderman teleport and pursuit behaviour still works', () => {
   assert.ok(enderman.velocity.x > 0, 'a provoked enderman pursues the player');
   assert.equal(enderman.state, 'provoked');
 });
+
+// --- Melee reach in three dimensions ---
+// Java (Mob.isWithinMeleeAttackRange): the attacker's box grown sideways must touch the target's box, so height counts,
+// and a hit never passes through blocks. The enderman used horizontal distance alone: in the replication run sonnet30b
+// one in a cave struck a player standing on the surface ten blocks above it, twice.
+
+/** A provoked enderman and a player who records hits, in a world of stone at the given cells (plus the floor). */
+function reachFixture(stone = []) {
+  const { manager, player } = fixture();
+  const solid = new Set(stone.map(([x, y, z]) => `${x},${y},${z}`));
+  manager.world.getVoxel = (x, y, z) => (y < 1 || solid.has(`${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`) ? BLOCKS.STONE : BLOCKS.AIR);
+  manager.isBlockSolid = (x, y, z) => manager.world.getVoxel(x, y, z) === BLOCKS.STONE;
+  const hits = [];
+  player.takeDamage = (amount) => hits.push(amount);
+  return { manager, player, hits };
+}
+function fight(manager, player, enderman, seconds = 3) {
+  for (let t = 0; t < seconds; t += .1) {
+    enderman.teleportCooldown = 99; // stays where the test put it
+    manager.update(.1, player);
+  }
+}
+
+test('a provoked enderman next to the player on the same floor hits them (positive control)', () => {
+  const { manager, player, hits } = reachFixture();
+  player.position.set(50.5, 1, 50.5);
+  const enderman = manager.spawnEnderman(51.5, 1, 50.5);
+  provoke(enderman, 'damage');
+  fight(manager, player, enderman);
+  assert.ok(hits.length >= 1, `it lands its blows (${hits.length})`);
+});
+
+test('an enderman in a cave cannot hit a player standing on the ground ten blocks above it', () => {
+  // A cave three blocks high (an enderman is 2.9 tall: a lower one would push it up through the roof), under solid
+  // stone from y 4 to y 10; the player stands on top at y 11, ten blocks above the enderman's feet.
+  const rock = []; for (let y = 4; y <= 10; y++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) rock.push([50 + dx, y, 50 + dz]);
+  const { manager, player, hits } = reachFixture(rock);
+  player.position.set(50.5, 11, 50.5);
+  const enderman = manager.spawnEnderman(50.9, 1, 50.6);
+  provoke(enderman, 'damage');
+  fight(manager, player, enderman);
+  assert.equal(hits.length, 0, 'no hit through ten blocks of rock');
+});
+
+test('an enderman cannot hit through a wall, even within reach', () => {
+  // One stone pillar, two blocks high, between them.
+  const { manager, player, hits } = reachFixture([[51, 1, 50], [51, 2, 50], [51, 3, 50]]);
+  player.position.set(50.5, 1, 50.5);
+  const enderman = manager.spawnEnderman(52.2, 1, 50.5);
+  provoke(enderman, 'damage');
+  // Holds it in place behind the wall (it would otherwise walk around), as if it had not found the way.
+  for (let t = 0; t < 3; t += .1) { enderman.teleportCooldown = 99; enderman.mesh.position.set(52.2, 1, 50.5); manager.update(.1, player); }
+  assert.equal(hits.length, 0, 'no hit through the pillar');
+});
+
+test('a tall enderman still reaches a player standing one block up beside it', () => {
+  // 2.9 blocks tall, its reach box covers a player whose feet are a block above its own.
+  const { manager, player, hits } = reachFixture([[50, 1, 50]]);
+  player.position.set(50.5, 2, 50.5); // standing on the stone block
+  const enderman = manager.spawnEnderman(51.6, 1, 50.5);
+  provoke(enderman, 'damage');
+  for (let t = 0; t < 3; t += .1) { enderman.teleportCooldown = 99; enderman.mesh.position.set(51.6, 1, 50.5); manager.update(.1, player); }
+  assert.ok(hits.length >= 1, `it reaches up one block (${hits.length})`);
+});

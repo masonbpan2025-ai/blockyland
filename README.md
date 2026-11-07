@@ -290,6 +290,7 @@ tests/, e2e/, scripts/         unit and browser tests, tooling
 ## Known limits
 
 - **Gameplay gaps:** some systems are simpler than Minecraft's. Structures can't yet span chunk borders, and there's no waterlogging, no bubble columns and no full lava flow. The parity report lists the open gaps.
+- **World height:** the world is 64 blocks tall (y 0 to 63; Minecraft Java's is 384, y -64 to 319), with the terrain, ores, caves and structures scaled to fit. Sea level is about y 22, diamonds are below y 14, strongholds' portal rooms are at about y 8-15, the Nether is 64 tall with its lava sea at y 14, and the End island's top is near y 32 with its pillars at y 41-61. Horizontal distances are Minecraft's. So vertical travel is shorter (a dig to diamonds or a stronghold takes a fraction of Minecraft's), the End pillars are about a quarter shorter, and y-levels from Minecraft guides don't apply. [`replication/agent/docs/api.md`](replication/agent/docs/api.md) has the full table, and the replication of arXiv:2610.22319 (`replication/`) reports world height as a known difference.
 - **Shared worlds:** mobs, redstone, fluids and the clock run separately on each player's computer, and there's no kick or ban yet.
 - **No real Minecraft servers:** Blockyland doesn't connect to Minecraft Java servers. Worlds are shared between browsers instead.
 - **Mods are trusted code** that is part of the build.

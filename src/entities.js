@@ -298,7 +298,7 @@ export class EntityManager {
 
   updateHeat(dt,player) {
     if(!player?.position)return;
-    applyHeat(this.world,player,player.position,dt,n=>player.takeDamage?.(n));
+    applyHeat(this.world,player,player.position,dt,(n,type)=>player.takeDamage?.(n,null,type));
   }
 
   spawnSmoke(pos, size = 0.5, life = 1.8) {

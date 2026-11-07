@@ -16,7 +16,7 @@ test('the page exists, is a build input, and is opened from the Inspector picker
   assert.match(html, /<a class="back" href="\/">/, 'a way back to the game');
   const vite = read('vite.config.js');
   assert.match(vite, /biomeInspector: path\.resolve\('biome-inspector\.html'\)/);
-  assert.match(vite, /'structure-inspector\.html', 'biome-inspector\.html'\]/);
+  assert.match(vite, /'structure-inspector\.html', 'biome-inspector\.html'[,\]]/);
   assert.match(read('index.html'), /id="btn-pick-inspector-biome">Biome</);
   const main = read('src/main.js');
   assert.match(main, /const btnPickInspectorBiome = document\.getElementById\('btn-pick-inspector-biome'\);\s*if \(btnPickInspectorBiome\) \{\s*btnPickInspectorBiome\.addEventListener\('click', \(e\) => \{ e\.stopPropagation\(\); this\.openInspector\('biome'\); \}\);/);

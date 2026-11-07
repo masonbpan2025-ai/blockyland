@@ -18,7 +18,9 @@ export function redirectLightning(world,strike){
 
 export function applyLightningStrike(game,strike,random=Math.random,{natural=false}={}){
   const manager=game?.mobs,world=game?.world;if(!world)return;
-  const near=p=>p&&Math.abs(p.x-strike.x)<=3&&Math.abs(p.z-strike.z)<=3&&p.y>=strike.y-3&&p.y<=strike.y+6;
+  // The wiki (Thunderstorm, Lightning): "all entities within a 6x12x6 region horizontally centered on the northwest
+  // corner of the target block with the bottom edge 3 below the target block are struck" -- 3 down to 9 up.
+  const near=p=>p&&Math.abs(p.x-strike.x)<=3&&Math.abs(p.z-strike.z)<=3&&p.y>=strike.y-3&&p.y<=strike.y+9;
   if(manager){
     const converted=new Set(manager.spawnZombifiedPiglin?convertLightningPigs(manager,strike):[]);
     convertLightningMooshrooms(manager,strike);
@@ -37,7 +39,10 @@ export function applyLightningStrike(game,strike,random=Math.random,{natural=fal
       igniteActor(mob,8);manager.damageMob?.(mob,5,strike,false,null,true);
     }
   }
-  if(near(game.player?.position)&&!['creative','spectator'].includes(game.player.gamemode)){igniteActor(game.player,8);game.player.takeDamage?.(5);}
+  // Every player in the region: the one player of a single-player game, or all of them on a server (game.players).
+  for(const player of game.players??(game.player?[game.player]:[])){
+    if(near(player?.position)&&!player.isDead&&!['creative','spectator'].includes(player.gamemode)){igniteActor(player,8);player.takeDamage?.(5,strike,'lightning_bolt');}
+  }
   // A naturally-created skeleton trap horse is not struck/burnt by its own bolt.
   const ranges={easy:[.0375,.075],normal:[.075,.2],hard:[.1125,.3375]};
   const [lo,hi]=ranges[game.difficulty]??ranges.normal;

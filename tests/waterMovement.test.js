@@ -122,3 +122,25 @@ test('malformed armour does not break the speed calculation', () => {
       'armour ' + JSON.stringify(armor) + ' should behave like no depth strider');
   }
 });
+
+// Climbing out of water. Java (LivingEntity.travel, in water): "if horizontalCollision and isFree(dx, dy + 0.6 - y + y0,
+// dz) then deltaMovement.y = 0.3" -- 0.3 blocks a tick, 6 a second, enough to step onto a bank one block above the
+// water. Without it a swimmer at a pond's edge could only bob against the bank.
+import * as THREE from 'three';
+import { BLOCKS } from '../src/blocks.js';
+function swimmerAgainst(bankHeight) {
+  // Water at x = 0 (y 0); a stone bank at x = 1, `bankHeight` blocks tall from y 0.
+  const world = { getVoxel: (x, y, z) => (z !== 0 ? BLOCKS.STONE : x === 0 && y === 0 ? BLOCKS.WATER : x === 1 && y >= 0 && y < bankHeight ? BLOCKS.STONE : y < 0 ? BLOCKS.STONE : BLOCKS.AIR) };
+  const p = mover({ inWater: true });
+  Object.assign(p, { world, width: 0.6, height: 1.8, gamemode: 'survival', onGround: false, isSneaking: false });
+  p.position = new THREE.Vector3(0.65, 0.55, 0.5);
+  p.velocity = new THREE.Vector3(2.2, 0, 0);
+  try { p.moveWithCollision(0.05); } catch { /* the vertical sweep may want more of a game; the lift is set before it */ }
+  return p.velocity.y;
+}
+test('a swimmer pushing against a one-block bank is lifted out of the water (Java: 0.3 blocks a tick)', () => {
+  assert.equal(swimmerAgainst(1), 6);
+});
+test('a swimmer against a wall two blocks high is not lifted', () => {
+  assert.notEqual(swimmerAgainst(2), 6);
+});

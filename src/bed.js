@@ -671,5 +671,5 @@ export class BedManager {
 /** Reset the player's "time since rest" (the phantom insomnia timers): on lying down in a bed, and on death. */
 export function resetInsomnia(game) {
   game?.mobs?.hostileBehaviors?.resetSleep?.();
-  game?.spawnManager?.specialSpawners?.phantom?.reset?.();
+  game?.spawnManager?.specialSpawners?.phantom?.reset?.(game?.player);
 }

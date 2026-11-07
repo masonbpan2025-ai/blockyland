@@ -894,6 +894,8 @@ export class Player {
     }
     const oldPos = this.position.clone();
     const newPos = this.position.clone();
+    // The move asked for, before a wall stops it: a swimmer pushing against a bank climbs out (below).
+    const wantDx = this.velocity.x * dt, wantDz = this.velocity.z * dt;
 
     // 1. Move X
     newPos.x += this.velocity.x * dt;
@@ -927,6 +929,15 @@ export class Player {
         newPos.z = oldPos.z;
         this.velocity.z = 0;
       }
+    }
+
+    // Climbing out of water (Java, LivingEntity.travel): in water, when a wall stops the move and the space 0.6 block
+    // higher is free, the swimmer is lifted at 0.3 blocks a tick (6 a second), which carries it up onto a one-block
+    // bank. Without it a player in a pond could not leave it where the bank stood a block above the water.
+    if (this.inWater && !this.isFlying && (newPos.x === oldPos.x && wantDx !== 0 || newPos.z === oldPos.z && wantDz !== 0)) {
+      const probe = oldPos.clone();
+      probe.x += wantDx; probe.z += wantDz; probe.y += 0.6;
+      if (!this.checkCollision(probe)) this.velocity.y = Math.max(this.velocity.y, 6.0);
     }
 
     // 3. Move Y, swept in steps under half a block. At falling speed one frame moved more than a block, so a long
@@ -1316,7 +1327,7 @@ export class Player {
       freshHit = false;
     } else if (damageType === 'player') this.lastHurtAmount = amount;
 
-    if (this.hasStatusEffect('fire_resistance') && ['fire', 'lava', 'burn'].includes(damageType)) return;
+    if (this.hasStatusEffect('fire_resistance') && ['fire', 'lava', 'burn', 'in_fire', 'on_fire'].includes(damageType)) return;
 
     // Shield blocking check: 100% deflection within frontal 180° cone (unless disabled by axe)
     const hasShield = (this.inventory?.getOffhandItem()?.id === 'shield') ||
@@ -1610,7 +1621,7 @@ export class Player {
     resetSurvivalState(this);
     // Death resets "time since rest" too (Phantom), so a respawned player is not hunted by phantoms at once.
     this.game?.mobs?.hostileBehaviors?.resetSleep?.();
-    this.game?.spawnManager?.specialSpawners?.phantom?.reset?.();
+    this.game?.spawnManager?.specialSpawners?.phantom?.reset?.(this);
     this.deathDropsDone = false;
     this.isDungeonMode = false;
     if (this.velocity) this.velocity.set(0, 0, 0);

@@ -237,7 +237,8 @@ test('hitting one angers it through the damage path', () => {
 
 test('the attack reach is the constant the branch uses', () => {
   const source = readFileSync(new URL('../src/mobs.js', import.meta.url), 'utf8');
-  assert.match(source, /dist < ENDERMAN_ATTACK_REACH && mob\.attackCooldown <= 0/);
+  // (the height and line-of-reach checks follow it: tests/endermanParity.test.js "Melee reach in three dimensions")
+  assert.match(source, /dist < ENDERMAN_ATTACK_REACH && /);
   assert.equal(/dist < 1\.8 && mob\.attackCooldown/.test(source), false, 'the bare 1.8 is gone');
   assert.equal(ENDERMAN_ATTACK_REACH, 1.8, 'and the constant keeps the old value');
 });

@@ -10,12 +10,14 @@
   "exports": {
     ".": "./server.mjs",
     "./protocol": "./protocol.js",
+    "./guestPeer": "./guestPeer.js",
     "./package.json": "./package.json"
   },
   "files": [
     "bin/",
     "server.mjs",
     "protocol.js",
+    "guestPeer.js",
     "README.md",
     "LICENSE"
   ],

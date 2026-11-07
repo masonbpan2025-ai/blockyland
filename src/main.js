@@ -202,7 +202,7 @@ const SUMMONABLE_MOBS = {
   enderman: ['spawnEnderman', 2, 'Enderman Challenger Boss'],
 };
 
-class Game {
+export class Game {
   constructor() {
     this.container = document.getElementById('canvas-container');
     this.underwaterOverlay = document.getElementById('underwater-overlay');
@@ -1929,6 +1929,10 @@ class Game {
     if (btnPickInspectorBiome) {
       btnPickInspectorBiome.addEventListener('click', (e) => { e.stopPropagation(); this.openInspector('biome'); });
     }
+    const btnPickInspectorWeather = document.getElementById('btn-pick-inspector-weather');
+    if (btnPickInspectorWeather) {
+      btnPickInspectorWeather.addEventListener('click', (e) => { e.stopPropagation(); this.openInspector('weather'); });
+    }
   }
 
   // ------------------------------------------------------------------------------------------------
@@ -2387,6 +2391,18 @@ class Game {
     return url;
   }
 
+  /**
+   * Open the Weather Inspector: a biome's terrain under the game's own weather (clear, rain or snow, storms,
+   * lightning, the weather cycle at speed), and a showcase that tests every weather rule against the wiki. The biome
+   * last chosen on the new-world screen is carried over.
+   */
+  openWeatherInspector() {
+    const biome = this.ui?.worldBiomeSelect?.value;
+    const url = biome && biome !== 'all' ? `/weather-inspector.html?biome=${encodeURIComponent(biome)}` : '/weather-inspector.html';
+    if (typeof window !== 'undefined') window.location.href = url;
+    return url;
+  }
+
   openMobInspector() {
     // Carry the mob the player was last examining, when one is known.
     const mob = this.mobInspectorTarget || '';
@@ -2431,6 +2447,7 @@ class Game {
     if (kind === 'structure') return this.openStructureInspector();
     if (kind === 'mob') return this.openMobInspector();
     if (kind === 'biome') return this.openBiomeInspector();
+    if (kind === 'weather') return this.openWeatherInspector();
     if (kind === 'item' || kind === 'block') return this.openResourceInspector({ kind });
     return null;
   }
@@ -3596,7 +3613,9 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
       return;
     }
 
-    // Spawn Eggs
+    // Spawn Eggs. `it` was read here without being defined in this method (a refactor had dropped it), so every right
+    // click with an item that reached this point -- a bed, a spawn egg -- threw a ReferenceError and did nothing.
+    const it = ITEMS[activeItem?.id];
       if ((it && it.type === 'spawn_egg') || activeItem.isSpawnEgg || activeItem.customMobId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('spawn_egg_'))) {
         const customMobId = activeItem.customMobId || (typeof activeItem.id === 'string' && activeItem.id.startsWith('spawn_egg_') ? activeItem.id.replace('spawn_egg_', '') : null);
         const customDef = activeItem.mobDef || (customMobId ? MobLibrary.getMob(customMobId) : null);
@@ -3753,7 +3772,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
         placeZ + 1 > pMinZ && placeZ < pMaxZ
       );
 
-      if (!collidesWithPlayer) {
+      if (!collidesWithPlayer && !this.placementBlockedByOthers(placeX, placeY, placeZ, BLOCKS.CHEST)) {
         const facing = this.chestManager ? this.chestManager.getFacingFromCamera(this.camera) : 0;
         if (this.chestManager) {
           this.chestManager.placeChest(this.world, [placeX, placeY, placeZ], facing);
@@ -3776,6 +3795,29 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     }
 
     this.placeBlockOnFace(activeItem);
+  }
+
+  /**
+   * Whether a block at (x, y, z) would overlap another player or a living mob. Minecraft (Level.isUnobstructed) refuses
+   * a block with a collision shape wherever it would intersect a living entity's box; plants, torches and other blocks
+   * you walk through may go anywhere. The placer's own box is checked by the caller. On a server one player pillared up
+   * by placing dirt under their feet, which was inside the head of the player below, and suffocated them (replication
+   * run sonnet30: Basil).
+   */
+  placementBlockedByOthers(x, y, z, blockId) {
+    const def = BLOCK_DEFS[blockId];
+    if (def && (def.solid === false || def.plant)) return false;
+    const overlaps = (p, width, height) => x + 1 > p.x - width / 2 && x < p.x + width / 2 && y + 1 > p.y && y < p.y + height && z + 1 > p.z - width / 2 && z < p.z + width / 2;
+    for (const other of this.players ?? []) {
+      if (!other?.position || other === this.player || other.isDead || other.gamemode === 'spectator') continue;
+      if (overlaps(other.position, other.width ?? 0.6, other.height ?? 1.8)) return true;
+    }
+    for (const mob of this.mobs?.mobs ?? []) {
+      if (!mob?.mesh || mob.health <= 0 || mob.dying) continue;
+      const dims = this.mobs.getMobDimensions?.(mob.type) ?? { width: 0.9, height: 1.4 }, scale = mob.isBaby ? 0.5 : 1;
+      if (overlaps(mob.mesh.position, (dims.width || 0.9) * scale, (dims.height || 1.4) * scale)) return true;
+    }
+    return false;
   }
 
   /** Place the held block against the targeted face. Returns whether a block was placed. */
@@ -3804,6 +3846,8 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
         placeZ + 1 > pMinZ && placeZ < pMaxZ
       );
 
+      // Nor where it would overlap another player or a mob.
+      if (!collidesWithPlayer && this.placementBlockedByOthers(placeX, placeY, placeZ, blockIdForPlacement(activeItem))) { this.lastRefusal = 'a player or mob is in the way'; return; }
       // The world's own game may forbid it: Bed Wars keeps its generators and spawns clear.
       if (!collidesWithPlayer && this.modRuntime?.canPlaceBlock?.(placeX, placeY, placeZ, activeItem) === false) return;
       if (!collidesWithPlayer) {
@@ -5447,8 +5491,10 @@ function showStartupFailure(err) {
   overlay?.querySelectorAll('button').forEach((b) => { b.disabled = true; });
 }
 
-// Start Game
+// Start Game. A page that builds its own world from Game's parts (the headless server, replication/server/) sets
+// BLOCKYLAND_NO_AUTOSTART before this module loads.
 window.addEventListener('DOMContentLoaded', () => {
+  if (globalThis.BLOCKYLAND_NO_AUTOSTART) return;
   let game;
   try {
     game = new Game();

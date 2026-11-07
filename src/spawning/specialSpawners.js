@@ -276,19 +276,29 @@ export class PhantomMechanism {
   constructor({ mobSpawnManager } = {}) {
     this.manager = mobSpawnManager;
     this.name = 'phantom';
-    this.insomniaTicks = 0;
+    // Each player's time since rest (Java's TIME_SINCE_REST statistic), by the player entity; a player entry without
+    // one (a test) counts under 'player'.
+    this.sinceRest = new Map();
     this.timer = 0;
     this.enabled = true;
     this.stats = { spawns: 0, packs: 0 };
   }
 
-  reset() { this.insomniaTicks = 0; }
+  /** The longest time since rest (one player's, for callers and tests that know one player). */
+  get insomniaTicks() { return Math.max(0, ...this.sinceRest.values()); }
+  set insomniaTicks(v) { this.sinceRest.clear(); this.sinceRest.set('player', v); }
+
+  /** A player slept or died: their time since rest starts again. No player given: everyone's. */
+  reset(entity) { if (entity === undefined || entity === null) this.sinceRest.clear(); else this.sinceRest.set(entity, 0); }
 
   tick(players) {
     if (!this.enabled || players.length === 0) return;
-    if (this.manager.peacefulMode) { this.insomniaTicks = 0; return; }
-    this.insomniaTicks++;
-    if (this.insomniaTicks < 72000) return;
+    if (this.manager.peacefulMode) { this.sinceRest.clear(); return; }
+    const key = (p) => p.entity ?? 'player';
+    // a single player entry takes over a count kept under 'player' (set before the player had an entity)
+    if (players.length === 1 && !this.sinceRest.has(key(players[0])) && this.sinceRest.has('player')) { this.sinceRest.set(key(players[0]), this.sinceRest.get('player')); this.sinceRest.delete('player'); }
+    for (const p of players) this.sinceRest.set(key(p), (this.sinceRest.get(key(p)) ?? 0) + 1);
+    if (!players.some(p => this.sinceRest.get(key(p)) >= 72000)) return;
     // Java's PhantomSpawner, attempted every 60-119 s.
     this.timer++;
     this.nextAttempt ??= 1200;
@@ -301,14 +311,21 @@ export class PhantomMechanism {
     const world = this.manager.world;
     if (world?.dimension === 'nether' || world?.dimension === 'the_end') return;
     if ((this.manager.skyDarken ?? 0) < 5) return;
-    const player = players[0];
+    // Each player who has gone 3 days without rest is tried in turn (Java's PhantomSpawner loops over the players).
+    for (const player of players) {
+      const since = this.sinceRest.get(key(player)) ?? 0;
+      if (since >= 72000) this.trySpawnNear(player, since, random, world);
+    }
+  }
+
+  trySpawnNear(player, since, random, world) {
     // The player must be at or above sea level with open sky overhead (Phantom: "as long as there are no blocks to
     // stop skylight access") -- a roof or a cave keeps them away.
     const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
     if (py < (world?.seaLevel ?? 0)) return;
     if (world?.getSkyLight && world.getSkyLight(px, py + 1, pz) < 15) return;
     // (x - 72000) / x, which at 72000 is 0 and rises toward 1 -- Java's `nextInt(timeSinceRest) >= 72000`.
-    const chance = (this.insomniaTicks - 72000) / this.insomniaTicks;
+    const chance = (since - 72000) / since;
     if (random.nextDouble() > chance) return;
     const existing = this.manager.mobs.filter(m => m.type === 'phantom' && m.health > 0).length;
     if (existing >= 5) return;

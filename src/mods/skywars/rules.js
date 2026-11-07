@@ -15,6 +15,7 @@ import { ARENA, DEFAULT_MAP, normalizeMap } from './arena.js';
 import { MODES } from './loot.js';
 
 export const PHASES = Object.freeze(['lobby', 'countdown', 'playing', 'ended']);
+export const DIFFICULTIES = Object.freeze(['easy', 'normal', 'hard']);
 export const COUNTDOWN_SECONDS = 3;
 /** When the chests refill, in seconds of play; the second refill adds ender pearls. */
 export const REFILL_TIMES = Object.freeze([180, 360]);
@@ -36,8 +37,9 @@ export function deathMessage(victim, killer, cause) {
 }
 
 export class SkyWarsMatch {
-  constructor({ mode = 'normal', seed = 2015, map = null, random = Math.random } = {}) {
+  constructor({ mode = 'normal', difficulty = 'normal', seed = 2015, map = null, random = Math.random } = {}) {
     this.mode = MODES.includes(mode) ? mode : 'normal';
+    this.difficulty = DIFFICULTIES.includes(difficulty) ? difficulty : 'normal';
     this.seed = seed >>> 0;
     this.random = random;
     this.map = normalizeMap(map ?? { ...DEFAULT_MAP, seed: this.newSeed() });
@@ -89,6 +91,12 @@ export class SkyWarsMatch {
   setMode(by, mode) {
     if (by !== HOST_ID || this.phase !== 'lobby' || !MODES.includes(mode)) return false;
     this.mode = mode;
+    return true;
+  }
+
+  setDifficulty(by, difficulty) {
+    if (by !== HOST_ID || this.phase !== 'lobby' || !DIFFICULTIES.includes(difficulty)) return false;
+    this.difficulty = difficulty;
     return true;
   }
 
@@ -224,6 +232,7 @@ export class SkyWarsMatch {
       phase: this.phase,
       round: this.round,
       mode: this.mode,
+      difficulty: this.difficulty,
       seed: this.seed,
       map: { ...this.map },
       countdown: Math.ceil(this.countdown),

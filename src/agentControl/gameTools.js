@@ -120,7 +120,36 @@ export async function runGameTool(name, args, ctx) {
         hotbar: (game.inventory?.hotbar || []).map(itemLabel),
         crosshair: target ? { block: target.name, position: target.coordinates, face: target.face } : null,
         agentBusy: !!agent.isExecuting,
+        roomCode: game.worldSync?.roomId || game.skywars?.code || game.bedwars?.code || null,
+        mod: game.skywars?.active ? 'skywars' : game.bedwars?.active ? 'bedwars' : (game.mechanisms?.currentMechanismId || 'default'),
       } };
+    }
+    case 'host_room': {
+      inWorld();
+      const mod = game.skywars?.active ? 'skywars' : game.bedwars?.active ? 'bedwars' : (game.mechanisms?.currentMechanismId || 'default');
+      let roomId = game.worldSync?.roomId || game.skywars?.code || game.bedwars?.code || null;
+      if (!roomId && typeof game.worldSync?.hostWorld === 'function') {
+        const shared = await game.worldSync.hostWorld({ quiet: true, pvp: true });
+        roomId = shared?.roomId || game.worldSync?.roomId || null;
+      }
+      if (!roomId) throw new ToolFailure('state', 'Could not open a shared room on this game tab.');
+      return {
+        result: {
+          roomId,
+          signalingUrl: game.worldSync?.client?.signalingUrl || null,
+          mod,
+        },
+      };
+    }
+    case 'mod_match': {
+      inWorld();
+      const manager = game.skywars?.active ? game.skywars : game.bedwars?.active ? game.bedwars : null;
+      if (!manager) throw new ToolFailure('state', 'Neither SkyWars nor Bed Wars is active on the paired host tab.');
+      if (!manager.isHost) throw new ToolFailure('denied', 'Only the host tab can start or reset the match.');
+      if (args?.op === 'reset' || manager.phase === 'ended') manager.requestReset?.();
+      manager.requestStart?.();
+      if (manager.error) throw new ToolFailure('state', manager.error);
+      return { result: { started: true, phase: manager.phase } };
     }
     case 'look_around': {
       inWorld();

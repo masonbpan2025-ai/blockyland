@@ -15,6 +15,7 @@ import {
   TOOLS, TOOL_BY_NAME, DEFAULT_PORT, SERVER_NAME, SERVER_INSTRUCTIONS, PROTOCOL_VERSION,
   isAllowedOrigin, checkArguments, toolError,
 } from './protocol.js';
+import { GuestPeerSession, createModelBrain } from './guestPeer.js';
 
 export const SUPPORTED_MCP_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 /** The package's own version, so the AI app and the game can tell which server they talk to. */
@@ -36,11 +37,14 @@ export function clientLabel(info) {
  */
 export function createAgentControlServer({
   port = DEFAULT_PORT, host = '127.0.0.1', origins = [], log = () => {},
+  shareUrl = process.env.BLOCKYLAND_SHARE_URL || 'ws://localhost:3000/ws/share',
+  WebSocketImpl = undefined,
 } = {}) {
   const state = {
     client: null, wss: null, port: null, listenError: null,
     pages: new Set(), paired: null, sessionToken: null,
     messages: [], waiters: [], pending: new Map(), nextId: 1,
+    guests: new Map(), activeGuest: null,
   };
 
   const send = (page, message) => {
@@ -169,13 +173,107 @@ export function createAgentControlServer({
       return { result: { connected: true, game: page.game } };
     }
     if (name === 'wait_for_player_message') {
-      if (!state.paired) return { error: notConnected() };
+      if (!state.paired && !state.activeGuest) return { error: notConnected() };
+      // If a guest peer is joined in multiplayer, check for player chat messages sent in the shared world (T key)
+      if (state.activeGuest && !state.paired) {
+        const entry = await state.activeGuest.waitForChat((args.timeout_seconds ?? 50) * 1000);
+        if (!entry) return { result: { waiting: true, note: 'Nothing yet. Call wait_for_player_message again to keep listening.' } };
+        return {
+          result: {
+            message: entry.message,
+            sender: entry.sender,
+            peerId: entry.peerId,
+            source: 'guest_chat',
+          },
+        };
+      }
       // The AI app is back to waiting: whatever it was doing for the player is finished. The game shows "Done".
       if (!state.messages.length) send(state.paired, { type: 'ai_waiting' });
       const entry = await waitForMessage(args.timeout_seconds ?? 50);
       if (!entry) return { result: { waiting: true, note: 'Nothing yet. Call wait_for_player_message again to keep listening.' } };
       send(state.paired, { type: 'message_received', id: entry.id });
       return { result: { message: entry.text, images: entry.images.length }, images: entry.images };
+    }
+    if (name === 'join_game') {
+      let code = args.code ? String(args.code).trim() : null;
+      let targetUrl = args.url || shareUrl;
+      if (!code && state.paired) {
+        const hosted = await runGameTool({ name: 'host_room', timeoutMs: 15_000 }, {});
+        if (hosted.error) return hosted;
+        code = hosted.result?.roomId || null;
+        if (!args.url && hosted.result?.signalingUrl) targetUrl = hosted.result.signalingUrl;
+      }
+      if (!code || !/^[0-9]{4}$/.test(code)) {
+        return { error: toolError('usage', 'Provide the 4-digit room code from Share World, SkyWars, or Bed Wars (for example {"code": "1234"}), or connect to a game tab first.') };
+      }
+      const rawName = (args.name || clientLabel(state.client) || 'Agent').replace(/^your AI app$/i, 'Agent');
+      const guestName = rawName.slice(0, 24);
+      const existing = state.guests.get(guestName);
+      if (existing) existing.disconnect();
+      const guest = new GuestPeerSession({
+        code,
+        name: guestName,
+        url: targetUrl,
+        WebSocketImpl,
+        log,
+        autopilot: args.autopilot ?? true,
+        strategy: args.strategy || 'auto',
+        difficulty: args.difficulty || 'normal',
+        brain: createModelBrain(),
+      });
+      try {
+        const status = await guest.connect({ team: args.team });
+        state.guests.set(guest.name, guest);
+        state.activeGuest = guest;
+        return { result: status };
+      } catch (err) {
+        guest.disconnect();
+        return { error: toolError('connection', err?.message || 'Could not join the game room.') };
+      }
+    }
+    if (name === 'leave_game') {
+      if (args.name) {
+        const g = state.guests.get(args.name);
+        if (!g) return { error: toolError('state', `No joined guest player named "${args.name}".`) };
+        g.disconnect();
+        state.guests.delete(args.name);
+        if (state.activeGuest === g) state.activeGuest = [...state.guests.values()].at(-1) || null;
+        return { result: { left: true, name: args.name } };
+      }
+      if (!state.activeGuest && state.guests.size === 0) {
+        return { result: { left: false, note: 'No guest player was joined.' } };
+      }
+      for (const g of state.guests.values()) g.disconnect();
+      state.guests.clear();
+      state.activeGuest = null;
+      return { result: { left: true } };
+    }
+    if (name === 'guest_status') {
+      const guest = args.name ? state.guests.get(args.name) : state.activeGuest;
+      if (!guest || !guest.connected) {
+        return { error: toolError('state', 'Not joined to a game room. Call join_game with a 4-digit room code first.') };
+      }
+      return { result: guest.status({ radius: args.radius }) };
+    }
+    if (name === 'guest_act') {
+      const guest = args.name ? state.guests.get(args.name) : state.activeGuest;
+      if (!guest || !guest.connected) {
+        return { error: toolError('state', 'Not joined to a game room. Call join_game with a 4-digit room code first.') };
+      }
+      try {
+        const result = await guest.act(args, {
+          onStartMatch: state.paired
+            ? async () => {
+              const res = await runGameTool({ name: 'mod_match', timeoutMs: 10_000 }, { op: 'start' });
+              if (res.error) throw new Error(res.error.error || 'Host could not start the match.');
+              return res.result;
+            }
+            : null,
+        });
+        return { result };
+      } catch (err) {
+        return { error: toolError('failed', err?.message || String(err)) };
+      }
     }
     return { error: toolError('unknown', `No server tool ${name}.`) };
   }
@@ -245,6 +343,9 @@ export function createAgentControlServer({
   async function close() {
     failPending('The MCP server is shutting down.');
     for (const waiter of state.waiters.splice(0)) waiter(null);
+    for (const guest of state.guests.values()) guest.disconnect();
+    state.guests.clear();
+    state.activeGuest = null;
     for (const page of state.pages) page.ws.terminate();
     if (state.wss) await new Promise(resolve => state.wss.close(() => resolve()));
   }

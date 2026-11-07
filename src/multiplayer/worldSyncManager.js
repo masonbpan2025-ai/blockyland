@@ -150,6 +150,11 @@ export class WorldSyncManager {
             hostYaw: Number(p.yaw.toFixed(3)),
             worldTime: typeof this.game.worldTime === 'number' ? Math.round(this.game.worldTime) : 6000,
           });
+          for (const chest of this.game.chestManager?.chests?.values?.() ?? []) {
+            if (Array.isArray(chest?.items) && chest.items.some(Boolean)) {
+              this.client.sendContainer?.(chest.x, chest.y, chest.z, chest.items);
+            }
+          }
           this.snapshotTimings.totalMs = Math.round(performance.now() - t0);
           console.info(`[Sharing] sent the world to ${peerName}`, this.snapshotTimings);
         } catch (error) {

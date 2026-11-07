@@ -219,15 +219,20 @@ test('every sound main.js calls unguarded exists on the audio manager', () => {
 // player who slept every night was still visited (The third day: "Sleeping also fends off phantoms for three days").
 test('lying down in a bed, or dying, resets both phantom insomnia timers', async () => {
   const { resetInsomnia } = await import('../src/bed.js');
+  const { PhantomMechanism } = await import('../src/spawning/specialSpawners.js');
   const behaviours = { insomniaTicks: 90000, resetSleep() { this.insomniaTicks = 0; } };
-  const phantom = { insomniaTicks: 90000, reset() { this.insomniaTicks = 0; } };
-  resetInsomnia({ mobs: { hostileBehaviors: behaviours }, spawnManager: { specialSpawners: { phantom } } });
+  // Time since rest is each player's own: the sleeper's starts again, a teammate's who stayed up does not.
+  const phantom = new PhantomMechanism({ mobSpawnManager: {} });
+  const sleeper = { name: 'sleeper' }, awake = { name: 'awake' };
+  phantom.sinceRest.set(sleeper, 90000); phantom.sinceRest.set(awake, 90000);
+  resetInsomnia({ player: sleeper, mobs: { hostileBehaviors: behaviours }, spawnManager: { specialSpawners: { phantom } } });
   assert.equal(behaviours.insomniaTicks, 0);
-  assert.equal(phantom.insomniaTicks, 0);
+  assert.equal(phantom.sinceRest.get(sleeper), 0);
+  assert.equal(phantom.sinceRest.get(awake), 90000);
   const bed = readFileSync(new URL('../src/bed.js', import.meta.url), 'utf8');
   assert.match(bed.slice(bed.indexOf('  startSleeping(bed, player) {'), bed.indexOf('  startSleeping(bed, player) {') + 400), /resetInsomnia\(this\.game\);/);
   const player = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
-  assert.match(player.slice(player.indexOf('  respawn() {'), player.indexOf('  respawn() {') + 900), /specialSpawners\?\.phantom\?\.reset\?\.\(\);/);
+  assert.match(player.slice(player.indexOf('  respawn() {'), player.indexOf('  respawn() {') + 900), /specialSpawners\?\.phantom\?\.reset\?\.\(this\);/);
 });
 
 // Food: the Hunger effect costs "0.1 per second, per Hunger status effect level". Its table entry and helper existed and

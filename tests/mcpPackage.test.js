@@ -45,7 +45,7 @@ test('npm pack ships exactly the package files', () => {
     cwd: pkgDir, encoding: 'utf8', shell: process.platform === 'win32',
   });
   const files = JSON.parse(out)[0].files.map(f => f.path).sort();
-  assert.deepEqual(files, ['LICENSE', 'README.md', 'bin/blockyland-mcp.mjs', 'package.json', 'protocol.js', 'server.mjs']);
+  assert.deepEqual(files, ['LICENSE', 'README.md', 'bin/blockyland-mcp.mjs', 'guestPeer.js', 'package.json', 'protocol.js', 'server.mjs']);
 });
 
 const run = (args, input) => new Promise(resolveRun => {

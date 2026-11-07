@@ -191,6 +191,7 @@ export class BedWarsManager {
 
   chooseMode(mode) { if (this.isHost && this.match?.setMode(HOST_ID, mode)) this.publish(); }
   choosePace(pace) { if (this.isHost && this.match?.setPace(HOST_ID, pace)) this.publish(); }
+  chooseDifficulty(difficulty) { if (this.isHost && this.match?.setDifficulty(HOST_ID, difficulty)) this.publish(); }
   chooseTheme(theme) { if (this.isHost && this.match?.setTheme(HOST_ID, theme)) this.publish(); }
   chooseTeam(team) { this.ask({ type: 'team', team }); }
 

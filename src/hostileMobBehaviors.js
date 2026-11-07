@@ -146,21 +146,9 @@ export class HostileMobBehaviors {
   update(dt, player) {
     // Conversion and splitting can replace entries while behaviors are running.
     const mobs = [...this.mobManager.mobs];
-    this.insomniaTicks += dt * 20; // 20 ticks per second
-
-    // 1. Phantom Insomnia Spawning (if >= 72000 ticks = 3 in-game days without sleep)
-    if (this.insomniaTicks >= 72000 && !this.world?.isNether && this.world?.dimension !== 'the_end') {
-      this.phantomSpawnTimer -= dt;
-      if (this.phantomSpawnTimer <= 0) {
-        this.phantomSpawnTimer = 60 + Math.random() * 60;
-        const angle = Math.random() * Math.PI * 2;
-        const spawnX = player.position.x + Math.cos(angle) * 20;
-        const spawnZ = player.position.z + Math.sin(angle) * 20;
-        const spawnY = player.position.y + 25;
-        this.mobManager.spawnMob('phantom', spawnX, spawnY, spawnZ);
-        if (this.sounds?.playPhantom) this.sounds.playPhantom();
-      }
-    }
+    // (Phantoms are spawned by PhantomMechanism in spawning/specialSpawners.js alone, as Java's PhantomSpawner: at
+    // night, under open sky, per player's time since rest. A second spawner here ignored the dark and any cap, and on
+    // the replication server it ran once per player each tick: 42 phantoms in dry10-haiku, 28 of them by day.)
 
     // 2. Iterate mobs and run behaviors
     for (let i = 0; i < mobs.length; i++) {

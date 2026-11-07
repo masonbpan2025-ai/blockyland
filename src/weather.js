@@ -49,8 +49,10 @@ export class WeatherManager {
     this.rainMaterial=new THREE.LineBasicMaterial({color:0xbedcff,transparent:true,opacity:0,depthWrite:false});
     this.rainMesh=new THREE.LineSegments(this.rainGeometry,this.rainMaterial);
     this.snowGeometry=new THREE.BufferGeometry();this.snowGeometry.setAttribute('position',new THREE.BufferAttribute(this.snowPositions,3));
-    this.snowMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{opacity:{value:0}},
-      vertexShader:'void main(){vec4 p=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*p;gl_PointSize=clamp(55.0/max(1.0,-p.z),2.0,7.0);}',
+    this.snowMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{opacity:{value:0},pointScale:{value:55},pointMax:{value:7}},
+      // A flake is 55/distance pixels (2 to 7): sized for a player standing in the snowfall. A view from farther off
+      // (the Weather Inspector) raises pointScale and pointMax.
+      vertexShader:'uniform float pointScale;uniform float pointMax;void main(){vec4 p=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*p;gl_PointSize=clamp(pointScale/max(1.0,-p.z),2.0,pointMax);}',
       fragmentShader:'uniform float opacity;void main(){vec2 p=abs(gl_PointCoord-.5);float a=1.0-smoothstep(.15,.49,length(p));float arms=1.0-smoothstep(.04,.12,min(p.x,p.y));gl_FragColor=vec4(.95,.98,1.0,opacity*max(a,arms*.6));}'});
     this.snowMesh=new THREE.Points(this.snowGeometry,this.snowMaterial);
     for(const mesh of [this.rainMesh,this.snowMesh]){mesh.visible=false;mesh.frustumCulled=false;markOverWater(mesh);this.scene.add(mesh);}
@@ -85,8 +87,22 @@ export class WeatherManager {
     const chunks=[...(this.game?.world?.chunks?.values?.()||[])];if(!chunks.length)return false;
     const c=chunks[Math.floor(this.random()*chunks.length)],x=c.cx*16+Math.floor(this.random()*16),z=c.cz*16+Math.floor(this.random()*16),column=this.column(x,z);
     if(column.kind!=='rain'||!Number.isFinite(column.height))return false;
-    const strike=redirectLightning(this.game.world,new THREE.Vector3(x+.5,column.height,z+.5));
-    this.triggerLightning(null,null,strike,{natural:true});return true;
+    const top=new THREE.Vector3(x+.5,column.height,z+.5),strike=redirectLightning(this.game.world,top);
+    // Java (ServerLevel.findLightningTargetAround): with no rod in range, a living entity that can see the sky within
+    // 3 blocks of the column, from 3 below its top up to the build limit, is struck instead -- which is why lightning
+    // finds a player or a mob standing in the open.
+    const target=strike===top?this.lightningTargetAround(top):null;
+    this.triggerLightning(null,null,target??strike,{natural:true});return true;
+  }
+  /** A living entity that can see the sky in the box 3 blocks around (x, z), from y - 3 up; null when there is none. */
+  lightningTargetAround(at){
+    const candidates=[],seesSky=(p)=>p.y>=this.column(p.x,p.z).height-1e-6;
+    const inBox=(p)=>p&&Math.abs(p.x-at.x)<=3.5&&Math.abs(p.z-at.z)<=3.5&&p.y>=at.y-3;
+    for(const mob of this.game?.mobs?.mobs??[]){const p=mob.mesh?.position;if(mob.health>0&&inBox(p)&&seesSky(p))candidates.push(p);}
+    for(const player of this.game?.players??(this.game?.player?[this.game.player]:[])){const p=player.position;if(!player.isDead&&player.health>0&&player.gamemode!=='spectator'&&inBox(p)&&seesSky(p))candidates.push(p);}
+    if(!candidates.length)return null;
+    const p=candidates[Math.floor(this.random()*candidates.length)];
+    return new THREE.Vector3(p.x,p.y,p.z);
   }
   triggerLightning(ambientLight,sunLight,strike=null,options={}){
     if(weatherDimension(this.game?.world)!=='overworld')return false;
@@ -97,12 +113,8 @@ export class WeatherManager {
   triggerEndFlash(){if(!this.enhanced||weatherDimension(this.game?.world)!=='the_end')return false;this.visuals.flashEnd();this.sounds?.playEndFlash?.();return true;}
   update(dt,eye,ambientLight,sunLight,fog,background){
     dt=Math.max(0,Number.isFinite(dt)?dt:0);this.windTime+=dt;
-    this.clock.advance(dt,this.game?.gamerules?.doWeatherCycle!==false);
+    this.tickGameplay(dt);
     const dim=weatherDimension(this.game?.world),wet=this.isRaining();
-    const chunkCount=this.game?.world?.chunks?.size||1;
-    if(this.weatherType==='thunder'&&this.previousWeather!=='thunder')this.lightningTimer=this.nextLightningDelay();
-    else if(this.previousLightningChunks&&chunkCount!==this.previousLightningChunks)this.lightningTimer*=this.previousLightningChunks/chunkCount;
-    this.previousLightningChunks=chunkCount;this.previousWeather=this.weatherType;
     this.rainIntensity+=(Number(wet)-this.rainIntensity)*Math.min(1,dt*2);
     if(dim!=='overworld')this.rainIntensity=0;
     this.flashDuration=Math.max(0,this.flashDuration-dt);this.isFlashing=this.flashDuration>0&&dim==='overworld';
@@ -124,13 +136,29 @@ export class WeatherManager {
       if(sunLight)sunLight.intensity*=1-severity*.65;
     }
     if(this.flashIntensity){if(ambientLight)ambientLight.intensity=2.2;if(sunLight)sunLight.intensity=2.5;background?.setRGB(.9,.95,1);}
-    if(wet&&this.clock.thundering){this.lightningTimer-=dt;if(this.lightningTimer<=0){this.naturalLightning();this.lightningTimer=this.nextLightningDelay();}}
     if(dim==='the_end'&&this.enhanced){this.endFlashTimer-=dt;if(this.endFlashTimer<=0){this.triggerEndFlash();this.endFlashTimer=20+this.random()*60;}}
     this.visuals.update(dt,eye,dim==='the_end'&&this.enhanced);
     if(dim!=='overworld')for(const bolt of this.visuals.bolts)bolt.group.visible=false;
     if(dim==='the_end'&&background){this.endBaseBackground??=background.clone();background.copy(this.endBaseBackground);}
     else this.endBaseBackground=null;
     if(dim==='the_end'&&this.enhanced&&this.visuals.endPulse>0){background?.lerp(new THREE.Color(0x674299),this.visuals.endPulse*.45);if(ambientLight)ambientLight.intensity+=this.visuals.endPulse*.35;}
+    if(this.columns.size>12000)this.columns.clear();
+    this.ambientParticles.update(dt,eye,this.game);
+  }
+  /**
+   * Weather's gameplay, without drawing anything: the rain and thunder clocks, natural lightning in a storm, and
+   * precipitation on surfaces (snow layers, ice, cauldrons). update() runs it for the browser game; a server with no
+   * screen runs it alone (replication/server/engine.js). `advanceClock: false` lets several worlds share one clock.
+   */
+  tickGameplay(dt,{advanceClock=true}={}){
+    dt=Math.max(0,Number.isFinite(dt)?dt:0);
+    if(advanceClock)this.clock.advance(dt,this.game?.gamerules?.doWeatherCycle!==false);
+    const wet=this.isRaining();
+    const chunkCount=this.game?.world?.chunks?.size||1;
+    if(this.weatherType==='thunder'&&this.previousWeather!=='thunder')this.lightningTimer=this.nextLightningDelay();
+    else if(this.previousLightningChunks&&chunkCount!==this.previousLightningChunks)this.lightningTimer*=this.previousLightningChunks/chunkCount;
+    this.previousLightningChunks=chunkCount;this.previousWeather=this.weatherType;
+    if(wet&&this.clock.thundering){this.lightningTimer-=dt;if(this.lightningTimer<=0){this.naturalLightning();this.lightningTimer=this.nextLightningDelay();}}
     if(wet&&dt>0){
       this.surfaceTicks+=dt*20;
       // One precipitation sample per chunk on average every 16 game ticks.
@@ -140,8 +168,6 @@ export class WeatherManager {
         weatherSurfaceTick(this.game.world,this.column(x,z),x,z,this.random);
       }
     }else this.surfaceTicks=0;
-    if(this.columns.size>12000)this.columns.clear();
-    this.ambientParticles.update(dt,eye,this.game);
   }
   resetAfterSleep(){if(this.game?.gamerules?.doWeatherCycle!==false)this.clock.resetAfterSleep();}
   captureState(){return {...this.clock.snapshot(),rainIntensity:this.rainIntensity,cauldronLevels:[...(this.game?.world?.cauldronLevels||[])]};}

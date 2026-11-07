@@ -72,6 +72,18 @@ page share. `tests/agentControlDocs.test.js` fails when a tool is missing here.
 | `run_plan` | game | Carry out a plan: build, edit, destroy, summon, give, weather, time, hang paintings, the player bot, and more |
 | `run_command` | game | Run a chat command as the player would type it, with the player's permissions |
 | `say` | game | Show an answer in the Agent Terminal (and in chat when the terminal is closed) |
+| `join_game` | server | Join a hosted Blockyland game (Base Game shared world, SkyWars, or Bed Wars) as a playable guest character using its 4-digit room code |
+| `leave_game` | server | Disconnect the MCP guest player from the shared world or mini-game match |
+| `guest_status` | server | Observe the joined guest player's state, inventory, nearby players, chests, drops, chat, and SkyWars or Bed Wars match state |
+| `guest_act` | server | Perform high-level goals (`goto`, `bridge_to`, `loot_chest`, `attack`, `break_bed`, `collect_resources`, `mine_block`) or direct actions (`move`, `look`, `jump`, `place_block`, `break_block`, `buy`, `choose_team`, `equip`, `select`, `start_match`, `respawn`, `chat`, `wait`, `stop`) as the joined guest player |
+
+### Joining a game as a player (Base Game, SkyWars, Bed Wars)
+
+Any game that allows other players to join by a 4-digit room code can also be joined by your AI app through MCP. For a complete technical walkthrough and guide covering all parameters, autonomous autopilot behavior, and localhost vs. production differences, see [`docs/agent-multiplayer-guide.md`](./agent-multiplayer-guide.md).
+
+- **Base Game (Share World)**: Open a world, click **Share World** (or press **M**), and give the 4-digit room code to your AI app (`join_game` with `code`). If your tab is already paired via `connect`, calling `join_game` without a code opens and joins your world automatically.
+- **SkyWars**: Start SkyWars from the title screen and give the 4-digit lobby code to your AI app. Once joined via `join_game`, the match unlocks (2+ players); the agent spawns in its island cage, loots chests (`loot_chest`), bridges across islands (`bridge_to`), and fights (`attack`).
+- **Bed Wars**: Start Bed Wars from the title screen and give the 4-digit lobby code to your AI app. The agent can pick a team (`choose_team`), collect iron/gold/diamonds/emeralds from generators (`collect_resources`), buy gear, blocks, and team upgrades (`buy`), bridge to enemy islands (`bridge_to`), and destroy enemy beds (`break_bed`).
 
 Errors are one JSON object, `{"error": "<what to do next>", "kind": "<kind>"}`, with kind one of `usage`, `unknown`,
 `state`, `busy`, `timeout`, `connection`, `denied`, `confirm` or `failed`.

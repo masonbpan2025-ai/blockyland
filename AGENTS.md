@@ -74,7 +74,7 @@ changed in the 60 days to 2026-11-01.
 | Stations: furnace, brewing, enchanting, anvil, smithing, chests | `furnace.js`, `brewing.js`, `enchanting.js`, `anvil.js`, `smithing.js`, `chest.js` | groups `build` and `survival` | `e2e/enchantCommand.pw.js`, `e2e/smithCommand.pw.js`, `e2e/brewCommand.pw.js` |
 | Survival: hunger, effects, potions, death, beds | `hunger.js`, `statusEffects.js`, `potionUse.js`, `splashPotion.js`, `deathAndRespawn.js`, `bed.js` | group `survival` | `e2e/survivalBot.pw.js` |
 | Combat and bosses | `arrows.js`, `bow.js`, `combatParticles.js`, `bossFights.js` | group `combat` | `docs/arrows.md` |
-| Water, lava, weather | `waterSimulation.js`, `water.js`, `waterRules.js`, `lavaSimulation.js`, `weather.js` | group `world` | `e2e/waterBot.pw.js`, `docs/lava.md` |
+| Water, lava, weather | `waterSimulation.js`, `water.js`, `waterRules.js`, `lavaSimulation.js`, `weather.js`, `weatherShowcase.js` | group `world` | `weather-inspector.html` (`weatherInspector.js`), `e2e/waterBot.pw.js`, `docs/lava.md` |
 | Nether and End | `netherPortal.js`, `netherTerrain.js`, `endProgression.js`, `endTerrain.js` | groups `nether` and `end` | `docs/nether-mob-behavior.md` |
 | Villagers and trading | `villagerEconomy.js`, `villagerBreeding.js` | `tests/villagers_economy.test.js`, `tests/tradingParity.test.js` | |
 | Multiplayer | `multiplayer/shareSession.js` (the host is the authority), `multiplayer/shareProtocol.js` (checks every guest message), `multiplayer/worldSyncManager.js`, `server/shareServer.js`, `cloudflare/share/` | group `sharing` | `share-debug.html`, `e2e/share.pw.js`, `docs/deploy-cloudflare.md` |
@@ -84,7 +84,7 @@ changed in the 60 days to 2026-11-01.
 | Rendering and graphics settings | `lightweightShader.js`, `atmosphere.js`, `graphicsSettings.js`, `lighting.js` | group `render` | `e2e/graphicsSettings.pw.js`, `docs/lightweight-shader.md` |
 | Player bot | `playerBot.js`, `playerBotSurvival.js`, `vendor/mineflayer-pathfinder/` | `npm run test:bot` | `e2e/playerBot.pw.js` |
 | Audio | `audio.js` (synthesised with Web Audio: the game loads no sound files; only the films have recorded audio, kept out of git under `public/cinema-*`) | | |
-| Films | `cinema/civFilm.js`, `cinema/wedFilm.js`, `cinema/movies.js`; the rules are in `cinema/CINEMA_GUIDELINES.md` | | `civ-1500.html`, `movies.html` |
+| Films | `cinema/civFilm.js`, `cinema/wedFilm.js`, `cinema/movies.js`; the rules are in `cinema/CINEMA_GUIDELINES.md`; agents filmed in real Minecraft (Horizon): `replication/horizon/HORIZON_FILMING.md` | | `civ-1500.html`, `movies.html` |
 | Textures and asset packs | `textures.js`, `packsModal.js`, `skinManager.js`, `public/assets/`, `public/assets/PROVENANCE.json` | group `resources` | `THIRD_PARTY_NOTICES.md` |
 
 `tests/agentsMap.test.js` fails when a path or a group in this table no longer exists: update the row when you move a

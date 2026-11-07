@@ -85,7 +85,7 @@ export default defineConfig({
   cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
   // Keep Vite's dependency scanner on this game's entries.
   optimizeDeps: {
-    entries: ['index.html', 'mob-debug.html', 'item-debug.html', 'block-debug.html', 'structure-inspector.html', 'biome-inspector.html']
+    entries: ['index.html', 'mob-debug.html', 'item-debug.html', 'block-debug.html', 'structure-inspector.html', 'biome-inspector.html', 'weather-inspector.html']
   },
   server: {
     host: '0.0.0.0',
@@ -406,7 +406,8 @@ export default defineConfig({
         volumeLayers: path.resolve('volume-layers.html'),
         blockDebug: path.resolve('block-debug.html'),
         structureInspector: path.resolve('structure-inspector.html'),
-        biomeInspector: path.resolve('biome-inspector.html')
+        biomeInspector: path.resolve('biome-inspector.html'),
+        weatherInspector: path.resolve('weather-inspector.html')
       }
     },
     target: 'esnext'

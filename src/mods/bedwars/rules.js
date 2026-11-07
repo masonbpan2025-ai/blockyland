@@ -16,6 +16,7 @@ import { DEFAULT_MAP, normalizeMap } from './arena.js';
 import { upgradeCost, trapCost, UPGRADES, TRAPS } from './shop.js';
 
 export const PHASES = Object.freeze(['lobby', 'countdown', 'playing', 'ended']);
+export const DIFFICULTIES = Object.freeze(['easy', 'normal', 'hard']);
 export const COUNTDOWN_SECONDS = 5;
 export const RESPAWN_SECONDS = 5;
 export const KILL_CREDIT_SECONDS = 10;
@@ -70,10 +71,11 @@ export function deathMessage(victim, killer, cause, final = false) {
 const emptyStock = () => ({ iron: 0, gold: 0, diamond: 0, emerald: 0 });
 
 export class BedWarsMatch {
-  constructor({ mode = 'fours', pace = 'normal', theme = DEFAULT_MAP.theme, seed = 2017, random = Math.random } = {}) {
+  constructor({ mode = 'fours', pace = 'normal', difficulty = 'normal', theme = DEFAULT_MAP.theme, seed = 2017, random = Math.random } = {}) {
     this.random = random;
     this.mode = MODES[mode] ? mode : 'fours';
     this.pace = PACES[pace] ? pace : 'normal';
+    this.difficulty = DIFFICULTIES.includes(difficulty) ? difficulty : 'normal';
     this.seed = seed >>> 0;
     this.map = normalizeMap({ teams: MODES[this.mode].teams, theme, seed: this.newSeed() });
     this.phase = 'lobby';
@@ -169,6 +171,12 @@ export class BedWarsMatch {
   setPace(by, pace) {
     if (by !== HOST_ID || this.phase !== 'lobby' || !PACES[pace]) return false;
     this.pace = pace;
+    return true;
+  }
+
+  setDifficulty(by, difficulty) {
+    if (by !== HOST_ID || this.phase !== 'lobby' || !DIFFICULTIES.includes(difficulty)) return false;
+    this.difficulty = difficulty;
     return true;
   }
 
@@ -480,6 +488,7 @@ export class BedWarsMatch {
       round: this.round,
       mode: this.mode,
       pace: this.pace,
+      difficulty: this.difficulty,
       map: { ...this.map },
       countdown: Math.ceil(this.countdown),
       elapsed: Math.floor(this.elapsed),

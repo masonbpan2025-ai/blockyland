@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import AStar from './vendor/mineflayer-pathfinder/astar.js';
+import { RECIPES_2X2, RECIPES_3X3 } from './crafting.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS } from './blocks.js';
 import { harvestsNothing, breakTimeSeconds } from './miningRules.js';
 import { baseBlockDrop } from './blockDrops.js';
@@ -11,6 +12,8 @@ import { modeRules } from './gameModeRules.js';
 const key = p => `${p.x},${p.y},${p.z}`;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const cell = (x, y, z, cost = 1, dig = []) => ({ x, y, z, cost, dig, hash: `${x},${y},${z}` });
+/** Blocks a walk never digs through to make its way: a player's workstations and storage. */
+const NEVER_DIG = new Set(['CRAFTING_TABLE', 'FURNACE', 'LIT_FURNACE', 'BLAST_FURNACE', 'SMOKER', 'CHEST', 'TRAPPED_CHEST', 'BARREL', 'ENCHANTING_TABLE', 'ANVIL', 'BREWING_STAND'].map(n => BLOCKS[n]).filter(v => v !== undefined));
 let dropSources = null;
 /** Blocks (other than `blockId` itself) whose ordinary drop is the block `blockId`: grass block for dirt, stone for cobblestone. */
 export function dropSourcesOf(blockId) {
@@ -328,6 +331,11 @@ export class PlayerBot {
     const targetItem = String(c.item).toLowerCase().replace(/\s+/g, '_');
     const targetCount = c.count || 1;
     const id = itemId(targetItem);
+    const step = async (command) => {
+      const result = await this.run(command);
+      if (result && result.ok === false) throw new Error(result.message);
+      return result;
+    };
     const startCount = this.itemCount(id);
     if (startCount >= targetCount) {
       return this.settle({ ok: true, message: `Already have ${targetCount} ${c.item}.`, acquired: 0 });
@@ -340,13 +348,15 @@ export class PlayerBot {
       }
       const p = this.game.player.position;
       const px = Math.floor(p.x), py = Math.floor(p.y), pz = Math.floor(p.z);
-      const spots = [
-        [px + 1, py, pz], [px - 1, py, pz], [px, py, pz + 1], [px, py, pz - 1]
-      ];
+      // Beside the player first, then anywhere within two blocks and a step up or down: in a one-block tunnel or on a
+      // ledge the four cells beside the feet are often all taken.
+      const spots = [[px + 1, py, pz], [px - 1, py, pz], [px, py, pz + 1], [px, py, pz - 1]];
+      for (let dy = 0; dy >= -1; dy--) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) if (dx || dz) spots.push([px + dx, py + dy, pz + dz]);
+      spots.push([px + 1, py + 1, pz], [px - 1, py + 1, pz], [px, py + 1, pz + 1], [px, py + 1, pz - 1]);
       let placed = false;
       for (const [sx, sy, sz] of spots) {
-        if (this.game.world.getVoxel(sx, sy, sz) === BLOCKS.AIR && this.game.world.getVoxel(sx, sy - 1, sz) !== BLOCKS.AIR) {
-          await this.run({ type: 'place', item: stationItem, position: [sx, sy, sz] });
+        if (this.game.world.getVoxel(sx, sy, sz) === BLOCKS.AIR && this.game.world.getVoxel(sx, sy - 1, sz) !== BLOCKS.AIR && !this.passable(this.game.world.getVoxel(sx, sy - 1, sz))) {
+          await step({ type: 'place', item: stationItem, position: [sx, sy, sz] });
           placed = true;
           break;
         }
@@ -355,12 +365,30 @@ export class PlayerBot {
       return true;
     };
 
+    // A recipe that only fits the 3x3 grid needs a crafting table within reach, placed (or made) right here: the
+    // table is checked for after the ingredients are gathered, because gathering them can lead far from the last one.
+    // Making the table itself takes four planks, which may be the ones gathered for this recipe: a wooden pickaxe was
+    // left two planks short. So when the craft finds its ingredients short, gather them again once and retry.
+    const craft = async (item, count) => {
+      const wanted = itemId(item);
+      const small = RECIPES_2X2.some(r => this.survival.sameItem(r.result.id, wanted));
+      if (!small) await ensureStationNearby('crafting_table', BLOCKS.CRAFTING_TABLE);
+      // A craft that cannot be made rejects, rather than resolving with ok: false.
+      const result = await this.run({ type: 'craft', item, count }).catch(error => ({ ok: false, message: error?.message ?? String(error) }));
+      if (result?.ok === false && /No usable recipe/.test(result.message) && !craft.retrying) {
+        craft.retrying = true;
+        try { await this.acquireByRecipe(item, this.itemCount(wanted) + 1, craft); } finally { craft.retrying = false; }
+        return { ok: true };
+      }
+      if (result?.ok === false) throw new Error(result.message);
+      return result;
+    };
     const hasPickaxe = () => ['wooden_pickaxe', 'stone_pickaxe', 'iron_pickaxe', 'diamond_pickaxe', 'netherite_pickaxe'].some(p => this.itemCount(p) > 0);
     const hasStonePickaxe = () => ['stone_pickaxe', 'iron_pickaxe', 'diamond_pickaxe', 'netherite_pickaxe'].some(p => this.itemCount(p) > 0);
 
     if (targetItem === 'oak_log' || targetItem === 'log' || targetItem === 'wood') {
       const needed = targetCount - this.itemCount(BLOCKS.OAK_LOG);
-      if (needed > 0) await this.run({ type: 'mine', block: 'oak_log', count: needed });
+      if (needed > 0) await step({ type: 'mine', block: 'oak_log', count: needed });
     } else if (targetItem === 'oak_planks' || targetItem === 'planks') {
       const needed = targetCount - this.itemCount(BLOCKS.OAK_PLANKS);
       if (needed > 0) {
@@ -368,7 +396,7 @@ export class PlayerBot {
         if (this.itemCount(BLOCKS.OAK_LOG) < logsNeeded) {
           await this.executeAcquire({ type: 'acquire', item: 'oak_log', count: logsNeeded });
         }
-        await this.run({ type: 'craft', item: 'oak_planks', count: logsNeeded });
+        await craft('oak_planks', logsNeeded);
       }
     } else if (targetItem === 'stick') {
       const needed = targetCount - this.itemCount('stick');
@@ -378,7 +406,7 @@ export class PlayerBot {
         if (this.itemCount(BLOCKS.OAK_PLANKS) < planksNeeded) {
           await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: planksNeeded });
         }
-        await this.run({ type: 'craft', item: 'stick', count: batches });
+        await craft('stick', batches);
       }
     } else if (targetItem === 'crafting_table') {
       if (this.itemCount(BLOCKS.CRAFTING_TABLE) < targetCount) {
@@ -387,22 +415,20 @@ export class PlayerBot {
         if (this.itemCount(BLOCKS.OAK_PLANKS) < planksNeeded) {
           await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: planksNeeded });
         }
-        await this.run({ type: 'craft', item: 'crafting_table', count: needed });
+        await craft('crafting_table', needed);
       }
     } else if (targetItem === 'wooden_pickaxe') {
       if (this.itemCount('wooden_pickaxe') < targetCount) {
-        await ensureStationNearby('crafting_table', BLOCKS.CRAFTING_TABLE);
-        if (this.itemCount(BLOCKS.OAK_PLANKS) < 3) await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: 3 });
         if (this.itemCount('stick') < 2) await this.executeAcquire({ type: 'acquire', item: 'stick', count: 2 });
-        await this.run({ type: 'craft', item: 'wooden_pickaxe', count: targetCount });
+        if (this.itemCount(BLOCKS.OAK_PLANKS) < 3) await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: 3 });
+        await craft('wooden_pickaxe', targetCount);
       }
     } else if (targetItem === 'wooden_axe' || targetItem === 'wooden_sword') {
-      await ensureStationNearby('crafting_table', BLOCKS.CRAFTING_TABLE);
       const planks = targetItem === 'wooden_sword' ? 2 : 3;
       const sticks = targetItem === 'wooden_sword' ? 1 : 2;
-      if (this.itemCount(BLOCKS.OAK_PLANKS) < planks) await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: planks });
       if (this.itemCount('stick') < sticks) await this.executeAcquire({ type: 'acquire', item: 'stick', count: sticks });
-      await this.run({ type: 'craft', item: targetItem, count: targetCount });
+      if (this.itemCount(BLOCKS.OAK_PLANKS) < planks) await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: planks });
+      await craft(targetItem, targetCount);
     } else if (targetItem === 'cobblestone' || targetItem === 'stone') {
       const needed = targetCount - this.itemCount(BLOCKS.COBBLESTONE);
       if (needed > 0) {
@@ -410,44 +436,40 @@ export class PlayerBot {
           await this.executeAcquire({ type: 'acquire', item: 'wooden_pickaxe', count: 1 });
         }
         this.equip(s => hasPickaxe(s?.id));
-        await this.run({ type: 'mine', block: 'stone', count: needed });
+        await step({ type: 'mine', block: 'stone', count: needed });
       }
     } else if (targetItem === 'stone_pickaxe') {
       if (this.itemCount('stone_pickaxe') < targetCount) {
-        await ensureStationNearby('crafting_table', BLOCKS.CRAFTING_TABLE);
         if (this.itemCount(BLOCKS.COBBLESTONE) < 3) await this.executeAcquire({ type: 'acquire', item: 'cobblestone', count: 3 });
         if (this.itemCount('stick') < 2) await this.executeAcquire({ type: 'acquire', item: 'stick', count: 2 });
-        await this.run({ type: 'craft', item: 'stone_pickaxe', count: targetCount });
+        await craft('stone_pickaxe', targetCount);
       }
     } else if (targetItem === 'stone_axe' || targetItem === 'stone_sword') {
-      await ensureStationNearby('crafting_table', BLOCKS.CRAFTING_TABLE);
       const cobble = targetItem === 'stone_sword' ? 2 : 3;
       const sticks = targetItem === 'stone_sword' ? 1 : 2;
       if (this.itemCount(BLOCKS.COBBLESTONE) < cobble) await this.executeAcquire({ type: 'acquire', item: 'cobblestone', count: cobble });
       if (this.itemCount('stick') < sticks) await this.executeAcquire({ type: 'acquire', item: 'stick', count: sticks });
-      await this.run({ type: 'craft', item: targetItem, count: targetCount });
+      await craft(targetItem, targetCount);
     } else if (targetItem === 'furnace') {
       if (this.itemCount(BLOCKS.FURNACE) < targetCount) {
-        await ensureStationNearby('crafting_table', BLOCKS.CRAFTING_TABLE);
         if (this.itemCount(BLOCKS.COBBLESTONE) < 8) await this.executeAcquire({ type: 'acquire', item: 'cobblestone', count: 8 });
-        await this.run({ type: 'craft', item: 'furnace', count: targetCount });
+        await craft('furnace', targetCount);
       }
     } else if (targetItem === 'coal') {
       const needed = targetCount - this.itemCount('coal');
       if (needed > 0) {
         if (!hasPickaxe()) await this.executeAcquire({ type: 'acquire', item: 'wooden_pickaxe', count: 1 });
-        await this.run({ type: 'mine', block: 'coal_ore', count: needed });
+        await step({ type: 'mine', block: 'coal_ore', count: needed });
       }
     } else if (targetItem === 'raw_iron' || targetItem === 'iron_ore') {
       const needed = targetCount - this.itemCount('raw_iron') - this.itemCount(BLOCKS.IRON_ORE);
       if (needed > 0) {
         if (!hasStonePickaxe()) await this.executeAcquire({ type: 'acquire', item: 'stone_pickaxe', count: 1 });
-        await this.run({ type: 'mine', block: 'iron_ore', count: needed });
+        await step({ type: 'mine', block: 'iron_ore', count: needed });
       }
     } else if (targetItem === 'iron_ingot') {
       const needed = targetCount - this.itemCount('iron_ingot');
       if (needed > 0) {
-        await ensureStationNearby('furnace', BLOCKS.FURNACE);
         const ironOre = this.itemCount('raw_iron') > 0 ? 'raw_iron' : (this.itemCount(BLOCKS.IRON_ORE) > 0 ? 'iron_ore' : null);
         if (!ironOre || this.itemCount(ironOre) < needed) {
           await this.executeAcquire({ type: 'acquire', item: 'raw_iron', count: needed });
@@ -456,6 +478,7 @@ export class PlayerBot {
         if (!fuel) {
           await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: Math.max(1, needed) });
         }
+        await ensureStationNearby('furnace', BLOCKS.FURNACE);
         const actualFuel = this.itemCount('coal') >= needed ? 'coal' : 'oak_planks';
         const actualInput = this.itemCount('raw_iron') >= needed ? 'raw_iron' : 'iron_ore';
         const p = this.game.player.position;
@@ -466,30 +489,84 @@ export class PlayerBot {
               if ([BLOCKS.FURNACE, BLOCKS.LIT_FURNACE].includes(this.game.world.getVoxel(x, y, z))) fpos = [x, y, z];
             }
         if (!fpos) throw new Error('Furnace not found within reach.');
-        await this.run({ type: 'cook', item: actualInput, count: needed, fuel: actualFuel, fuelCount: needed, position: fpos });
+        await step({ type: 'cook', item: actualInput, count: needed, fuel: actualFuel, fuelCount: needed, position: fpos });
       }
     } else if (targetItem === 'shield') {
-      await ensureStationNearby('crafting_table', BLOCKS.CRAFTING_TABLE);
       if (this.itemCount(BLOCKS.OAK_PLANKS) < 6) await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: 6 });
       if (this.itemCount('iron_ingot') < 1) await this.executeAcquire({ type: 'acquire', item: 'iron_ingot', count: 1 });
-      await this.run({ type: 'craft', item: 'shield', count: targetCount });
+      await craft('shield', targetCount);
     } else if (targetItem === 'torch') {
       const batches = Math.ceil(targetCount / 4);
       if (this.itemCount('stick') < batches) await this.executeAcquire({ type: 'acquire', item: 'stick', count: batches });
       if (this.itemCount('coal') < batches && this.itemCount('charcoal') < batches) await this.executeAcquire({ type: 'acquire', item: 'coal', count: batches });
-      await this.run({ type: 'craft', item: 'torch', count: batches });
+      await craft('torch', batches);
     } else if (targetItem === 'chest') {
-      await ensureStationNearby('crafting_table', BLOCKS.CRAFTING_TABLE);
       const planksNeeded = targetCount * 8;
       if (this.itemCount(BLOCKS.OAK_PLANKS) < planksNeeded) await this.executeAcquire({ type: 'acquire', item: 'oak_planks', count: planksNeeded });
-      await this.run({ type: 'craft', item: 'chest', count: targetCount });
+      await craft('chest', targetCount);
+    } else if (targetItem === 'diamond') {
+      const needed = targetCount - this.itemCount('diamond');
+      if (needed > 0) {
+        if (!['iron_pickaxe', 'diamond_pickaxe', 'netherite_pickaxe'].some(p => this.itemCount(p) > 0)) await this.executeAcquire({ type: 'acquire', item: 'iron_pickaxe', count: 1 });
+        await step({ type: 'mine', block: 'diamond_ore', count: needed });
+      }
+    } else if (targetItem === 'string') {
+      // From cobwebs, cut with a sword (a sword "collects its string").
+      const needed = targetCount - this.itemCount('string');
+      if (needed > 0) {
+        if (!this.findBestWeapon()) await this.executeAcquire({ type: 'acquire', item: 'wooden_sword', count: 1 });
+        this.equip(s => /_sword$/.test(String(s?.id)));
+        await step({ type: 'mine', block: 'cobweb', count: needed });
+      }
+    } else if (targetItem === 'flint') {
+      const needed = targetCount - this.itemCount('flint');
+      for (let tries = 0; this.itemCount('flint') < targetCount && tries < 6; tries++) await step({ type: 'mine', block: 'gravel', count: Math.max(1, needed) });
+    } else if (['feather', 'leather', 'beef', 'porkchop', 'mutton', 'chicken'].includes(targetItem)) {
+      const animal = { feather: 'chicken', leather: 'cow', beef: 'cow', porkchop: 'pig', mutton: 'sheep', chicken: 'chicken' }[targetItem];
+      for (let tries = 0; this.itemCount(targetItem) < targetCount && tries < 6; tries++) await step({ type: 'attack', mob: animal });
     } else {
-      await this.run({ type: 'craft', item: targetItem, count: targetCount });
+      await this.acquireByRecipe(targetItem, targetCount, craft);
     }
 
     const endCount = this.itemCount(id);
     const diff = endCount - startCount;
     return this.settle({ ok: true, message: `Acquired ${diff} ${c.item}.`, acquired: diff });
+  }
+  /**
+   * Acquire anything there is a recipe for: pick the recipe whose ingredients this player is closest to having, gather
+   * each ingredient (by acquiring it in turn), then craft. "acquire 1 iron_sword" used to try the craft with nothing in
+   * hand; now it mines the iron, smelts it and makes the sticks first.
+   */
+  async acquireByRecipe(targetItem, targetCount, craft, depth = 0) {
+    const step = async (command) => { const result = await this.run(command); if (result && result.ok === false) throw new Error(result.message); return result; };
+    const wanted = itemId(targetItem);
+    const recipes = [...RECIPES_2X2, ...RECIPES_3X3].filter(r => this.survival.sameItem(r.result.id, wanted));
+    if (!recipes.length) throw new Error(`There is no recipe for ${targetItem}, and no way to gather it here.`);
+    const nameOf = (id) => typeof id === 'number' ? (Object.entries(BLOCKS).find(([, v]) => v === id)?.[0] ?? String(id)).toLowerCase() : String(id);
+    const plain = /^(oak_planks|oak_log|stick|cobblestone|iron_ingot|coal|diamond|string|flint|feather|leather|gold_ingot|wool|white_wool|crafting_table|furnace|iron_nugget|redstone)$/;
+    const needsOf = (r, times) => {
+      const needed = new Map();
+      for (const part of r.ingredients || r.pattern.flat()) if (part != null) needed.set(part, (needed.get(part) || 0) + times);
+      return needed;
+    };
+    const scored = recipes.map(r => {
+      const times = Math.ceil(Math.max(0, targetCount - this.itemCount(wanted)) / (r.result.count || 1));
+      const needed = needsOf(r, times);
+      let missing = 0, unknown = 0;
+      for (const [part, n] of needed) { const have = this.itemCount(part); if (have < n) { missing += n - have; if (!plain.test(nameOf(part))) unknown++; } }
+      return { r, times, needed, missing, unknown };
+    }).sort((a, b) => a.unknown - b.unknown || a.missing - b.missing);
+    const best = scored[0];
+    if (!best.times) return;
+    if (depth > 4) throw new Error(`Too many steps to make ${targetItem}.`);
+    for (let pass = 0; pass < 3; pass++) {
+      const short = [...best.needed].filter(([part, n]) => this.itemCount(part) < n);
+      if (!short.length) break;
+      // Sticks before planks: making sticks eats planks.
+      short.sort(([a]) => (nameOf(a) === 'stick' ? -1 : 0));
+      for (const [part, n] of short) if (this.itemCount(part) < n) await this.executeAcquire({ type: 'acquire', item: nameOf(part), count: n });
+    }
+    await craft(targetItem, best.times);
   }
   toolFor(id) {
     if (this.game.player.gamemode !== 'survival') return true;
@@ -505,8 +582,16 @@ export class PlayerBot {
     const world = this.game.world, origin = this.task.origin;
     const out = [];
     for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      for (const dy of [0, 1, -1]) {
+      // A drop of two or three blocks too, as a player steps off a ledge: falls up to 3 blocks cost no health (fall
+      // damage starts above 3). With steps of one only, a quarry rim or a terrace above lower ground was a dead end.
+      for (const dy of [0, 1, -1, -2, -3]) {
         if (dx === 0 && dy === 0 && dz === 0) continue;
+        if (dy < -1) {
+          if (dx === 0 && dz === 0) continue;
+          let open = true;
+          for (let k = dy; k <= 1 && open; k++) open = this.passable(world.getVoxel(node.x + dx, node.y + k, node.z + dz));
+          if (!open) continue;
+        }
         const x = node.x + dx, y = node.y + dy, z = node.z + dz;
         if (Math.abs(x - origin.x) > 32 || Math.abs(z - origin.z) > 32 || Math.abs(y - origin.y) > 24) continue;
         const floor = world.getVoxel(x, y - 1, z);
@@ -515,11 +600,17 @@ export class PlayerBot {
         if (dx === 0 && dz === 0 && !isLadder && !isWater) continue;
         if (!isWater && !isLadder && (this.passable(floor) || this.hazard(floor) || floor == null)) continue;
         const dig = []; let valid = true;
-        for (const h of [0, 1]) {
+        // Stepping down, the body passes through the cell in front at head height before it drops (the player is two
+        // blocks tall): a step down under an overhang looked open to the search and blocked the walk for good.
+        const top = dy < 0 ? 1 - dy : 1;
+        for (let h = 0; h <= top; h++) {
           const id = world.getVoxel(x, y + h, z);
           if (this.passable(id)) continue;
           const held = this.game.inventory.getActiveItem?.();
-          if (this.task.command.type !== 'mine' || this.hazard(id) || !BLOCK_DEFS[id] || BLOCK_DEFS[id].hardness >= 99999 || (this.game.player.gamemode === 'survival' && harvestsNothing(id, ITEMS[held?.id], held?.id))) { valid = false; break; }
+          // Any walk may dig its way (at a high cost, so it is the last resort): a player who fell or mined into a pit
+          // cuts steps out of it. Walks used to be allowed to dig only while mining, and a player at the bottom of a
+          // two-block hole could never leave it. Workstations, chests and beds are never dug through.
+          if (!this.task.allowDig || this.hazard(id) || !BLOCK_DEFS[id] || BLOCK_DEFS[id].hardness >= 99999 || NEVER_DIG.has(id) || BLOCK_DEFS[id].bed || (this.game.player.gamemode === 'survival' && harvestsNothing(id, ITEMS[held?.id], held?.id))) { valid = false; break; }
           // Never undermine the player or dig beside a fluid.
           if ([[1,0,0],[-1,0,0],[0,1,0],[0,0,1],[0,0,-1]].some(([a,b,c]) => this.hazard(world.getVoxel(x+a,y+h+b,z+c)))) { valid = false; break; }
           dig.push({ x, y: y + h, z, blockId: id });
@@ -530,9 +621,15 @@ export class PlayerBot {
     }
     return out;
   }
-  search(target, near = false) {
-    const p = this.game.player.position, start = cell(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
+  search(target, near = false, allowDig = false) {
+    const p = this.game.player.position, start = cell(Math.floor(p.x), Math.floor(p.y + .01), Math.floor(p.z));
+    // Feet resting on a floor at y = 19 can read 18.9999: the path began inside the floor block and the walk never
+    // reached its own first step ("Movement is blocked").
     this.task.origin = start;
+    // Digging a way through is for mining, and otherwise a second try once a walk finds no path without it: searching
+    // with digging from the start made every path search many times larger.
+    this.task.allowDig = allowDig || this.task.command.type === 'mine';
+    this.task.searchArgs = [target, near];
     // Mining ends where the block is within arm's reach of the eyes (Survival reach is 4.5 blocks), not beside its
     // feet: a five-log trunk's top logs were otherwise "unreachable" from the ground, so a tree yielded three logs.
     const mining = near && this.task.command.type === 'mine';
@@ -563,7 +660,13 @@ export class PlayerBot {
       for (let x = -radius; x <= radius; x++) for (let z = -radius; z <= radius; z++) for (let y = -Math.min(radius, 24); y <= Math.min(radius, 24); y++) {
         if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) !== radius) continue;
         const pos = { x: cx + x, y: cy + y, z: cz + z };
-        yield ids.has(this.game.world.getVoxel(pos.x, pos.y, pos.z)) && !this.task.rejected.has(key(pos)) ? pos : null;
+        // Only a block with an open face: the bot mines what it can see and reach, so a buried one is never a target.
+        // Offering each buried stone under the player first (every one rejected after a path search) took minutes
+        // before a quarry wall 14 blocks away came up.
+        const world = this.game.world;
+        const open = ids.has(world.getVoxel(pos.x, pos.y, pos.z))
+          && [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].some(([a, b, c]) => this.passable(world.getVoxel(pos.x + a, pos.y + b, pos.z + c)));
+        yield open && !this.task.rejected.has(key(pos)) ? pos : null;
       }
     }
   }
@@ -979,6 +1082,7 @@ export class PlayerBot {
         if (result.status === 'partial') return;
         if (result.status !== 'success') {
           if (t.command.type === 'mine') { t.rejected.add(key(t.target)); t.phase='scan'; return; }
+          if (!t.allowDig && t.searchArgs) { this.search(t.searchArgs[0], t.searchArgs[1], true); return; }
           throw new Error('No safe walking path to the destination.');
         }
         t.path = result.path; t.phase = 'walk';
@@ -1128,7 +1232,13 @@ export class PlayerBot {
     const dig = this.task?.dig, target=this.game.targetBlock;
     if (!dig || !target || this.task.aimedDig!==key(dig)) return;
     if (key(dig)!==key(target)) {
-      if (this.task.command.type !== 'mine') return;
+      if (this.task.command.type !== 'mine') {
+        // A walk digging its way: the block at head height in front stands between the eye and the one at the feet, so
+        // dig that one first, as mining does. Walks used to wait for a clear view that never came.
+        const safe = target.y >= Math.floor(this.game.player.position.y) && !this.hazard(target.blockId) && BLOCK_DEFS[target.blockId]?.hardness < 99999 && this.toolFor(target.blockId) && !NEVER_DIG.has(target.blockId);
+        if (safe) { this.task.dig = { ...target, ore: false }; this.task.aimedDig = key(target); this.game.miningTime = 0; }
+        return;
+      }
       if (target.y < Math.floor(this.game.player.position.y) || this.hazard(target.blockId) || BLOCK_DEFS[target.blockId]?.hardness >= 99999 || !this.toolFor(target.blockId)) { this.finish(false, 'Ore is obstructed by a block that cannot be safely mined from here.'); return; }
       this.task.dig={...target,ore:!!this.task.resourceIds?.has(target.blockId)};this.game.miningTime=0;
       return;

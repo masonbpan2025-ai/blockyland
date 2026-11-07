@@ -138,6 +138,11 @@ export class SkyWarsManager {
     this.publish();
   }
 
+  chooseDifficulty(difficulty) {
+    if (!this.isHost || !this.match?.setDifficulty(HOST_ID, difficulty)) return;
+    this.publish();
+  }
+
   /** The host picks a map: a template, and one of its data packs (the template's first when none is named). */
   chooseMap(template, pack = null) {
     if (!this.isHost || !this.match?.setMap(HOST_ID, { template, pack })) return;
@@ -174,8 +179,12 @@ export class SkyWarsManager {
       this.showEvent(event);
     }
     const state = this.match.snapshot();
-    this.session?.sendGame?.(state);
     this.applyState(state);
+    this.session?.sendGame?.({
+      ...state,
+      spawns: this.arena?.spawns ?? [],
+      chests: (this.arena?.chests ?? []).map((c) => ({ x: c.x, y: c.y, z: c.z, slot: c.slot ?? null, kind: c.kind ?? 'island' })),
+    });
   }
 
   /** The host's own part of an event: the world it owns. */

@@ -21,7 +21,7 @@ const CSS = `
 .skywars-root button { pointer-events: auto; font: inherit; font-size: 14px; padding: 9px 16px; border-radius: 6px; border: 2px solid #0ea5e9;
   background: #0369a1; color: #fff; cursor: pointer; }
 .skywars-root button:disabled { background: #334155; border-color: #475569; color: #94a3b8; cursor: not-allowed; }
-.skywars-root button.sw-mode[aria-pressed="true"], .skywars-root button.sw-map[aria-pressed="true"], .skywars-root button.sw-pack[aria-pressed="true"] { background: #16a34a; border-color: #22c55e; }
+.skywars-root button.sw-mode[aria-pressed="true"], .skywars-root button.sw-diff[aria-pressed="true"], .skywars-root button.sw-map[aria-pressed="true"], .skywars-root button.sw-pack[aria-pressed="true"] { background: #16a34a; border-color: #22c55e; }
 .skywars-root .sw-label { font-size: 11px; color: #94a3b8; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
 .skywars-root .sw-row.sw-tight { margin-top: 4px; gap: 6px; }
 .skywars-root .sw-row.sw-tight button { font-size: 12px; padding: 6px 10px; }
@@ -102,6 +102,17 @@ export function createSkyWarsUi(manager) {
     modes.append(b);
     return b;
   });
+  const diffLabel = el('div', 'sw-label', 'Difficulty');
+  const diffs = el('div', 'sw-row sw-tight');
+  diffs.id = 'skywars-difficulty';
+  const diffButtons = ['easy', 'normal', 'hard'].map((diff) => {
+    const b = el('button', 'sw-diff', diff[0].toUpperCase() + diff.slice(1));
+    b.type = 'button';
+    b.dataset.difficulty = diff;
+    b.onclick = () => manager.chooseDifficulty?.(diff);
+    diffs.append(b);
+    return b;
+  });
   const start = el('button', null, 'Start');
   start.id = 'skywars-start';
   start.type = 'button';
@@ -110,7 +121,7 @@ export function createSkyWarsUi(manager) {
   startRow.append(start);
   const reason = el('div', 'sw-reason');
   reason.id = 'skywars-start-reason';
-  lobby.append(lobbyTitle, codeLabel, code, hint, list, mapBlock, guestMap, modeLabel, modes, startRow, reason);
+  lobby.append(lobbyTitle, codeLabel, code, hint, list, mapBlock, guestMap, modeLabel, modes, diffLabel, diffs, startRow, reason);
 
   // Titles.
   const title = el('div', 'sw-title');
@@ -170,6 +181,8 @@ export function createSkyWarsUi(manager) {
       code.classList.toggle('sw-hidden', !isHost);
       modes.classList.toggle('sw-hidden', !isHost);
       modeLabel.classList.toggle('sw-hidden', !isHost);
+      diffs.classList.toggle('sw-hidden', !isHost);
+      diffLabel.classList.toggle('sw-hidden', !isHost);
       mapBlock.classList.toggle('sw-hidden', !isHost);
       guestMap.classList.toggle('sw-hidden', isHost);
       guestMap.textContent = mapName ? `Map: ${mapName}` : '';
@@ -193,6 +206,8 @@ export function createSkyWarsUi(manager) {
       startRow.classList.toggle('sw-hidden', !isHost);
       fillPlayers(list, players);
       for (const b of modeButtons) b.setAttribute('aria-pressed', String(state?.mode === b.dataset.mode));
+      const activeDiff = state?.difficulty ?? 'normal';
+      for (const b of diffButtons) b.setAttribute('aria-pressed', String(activeDiff === b.dataset.difficulty));
       start.disabled = !startCheck?.ok;
       reason.textContent = error || (isHost ? startCheck?.reason ?? '' : `Waiting for the host to start… (${players.length} player${players.length === 1 ? '' : 's'})`);
       // The scoreboard while a match runs.
