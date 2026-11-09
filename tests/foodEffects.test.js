@@ -2,8 +2,9 @@
 // play-test (Things not to do): pufferfish, spider eyes, poisonous potatoes, rotten flesh and raw chicken had none.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { applyFoodEffects, chorusTeleport, FOOD_EFFECTS } from '../src/foodEffects.js';
+import { finishFoodUse } from '../src/foodUse.js';
+import { Inventory } from '../src/inventory.js';
 import { BLOCKS } from '../src/blocks.js';
 
 const player = () => {
@@ -41,8 +42,17 @@ test('chorus fruit lands on solid ground within 8 blocks', () => {
 });
 
 test('the game applies them when a bite completes', () => {
-  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  const finish = main.slice(main.indexOf('  finishEating(activeItem) {'), main.indexOf('  finishEating(activeItem) {') + 3500);
-  assert.match(finish, /applyFoodEffects\(this\.player, activeItem\.id\);/);
-  assert.match(finish, /chorusTeleport\(this\.world, this\.player\.position\)/);
+  const p = { ...player(), gamemode: 'survival', hunger: 15,
+    position: { x: 0.5, y: 9, z: 0.5, set(x, y, z) { Object.assign(this, { x, y, z }); } },
+  };
+  const inventory = new Inventory();
+  const game = { player: p, inventory, world: { getVoxel: (x, y, z) => y === 0 ? BLOCKS.STONE : BLOCKS.AIR } };
+  inventory.hotbar[0] = { id: 'pufferfish', count: 1, isBlock: false };
+  assert.equal(finishFoodUse(game, inventory.getActiveItem()), true);
+  assert.equal(p.statusEffects.get('poison')?.level, 2);
+  assert.equal(inventory.getActiveItem(), null);
+  inventory.hotbar[0] = { id: 'chorus_fruit', count: 1, isBlock: false };
+  assert.equal(finishFoodUse(game, inventory.getActiveItem()), true);
+  assert.equal(p.position.y, 1, 'the fruit finds a place on the ground');
+  assert.equal(inventory.getActiveItem(), null);
 });

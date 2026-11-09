@@ -84,6 +84,22 @@ test('run_plan builds in the world and reports the building with its id', async 
   assert.ok(logs.some(l => l.message.includes('Claude Code: A stone pillar')), 'the terminal shows who asked for it');
 });
 
+test('a real build streams measured progress while preserving the terminal callback', async () => {
+  const { agent, ctx, count } = flatWorld();
+  const terminal = [], remote = [];
+  const original = (pct, label) => terminal.push([pct, label]);
+  agent.onProgress = original;
+  await runGameTool('run_plan', { plan: pillar(8) }, ctx({ onProgress: (pct, label) => remote.push([pct, label]) }));
+  assert.equal(count(BLOCKS.STONE), 8);
+  assert.ok(remote.length > 0, 'a caller sees build progress before its result');
+  assert.deepEqual(remote, terminal);
+  assert.ok(remote.every(([pct, label]) => Number.isFinite(pct) && pct >= 0 && pct <= 100 && typeof label === 'string'));
+  assert.equal(agent.onProgress, original);
+  const before = remote.length;
+  agent.onProgress(10, 'A later offline task');
+  assert.equal(remote.length, before, 'the finished MCP call no longer receives updates');
+});
+
 test('chat names the AI app as the builder, not a vendor', async () => {
   const { agent, chat, ctx } = flatWorld();
   agent.chatLabel = 'World Agent';

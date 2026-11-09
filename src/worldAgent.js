@@ -4832,6 +4832,19 @@ For giveItems, set isBlock true for blocks and false for inventory items.`;
           s.occupiedBounds = bounds;
         }
         this.game.world.setVoxel(b.x, b.y, b.z, b.id);
+        const def = BLOCK_DEFS[b.id];
+        if (def?.door && !def?.isTop) {
+          const doors = this.game?.doorManager || this.doorManager;
+          if (doors) {
+            let facing = b.facing;
+            if (facing === undefined) {
+              const hasWallZ = (this.game.world.getVoxel(b.x, b.y, b.z - 1) ?? BLOCKS.AIR) !== BLOCKS.AIR ||
+                               (this.game.world.getVoxel(b.x, b.y, b.z + 1) ?? BLOCKS.AIR) !== BLOCKS.AIR;
+              facing = hasWallZ ? 0 : 3;
+            }
+            doors.adoptDoor([b.x, b.y, b.z], facing, b.hinge || 'left');
+          }
+        }
         const cx = Math.floor(b.x / 16);
         const cz = Math.floor(b.z / 16);
         affectedChunks.add(`${cx},${cz}`);

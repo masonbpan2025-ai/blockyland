@@ -165,6 +165,65 @@ test('a sprint hit slows the attacker to 60% and ends the sprint until forward i
 
 // --- the hurt window ------------------------------------------------------------------------------------------
 
+for (const [weapon, damage, type] of [['sword', 4, 'player'], ['arrow', 4, 'arrow'], ['snowball', 0, 'player']]) {
+  test(`a browser player's ${weapon} knockback keeps momentum and falls off a narrow bridge`, t => {
+    const p = testPlayer(t);
+    p.gamemode = 'survival'; p.isFlying = false; p.hunger = 10;
+    p.position.set(0.5, 31, 0.5);
+    p.world.getVoxel = (x, y, z) => x === 0 && y === 30 && Math.abs(z) <= 8 ? 3 : 0;
+    p.keys = { ShiftLeft: true };
+    p.takeDamage(damage, { x: -2, y: 31, z: 0.5 }, type, null, { fromPlayer: true });
+    p.update(0.05);
+    assert.ok(near(p.position.x, 0.9), '8 blocks/s persists through the first movement frame');
+    assert.ok(near(p.position.y, 31.4), 'the initial lift is integrated, not discarded');
+    assert.ok(near(p.velocity.x, 8 * 0.6 * 0.91), 'ground friction from the start of the tick');
+    for (let i = 0; i < 45; i++) p.update(0.05);
+    assert.ok(p.position.x > 1.3, 'the whole player box leaves the one-block bridge');
+    assert.ok(p.position.y < 0, 'gravity continues below the bridge');
+    assert.equal(p.health, 20 - damage);
+  });
+}
+
+for (const mode of ['skywars', 'bedwars']) for (const sprint of [false, true]) {
+  test(`${mode}: browser ${sprint ? 'sprinting' : 'walking'} leaves a bridge without automatic edge protection`, t => {
+    const p = testPlayer(t);
+    p.game = { [mode]: { phase: 'playing' } };
+    p.gamemode = 'survival'; p.isFlying = false; p.hunger = 10;
+    p.position.set(0.5, 31, 0.5); p.yaw = -Math.PI / 2;
+    p.world.getVoxel = (x, y, z) => x === 0 && y === 30 && Math.abs(z) <= 8 ? 3 : 0;
+    p.keys = { KeyW: true, ControlLeft: sprint };
+    for (let i = 0; i < 50; i++) p.update(0.05);
+    assert.ok(p.position.x > 1.3, 'ordinary input crosses the bridge edge');
+    assert.ok(p.position.y < 0, 'gravity carries the player into the void');
+  });
+}
+
+test('browser sneak restrains deliberate walking until released', t => {
+  const p = testPlayer(t);
+  p.gamemode = 'survival'; p.isFlying = false; p.hunger = 10;
+  p.position.set(0.5, 31, 0.5); p.yaw = -Math.PI / 2;
+  p.world.getVoxel = (x, y, z) => x === 0 && y === 30 && Math.abs(z) <= 8 ? 3 : 0;
+  p.keys = { KeyW: true, ShiftLeft: true };
+  for (let i = 0; i < 50; i++) p.update(0.05);
+  assert.ok(p.position.x > 1 && p.position.x <= 1.3);
+  assert.equal(p.position.y, 31);
+  p.keys.ShiftLeft = false;
+  for (let i = 0; i < 50; i++) p.update(0.05);
+  assert.ok(p.position.x > 1.3 && p.position.y < 0);
+});
+
+test('knockback travel is unchanged at 20, 60 and 120 browser frames per second', t => {
+  const outcomes = [20, 60, 120].map(fps => {
+    const p = testPlayer(t); p.gamemode = 'survival'; p.isFlying = false;
+    p.position.set(0.5, 31, 0.5);
+    p.world.getVoxel = (x, y) => x === 0 && y === 30 ? 3 : 0;
+    p.takeDamage(0, { x: -2, y: 31, z: 0.5 }, 'player', null, { fromPlayer: true });
+    for (let i = 0; i < fps; i++) p.update(1 / fps);
+    return p.position.clone();
+  });
+  for (const at of outcomes.slice(1)) assert.ok(at.distanceTo(outcomes[0]) < 1e-7);
+});
+
 test('hurt window: 10 ticks in which a weaker or equal hit does nothing, and a harder one deals only the difference', () => {
   assert.equal(HURT_INVULNERABLE_SECONDS, 0.5);
   assert.deepEqual(hurtWindow({ timer: 0 }, 5), { amount: 5, knockback: true, fresh: true });

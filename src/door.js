@@ -204,6 +204,20 @@ export class DoorManager {
 
     world.setVoxel(x, y, z, bottomVoxel);
     world.setVoxel(x, y + 1, z, topVoxel);
+    this.game?.worldSync?.onBlockPlaced?.(x, y, z, bottomVoxel);
+    this.game?.worldSync?.onBlockPlaced?.(x, y + 1, z, topVoxel);
+
+    let hinge = 'left';
+    // Double door: if adjacent door on left has hinge 'left', this one is 'right'
+    let leftOffset = [0, 0];
+    if (facing === 0) leftOffset = [0, 1];       // East: left is +Z
+    else if (facing === 1) leftOffset = [0, -1]; // West: left is -Z
+    else if (facing === 2) leftOffset = [-1, 0]; // South: left is -X
+    else if (facing === 3) leftOffset = [1, 0];  // North: left is +X
+    const neighborDoor = this.getDoor(x + leftOffset[0], y, z + leftOffset[1]);
+    if (neighborDoor && neighborDoor.facing === facing && neighborDoor.hinge === 'left') {
+      hinge = 'right';
+    }
 
     const door = {
       bottomPos: [Math.floor(x), Math.floor(y), Math.floor(z)],
@@ -214,7 +228,7 @@ export class DoorManager {
       isIron: Boolean(isIron),
       // The four ids this door cycles through, so toggling cannot fall back to oak.
       ids: placedIds || doorIdSet(BLOCK_DEFS[isIron ? BLOCKS.IRON_DOOR : BLOCKS.OAK_DOOR]),
-      hinge: 'left'
+      hinge
     };
 
     const bKey = this.getKey(x, y, z);
@@ -267,10 +281,20 @@ export class DoorManager {
       const bottomPos = isTop ? [x, y - 1, z] : [x, y, z];
       const topPos = isTop ? [x, y, z] : [x, y + 1, z];
       const open = Boolean(def.name?.includes('Open'));
+      let facing = 3;
+      if (this.game?.camera) {
+        const look = new THREE.Vector3();
+        this.game.camera.getWorldDirection(look);
+        if (Math.abs(look.x) > Math.abs(look.z)) {
+          facing = look.x > 0 ? 0 : 1;
+        } else {
+          facing = look.z > 0 ? 2 : 3;
+        }
+      }
       door = {
         bottomPos,
         topPos,
-        facing: 3,
+        facing,
         open,
         manualOpen: open,
         isIron,
@@ -317,6 +341,8 @@ export class DoorManager {
 
       this.game.world.setVoxel(bx, by, bz, newBottomVoxel);
       this.game.world.setVoxel(tx, ty, tz, newTopVoxel);
+      this.game?.worldSync?.onBlockPlaced?.(bx, by, bz, newBottomVoxel);
+      this.game?.worldSync?.onBlockPlaced?.(tx, ty, tz, newTopVoxel);
 
       // Re-affirm manualOpen in case setVoxel wiped it
       if (redstone) {
@@ -355,15 +381,14 @@ export class DoorManager {
         const [bx, by, bz] = door.bottomPos;
         const [tx, ty, tz] = door.topPos;
 
-        const newBottomVoxel = door.open
-          ? (door.isIron ? BLOCKS.IRON_DOOR_OPEN : BLOCKS.OAK_DOOR_OPEN)
-          : (door.isIron ? BLOCKS.IRON_DOOR : BLOCKS.OAK_DOOR);
-        const newTopVoxel = door.open
-          ? (door.isIron ? BLOCKS.IRON_DOOR_TOP_OPEN : BLOCKS.OAK_DOOR_TOP_OPEN)
-          : (door.isIron ? BLOCKS.IRON_DOOR_TOP : BLOCKS.OAK_DOOR_TOP);
+        const ids = door.ids || doorIdSet(BLOCK_DEFS[door.isIron ? BLOCKS.IRON_DOOR : BLOCKS.OAK_DOOR]);
+        const newBottomVoxel = door.open ? ids.open : ids.closed;
+        const newTopVoxel = door.open ? ids.topOpen : ids.topClosed;
 
         this.game.world.setVoxel(bx, by, bz, newBottomVoxel);
         this.game.world.setVoxel(tx, ty, tz, newTopVoxel);
+        this.game?.worldSync?.onBlockPlaced?.(bx, by, bz, newBottomVoxel);
+        this.game?.worldSync?.onBlockPlaced?.(tx, ty, tz, newTopVoxel);
 
         const redstone = this.game?.world?.redstone;
         if (redstone) {
@@ -388,30 +413,33 @@ export class DoorManager {
   toggleTrapdoor(x, y, z, forceRedstone = false) {
     if (!this.game?.world) return { success: false };
     const current = this.game.world.getVoxel(x, y, z);
+    const def = BLOCK_DEFS[current];
+    if (!def?.trapdoor) return { success: false };
+
     let next = null;
-    let isIron = false;
+    const isIron = Boolean(def.isIron);
+
+    if (isIron && !forceRedstone) {
+      if (this.game?.sounds?.playClick) this.game.sounds.playClick();
+      return { success: false, reason: 'Iron trapdoors require Redstone power' };
+    }
 
     if (current === BLOCKS.OAK_TRAPDOOR) next = BLOCKS.OAK_TRAPDOOR_OPEN;
     else if (current === BLOCKS.OAK_TRAPDOOR_OPEN) next = BLOCKS.OAK_TRAPDOOR;
-    else if (current === BLOCKS.IRON_TRAPDOOR) {
-      isIron = true;
-      if (!forceRedstone) {
-        if (this.game?.sounds?.playClick) this.game.sounds.playClick();
-        return { success: false, reason: 'Iron trapdoors require Redstone power' };
-      }
-      next = BLOCKS.IRON_TRAPDOOR_OPEN;
-    } else if (current === BLOCKS.IRON_TRAPDOOR_OPEN) {
-      isIron = true;
-      if (!forceRedstone) {
-        if (this.game?.sounds?.playClick) this.game.sounds.playClick();
-        return { success: false, reason: 'Iron trapdoors require Redstone power' };
-      }
-      next = BLOCKS.IRON_TRAPDOOR;
+    else if (current === BLOCKS.IRON_TRAPDOOR) next = BLOCKS.IRON_TRAPDOOR_OPEN;
+    else if (current === BLOCKS.IRON_TRAPDOOR_OPEN) next = BLOCKS.IRON_TRAPDOOR;
+    else if (def.openId) next = def.openId;
+    else if (def.drop) next = def.drop;
+    else if (def.name?.includes('Open')) {
+      const closedName = def.name.replace(' Open', '');
+      const closedEntry = Object.entries(BLOCK_DEFS).find(([, d]) => d.name === closedName);
+      if (closedEntry) next = Number(closedEntry[0]);
     }
 
     if (next !== null) {
-      const isOpen = (next === BLOCKS.OAK_TRAPDOOR_OPEN || next === BLOCKS.IRON_TRAPDOOR_OPEN);
+      const isOpen = Boolean(BLOCK_DEFS[next]?.solid === false || BLOCK_DEFS[next]?.name?.includes('Open'));
       this.game.world.setVoxel(x, y, z, next);
+      this.game?.worldSync?.onBlockPlaced?.(x, y, z, next);
       const redstone = this.game.world.redstone;
       if (redstone) {
         const s = redstone.state([x, y, z]);
@@ -466,11 +494,13 @@ export class DoorManager {
 
     if (this.game?.world) {
       this.game.world.setVoxel(x, y, z, BLOCKS.AIR);
+      this.game?.worldSync?.onBlockBroken?.(x, y, z);
       if (companion) {
         const compVoxel = this.game.world.getVoxel(...companion);
         const compDef = BLOCK_DEFS[compVoxel];
         if (compDef?.door) {
           this.game.world.setVoxel(...companion, BLOCKS.AIR);
+          this.game?.worldSync?.onBlockBroken?.(companion[0], companion[1], companion[2]);
           this.rebuildBlockChunk(companion[0], companion[2]);
         }
       }

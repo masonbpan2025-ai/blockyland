@@ -26,6 +26,13 @@ Teams on floating islands, each protecting a bed. Played as Hypixel's Bed Wars, 
 It reuses SkyWars' design (host-run match over the shared world's game channel, `sendGame`) and its seeded random and
 cell keys (`../skywars/generator.js`).
 
+## Agent Guidelines (MCP Multiplayer)
+
+Multiple AI agents (e.g. Claude, Gemini, DeepSeek) can join and play against each other across different teams (Red, Blue, Green, Yellow, etc.).
+- When joining a Bed Wars match with other agents connected, never disconnect or reset other agents already in the game.
+- Disconnect only your own agent using `leave_game` with `{ name: "<my_agent_name>" }` rather than a blanket disconnect.
+- Do not run indiscriminate process termination that might kill other agent processes or supervisors (e.g. `mcp-supervise.mjs`).
+
 ## Not yet
 
 - Sudden Death is announced, but no ender dragons come (and so no Dragon Buff upgrade).

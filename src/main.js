@@ -9,7 +9,7 @@ import { rollStructureLoot } from './structureLoot.js';
 import { runFunction, allRecipeIds, recipeIdOf } from './advancedCommands.js';
 import { modeRules, playerAsSeenByWorld } from './gameModeRules.js';
 import { attackCharge, scaleBaseDamage, scaleEnchantDamage } from './attackCooldown.js';
-import { bridgeTarget } from './bedrockBridging.js';
+import { bridgeTarget, canBridgeWithItem, useWithoutBlockTarget } from './bedrockBridging.js';
 import { classifyAttack, reachFor, hitParticles, extraKnockbackLevel, sweepVictims, SPRINT_HIT_SLOWDOWN, SWEEP_DAMAGE } from './pvpCombat.js';
 import { packsModal } from './packsModal.js';
 import { resourcePackManager } from './resourcePackManager.js';
@@ -24,16 +24,15 @@ import { squidRayDistance } from './squidHitbox.js';
 import { attackBonus, fireAspectSeconds } from './enchantmentEffects.js';
 import { canSmash, smashBonus, windBurstVelocity, enchantLevel, SMASH_KNOCKBACK_RADIUS } from './maceSmash.js';
 import { spendDurability } from './durability.js';
-import { EXHAUSTION, canEat } from './hunger.js';
+import { EXHAUSTION } from './hunger.js';
 import { blockBreakWear, attackWear } from './toolWear.js';
-import { FOODS } from './foodData.js';
+import { finishFoodUse } from './foodUse.js';
 import { igniteActor } from './heat.js';
 import { tieHorseLeads } from './horseLead.js';
 import { updateHorseHud } from './horseInventory.js';
 import { useSnowball } from './netherCombat.js';
 import { useBarterPotion } from './barterItems.js';
 import { launchFirework } from './fireworks.js';
-import { applyGoldenApple, isGoldenApple } from './goldenApple.js';
 import { isSplashPotion, throwSplashPotion } from './splashPotion.js';
 import { LingeringClouds, isLingeringPotion } from './lingeringPotion.js';
 import { POTION_DATA } from './brewing.js';
@@ -63,7 +62,6 @@ import { ZombieSiege } from './zombieSiege.js';
 import { createMapData, exploreMap, MAP_SIZE } from './maps.js';
 import { toolUseOn, applyToolUse } from './toolUse.js';
 import { attuneCompass } from './compass.js';
-import { applyFoodEffects, chorusTeleport } from './foodEffects.js';
 import { brushArmadillo } from './armadilloBehavior.js';
 import { skyDarkenForDimension } from './spawning/spawnClock.js';
 import { EatingController } from './eating.js';
@@ -93,12 +91,11 @@ import { MobManager } from './mobs.js';
 import { EntityManager } from './entities.js';
 import { RailSystem } from './rails.js';
 import { Inventory } from './inventory.js';
-import { UIManager } from './ui.js';
+import { UIManager, preventGameContextMenu } from './ui.js';
 import { HeldItemRenderer } from './heldItem.js';
 import { canSupportPlant } from './resourceVisualPolicy.js';
 import { canPlantNether, isNetherFarmPlant } from './netherPlants.js';
 import { useRespawnAnchor } from './respawnAnchor.js';
-import { returnFoodContainer } from './foodContainers.js';
 import { WeatherManager } from './weather.js';
 import { WorldAgent } from './worldAgent.js';
 import { encodeScreenshotDataUrl } from './screenshotEncoding.js';
@@ -2250,6 +2247,11 @@ export class Game {
       this.container.addEventListener('click', requestLockOnClick);
     }
 
+    // Suppress browser context menu during gameplay so right-clicking to interact with blocks
+    // (crafting tables, chests, furnaces, etc.) or clicking in inventory/modals never opens
+    // the native "Save image as..." / "Copy image" menu. Allow it only for text inputs.
+    window.addEventListener('contextmenu', preventGameContextMenu, true);
+
     // Mouse Down (Left click mine/attack, Right click place/interact)
     window.addEventListener('mousedown', (e) => {
       if (this.player?.isDead) return;
@@ -2706,45 +2708,7 @@ export class Game {
   /** The end of eating (eating.js): the held food is consumed. Re-checked, since hunger may have changed meanwhile. */
   finishEating(activeItem) {
     if (activeItem && isDrinkablePotion(activeItem.id)) return this.finishDrinking(activeItem);
-    const it = ITEMS[activeItem?.id];
-    if (!it || it.type !== 'food' || this.inventory.getActiveItem() !== activeItem) return false;
-    if (!canEat(activeItem.id, this.player.hunger, { creative: this.player.gamemode === 'creative', maxHunger: this.player.maxHunger })) return false;
-    if (isGoldenApple(activeItem.id)) applyGoldenApple(this.player, activeItem.id);
-    this.sounds.playEat();
-    // `Player.eatFood` owns this: it calls the model in `hunger.js` and keeps the player's own fields in
-    // sync with it, which is the arrangement the rest of the player already uses for exhaustion and the
-    // per-tick model. Doing the arithmetic here instead -- which this path did originally, adding hunger
-    // and two health and never touching saturation -- left the hunger system spending something eating
-    // never granted.
-    //
-    // The item's own saturation is preferred and `foodData.js` answers for the items that do not declare
-    // one; that table is generated from vanilla's data and is the same source the Inspector checks.
-    const saturation = it.saturation ?? FOODS[activeItem.id]?.saturation ?? 0;
-    this.player.eatFood?.(it.food || 4, saturation);
-    // Vanilla grants no instant health for eating: health comes back from the saturation boost, which
-    // `hunger.js` regenerates at 1.5 saturation per point, the wiki's own figure.
-    // Some foods carry effects. `golden_apple` and `enchanted_golden_apple` are the two in vanilla,
-    // and without this their Absorption, Regeneration, Resistance and Fire Resistance did nothing:
-    // an enchanted apple was a slightly worse cooked porkchop.
-    if (Array.isArray(it.effects)) {
-      for (const [effect, duration, level] of it.effects) {
-        this.player.applyStatusEffect?.(effect, duration, level ?? 1);
-      }
-    }
-    // Side effects (foodEffects.js): pufferfish, spider eyes, poisonous potatoes, rotten flesh and raw chicken;
-    // a honey bottle clears Poison; chorus fruit teleports.
-    applyFoodEffects(this.player, activeItem.id);
-    advancementEvent('eat', { item: activeItem.id });
-    if (activeItem.id === 'chorus_fruit') {
-      const to = chorusTeleport(this.world, this.player.position);
-      if (to) { this.player.position.set(to.x, to.y, to.z); this.player.velocity?.set?.(0, 0, 0); this.player.fallDistance = 0; this.sounds.playEndermanTeleport?.(); }
-    }
-    if (this.player.gamemode !== 'creative') {
-      this.inventory.consumeActiveItem();
-      returnFoodContainer(this,activeItem.id);
-      this.ui.updateHotbar();
-    }
-    return true;
+    return finishFoodUse(this, activeItem);
   }
 
   /**
@@ -2783,19 +2747,7 @@ export class Game {
       return true;
     }
 
-    const it = ITEMS[activeItem.id];
-    if (it && it.type === 'food') {
-      // A golden apple is the classic emergency item, and its effects were missing entirely: eating one
-      // gave nothing but food. Applied before the hunger restore so the two cannot diverge.
-      // Hunger alone decides whether food can be eaten (canEat, hunger.js): eating at full hunger used to be allowed
-      // whenever health was below full, and the golden apple's effects applied even when the apple was not eaten.
-      // Eating takes 1.6 s of holding use (eating.js); `finishEating` below does the eating when it completes.
-      if (canEat(activeItem.id, this.player.hunger, { creative: this.player.gamemode === 'creative', maxHunger: this.player.maxHunger })) {
-        this.eating.start(activeItem);
-        return true;
-      }
-    }
-    return false;
+    return this.eating.startFood(activeItem);
   }
 
   handleRightClick() {
@@ -3253,15 +3205,7 @@ export class Game {
     // An eye of ender is thrown unless it is going into an end portal frame (Eye of Ender). It used to be thrown only
     // with no block targeted, after this very return, so it was never thrown at all (Tutorial:Locating a stronghold).
     if (this.inventory.getActiveItem()?.id === 'ender_eye' && this.targetBlock?.blockId !== BLOCKS.END_PORTAL_FRAME) { this.throwEnderEye(); return; }
-    if (!this.targetBlock && this.bridgeTarget) {
-      const { support, normal } = this.bridgeTarget;
-      this.targetBlock = { ...support, normal, blockId: this.world.getVoxel(support.x, support.y, support.z), point: null };
-      try { this.placeBlockOnFace(activeItem); } finally { this.targetBlock = null; }
-      return;
-    }
-    // Food, drinks and thrown bottles need no block: looking at the sky or over the void (a SkyWars island's edge),
-    // a golden apple was not eaten, because this return came first.
-    if (!this.targetBlock) { if (activeItem && !activeItem.isBlock) this.useConsumable(activeItem); return; }
+    if (!this.targetBlock) { useWithoutBlockTarget(this, activeItem); return; }
 
     const bX = this.targetBlock.x;
     const bY = this.targetBlock.y;
@@ -3694,18 +3638,13 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     }
 
     // Place Door (occupies 2 blocks tall: bottom and top)
-    const isDoorToPlace = Boolean(
-      activeItem && (
-        activeItem.id === 'oak_door' ||
-        activeItem.id === 'iron_door' ||
-        activeItem.id === BLOCKS.OAK_DOOR ||
-        activeItem.id === BLOCKS.IRON_DOOR ||
-        activeItem.blockId === BLOCKS.OAK_DOOR ||
-        activeItem.blockId === BLOCKS.IRON_DOOR ||
-        ITEMS[activeItem.id]?.blockId === BLOCKS.OAK_DOOR ||
-        ITEMS[activeItem.id]?.blockId === BLOCKS.IRON_DOOR
-      )
-    );
+    const doorBlockId = (activeItem && (
+      (BLOCK_DEFS[activeItem.id]?.door ? activeItem.id : null) ||
+      (BLOCK_DEFS[activeItem.blockId]?.door ? activeItem.blockId : null) ||
+      (BLOCK_DEFS[ITEMS[activeItem.id]?.blockId]?.door ? ITEMS[activeItem.id].blockId : null) ||
+      (typeof activeItem.id === 'string' && activeItem.id.endsWith('_door') ? (ITEMS[activeItem.id]?.blockId || BLOCKS[activeItem.id.toUpperCase()]) : null)
+    )) || null;
+    const isDoorToPlace = doorBlockId !== null;
 
     if (isDoorToPlace && this.targetBlock.normal) {
       const placeX = bX + this.targetBlock.normal.x;
@@ -3722,13 +3661,15 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
       }
 
       const isIron = Boolean(
+        doorBlockId === BLOCKS.IRON_DOOR ||
+        BLOCK_DEFS[doorBlockId]?.isIron ||
         activeItem.id === 'iron_door' ||
         activeItem.id === BLOCKS.IRON_DOOR ||
         activeItem.blockId === BLOCKS.IRON_DOOR ||
         ITEMS[activeItem.id]?.blockId === BLOCKS.IRON_DOOR
       );
 
-      const res = this.doorManager.placeDoor(this.world, [placeX, placeY, placeZ], dir, isIron);
+      const res = this.doorManager.placeDoor(this.world, [placeX, placeY, placeZ], dir, isIron, doorBlockId);
       if (res.success) {
         this.sounds.playPlace(isIron ? 'metal' : 'wood');
         if (this.player.gamemode !== 'creative') {
@@ -4440,7 +4381,8 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     this.bridgeTarget = null;
     // Bedrock's simple bridging (bedrockBridging.js), where the world asks for it: looking at the empty place beside the
     // block underfoot targets that place.
-    if (!hit && !this.targetMob && this.modRuntime?.bedrockBridging?.()) {
+    if (!hit && !this.targetMob && this.modRuntime?.bedrockBridging?.()
+      && canBridgeWithItem(this.player, this.inventory.getActiveItem())) {
       const isSolid = (bx, by, bz) => this.player.isBlockSolid(bx, by, bz);
       const target = bridgeTarget({
         origin: camPos, direction: camDir, reach: maxDist, position: this.player.position, width: this.player.width,
@@ -5213,7 +5155,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     const activeItem = this.inventory.getActiveItem();
     this.heldItemRenderer.setItem(activeItem);
     const speed = Math.sqrt(this.player.velocity.x ** 2 + this.player.velocity.z ** 2);
-    this.heldItemRenderer.update(dt, speed);
+    this.heldItemRenderer.update(dt, speed, this.eating.useElapsed);
 
     // 3. Update Voxel Raycasting & Mining
     this.updateRaycast();

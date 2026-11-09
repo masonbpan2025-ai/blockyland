@@ -12,8 +12,10 @@ export async function startMcpServer({ port, clientName = 'claude-code' }) {
   child.stderr.on('data', d => stderr.push(String(d)));
   const pending = new Map();
   let nextId = 1;
+  const notifications = [];
   createInterface({ input: child.stdout }).on('line', line => {
     const message = JSON.parse(line);
+    if (message.id === undefined) { notifications.push(message); return; }
     pending.get(message.id)?.(message);
     pending.delete(message.id);
   });
@@ -27,8 +29,8 @@ export async function startMcpServer({ port, clientName = 'claude-code' }) {
   child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
 
   /** Call a tool: { isError, body (the parsed text), images }. */
-  const call = async (name, args = {}) => {
-    const { result } = await request('tools/call', { name, arguments: args });
+  const call = async (name, args = {}, meta) => {
+    const { result } = await request('tools/call', { name, arguments: args, ...(meta ? { _meta: meta } : {}) });
     const [text, ...images] = result.content;
     return { isError: result.isError, body: JSON.parse(text.text), images };
   };
@@ -38,5 +40,5 @@ export async function startMcpServer({ port, clientName = 'claude-code' }) {
     child.stdin.end();
     setTimeout(() => child.kill(), 2000);
   });
-  return { init: init.result, request, call, stop, stderr };
+  return { init: init.result, request, call, stop, stderr, notifications };
 }

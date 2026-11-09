@@ -26,6 +26,67 @@ async function openTerminal(page) {
   await expect(page.locator('#gemini-modal')).toBeVisible();
 }
 
+test('MCP clients pick up requests during connect and show work updates and measured progress', async ({ page }) => {
+  test.setTimeout(420000);
+  const errors = await startWorld(page);
+  await openTerminal(page);
+  await page.click('#gemini-offline-btn');
+  for (const [clientName, label] of [['codex-mcp-client', 'Codex'], ['gemini-cli-mcp-client', 'Gemini CLI'], ['DeepSeek', 'DeepSeek'], ['claude-code', 'Claude Code']]) {
+    const mcp = await startMcpServer({ port: MCP_PORT, clientName });
+    try {
+      await expect(page.locator('#agent-connect-status')).toContainText(`Found ${label}`, { timeout: 20000 });
+      const code = (await page.locator('#agent-connect-code').textContent()).trim();
+      await expect(page.locator('#agent-connect-prompt')).toContainText('keep listening for my terminal requests');
+      // Pairing is visible before this MCP call returns; it is already listening for the request.
+      const connecting = mcp.call('connect', { code }, { progressToken: `${label}-connect` });
+      await expect(page.locator('#agent-connect-status')).toContainText(`Connected to ${label}`);
+      await expect(page.locator('#agent-connect-status')).toContainText('Listening for your next request');
+      await page.fill('#gemini-prompt-input', `build a pillar for ${label}`);
+      await page.press('#gemini-prompt-input', 'Enter');
+      const heard = await connecting;
+      expect(heard.body.message).toBe(`build a pillar for ${label}`);
+      expect(heard.images).toHaveLength(1);
+      await expect(page.locator('#agent-activity')).toHaveAttribute('data-state', 'working');
+      const progress = page.locator('#gemini-progress-wrapper');
+      await expect(progress).toHaveClass(/active/);
+      await expect(progress).toHaveClass(/indeterminate/);
+      await expect(progress).not.toHaveAttribute('aria-valuenow');
+      await mcp.call('report_progress', { message: 'Choosing the pillar materials', progress: 35 });
+      await expect(page.locator('#gemini-log-feed')).toContainText(`${label}: Choosing the pillar materials`);
+      await expect(progress).not.toHaveClass(/indeterminate/);
+      await expect(progress).toHaveAttribute('aria-valuenow', '35');
+      expect(await page.locator('#gemini-progress-bar').evaluate(el => el.style.width)).toBe('35%');
+      // A timer tick after the old 1.5 s cutoff must preserve measured progress.
+      await page.waitForTimeout(2200);
+      await expect(progress).toHaveAttribute('aria-valuenow', '35');
+      await expect(progress).not.toHaveClass(/indeterminate/);
+      const built = await mcp.call('run_plan', {
+        request: heard.body.message,
+        plan: { action: 'build', name: `${label} pillar`, buildingType: 'custom', dimensions: { width: 1, height: 4, depth: 1 },
+          operations: [{ type: 'fill_box', min: [0, 0, 0], max: [0, 3, 0], block: 'GOLD_BLOCK' }] },
+      }, { progressToken: `${label}-build` });
+      expect(built.isError, JSON.stringify(built.body)).toBe(false);
+      const origin = built.body.buildings.at(-1).origin;
+      expect(await page.evaluate(([x, y, z]) => {
+        const gold = window.game.geminiAgent.resolveBlockId('GOLD_BLOCK');
+        return Array.from({ length: 4 }, (_, i) => window.game.world.getVoxel(x, y + i, z)).every(id => id === gold);
+      }, origin)).toBe(true);
+      expect(mcp.notifications.some(n => n.method === 'notifications/progress' && n.params.progressToken === `${label}-build` && /%/.test(n.params.message))).toBe(true);
+      expect(mcp.notifications.some(n => n.method === 'notifications/message' && /Choosing the pillar/.test(n.params.data))).toBe(true);
+      await expect(page.locator('#gemini-log-feed')).toContainText(`${label}: building ${label} pillar`);
+      await mcp.call('say', { text: 'The pillar is ready.' });
+      const waiting = mcp.call('wait_for_player_message', { timeout_seconds: 1 });
+      await expect(page.locator('#agent-activity')).toHaveAttribute('data-state', 'done');
+      await expect(progress).toHaveAttribute('aria-valuenow', '100');
+      expect((await waiting).body.waiting).toBe(true);
+    } finally {
+      await mcp.stop();
+    }
+    await expect(page.locator('#agent-connect-status')).toContainText('Looking for your AI app', { timeout: 10000 });
+  }
+  expect(errors).toEqual([]);
+});
+
 test('an AI app connects by code, builds, hears the player and answers in the terminal', async ({ page }) => {
   test.setTimeout(420000);
   const mcp = await startMcpServer({ port: MCP_PORT });
@@ -37,6 +98,7 @@ test('an AI app connects by code, builds, hears the player and answers in the te
     // Offline Mode starts on; Connect AI is locked until it is switched off.
     await expect(page.locator('#gemini-offline-state')).toHaveText('ON');
     await expect(page.locator('#agent-connect-btn')).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Disconnect', exact: true })).toBeDisabled();
     expect((await mcp.call('get_state')).body.kind, 'nothing is connected yet').toBe('connection');
 
     await page.click('#gemini-offline-btn');
@@ -49,11 +111,27 @@ test('an AI app connects by code, builds, hears the player and answers in the te
     const code = (await page.locator('#agent-connect-code').textContent()).trim();
     expect(code).toMatch(/^\d{6}$/);
 
-    expect((await mcp.call('connect', { code: '000000' })).isError, 'a wrong code is refused').toBe(true);
-    const connected = await mcp.call('connect', { code });
+    expect((await mcp.call('connect', { listen: false, code: '000000' })).isError, 'a wrong code is refused').toBe(true);
+    const connected = await mcp.call('connect', { listen: false, code });
     expect(connected.isError, JSON.stringify(connected.body)).toBe(false);
     await expect(page.locator('#gemini-status-text')).toHaveText('CLAUDE CODE CONNECTED', { timeout: 10000 });
     await expect(page.locator('#agent-connect-status')).toContainText('Connected to Claude Code');
+
+    // Explicit disconnect stops the bridge and preserves AI-app mode; Connect AI starts it again.
+    const disconnect = page.getByRole('button', { name: 'Disconnect', exact: true });
+    await expect(disconnect).toBeEnabled();
+    await disconnect.click();
+    await expect(disconnect).toBeDisabled();
+    await expect(page.locator('#gemini-status-text')).toHaveText('DISCONNECTED');
+    await expect(page.locator('#gemini-offline-state')).toHaveText('OFF');
+    await expect.poll(async () => (await mcp.call('get_state')).body.kind).toBe('connection');
+    await expect(page.locator('#agent-connect-status')).toContainText('Click Connect AI to reconnect');
+    await page.click('#agent-connect-btn');
+    await expect(page.locator('#agent-connect-status')).toContainText('Found Claude Code');
+    const reconnectCode = (await page.locator('#agent-connect-code').textContent()).trim();
+    expect((await mcp.call('connect', { listen: false, code: reconnectCode })).isError).toBe(false);
+    await expect(disconnect).toBeEnabled();
+    await expect(page.locator('#gemini-status-text')).toHaveText('CLAUDE CODE CONNECTED');
 
     // Seeing the world.
     const state = (await mcp.call('get_state')).body;
@@ -160,7 +238,7 @@ test('when the AI app quits and starts again, the same code connects it again', 
   try {
     await expect(page.locator('#agent-connect-status')).toContainText('Found Claude Code', { timeout: 20000 });
     const code = (await page.locator('#agent-connect-code').textContent()).trim();
-    expect((await mcp.call('connect', { code })).isError).toBe(false);
+    expect((await mcp.call('connect', { listen: false, code })).isError).toBe(false);
     await expect(page.locator('#gemini-status-text')).toHaveText('CLAUDE CODE CONNECTED', { timeout: 10000 });
 
     // Each AI session starts its own server; when the session ends, the server goes.
@@ -172,7 +250,7 @@ test('when the AI app quits and starts again, the same code connects it again', 
     mcp = await startMcpServer({ port: MCP_PORT });
     await expect(page.locator('#agent-connect-status')).toContainText('Found Claude Code', { timeout: 20000 });
     expect((await page.locator('#agent-connect-code').textContent()).trim()).toBe(code);
-    expect((await mcp.call('connect', { code })).isError, 'the same code works with the new server').toBe(false);
+    expect((await mcp.call('connect', { listen: false, code })).isError, 'the same code works with the new server').toBe(false);
     await expect(page.locator('#gemini-status-text')).toHaveText('CLAUDE CODE CONNECTED', { timeout: 10000 });
     expect(errors).toEqual([]);
   } finally {
@@ -189,7 +267,7 @@ test('an AI app has the player light a Nether portal frame', async ({ page }) =>
   try {
     await expect(page.locator('#agent-connect-status')).toContainText('Found Claude Code', { timeout: 20000 });
     const code = (await page.locator('#agent-connect-code').textContent()).trim();
-    expect((await mcp.call('connect', { code })).isError).toBe(false);
+    expect((await mcp.call('connect', { listen: false, code })).isError).toBe(false);
 
     // What the AI is told: portals exist, and how to light one.
     const reference = (await mcp.call('plan_reference')).body.reference;

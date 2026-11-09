@@ -18,6 +18,7 @@ import { igniteActor } from '../heat.js';
 import { fireAspectSeconds } from '../enchantmentEffects.js';
 import { RemoteShots } from './remoteShots.js';
 import { lookOf } from './playerLook.js';
+import { knockbackDirection } from '../../packages/blockyland-mcp/knockback.js';
 
 const NAME_KEY = 'mc-player-name';
 /** The host's last choice about PvP, kept between sessions: 'on' or 'off'. */
@@ -282,16 +283,19 @@ export class WorldSyncManager {
    * Another player hit this one. Taken as a melee hit from where the attacker stood, so armour, a raised shield, the
    * hit-invulnerability window, Creative mode and the knockback all apply as they do to a mob's hit.
    */
-  takeHit({ attackerName, damage, from, weapon, isSprint, isCritical, knockbackLevel = 0, fireAspect = 0, projectile = null, flame = false }) {
+  takeHit({ attackerName, damage, from, weapon, isSprint, isCritical, knockbackLevel = 0, fireAspect = 0, projectile = null, flame = false, direction = null }) {
     const player = this.game.player;
     if (!player || player.isDead) return;
-    const source = from ? { x: from.x, y: from.y, z: from.z } : null;
+    const flight = projectile && knockbackDirection(direction);
+    const source = flight ? { x: player.position.x - flight.x, y: player.position.y, z: player.position.z - flight.z }
+      : from ? { x: from.x, y: from.y, z: from.z } : null;
     const before = player.health;
     // An arrow is a projectile hit -- a raised shield and Projectile Protection answer it; a snowball or an egg deals
     // nothing and only knocks back. Either way the push is a player's (fromPlayer), not a mob's.
     const damageType = projectile === 'arrow' ? 'arrow' : 'player';
     player.takeDamage(damage, source, damageType, null, {
-      weapon, isSprint, isCritical, fromYaw: from?.yaw, knockbackLevel: knockbackLevel || (isSprint ? 1 : 0), fromPlayer: true,
+      weapon, isSprint, isCritical, fromYaw: flight ? Math.atan2(-flight.x, -flight.z) : from?.yaw,
+      knockbackLevel: knockbackLevel || (isSprint ? 1 : 0), fromPlayer: true,
     });
     // Fire Aspect sets the player alight when the hit got through: 4 seconds a level; a Flame arrow for 5 (Flame).
     if (fireAspect > 0 && player.health < before) igniteActor(player, fireAspectSeconds(fireAspect));
@@ -323,7 +327,8 @@ export class WorldSyncManager {
     const peer = this.remotePlayers.remotePlayers.get(hit.peerId);
     if (peer?.dead || peer?.avatar?.mesh?.visible === false) return false;
     // Punch: a bow's knockback enchantment (wiki, Punch), carried as a hit's knockback level.
-    const refused = this.client.attackPlayer(hit.peerId, damage, { projectile: kind, ...(flame ? { flame: true } : {}), ...(punch > 0 ? { knockbackLevel: punch } : {}) });
+    const flight = knockbackDirection(dir);
+    const refused = this.client.attackPlayer(hit.peerId, damage, { projectile: kind, ...(flight ? { direction: flight } : {}), ...(flame ? { flame: true } : {}), ...(punch > 0 ? { knockbackLevel: punch } : {}) });
     // With PvP off the shot passes on, as it does in Java with pvp=false.
     if (refused === 'pvp_off') return false;
     if (refused === null) {

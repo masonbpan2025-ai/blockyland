@@ -1,12 +1,18 @@
 // The Agent Terminal has two modes. Offline Mode ON: the built-in presets answer. OFF: the player's own AI app answers
 // through Agent Control (src/agentControl/), set up in the Connect AI panel. The panel is locked while offline.
-export function syncAgentTerminalControls(ui, { aiMode = false } = {}) {
+export function syncAgentTerminalControls(ui, { aiMode = false, connectionActive = ui.agentControl?.enabled ?? false } = {}) {
   const offline = !aiMode;
   ui.geminiOfflineBtn?.setAttribute('aria-checked', String(offline));
   if (ui.geminiOfflineState) ui.geminiOfflineState.textContent = offline ? 'ON' : 'OFF';
   if (ui.agentConnectBtn) {
     ui.agentConnectBtn.disabled = offline;
     ui.agentConnectBtn.title = offline ? 'Switch Offline Mode off to connect your AI app.' : 'Connect your AI app';
+  }
+  if (ui.agentDisconnectBtn) {
+    ui.agentDisconnectBtn.disabled = offline || !connectionActive;
+    ui.agentDisconnectBtn.title = connectionActive && !offline
+      ? 'Disconnect your AI app and stop connection retries.'
+      : 'No AI connection to disconnect.';
   }
   if (ui.agentConnectDrawer) {
     ui.agentConnectDrawer.disabled = offline;

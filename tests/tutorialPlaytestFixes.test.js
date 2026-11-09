@@ -142,9 +142,10 @@ test('eating is gated by hunger alone, with the wiki\'s five exceptions', async 
   assert.equal(canEat('cooked_beef', 19), true);
   assert.equal(canEat('honey_bottle', 20), true);
   assert.equal(canEat('cooked_beef', 20, { creative: true }), true);
-  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  assert.match(main, /if \(canEat\(activeItem\.id, this\.player\.hunger/);
-  assert.doesNotMatch(main, /this\.player\.hunger < this\.player\.maxHunger \|\| this\.player\.health < this\.player\.maxHealth/);
+  const { foodForUse } = await import('../src/foodUse.js');
+  const player = { gamemode: 'survival', hunger: 20, health: 4, maxHealth: 20 };
+  assert.equal(foodForUse(player, { id: 'cooked_beef', count: 1 }), null, 'low health does not override fullness');
+  assert.ok(foodForUse(player, { id: 'golden_apple', count: 1 }), 'the golden apple is an exception');
 });
 
 // Milk Bucket: "Drinking it immediately removes all status effects from the player and returns an empty bucket."
@@ -249,7 +250,7 @@ test('the Hunger effect drains 0.1 exhaustion a second per level', async () => {
 // never called from the game (Durability management play-test).
 test('right-clicking an armadillo with a brush goes through brushArmadillo', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  const body = main.slice(main.indexOf('  handleRightClick() {'), main.indexOf('  handleRightClick() {') + 3000);
+  const body = main.slice(main.indexOf('  handleRightClick() {'), main.indexOf('  handleRightClick() {') + 5000);
   assert.match(body, /brushArmadillo\(this\.targetMob, held\.id/);
   assert.match(body, /'armadillo_scute'/);
 });

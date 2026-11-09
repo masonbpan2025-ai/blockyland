@@ -15,11 +15,13 @@
 // The figures below are the wiki's, quoted so a future change to the table has to argue with them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { FOODS } from '../src/foodData.js';
 import { ITEMS, BLOCK_DEFS } from '../src/blocks.js';
 import { EXTRA_ITEMS } from '../src/extraItems.js';
-import { eat, SATURATION_PER_HEALTH } from '../src/hunger.js';
+import { createHungerState, eat, SATURATION_PER_HEALTH } from '../src/hunger.js';
+import { finishFoodUse } from '../src/foodUse.js';
+import { Inventory } from '../src/inventory.js';
+import { Player } from '../src/player.js';
 
 /** [wikiname, hunger, saturation] from https://minecraft.wiki/w/Food -- "Food saturation values". */
 const WIKI = [
@@ -80,15 +82,16 @@ test('the saturation boost spends what the wiki says', () => {
   assert.equal(SATURATION_PER_HEALTH, 1.5);
 });
 
-test('the eating path calls the model rather than doing its own arithmetic', () => {
-  // A wiring check, as for the buckets, bundles and brush. Eating goes through `Player.eatFood`, which owns the
-  // model in `hunger.js` and keeps the player's fields in sync with it; doing the arithmetic in `main.js`, as
-  // this path originally did, left the hunger system spending saturation that eating never granted.
-  const main = readFileSync('src/main.js', 'utf8');
-  assert.match(main, /this\.player\.eatFood\?\.\(it\.food \|\| 4, saturation\)/,
-    'eating should go through the player, which owns the hunger model');
-  assert.doesNotMatch(main, /this\.player\.health = Math\.min\(this\.player\.maxHealth, this\.player\.health \+ 2\)/,
-    'eating should not grant instant health: vanilla heals through saturation');
-  const player = readFileSync('src/player.js', 'utf8');
-  assert.match(player, /eatFood\(hungerPoints, saturationPoints = 0\)/, 'the player owns the eating path');
+test('eating a porkchop restores eight food and 12.8 saturation without instantly healing', () => {
+  const player = Object.assign(Object.create(Player.prototype), {
+    gamemode: 'survival', hunger: 10, saturation: 1, exhaustion: 0, health: 6, maxHealth: 20,
+    _hungerState: createHungerState(), statusEffects: new Map(),
+  });
+  const inventory = new Inventory();
+  inventory.hotbar[0] = { id: 'cooked_porkchop', count: 1, isBlock: false };
+  assert.equal(finishFoodUse({ player, inventory }, inventory.getActiveItem()), true);
+  assert.equal(player.hunger, 18);
+  assert.equal(player.saturation, 13.8);
+  assert.equal(player.health, 6);
+  assert.equal(inventory.getActiveItem(), null);
 });

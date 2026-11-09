@@ -18,6 +18,7 @@
     "server.mjs",
     "protocol.js",
     "guestPeer.js",
+    "knockback.js",
     "README.md",
     "LICENSE"
   ],

@@ -3,8 +3,17 @@
 // management and Combat say eating "takes a few seconds", and in the game a click ate at once.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
 import { EatingController, consumeSeconds, USING_ITEM_SPEED } from '../src/eating.js';
+import { finishFoodUse } from '../src/foodUse.js';
+import { Player } from '../src/player.js';
+import { Inventory } from '../src/inventory.js';
+import { createHungerState } from '../src/hunger.js';
+import { bridgeTarget, canBridgeWithItem, useWithoutBlockTarget } from '../src/bedrockBridging.js';
+import { HeldItemRenderer } from '../src/heldItem.js';
+import { createRuntime as bedWarsRuntime } from '../src/mods/bedwars/index.js';
+import { createRuntime as skyWarsRuntime } from '../src/mods/skywars/index.js';
+import { buy, ITEM_SHOP, newKit } from '../src/mods/bedwars/shop.js';
 
 function game(id = 'cooked_beef') {
   const item = { id, count: 3, isBlock: false };
@@ -53,23 +62,114 @@ test('dried kelp is twice as quick', () => {
   assert.deepEqual(eaten, ['dried_kelp']);
 });
 
-test('the game eats through the controller, and the player slows while using an item', () => {
-  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  assert.match(main, /this\.eating\.start\(activeItem\);/);
-  assert.match(main, /finishEating\(activeItem\) \{/);
-  assert.match(main, /this\.eating\?\.release\(\);/, 'releasing the button stops eating');
-  const player = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
-  assert.match(player, /if \(\(this\.usingItem \|\| this\.bowDraw > 0\) && !this\.isFlying\) targetSpeed \*= USING_ITEM_SPEED;/);
+function appleGame({ mode = 'survival', hardcore = false, id = 'golden_apple', count = 2, hunger = 20 } = {}) {
+  const player = Object.assign(Object.create(Player.prototype), {
+    gamemode: mode, hardcore, hunger, maxHunger: 20, saturation: 1, exhaustion: 0,
+    health: 6, maxHealth: 20, absorption: 0, statusEffects: new Map(), _hungerState: createHungerState(),
+  });
+  const inventory = new Inventory();
+  if (count) inventory.hotbar[0] = { id, count, isBlock: false };
+  const game = { player, inventory, targetBlock: null };
+  game.finishEating = (item) => finishFoodUse(game, item);
+  game.eating = new EatingController(game);
+  game.useConsumable = (item) => game.eating.startFood(item);
+  return game;
+}
+
+for (const [label, mode, hardcore] of [
+  ['Survival', 'survival', false], ['Hardcore', 'survival', true],
+  ['Adventure', 'adventure', false], ['Creative', 'creative', false],
+]) {
+  test(`${label}: a held golden apple is edible at full hunger and grants the bite's effects`, () => {
+    const g = appleGame({ mode, hardcore });
+    assert.equal(useWithoutBlockTarget(g, g.inventory.getActiveItem()), true, 'looking at open air');
+    g.eating.update(1.55);
+    assert.equal(g.inventory.getActiveItem().count, 2);
+    assert.equal(g.player.absorption, 0, 'benefits wait for the bite');
+    g.eating.update(0.06);
+    assert.equal(g.player.absorption, 4, 'two golden hearts');
+    assert.equal(g.player.health, 6, 'regeneration heals over time');
+    assert.equal(g.player.statusEffects.get('regeneration')?.level, 2);
+    assert.equal(g.player.statusEffects.get('regeneration')?.duration, 5);
+    assert.equal(g.player.statusEffects.get('absorption')?.duration, 120);
+    assert.equal(g.player.hunger, 20);
+    assert.equal(g.player.saturation, 10.6);
+    assert.equal(g.inventory.getActiveItem().count, mode === 'creative' ? 2 : 1);
+    assert.equal(g.player.usingItem, false);
+  });
+}
+
+for (const [label, key, runtime] of [['Bed Wars', 'bedwars', bedWarsRuntime], ['SkyWars', 'skywars', skyWarsRuntime]]) {
+  test(`${label}: a golden apple takes priority over the island-edge bridge preview`, () => {
+    const g = appleGame({ count: key === 'bedwars' ? 0 : 1, hunger: 14 });
+    g[key] = { active: true };
+    g.modRuntime = runtime(g);
+    assert.equal(g.modRuntime.bedrockBridging(), true);
+    if (key === 'bedwars') {
+      g.inventory.addItem('gold_ingot', false, 3);
+      assert.equal(buy(ITEM_SHOP.find(({ key }) => key === 'gapple'), { inv: g.inventory, kit: newKit(), group: 'small' }).ok, true);
+    }
+    const underfoot = (x, y, z) => x === 0 && y === 30 && z === 0;
+    g.bridgeTarget = bridgeTarget({
+      origin: { x: 0.5, y: 32.62, z: 0.4 }, position: { x: 0.5, y: 31, z: 0.4 },
+      direction: { x: 0, y: -Math.sin(1), z: -Math.cos(1) }, reach: 5.2, yaw: 0,
+      isSolid: underfoot, isReplaceable: (...xyz) => !underfoot(...xyz),
+    });
+    assert.ok(g.bridgeTarget, 'a real bridge target exists at this edge');
+    const apple = g.inventory.getActiveItem();
+    assert.equal(apple?.id, 'golden_apple');
+    assert.equal(canBridgeWithItem(g.player, apple), false);
+    g.placeBlockOnFace = () => assert.fail('an apple is not a bridge block');
+    assert.equal(useWithoutBlockTarget(g, apple), true);
+    g.eating.update(1.6);
+    assert.equal(g.inventory.getActiveItem(), null, 'the one apple was eaten');
+    assert.equal(g.player.hunger, 18);
+    assert.equal(g.player.absorption, 4);
+  });
+}
+
+test('spectators cannot eat, and switching to Spectator cancels a bite in progress', () => {
+  const g = appleGame({ mode: 'spectator' });
+  const apple = g.inventory.getActiveItem();
+  assert.equal(useWithoutBlockTarget(g, apple), false);
+  g.player.gamemode = 'survival';
+  assert.equal(useWithoutBlockTarget(g, apple), true);
+  g.eating.update(1);
+  g.player.gamemode = 'spectator';
+  g.eating.update(1);
+  assert.equal(g.player.usingItem, false);
+  assert.equal(g.player.absorption, 0);
+  assert.equal(apple.count, 2);
 });
 
-test('food is eaten looking at nothing: at the sky, or over the void from a SkyWars island', () => {
-  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  // handleRightClick returned with no block under the crosshair before it reached the food, so a golden apple held
-  // over the void was never eaten. The food is used through useConsumable on both paths.
-  assert.match(main, /if \(!this\.targetBlock\) \{ if \(activeItem && !activeItem\.isBlock\) this\.useConsumable\(activeItem\); return; \}/);
-  assert.match(main, /if \(this\.useConsumable\(activeItem\)\) return;/);
-  const body = main.slice(main.indexOf('  useConsumable(activeItem) {'), main.indexOf('  handleRightClick() {'));
-  assert.match(body, /this\.eating\.start\(activeItem\);/);
+test('an enchanted apple gives its stronger effects without instantly healing', () => {
+  const g = appleGame({ id: 'enchanted_golden_apple', count: 1 });
+  assert.equal(g.eating.startFood(g.inventory.getActiveItem()), true);
+  g.eating.update(1.6);
+  assert.equal(g.inventory.getActiveItem(), null);
+  assert.equal(g.player.absorption, 16);
+  assert.equal(g.player.health, 6);
+  assert.equal(g.player.statusEffects.get('regeneration')?.duration, 20);
+  assert.equal(g.player.statusEffects.get('resistance')?.duration, 300);
+  assert.equal(g.player.statusEffects.get('fire_resistance')?.duration, 300);
+});
+
+test('the held apple rises toward the mouth while eating and drops back on release', () => {
+  const g = appleGame();
+  const renderer = new HeldItemRenderer(new THREE.PerspectiveCamera(), {});
+  renderer.setItem(g.inventory.getActiveItem());
+  renderer.update(0, 0, g.eating.useElapsed);
+  const rest = renderer.container.position.clone();
+  g.eating.startFood(g.inventory.getActiveItem());
+  g.eating.update(0.2);
+  renderer.update(0.02, 0, g.eating.useElapsed);
+  assert.ok(renderer.container.position.y > rest.y && renderer.container.position.x < rest.x);
+  g.eating.release();
+  renderer.update(0.02, 0, g.eating.useElapsed);
+  assert.deepEqual(renderer.container.position.toArray(), rest.toArray());
+  assert.equal(g.inventory.getActiveItem().count, 2);
+  renderer.unsubscribePack();
+  renderer.unsubscribeSkin();
 });
 
 test('golden apples give the wiki\'s effects, and the apple table agrees with the items\' own', async () => {

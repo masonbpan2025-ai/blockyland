@@ -8,6 +8,7 @@ import { thornsReflect, depthStriderMultiplier, protectionPoints } from './encha
 import { spendDurability } from './durability.js';
 import { shieldWear } from './toolWear.js';
 import { hurtWindow, hitKnockback } from './pvpCombat.js';
+import { dragKnockback, KNOCKBACK_TICK } from '../packages/blockyland-mcp/knockback.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -441,7 +442,14 @@ export class Player {
     const b = this.world.getVoxel(Math.floor(x), Math.floor(y), Math.floor(z));
     if (b === BLOCKS.AIR || b === BLOCKS.WATER) return false;
     const def = BLOCK_DEFS[b];
-    return def && def.solid !== false && !def.plant;
+    if (!def || def.plant) return false;
+    if (def.door) {
+      if (def.solid === false || def.name?.includes('Open')) return false;
+      const dm = this.game?.doorManager || this.world?.doorManager;
+      const door = dm?.getDoor?.(x, y, z);
+      if (door?.open) return false;
+    }
+    return def.solid !== false;
   }
 
   checkCollision(pos) {
@@ -481,6 +489,8 @@ export class Player {
     }
 
     if (this.isDead) {
+      this.pvpKnockbackActive = false;
+      this.pvpKnockbackAccumulator = 0;
       if (this.velocity) this.velocity.set(0, 0, 0);
       this.updateCameraAndModel(dt);
       return;
@@ -681,73 +691,78 @@ export class Player {
       }
     }
 
-    // Horizontal acceleration
-    const accel = this.onGround ? 12.0 : 4.0;
-    const current = this.inWater && !this.isFlying ? waterCurrent(this.world, Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z)) : {x:0,y:0,z:0};
-    // A current pushes at about 1.39 m/s (Water: "25 blocks every 18 seconds"); it was 0.65.
-    // A swimmer moves along the look direction, so the level share of the speed shrinks as they look up or down.
-    const level = this.isSwimming ? Math.cos(this.pitch || 0) : 1;
-    const targetVx = moveDir.x * targetSpeed * level + current.x * CURRENT_PUSH;
-    const targetVz = moveDir.z * targetSpeed * level + current.z * CURRENT_PUSH;
+    if (this.pvpKnockbackActive && !this.isFlying && !this.inWater && !this.isDungeonMode) {
+      this.movePvpKnockback(dt, moveDir, targetSpeed, controlsDisabled);
+    } else {
+      this.pvpKnockbackActive = false;
+      // Horizontal acceleration
+      const accel = this.onGround ? 12.0 : 4.0;
+      const current = this.inWater && !this.isFlying ? waterCurrent(this.world, Math.floor(this.position.x), Math.floor(this.position.y), Math.floor(this.position.z)) : {x:0,y:0,z:0};
+      // A current pushes at about 1.39 m/s (Water: "25 blocks every 18 seconds"); it was 0.65.
+      // A swimmer moves along the look direction, so the level share of the speed shrinks as they look up or down.
+      const level = this.isSwimming ? Math.cos(this.pitch || 0) : 1;
+      const targetVx = moveDir.x * targetSpeed * level + current.x * CURRENT_PUSH;
+      const targetVz = moveDir.z * targetSpeed * level + current.z * CURRENT_PUSH;
 
-    this.velocity.x += (targetVx - this.velocity.x) * Math.min(1.0, accel * dt);
-    this.velocity.z += (targetVz - this.velocity.z) * Math.min(1.0, accel * dt);
-    if (Math.abs(this.velocity.x) < 1e-4) this.velocity.x = 0;
-    if (Math.abs(this.velocity.z) < 1e-4) this.velocity.z = 0;
+      this.velocity.x += (targetVx - this.velocity.x) * Math.min(1.0, accel * dt);
+      this.velocity.z += (targetVz - this.velocity.z) * Math.min(1.0, accel * dt);
+      if (Math.abs(this.velocity.x) < 1e-4) this.velocity.x = 0;
+      if (Math.abs(this.velocity.z) < 1e-4) this.velocity.z = 0;
 
-    // Vertical Movement (Gravity & Jump)
-    if (this.isFlying) {
-      this.velocity.y = 0;
-      if (!controlsDisabled) {
-        if (this.keys['Space']) this.velocity.y = this.flySpeed * 0.7;
-        if (this.keys['ShiftLeft']) this.velocity.y = -this.flySpeed * 0.7;
-      }
-    } else if (this.inWater) {
-      if (this.isSwimming && moveForward > 0) {
-        // Sprint-swimming follows the look direction: looking straight down or up is the fastest way down or up.
-        const want = Math.sin(this.pitch || 0) * targetSpeed;
-        this.velocity.y += (want - this.velocity.y) * Math.min(1, 6 * dt);
-        if (!controlsDisabled && this.keys['Space']) this.velocity.y = Math.max(this.velocity.y, 2.0);
+      // Vertical Movement (Gravity & Jump)
+      if (this.isFlying) {
+        this.velocity.y = 0;
+        if (!controlsDisabled) {
+          if (this.keys['Space']) this.velocity.y = this.flySpeed * 0.7;
+          if (this.keys['ShiftLeft']) this.velocity.y = -this.flySpeed * 0.7;
+        }
+      } else if (this.inWater) {
+        if (this.isSwimming && moveForward > 0) {
+          // Sprint-swimming follows the look direction: looking straight down or up is the fastest way down or up.
+          const want = Math.sin(this.pitch || 0) * targetSpeed;
+          this.velocity.y += (want - this.velocity.y) * Math.min(1, 6 * dt);
+          if (!controlsDisabled && this.keys['Space']) this.velocity.y = Math.max(this.velocity.y, 2.0);
+        } else {
+          this.velocity.y -= this.gravity * 0.2 * dt;
+          if (this.velocity.y < -3.0) this.velocity.y = -3.0;
+          if (!controlsDisabled && this.keys['Space']) {
+            this.velocity.y = 4.0; // swim upwards
+          }
+        }
+        // "Crouching sinks faster" (Water): a steady push down while the sneak key is held.
+        if (!controlsDisabled && this.keys['ShiftLeft'] && !this.keys['Space']) {
+          this.velocity.y = Math.max(this.velocity.y - this.gravity * 0.45 * dt, -4.5);
+        }
+      } else if (this.world && [0, 0.35, -0.35].some(dx => [0, 0.35, -0.35].some(dz => this.world.getVoxel?.(Math.floor(this.position.x + dx), Math.floor(this.position.y), Math.floor(this.position.z + dz)) === BLOCKS.LADDER))) {
+        if (!controlsDisabled && (this.keys['Space'] || this.keys['KeyW'])) {
+          this.velocity.y = 2.35;
+        } else {
+          this.velocity.y = Math.max(this.velocity.y - this.gravity * 0.1 * dt, -0.15);
+        }
       } else {
-        this.velocity.y -= this.gravity * 0.2 * dt;
-        if (this.velocity.y < -3.0) this.velocity.y = -3.0;
-        if (!controlsDisabled && this.keys['Space']) {
-          this.velocity.y = 4.0; // swim upwards
+        // Normal Gravity
+        this.velocity.y -= this.gravity * (this.gravityAttributeScale ?? 1) * dt;
+        // Slow Falling holds the descent as well as negating the damage, which is the half a player
+        // notices: the landing is gentle rather than merely harmless.
+        if (hasSlowFalling(this.statusEffects) && this.velocity.y < -FALL_DAMAGE.slowFallingSpeed) {
+          this.velocity.y = -FALL_DAMAGE.slowFallingSpeed;
+        }
+        if (this.velocity.y < -78) this.velocity.y = -78;
+
+        if (!controlsDisabled && this.onGround && this.keys['Space']) {
+          // Jump Boost raises the jump; the fall half of the same effect is in `fallDamage`.
+          this.velocity.y = this.jumpForce * (this.jumpAttributeScale ?? 1) * jumpVelocityMultiplier(this.statusEffects);
+          // A sprint-jump costs 0.2 exhaustion against 0.05 for a standing jump, which is why
+          // sprint-jumping everywhere empties the hunger bar far faster.
+          this.addExhaustion(this.isSprinting ? EXHAUSTION.sprintJump : EXHAUSTION.jump);
+          this.onGround = false;
+          this.sounds.playStep(this.getBlockBelowSound());
         }
       }
-      // "Crouching sinks faster" (Water): a steady push down while the sneak key is held.
-      if (!controlsDisabled && this.keys['ShiftLeft'] && !this.keys['Space']) {
-        this.velocity.y = Math.max(this.velocity.y - this.gravity * 0.45 * dt, -4.5);
-      }
-    } else if (this.world && [0, 0.35, -0.35].some(dx => [0, 0.35, -0.35].some(dz => this.world.getVoxel?.(Math.floor(this.position.x + dx), Math.floor(this.position.y), Math.floor(this.position.z + dz)) === BLOCKS.LADDER))) {
-      if (!controlsDisabled && (this.keys['Space'] || this.keys['KeyW'])) {
-        this.velocity.y = 2.35;
-      } else {
-        this.velocity.y = Math.max(this.velocity.y - this.gravity * 0.1 * dt, -0.15);
-      }
-    } else {
-      // Normal Gravity
-      this.velocity.y -= this.gravity * (this.gravityAttributeScale ?? 1) * dt;
-      // Slow Falling holds the descent as well as negating the damage, which is the half a player
-      // notices: the landing is gentle rather than merely harmless.
-      if (hasSlowFalling(this.statusEffects) && this.velocity.y < -FALL_DAMAGE.slowFallingSpeed) {
-        this.velocity.y = -FALL_DAMAGE.slowFallingSpeed;
-      }
-      if (this.velocity.y < -78) this.velocity.y = -78;
 
-      if (!controlsDisabled && this.onGround && this.keys['Space']) {
-        // Jump Boost raises the jump; the fall half of the same effect is in `fallDamage`.
-        this.velocity.y = this.jumpForce * (this.jumpAttributeScale ?? 1) * jumpVelocityMultiplier(this.statusEffects);
-        // A sprint-jump costs 0.2 exhaustion against 0.05 for a standing jump, which is why
-        // sprint-jumping everywhere empties the hunger bar far faster.
-        this.addExhaustion(this.isSprinting ? EXHAUSTION.sprintJump : EXHAUSTION.jump);
-        this.onGround = false;
-        this.sounds.playStep(this.getBlockBelowSound());
-      }
+      // Apply movement with 3-axis AABB collision
+      this.moveWithCollision(dt);
     }
-
-    // Apply movement with 3-axis AABB collision
-    this.moveWithCollision(dt);
 
     // Footstep audio
     const horizDist = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z) * dt;
@@ -791,6 +806,35 @@ export class Player {
 
     // Update 3D Camera & Player Model Position
     this.updateCameraAndModel(dt);
+  }
+
+  /** A hit carries momentum at 20 Hz; the walking controller must not lerp it away before collision/replication. */
+  movePvpKnockback(dt, moveDir, targetSpeed, controlsDisabled) {
+    this.pvpKnockbackAccumulator = (this.pvpKnockbackAccumulator || 0) + dt;
+    while (this.pvpKnockbackAccumulator + 1e-9 >= KNOCKBACK_TICK) {
+      this.pvpKnockbackAccumulator -= KNOCKBACK_TICK;
+      const grounded = this.pvpKnockbackGrounded ?? this.onGround;
+      this.pvpKnockbackGrounded = null;
+      // Vanilla airborne steering is acceleration, not an immediate replacement of the received velocity.
+      const acceleration = grounded ? 2 * targetSpeed / 4.317 : this.isSprinting ? 0.52 : 0.4;
+      this.velocity.x += moveDir.x * acceleration;
+      this.velocity.z += moveDir.z * acceleration;
+      if (this.onGround && this.keys.Space && !controlsDisabled) {
+        this.velocity.y = this.jumpForce * (this.jumpAttributeScale ?? 1) * jumpVelocityMultiplier(this.statusEffects);
+        this.addExhaustion(this.isSprinting ? EXHAUSTION.sprintJump : EXHAUSTION.jump);
+        this.onGround = false;
+      }
+      const parts = Math.max(1, Math.ceil(this.velocity.length() * KNOCKBACK_TICK / 0.2));
+      for (let i = 0; i < parts; i++) this.moveWithCollision(KNOCKBACK_TICK / parts);
+      const v = dragKnockback(this.velocity, grounded);
+      this.velocity.set(v.x, v.y, v.z);
+      if (hasSlowFalling(this.statusEffects) && this.velocity.y < -FALL_DAMAGE.slowFallingSpeed) this.velocity.y = -FALL_DAMAGE.slowFallingSpeed;
+      if (this.onGround && Math.hypot(v.x, v.z) < 0.05) {
+        this.pvpKnockbackActive = false;
+        this.pvpKnockbackAccumulator = 0;
+        break;
+      }
+    }
   }
 
   /**
@@ -899,7 +943,7 @@ export class Player {
 
     // 1. Move X
     newPos.x += this.velocity.x * dt;
-    if (this.isSneaking && this.onGround && !this.hasGroundAhead(newPos.x, this.position.z)) {
+    if (this.isSneaking && this.onGround && !this.pvpKnockbackActive && !this.hasGroundAhead(newPos.x, this.position.z)) {
       newPos.x = oldPos.x;
       this.velocity.x = 0;
     } else if (this.checkCollision(newPos)) {
@@ -916,7 +960,7 @@ export class Player {
 
     // 2. Move Z
     newPos.z += this.velocity.z * dt;
-    if (this.isSneaking && this.onGround && !this.hasGroundAhead(newPos.x, newPos.z)) {
+    if (this.isSneaking && this.onGround && !this.pvpKnockbackActive && !this.hasGroundAhead(newPos.x, newPos.z)) {
       newPos.z = oldPos.z;
       this.velocity.z = 0;
     } else if (this.checkCollision(newPos)) {
@@ -1319,13 +1363,13 @@ export class Player {
     // window.
     let freshHit = true;
     if (this.invulnerableTimer > 0 && !effectDamage) {
-      if (damageType !== 'player') return;
+      if (damageType !== 'player' && !options.fromPlayer) return;
       const window = hurtWindow({ timer: this.invulnerableTimer, lastAmount: this.lastHurtAmount }, amount);
       if (window.amount <= 0) return;
       this.lastHurtAmount = amount;
       amount = window.amount;
       freshHit = false;
-    } else if (damageType === 'player') this.lastHurtAmount = amount;
+    } else if (damageType === 'player' || options.fromPlayer) this.lastHurtAmount = amount;
 
     if (this.hasStatusEffect('fire_resistance') && ['fire', 'lava', 'burn', 'in_fire', 'on_fire'].includes(damageType)) return;
 
@@ -1445,6 +1489,11 @@ export class Player {
           position: this.position, from: sourcePos, fromYaw: options.fromYaw, onGround: this.onGround,
           extraLevel: options.knockbackLevel ?? (options.isSprint ? 1 : 0), resistance: this.knockbackResistance ?? 0,
         });
+        if (Math.abs(v.x - this.velocity.x) + Math.abs(v.y - this.velocity.y) + Math.abs(v.z - this.velocity.z) > 1e-9) {
+          this.pvpKnockbackActive = true;
+          this.pvpKnockbackAccumulator = 0;
+          this.pvpKnockbackGrounded = this.onGround;
+        }
         this.velocity.set(v.x, v.y, v.z);
         if (v.y > 0) this.onGround = false;
       } else {

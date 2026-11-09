@@ -205,11 +205,16 @@ async function runPlanTool({ plan, request = '', confirm = false }, ctx) {
 
   const lines = [];
   const previousLog = agent.onLog;
+  const previousProgress = agent.onProgress;
   const previousLabel = agent.chatLabel;
   agent.chatLabel = ctx.clientLabel?.() || 'Your AI app';
   agent.onLog = (message, type) => {
     lines.push(`${type}: ${message}`);
     previousLog?.(message, type);
+  };
+  agent.onProgress = (pct, label) => {
+    previousProgress?.(pct, label);
+    ctx.onProgress?.(pct, label);
   };
   agent.isExecuting = true;
   agent.turnId += 1;
@@ -241,6 +246,7 @@ async function runPlanTool({ plan, request = '', confirm = false }, ctx) {
     throw new ToolFailure('failed', `${explanation.summary} (${err.message}). Log: ${lines.slice(-10).join(' | ')}`);
   } finally {
     agent.onLog = previousLog;
+    agent.onProgress = previousProgress;
     agent.chatLabel = previousLabel;
     agent.isExecuting = false;
     agent.onComplete?.();

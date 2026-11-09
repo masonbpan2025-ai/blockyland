@@ -8,6 +8,9 @@
 // It used to be instant: a click restored hunger at once, so a fight could be healed through mid-swing, which the
 // Combat and Hunger management tutorials explicitly warn is not possible ("eating them takes a few seconds").
 
+import { foodForUse } from './foodUse.js';
+import { modeRules } from './gameModeRules.js';
+
 export const CONSUME_TICKS = { default: 32, dried_kelp: 16, honey_bottle: 40 };
 export const consumeSeconds = (id) => (CONSUME_TICKS[id] ?? CONSUME_TICKS.default) / 20;
 /** Movement while using an item (eating, drinking, drawing a bow): a fifth of normal speed. */
@@ -17,6 +20,13 @@ export class EatingController {
   constructor(game) { this.game = game; this.cancel(); }
 
   get active() { return this.eating; }
+  get useElapsed() { return this.eating ? this.time : null; }
+
+  startFood(item) {
+    const g = this.game;
+    if (g.inventory.getActiveItem() !== item || !foodForUse(g.player, item)) return false;
+    return this.start(item);
+  }
 
   /**
    * Begin eating `item` (the held stack), or keep eating it: holding use calls this again, and a second call for the
@@ -42,7 +52,7 @@ export class EatingController {
   update(dt) {
     if (!this.eating) return;
     const g = this.game, held = g.inventory.getActiveItem();
-    if (g.player?.isDead || held !== this.item || g.inventory.activeSlot !== this.slot || !held || held.count <= 0 || g.ui?.isModalOpen?.()) { this.cancel(); return; }
+    if (g.player?.isDead || !modeRules(g.player?.gamemode).interact || held !== this.item || g.inventory.activeSlot !== this.slot || !held || held.count <= 0 || g.ui?.isModalOpen?.() || g.ui?.isChatOpen) { this.cancel(); return; }
     this.time += Math.max(0, dt);
     this.soundTimer -= dt;
     if (this.soundTimer <= 0) { this.soundTimer = this.sound ? 0.4 : 0.2; if (this.sound) this.sound(); else g.sounds?.playEat?.(); }

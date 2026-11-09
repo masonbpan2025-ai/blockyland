@@ -36,7 +36,7 @@ It replaces the Agent Terminal's old AI Settings (vendor, model and API key). Th
 
 2. **In the game**, open a world in Creative or with cheats on, press **C**, switch **Offline Mode** off, and open
    **🔌 Connect AI**. It says "Found Claude Code" (or your app) once the app is running, and shows a 6-digit code.
-3. **Tell your AI app** "Connect to Blockyland with code 123456". The terminal then says it is connected.
+3. **Tell your AI app** "Connect to Blockyland with code 123456 and keep listening for my terminal requests". The terminal then says it is connected.
 4. **Type requests in the Agent Terminal.** Your AI app reads them, builds, and answers in the terminal. You can
    also ask it directly in the AI app.
 
@@ -56,6 +56,24 @@ backdrop, so you can watch the world change while it works. **⤢ Large** restor
 The code changes each time Agent Control starts. After a page reload the tab reconnects by itself. **New code**
 drops the connection.
 
+**Disconnect** beside **Connect AI** closes the AI connection and stops retries while keeping Offline Mode off.
+Click **Connect AI** to reconnect and pair again with the displayed code.
+
+Pairing immediately starts a 25-second listen for the first request, so the AI does not need another tool call to
+pick it up. The response includes the request and attached images, or an explicit instruction to keep listening.
+After each request the AI must call `wait_for_player_message` again, including after a timeout. A server cannot
+force an idle AI app to start a new model turn; clients that stop their listening loop still need to be asked to resume.
+This behavior is the same for Claude, Codex, Gemini, DeepSeek and other MCP clients.
+
+The progress bar sweeps when the amount of work is unknown and shows measured percentages during a build or an
+agent's `report_progress` update. Percentages describe the current step, not an estimate of the whole request.
+Tool activity and brief public work summaries appear in the terminal. For AI apps, the server sends standard
+[MCP progress notifications](https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/progress)
+when a call supplies `_meta.progressToken`, plus
+[MCP logging notifications](https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/logging).
+The client controls whether these appear in its chat or logs. Agents are instructed to also post short work updates
+in their own chat. These are activity summaries, not private model reasoning.
+
 ## Tools
 
 The list comes from `packages/blockyland-mcp/protocol.js` (`TOOLS`), the one table the server, the argument checks and this
@@ -63,8 +81,9 @@ page share. `tests/agentControlDocs.test.js` fails when a tool is missing here.
 
 | Tool | Runs in | What it does |
 | --- | --- | --- |
-| `connect` | server | Pair with the game by its 6-digit code; without a code, say whether a game is connected |
+| `connect` | server | Pair immediately, then listen for the first request for up to 25 s (1–50 s with `timeout_seconds`); `listen:false` skips listening; without a code, return connection status |
 | `wait_for_player_message` | server | Wait (default 50 s, up to 600 s) for what the player types in the Agent Terminal, with a screenshot of their view if allowed and any image they attached |
+| `report_progress` | server | Show a brief work summary and optional real percentage (0–100) for the current step in the terminal and AI client |
 | `get_state` | game | Position, facing, dimension, game mode, health, food, time, weather, held item, hotbar, crosshair block |
 | `look_around` | game | The world as text: a 33x33 terrain map, waterline, crosshair, the view ahead, the room, nearby structures and creatures, and the buildings made this session with their ids |
 | `screenshot` | game | A JPEG of the player's view; refused if the player turned screenshots off |
@@ -81,9 +100,27 @@ page share. `tests/agentControlDocs.test.js` fails when a tool is missing here.
 
 Any game that allows other players to join by a 4-digit room code can also be joined by your AI app through MCP. For a complete technical walkthrough and guide covering all parameters, autonomous autopilot behavior, and localhost vs. production differences, see [`docs/agent-multiplayer-guide.md`](./agent-multiplayer-guide.md).
 
+Direct `move` actions and Mineflayer `setControlState` walking/sprinting have no automatic void protection,
+including in SkyWars and Bed Wars. Grounded, explicit Sneak retains Minecraft's edge restraint; releasing Sneak
+allows a fall. There is no automatic centering on bridge blocks. High-level pathfinding and autopilot may choose
+safe routes (`moveStepToward` explicitly opts into `avoidVoid: true`), and `bridge_to` places real blocks before
+crossing. Those are navigation decisions: gravity and incoming knockback continue during scripts and navigation,
+and every peer receives the resulting position and void death.
+
+Multiplayer players and MCP guests share 20 Hz knockback rules (`packages/blockyland-mcp/knockback.js`):
+0.4 blocks/tick base strength, 0.91 horizontal air drag, ordinary-block grounded drag of 0.6 × 0.91,
+0.08 blocks/tick gravity, and 0.98 vertical drag. Projectile pushes follow the projectile's travel direction.
+Snowballs push without taking health. Repeated hits within the 10-tick hurt window cannot stack fresh impulses.
+The three-client `e2e/multiplayerKnockback.pw.js` checks bridge falls, visible replication, and weapon kill credit
+in both mini-games; `tests/multiplayerKnockback.test.js` also exercises a headless victim busy running a script.
+References: [Minecraft controls](https://www.minecraft.net/en-us/article/minecraft-controls),
+[Minestom knockback implementation](https://github.com/Minestom/Minestom/blob/master/src/main/java/net/minestom/server/entity/LivingEntity.java),
+and [Minecraft's snowball knockback change](https://www.minecraft.net/en-us/article/minecraft-26-4-snapshot-3).
+
 - **Base Game (Share World)**: Open a world, click **Share World** (or press **M**), and give the 4-digit room code to your AI app (`join_game` with `code`). If your tab is already paired via `connect`, calling `join_game` without a code opens and joins your world automatically.
 - **SkyWars**: Start SkyWars from the title screen and give the 4-digit lobby code to your AI app. Once joined via `join_game`, the match unlocks (2+ players); the agent spawns in its island cage, loots chests (`loot_chest`), bridges across islands (`bridge_to`), and fights (`attack`).
 - **Bed Wars**: Start Bed Wars from the title screen and give the 4-digit lobby code to your AI app. The agent can pick a team (`choose_team`), collect iron/gold/diamonds/emeralds from generators (`collect_resources`), buy gear, blocks, and team upgrades (`buy`), bridge to enemy islands (`bridge_to`), and destroy enemy beds (`break_bed`).
+- **Multi-Agent Coexistence**: Multiple agents can join the same Bed Wars or SkyWars game simultaneously on different teams or cages. When joining, never disconnect or terminate existing agents already connected to the match. When leaving, pass `leave_game` with `{ "name": "<agent_name>" }` so other active bots remain connected.
 
 Errors are one JSON object, `{"error": "<what to do next>", "kind": "<kind>"}`, with kind one of `usage`, `unknown`,
 `state`, `busy`, `timeout`, `connection`, `denied`, `confirm` or `failed`.

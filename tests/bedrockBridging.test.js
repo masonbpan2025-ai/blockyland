@@ -2,7 +2,7 @@
 // the next block beside the one underfoot, so a bridge is built walking forward. SkyWars turns it on.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bridgeTarget, BRIDGE_MIN_LOOK_DOWN } from '../src/bedrockBridging.js';
+import { bridgeTarget, BRIDGE_MIN_LOOK_DOWN, useWithoutBlockTarget } from '../src/bedrockBridging.js';
 import { createRuntime } from '../src/mods/skywars/index.js';
 
 const EYE = 1.62;
@@ -23,6 +23,21 @@ function look(z, down, w = world(), extra = {}) {
 test('facing the void at the edge and looking down: the block goes in front, beside the one underfoot', () => {
   const t = look(0.4, 1.0);
   assert.deepEqual(t, { x: 0, y: 30, z: -1, support: { x: 0, y: 30, z: 0 }, normal: { x: 0, y: 0, z: -1 } });
+});
+
+test('using a block at the edge still builds the bridge beside its support', () => {
+  const placed = new Map([['0,30,0', 4]]);
+  const game = {
+    player: { gamemode: 'survival' }, targetBlock: null, bridgeTarget: look(0.4, 1),
+    world: { getVoxel: (...at) => placed.get(at.join(',')) ?? 0 },
+    placeBlockOnFace(item) {
+      const { x, y, z, normal } = this.targetBlock;
+      placed.set([x + normal.x, y + normal.y, z + normal.z].join(','), item.id);
+    },
+  };
+  assert.equal(useWithoutBlockTarget(game, { id: 4, count: 8, isBlock: true }), true);
+  assert.equal(game.world.getVoxel(0, 30, -1), 4);
+  assert.equal(game.targetBlock, null);
 });
 
 test('walking forward at a fixed view, every step from the middle of the block to the overhang offers the next place', () => {

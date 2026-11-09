@@ -20,6 +20,8 @@ import { GuestPeerSession, createModelBrain } from './guestPeer.js';
 export const SUPPORTED_MCP_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 /** The package's own version, so the AI app and the game can tell which server they talk to. */
 export const SERVER_VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+const LOG_LEVELS = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
+const LISTEN_NEXT = 'Call wait_for_player_message immediately and keep listening after timeouts. Do not end your turn while serving the terminal.';
 
 /** A readable name for the AI app, from the clientInfo it sent. */
 export function clientLabel(info) {
@@ -38,21 +40,36 @@ export function clientLabel(info) {
 export function createAgentControlServer({
   port = DEFAULT_PORT, host = '127.0.0.1', origins = [], log = () => {},
   shareUrl = process.env.BLOCKYLAND_SHARE_URL || 'ws://localhost:3000/ws/share',
-  WebSocketImpl = undefined,
+  WebSocketImpl = undefined, notify = () => {},
 } = {}) {
   const state = {
     client: null, wss: null, port: null, listenError: null,
     pages: new Set(), paired: null, sessionToken: null,
     messages: [], waiters: [], pending: new Map(), nextId: 1,
     guests: new Map(), activeGuest: null,
+    requests: new Map(), logLevel: 'info',
   };
 
   const send = (page, message) => {
     if (page?.ws.readyState === 1) page.ws.send(JSON.stringify(message));
   };
+  const activity = (message, level = 'info') => {
+    if (LOG_LEVELS.indexOf(level) >= LOG_LEVELS.indexOf(state.logLevel)) {
+      notify({ jsonrpc: '2.0', method: 'notifications/message', params: { level, logger: 'blockyland', data: message } });
+    }
+  };
+  function failWaiters(page, reason) {
+    for (const waiter of [...state.waiters]) {
+      if (waiter.page === page) waiter({ failure: toolError('connection', reason) });
+    }
+  }
 
   function pair(page) {
-    if (state.paired && state.paired !== page) send(state.paired, { type: 'unpaired', reason: 'Another game tab connected.' });
+    if (state.paired && state.paired !== page) {
+      failWaiters(state.paired, 'Another game tab connected.');
+      failPending('Another game tab connected.');
+      send(state.paired, { type: 'unpaired', reason: 'Another game tab connected.' });
+    }
     state.paired = page;
     state.messages = [];
     state.sessionToken = randomBytes(16).toString('hex');
@@ -83,6 +100,7 @@ export function createAgentControlServer({
         } else {
           // The paired tab asking for a new code drops the pairing: the player wants to pair again.
           if (state.paired === page) {
+            failWaiters(page, 'The player asked for a new pairing code.');
             state.paired = null;
             state.sessionToken = null;
             failPending('The player asked for a new pairing code.');
@@ -95,11 +113,24 @@ export function createAgentControlServer({
         clearTimeout(entry.timer);
         state.pending.delete(message.id);
         entry.resolve(message);
+      } else if (message.type === 'tool_progress' && page === state.paired) {
+        const entry = state.pending.get(message.id);
+        if (!entry || typeof message.message !== 'string') return;
+        const pct = Number.isFinite(message.progress) ? Math.max(0, Math.min(100, message.progress)) : null;
+        const label = message.message.slice(0, 500);
+        // A multi-part build can restart its percentage. MCP progress counts updates monotonically;
+        // the message carries the actual percentage of the current part.
+        const now = Date.now();
+        if (!entry.lastProgressAt || now - entry.lastProgressAt >= 250 || pct === 100) {
+          entry.lastProgressAt = now;
+          entry.report?.(`${label}${pct === null ? '' : ` (${pct}%)`}`);
+        }
       } else if (message.type === 'player_message' && page === state.paired) {
         const text = typeof message.text === 'string' ? message.text.slice(0, 8000) : '';
         const images = Array.isArray(message.images) ? message.images.filter(i => i && typeof i.data === 'string').slice(0, 2) : [];
         if (!text && !images.length) return;
         const entry = { id: message.id, text, images };
+        activity('A player request is ready in Blockyland. Call wait_for_player_message now.');
         const waiter = state.waiters.shift();
         if (waiter) waiter(entry); else state.messages.push(entry);
       }
@@ -107,6 +138,7 @@ export function createAgentControlServer({
     ws.on('close', () => {
       state.pages.delete(page);
       if (state.paired === page) {
+        failWaiters(page, 'The game tab closed or reloaded.');
         state.paired = null;
         failPending('The game tab closed or reloaded. It reconnects by itself when it comes back.');
       }
@@ -143,34 +175,68 @@ export function createAgentControlServer({
     ? 'No game is connected. Ask the player to press C in Blockyland, switch Offline Mode off, open "Connect AI" and tell you the 6-digit code; then call connect with it.'
     : `This server could not open port ${port} (${state.listenError?.message || 'unknown error'}). Another Blockyland MCP server, from another AI session, may be using it: close that session, or set BLOCKYLAND_MCP_PORT for both.`);
 
-  function waitForMessage(timeoutSeconds) {
+  function waitForMessage(timeoutSeconds, page, signal) {
     if (state.messages.length) return Promise.resolve(state.messages.shift());
     return new Promise(resolve => {
-      const waiter = entry => { clearTimeout(timer); resolve(entry); };
-      const timer = setTimeout(() => {
+      const waiter = entry => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', cancelled);
         state.waiters = state.waiters.filter(w => w !== waiter);
-        resolve(null);
-      }, timeoutSeconds * 1000);
+        send(page, { type: 'listener_state', listening: state.waiters.some(w => w.page === page) });
+        resolve(entry);
+      };
+      waiter.page = page;
+      const cancelled = () => waiter({ failure: toolError('state', 'Listening was cancelled. Call wait_for_player_message to resume.') });
+      const timer = setTimeout(() => waiter(null), timeoutSeconds * 1000);
       state.waiters.push(waiter);
+      send(page, { type: 'listener_state', listening: true });
+      signal?.addEventListener('abort', cancelled, { once: true });
+      if (signal?.aborted) cancelled();
     });
   }
 
-  async function runServerTool(name, args) {
+  async function receiveRequest(timeoutSeconds, context = {}) {
+    const page = state.paired;
+    if (!state.messages.length) send(page, { type: 'ai_waiting' });
+    context.report?.('Listening for your next Blockyland request.');
+    const heartbeat = setInterval(() => context.progress?.('Still listening for a Blockyland request.'), 10000);
+    let entry;
+    try { entry = await waitForMessage(timeoutSeconds, page, context.signal); }
+    finally { clearInterval(heartbeat); }
+    if (entry?.failure) return { error: entry.failure };
+    if (!entry) return { result: { waiting: true, next_action: LISTEN_NEXT } };
+    send(page, { type: 'message_received', id: entry.id });
+    context.report?.('Picked up the player request. Inspecting the request and attached images.');
+    return {
+      result: { message: entry.text, request_id: entry.id, images: entry.images.length,
+        next_action: 'Act on this request now. Show a short work summary in your chat and with report_progress; finish with say, then wait_for_player_message.' },
+      images: entry.images,
+    };
+  }
+
+  async function runServerTool(name, args, context = {}) {
     if (name === 'connect') {
-      if (!state.wss) return { error: notConnected() };
+      if (!state.wss) {
+        await listen();
+        if (!state.wss) return { error: notConnected() };
+      }
       if (!args.code) {
         return { result: {
           connected: !!state.paired, game: state.paired?.game ?? null,
           gamesWaiting: [...state.pages].filter(p => p !== state.paired).length, port: state.port,
+          listening: state.waiters.some(w => w.page === state.paired),
         } };
       }
-      if (state.paired?.code === args.code) return { result: { connected: true, game: state.paired.game, note: 'Already connected.' } };
-      const page = [...state.pages].find(p => p.code === args.code && p !== state.paired);
+      const page = [...state.pages].find(p => p.code === args.code);
       if (!page) {
         return { error: toolError('unknown', `No game is waiting with code ${args.code}. Check the code in the game's "Connect AI" panel; it shows "Looking for your AI app" until this server is running, then the code to give you.`) };
       }
-      pair(page);
-      return { result: { connected: true, game: page.game } };
+      if (state.paired !== page) pair(page);
+      context.report?.(`Connected to Blockyland as ${clientLabel(state.client)}.`);
+      if (args.listen === false) return { result: { connected: true, game: page.game, next_action: LISTEN_NEXT } };
+      const heard = await receiveRequest(args.timeout_seconds ?? 25, context);
+      if (heard.error) return heard;
+      return { ...heard, result: { connected: true, game: page.game, ...heard.result } };
     }
     if (name === 'wait_for_player_message') {
       if (!state.paired && !state.activeGuest) return { error: notConnected() };
@@ -187,12 +253,13 @@ export function createAgentControlServer({
           },
         };
       }
-      // The AI app is back to waiting: whatever it was doing for the player is finished. The game shows "Done".
-      if (!state.messages.length) send(state.paired, { type: 'ai_waiting' });
-      const entry = await waitForMessage(args.timeout_seconds ?? 50);
-      if (!entry) return { result: { waiting: true, note: 'Nothing yet. Call wait_for_player_message again to keep listening.' } };
-      send(state.paired, { type: 'message_received', id: entry.id });
-      return { result: { message: entry.text, images: entry.images.length }, images: entry.images };
+      return receiveRequest(args.timeout_seconds ?? 50, context);
+    }
+    if (name === 'report_progress') {
+      if (!state.paired) return { error: notConnected() };
+      send(state.paired, { type: 'agent_activity', message: args.message, progress: args.progress });
+      context.report?.(args.message);
+      return { result: { shown: true } };
     }
     if (name === 'join_game') {
       let code = args.code ? String(args.code).trim() : null;
@@ -278,7 +345,7 @@ export function createAgentControlServer({
     return { error: toolError('unknown', `No server tool ${name}.`) };
   }
 
-  function runGameTool(tool, args) {
+  function runGameTool(tool, args, context = {}) {
     if (!state.paired) return Promise.resolve({ error: notConnected() });
     const id = state.nextId++;
     const page = state.paired;
@@ -287,19 +354,19 @@ export function createAgentControlServer({
         state.pending.delete(id);
         resolve({ ok: false, error: toolError('timeout', `The game did not answer ${tool.name} within ${Math.round(tool.timeoutMs / 1000)} s. Its tab may be asleep in the background; ask the player to bring it to the front.`) });
       }, tool.timeoutMs);
-      state.pending.set(id, { resolve, timer });
+      state.pending.set(id, { resolve, timer, report: context.report });
       send(page, { type: 'call', id, tool: tool.name, args });
     }).then(reply => reply.ok
       ? { result: reply.result ?? {}, images: Array.isArray(reply.images) ? reply.images : [] }
       : { error: reply.error || toolError('failed', 'The game reported a failure.') });
   }
 
-  async function callTool(name, args = {}) {
+  async function callTool(name, args = {}, context = {}) {
     const tool = TOOL_BY_NAME.get(name);
     if (!tool) return { error: toolError('unknown', `No tool named ${name}. The tools are: ${TOOLS.map(t => t.name).join(', ')}.`) };
     const problem = checkArguments(tool, args);
     if (problem) return { error: toolError('usage', `${name}: ${problem}.`) };
-    return tool.runs === 'server' ? runServerTool(name, args ?? {}) : runGameTool(tool, args ?? {});
+    return tool.runs === 'server' ? runServerTool(name, args ?? {}, context) : runGameTool(tool, args ?? {}, context);
   }
 
   /** One JSON-RPC message in, its response out (null for notifications). */
@@ -309,19 +376,26 @@ export function createAgentControlServer({
     const reply = result => ({ jsonrpc: '2.0', id, result });
     const fail = (code, text) => ({ jsonrpc: '2.0', id: isRequest ? id : null, error: { code, message: text } });
     if (message?.jsonrpc !== '2.0' || typeof method !== 'string') return isRequest ? fail(-32600, 'Invalid request') : null;
-    if (!isRequest) return null; // notifications: initialized, cancelled, roots changed
+    if (!isRequest) {
+      if (method === 'notifications/cancelled') state.requests.get(params?.requestId)?.abort();
+      return null;
+    }
     switch (method) {
       case 'initialize': {
         state.client = params?.clientInfo ?? null;
         const asked = params?.protocolVersion;
         return reply({
           protocolVersion: SUPPORTED_MCP_VERSIONS.includes(asked) ? asked : SUPPORTED_MCP_VERSIONS[1],
-          capabilities: { tools: { listChanged: false } },
+          capabilities: { tools: { listChanged: false }, logging: {} },
           serverInfo: { name: SERVER_NAME, title: 'Blockyland', version: SERVER_VERSION },
           instructions: SERVER_INSTRUCTIONS,
         });
       }
       case 'ping':
+        return reply({});
+      case 'logging/setLevel':
+        if (!LOG_LEVELS.includes(params?.level)) return fail(-32602, 'Invalid logging level.');
+        state.logLevel = params.level;
         return reply({});
       case 'tools/list':
         return reply({
@@ -330,7 +404,23 @@ export function createAgentControlServer({
           })),
         });
       case 'tools/call': {
-        const outcome = await callTool(params?.name, params?.arguments);
+        const controller = new AbortController();
+        state.requests.set(id, controller);
+        const token = params?._meta?.progressToken;
+        let count = 0;
+        const progress = message => {
+          if (typeof token === 'string' || Number.isInteger(token)) {
+            notify({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: count++, message } });
+          }
+        };
+        const report = message => { activity(message); progress(message); };
+        const tool = TOOL_BY_NAME.get(params?.name);
+        report(`${tool?.title || params?.name}: started.`);
+        let outcome;
+        try { outcome = await callTool(params?.name, params?.arguments, { signal: controller.signal, report, progress }); }
+        finally { state.requests.delete(id); }
+        report(`${tool?.title || params?.name}: ${outcome.error ? outcome.error.error : 'finished'}.`);
+        if (params?.name === 'say' && outcome.result) outcome.result.next_action = LISTEN_NEXT;
         const content = [{ type: 'text', text: JSON.stringify(outcome.error ?? outcome.result) }];
         for (const image of outcome.images ?? []) content.push({ type: 'image', data: image.data, mimeType: image.mimeType || 'image/jpeg' });
         return reply({ content, isError: !!outcome.error });
@@ -342,7 +432,7 @@ export function createAgentControlServer({
 
   async function close() {
     failPending('The MCP server is shutting down.');
-    for (const waiter of state.waiters.splice(0)) waiter(null);
+    for (const waiter of [...state.waiters]) waiter({ failure: toolError('connection', 'The MCP server is shutting down.') });
     for (const guest of state.guests.values()) guest.disconnect();
     state.guests.clear();
     state.activeGuest = null;
@@ -384,6 +474,7 @@ export async function main(argv = process.argv.slice(2)) {
     port: Number(process.env.BLOCKYLAND_MCP_PORT) || DEFAULT_PORT,
     origins: (process.env.BLOCKYLAND_MCP_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
     log,
+    notify: message => process.stdout.write(`${JSON.stringify(message)}\n`),
   });
   await server.listen();
   const lines = createInterface({ input: process.stdin });

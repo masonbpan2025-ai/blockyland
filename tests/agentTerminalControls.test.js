@@ -12,7 +12,7 @@ function element(hidden = false) {
 }
 const fixture = () => ({
   geminiOfflineBtn: element(), geminiOfflineState: { textContent: '' },
-  agentConnectBtn: element(), agentConnectDrawer: element(),
+  agentConnectBtn: element(), agentDisconnectBtn: element(), agentConnectDrawer: element(),
 });
 
 test('Offline Mode locks Connect AI and closes an open panel', () => {
@@ -48,4 +48,17 @@ test('the panel button reports whether the panel is open', () => {
 test('a partly built UI is safe, and the default is offline', () => {
   assert.equal(syncAgentTerminalControls({}), false);
   assert.equal(syncAgentTerminalControls({}, { aiMode: true }), true);
+});
+
+test('Disconnect is available only while the AI connection is active', () => {
+  const ui = fixture();
+  ui.agentControl = { enabled: true };
+  syncAgentTerminalControls(ui, { aiMode: false });
+  assert.equal(ui.agentDisconnectBtn.disabled, true, 'Offline Mode has no remote connection');
+  syncAgentTerminalControls(ui, { aiMode: true });
+  assert.equal(ui.agentDisconnectBtn.disabled, false, 'a connected or searching bridge can be stopped');
+  ui.agentControl.enabled = false;
+  syncAgentTerminalControls(ui, { aiMode: true });
+  assert.equal(ui.agentDisconnectBtn.disabled, true, 'disconnecting disables the button');
+  assert.equal(ui.agentConnectBtn.disabled, false, 'Connect AI remains available to reconnect');
 });

@@ -1,3 +1,4 @@
+import { knockbackDirection } from '../../packages/blockyland-mcp/knockback.js';
 // A shared world: one host, a few guests, and no server in between.
 //
 // The host's browser IS the server. It holds the world, accepts guests, assigns each an identity, checks what they send,
@@ -701,6 +702,7 @@ export class ShareSession {
           isSprint: Boolean(msg.isSprint),
           weapon: typeof msg.weapon === 'string' ? msg.weapon : null,
           projectile,
+          ...(projectile && knockbackDirection(msg.direction) ? { direction: knockbackDirection(msg.direction) } : {}),
           flame: projectile === 'arrow' && msg.flame === true,
         });
         break;
@@ -803,6 +805,7 @@ export class ShareSession {
       fireAspect: attack.fireAspect ?? 0,
       // Shot, not struck: an arrow (Flame sets the target alight), a snowball or an egg.
       projectile: attack.projectile ?? null,
+      ...(attack.direction ? { direction: attack.direction } : {}),
       flame: Boolean(attack.flame),
     };
     this.emit('attack_landed', { attackerId, targetId: target, damage });

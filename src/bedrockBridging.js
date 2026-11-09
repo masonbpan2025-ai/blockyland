@@ -12,7 +12,25 @@
 // the block they stand on, in the direction they face.
 
 /** How far down (radians below level) the view must be for the place in front to be offered: about 30 degrees. */
+import { modeRules } from './gameModeRules.js';
+import { BLOCK_DEFS, ITEMS } from './blocks.js';
+
 export const BRIDGE_MIN_LOOK_DOWN = 0.5;
+
+export function canBridgeWithItem(player, item) {
+  return Boolean(item && (item.isBlock || BLOCK_DEFS[item.id] || ITEMS[item.id]?.isBlock) && modeRules(player?.gamemode).placeBlocks);
+}
+
+/** Right-click with no real block under the crosshair. A bridge preview must never take a food or drink click. */
+export function useWithoutBlockTarget(game, item) {
+  if (!item) return false;
+  if (!game.bridgeTarget || !canBridgeWithItem(game.player, item)) return !item.isBlock && game.useConsumable(item);
+  const { support, normal } = game.bridgeTarget;
+  const previous = game.targetBlock;
+  game.targetBlock = { ...support, normal, blockId: game.world.getVoxel(support.x, support.y, support.z), point: null };
+  try { game.placeBlockOnFace(item); } finally { game.targetBlock = previous; }
+  return true;
+}
 
 /** The cells under the player's 0.6-wide box: the blocks they stand on. */
 function supportCells(position, width, isSolid) {

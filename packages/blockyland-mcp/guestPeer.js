@@ -9,6 +9,7 @@ import zlib from 'node:zlib';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { WebSocket } from 'ws';
+import { hitKnockback, hurtWindow, stepKnockback, knockbackDirection, KNOCKBACK_TICK } from './knockback.js';
 
 export const PROTOCOL_VERSION = 5;
 const MAX_MESSAGE_BYTES = 16_000;
@@ -690,6 +691,9 @@ export class GuestPeerSession {
 
     this.position = { x: 0.5, y: 31, z: 0.5 };
     this.velocity = { x: 0, y: 0, z: 0 };
+    this.knockbackActive = false;
+    this.knockbackAccumulator = 0;
+    this.onGround = true;
     this.spawnPoint = { x: 0.5, y: 31, z: 0.5 };
     this.yaw = 0;
     this.pitch = 0;
@@ -701,7 +705,8 @@ export class GuestPeerSession {
     this.isSprinting = false;
     this.isSwinging = false;
     this.blocking = false;
-    this.lastHurtAt = 0;
+    this.lastHurtAt = -Infinity;
+    this.lastHurtAmount = 0;
 
     this.inventory = new GuestInventory();
 
@@ -842,6 +847,30 @@ export class GuestPeerSession {
   isSolid(x, y, z) {
     const id = this.getVoxel(x, y, z);
     return id !== BLOCKS.AIR && !NON_SOLID_BLOCKS.has(id);
+  }
+
+  hasGroundAt(x, y, z, maxDrop = 1) {
+    const bx = Math.floor(x);
+    const by = Math.floor(y);
+    const bz = Math.floor(z);
+    for (let dy = 1; dy <= maxDrop + 1; dy++) {
+      if (this.isSolid(bx, by - dy, bz)) return by - dy + 1;
+    }
+    return null;
+  }
+
+  isFootSupported(x, y, z, radius = 0.28) {
+    const footY = Math.floor(y) - 1;
+    if (this.isSolid(x, footY, z)) return true;
+    if (this.isSolid(x - radius, footY, z)) return true;
+    if (this.isSolid(x + radius, footY, z)) return true;
+    if (this.isSolid(x, footY, z - radius)) return true;
+    if (this.isSolid(x, footY, z + radius)) return true;
+    if (this.isSolid(x - radius, footY, z - radius)) return true;
+    if (this.isSolid(x + radius, footY, z + radius)) return true;
+    if (this.isSolid(x - radius, footY, z + radius)) return true;
+    if (this.isSolid(x + radius, footY, z - radius)) return true;
+    return false;
   }
 
   async connect({ timeoutMs = 15_000, waitForSnapshot = true, team = null } = {}) {
@@ -1597,8 +1626,11 @@ export class GuestPeerSession {
   #onHurt(hit) {
     if (this.isDead || this.gamemode === 'spectator' || this.gamemode === 'creative') return;
     const now = Date.now();
-    if (now - this.lastHurtAt < 400) return;
-    this.lastHurtAt = now;
+    const rawAmount = Number.isFinite(hit.damage) ? Math.max(0, hit.damage) : 2;
+    const window = hurtWindow({ timer: Math.max(0, 0.5 - (now - this.lastHurtAt) / 1000), lastAmount: this.lastHurtAmount }, rawAmount);
+    if (!window.fresh && window.amount <= 0) return;
+    if (window.fresh) this.lastHurtAt = now;
+    this.lastHurtAmount = rawAmount;
 
     if (hit.attackerId || hit.fromId) {
       this.lastAttackerId = hit.attackerId || hit.fromId;
@@ -1619,7 +1651,7 @@ export class GuestPeerSession {
       }
     }
 
-    const rawDamage = Number.isFinite(hit.damage) ? hit.damage : 2;
+    const rawDamage = window.amount;
     let armorPoints = 0;
     let protLevels = 0;
     for (const slot of ['head', 'chest', 'legs', 'feet']) {
@@ -1632,19 +1664,19 @@ export class GuestPeerSession {
     }
     const armorReduction = Math.min(0.8, armorPoints * 0.04);
     const enchReduction = Math.min(0.8, protLevels * 0.04);
-    const finalDamage = Math.max(0.5, rawDamage * (1 - armorReduction) * (1 - enchReduction));
+    const finalDamage = Math.max(0, rawDamage * (1 - armorReduction) * (1 - enchReduction));
 
-    if (hit.from && Number.isFinite(hit.from.x) && Number.isFinite(hit.from.z)) {
-      const dx = this.position.x - hit.from.x;
-      const dz = this.position.z - hit.from.z;
-      const dist = Math.hypot(dx, dz) || 1;
-      const kb = 0.45 * (1 + (hit.knockbackLevel || (hit.isSprint ? 1 : 0)) * 0.5);
-      const nx = this.position.x + (dx / dist) * kb;
-      const nz = this.position.z + (dz / dist) * kb;
-      if (!this.isSolid(nx, this.position.y, nz) && this.isSolid(nx, Math.floor(this.position.y) - 1, nz)) {
-        this.position.x = nx;
-        this.position.z = nz;
-      }
+    if (window.knockback && hit.from && Number.isFinite(hit.from.x) && Number.isFinite(hit.from.z)) {
+      this.onGround = this.knockbackActive ? this.onGround : this.isFootSupported(this.position.x, this.position.y, this.position.z);
+      const direction = hit.projectile && knockbackDirection(hit.direction);
+      const from = direction ? { x: this.position.x - direction.x, z: this.position.z - direction.z } : hit.from;
+      this.velocity = hitKnockback(this.velocity, {
+        position: this.position, from, onGround: this.onGround,
+        fromYaw: direction ? Math.atan2(-direction.x, -direction.z) : hit.from.yaw,
+        extraLevel: hit.knockbackLevel || (hit.isSprint ? 1 : 0),
+      });
+      this.knockbackActive = true;
+      this.knockbackAccumulator = 0;
     }
 
     this.health = Math.max(0, Number((this.health - finalDamage).toFixed(2)));
@@ -1660,6 +1692,9 @@ export class GuestPeerSession {
   }
 
   #handleDeath(cause = 'other') {
+    this.knockbackActive = false;
+    this.knockbackAccumulator = 0;
+    this.velocity = { x: 0, y: 0, z: 0 };
     if (this.gameMode === 'skywars') {
       const me = this.me();
       if (this.skywarsState?.phase === 'playing' && me?.alive) {
@@ -1743,14 +1778,21 @@ export class GuestPeerSession {
     if (!this.connected) return;
 
     // 1. Gravity & ground snapping when in survival
-    if (!this.isDead && this.gamemode === 'survival' && !this.manualActionBusy && !this.brainBusy) {
-      const footY = Math.floor(this.position.y) - 1;
-      if (!this.isSolid(this.position.x, footY, this.position.z)) {
-        const groundY = this.#findGroundY(this.position.x, this.position.y, this.position.z);
-        if (groundY !== null && this.position.y > groundY) {
-          this.position.y = Math.max(groundY, this.position.y - Math.max(0.8, dt * 18));
-        } else if (groundY === null) {
-          this.position.y -= Math.max(0.8, dt * 18);
+    if (!this.isDead && this.gamemode === 'survival' &&
+        (this.knockbackActive || !this.isFootSupported(this.position.x, this.position.y, this.position.z) || this.velocity.y !== 0)) {
+      // Gravity and forced motion continue while scripts/navigation are busy. No automatic edge correction.
+      this.knockbackAccumulator += Math.max(0, Math.min(dt, 0.5));
+      while (this.knockbackAccumulator + 1e-9 >= KNOCKBACK_TICK) {
+        this.knockbackAccumulator -= KNOCKBACK_TICK;
+        const motion = stepKnockback(this, (x, y, z) => this.isSolid(x, y, z));
+        Object.assign(this.position, motion.position);
+        this.velocity = motion.velocity;
+        this.onGround = motion.onGround;
+        if (this.onGround && Math.hypot(this.velocity.x, this.velocity.z) < 0.05) {
+          this.knockbackActive = false;
+          this.velocity = { x: 0, y: 0, z: 0 };
+          this.knockbackAccumulator = 0;
+          break;
         }
       }
     }
@@ -1875,6 +1917,9 @@ export class GuestPeerSession {
     const preferredId = blockInput !== null && blockInput !== undefined ? this.resolveBlockId(blockInput) : null;
     let blockId = this.inventory.takePlaceableBlock(preferredId);
     if (blockId === null) {
+      if (this.gamemode !== 'creative') {
+        return { ok: false, reason: 'No placeable blocks in inventory' };
+      }
       blockId = preferredId ?? (this.gameMode === 'bedwars' ? this.resolveBlockId('wool') : BLOCKS.COBBLESTONE);
     }
     this.lookAt(bx + 0.5, by + 0.5, bz + 0.5);
@@ -1982,7 +2027,7 @@ export class GuestPeerSession {
     return null;
   }
 
-  async moveStepToward(tx, ty, tz, { bridge = false, maxDistance = 120, durationMs = 15000, stopWithin = 1.2, stepDelayMs = null, abortToken = null, isCancelled = null } = {}) {
+  async moveStepToward(tx, ty, tz, { bridge = false, avoidVoid = false, maxDistance = 120, durationMs = 15000, stopWithin = 1.2, stepDelayMs = null, abortToken = null, isCancelled = null } = {}) {
     const startedAt = Date.now();
     let lastStepAt = startedAt;
     const prof = this.profile;
@@ -1995,6 +2040,8 @@ export class GuestPeerSession {
     while (steps < maxSteps && Date.now() - startedAt <= durationMs) {
       if (abortToken !== null && this.taskAbortToken !== abortToken) break;
       if (isCancelled?.()) break;
+      if (this.isDead || this.gamemode === 'spectator') break;
+      if (this.knockbackActive) { await sleep(effectiveStepDelayMs); continue; }
       const now = Date.now();
       const dt = steps === 0 ? nominalDt : Math.min(0.12, Math.max(nominalDt, (now - lastStepAt) / 1000));
       lastStepAt = now;
@@ -2004,9 +2051,24 @@ export class GuestPeerSession {
       const dist = Math.hypot(dx, dz);
       if (dist <= stopWithin) break;
 
-      const sprinting = prof.sprintAllowed && dist > 2.5 && !this.isSneaking;
-      const moveSpeed = sprinting ? prof.sprintSpeed : prof.walkSpeed;
+      const currBx = Math.floor(this.position.x);
+      const currBz = Math.floor(this.position.z);
+      const currFloorY = Math.floor(this.position.y) - 1;
+
+      // Check if current footing or surroundings are over void / dangerous edges
+      const isOverVoid = !this.hasGroundAt(this.position.x, this.position.y, this.position.z, 2);
+      const nearVoidEdge = (avoidVoid || bridge) && this.gameMode !== 'base' && (
+        !this.hasGroundAt(currBx + 1, this.position.y, currBz, 2) ||
+        !this.hasGroundAt(currBx - 1, this.position.y, currBz, 2) ||
+        !this.hasGroundAt(currBx, this.position.y, currBz + 1, 2) ||
+        !this.hasGroundAt(currBx, this.position.y, currBz - 1, 2)
+      );
+
+      // Never sprint when bridging, on narrow bridges, or near void edges
+      const canSprint = prof.sprintAllowed && dist > 2.5 && !bridge && !nearVoidEdge && (!avoidVoid || !isOverVoid) && !this.isSneaking;
+      const moveSpeed = canSprint ? prof.sprintSpeed : (bridge || nearVoidEdge ? prof.walkSpeed * 0.8 : prof.walkSpeed);
       const stepLen = Math.min(moveSpeed * dt, dist);
+
       let nx = this.position.x + (dx / dist) * stepLen;
       let nz = this.position.z + (dz / dist) * stepLen;
       let ny = this.position.y;
@@ -2025,10 +2087,10 @@ export class GuestPeerSession {
           const leftZ = this.position.z + (dz / dist * 0.5 + perpZ * 0.65) * stepLen;
           const rightX = this.position.x + (dx / dist * 0.5 - perpX * 0.65) * stepLen;
           const rightZ = this.position.z + (dz / dist * 0.5 - perpZ * 0.65) * stepLen;
-          if (!this.isSolid(leftX, ny, leftZ)) {
+          if (!this.isSolid(leftX, ny, leftZ) && (this.gameMode === 'base' || this.hasGroundAt(leftX, ny, leftZ, 1))) {
             nx = leftX;
             nz = leftZ;
-          } else if (!this.isSolid(rightX, ny, rightZ)) {
+          } else if (!this.isSolid(rightX, ny, rightZ) && (this.gameMode === 'base' || this.hasGroundAt(rightX, ny, rightZ, 1))) {
             nx = rightX;
             nz = rightZ;
           } else if (!this.isSolid(nx, ny + 1, nz)) {
@@ -2054,37 +2116,128 @@ export class GuestPeerSession {
       const floorY = Math.floor(ny) - 1;
       const floorZ = Math.floor(nz);
 
-      if (!this.isSolid(floorX, floorY, floorZ)) {
-        if (bridge) {
-          this.isSneaking = true;
-          this.isSprinting = false;
-          const placed = this.placeBlockAt(floorX, floorY, floorZ, null, { broadcast: false });
-          if (placed.ok) {
+      if (bridge) {
+        this.isSneaking = true;
+        this.isSprinting = false;
+
+        // Bridge floor should maintain level (or stair up if ty is higher)
+        const bridgeFloorY = Math.max(currFloorY, floorY);
+
+        // Ensure current footing is solid so we never leave an air gap behind us
+        if (!this.isSolid(currBx, bridgeFloorY, currBz)) {
+          const placedFoot = this.placeBlockAt(currBx, bridgeFloorY, currBz, null, { broadcast: false });
+          if (placedFoot.ok) {
             bridgedBlocks++;
             placedBridgeThisStep = true;
-            // Advance onto the newly placed bridge block along our heading
-            const bridgeStep = Math.min(dist, 0.78);
-            nx = this.position.x + (dx / dist) * bridgeStep;
-            nz = this.position.z + (dz / dist) * bridgeStep;
-          } else if (this.isSolid(floorX, floorY - 1, floorZ)) {
-            ny -= 1;
-          } else if (!this.manualActionBusy) {
+            ny = bridgeFloorY + 1;
+          } else {
+            // Cannot place block under current footing -> halt bridging to avoid void walk
             break;
           }
-        } else if (this.isSolid(floorX, floorY - 1, floorZ)) {
-          ny -= 1;
-        } else if (this.gameMode !== 'base') {
-          // Stop at island edge rather than walking into void when bridge is false.
-          break;
         }
-      } else {
-        this.isSneaking = false;
+
+        // Check if moving to a new block
+        if (floorX !== currBx || floorZ !== currBz) {
+          // If diagonal step, ensure connecting corner block is placed to eliminate diagonal void holes
+          if (floorX !== currBx && floorZ !== currBz) {
+            const cornerX = Math.abs(dx) >= Math.abs(dz) ? floorX : currBx;
+            const cornerZ = Math.abs(dx) >= Math.abs(dz) ? currBz : floorZ;
+            if (!this.isSolid(cornerX, bridgeFloorY, cornerZ)) {
+              const pCorner = this.placeBlockAt(cornerX, bridgeFloorY, cornerZ, null, { broadcast: false });
+              if (pCorner.ok) {
+                bridgedBlocks++;
+                placedBridgeThisStep = true;
+              } else {
+                // Out of blocks! Stop safely at current block edge, never walk into void
+                this.position.x = Math.max(currBx + 0.25, Math.min(currBx + 0.75, this.position.x));
+                this.position.z = Math.max(currBz + 0.25, Math.min(currBz + 0.75, this.position.z));
+                this.position.y = bridgeFloorY + 1;
+                break;
+              }
+            }
+          }
+
+          if (!this.isSolid(floorX, bridgeFloorY, floorZ)) {
+            const placed = this.placeBlockAt(floorX, bridgeFloorY, floorZ, null, { broadcast: false });
+            if (placed.ok) {
+              bridgedBlocks++;
+              placedBridgeThisStep = true;
+              ny = bridgeFloorY + 1;
+              nx = floorX + 0.5;
+              nz = floorZ + 0.5;
+            } else {
+              // Cannot place block -> STOP at current block edge, never walk into void
+              this.position.x = Math.max(currBx + 0.25, Math.min(currBx + 0.75, this.position.x));
+              this.position.z = Math.max(currBz + 0.25, Math.min(currBz + 0.75, this.position.z));
+              this.position.y = bridgeFloorY + 1;
+              break;
+            }
+          } else {
+            ny = bridgeFloorY + 1;
+          }
+        } else {
+          // Still on current block; keep y level
+          ny = bridgeFloorY + 1;
+        }
+      } else if (avoidVoid) {
+        // Explicit navigation policy, never a general player-physics rule.
+        const groundY = this.hasGroundAt(nx, ny, nz, 1);
+        if (groundY !== null) {
+          ny = groundY;
+          this.isSneaking = false;
+          // When approaching a void cliff edge, keep safe inner buffer (0.25m from void)
+          if (dx > 0 && !this.hasGroundAt(floorX + 1, ny, floorZ, 1)) {
+            nx = Math.min(floorX + 0.75, nx);
+          } else if (dx < 0 && !this.hasGroundAt(floorX - 1, ny, floorZ, 1)) {
+            nx = Math.max(floorX + 0.25, nx);
+          }
+          if (dz > 0 && !this.hasGroundAt(floorX, ny, floorZ + 1, 1)) {
+            nz = Math.min(floorZ + 0.75, nz);
+          } else if (dz < 0 && !this.hasGroundAt(floorX, ny, floorZ - 1, 1)) {
+            nz = Math.max(floorZ + 0.25, nz);
+          }
+        } else {
+          // Ledge / Void ahead! Safe-walk prevents stepping into air
+          this.isSneaking = true;
+          this.isSprinting = false;
+
+          const groundX = this.hasGroundAt(nx, ny, this.position.z, 1);
+          const groundZ = this.hasGroundAt(this.position.x, ny, nz, 1);
+
+          if (groundX !== null && groundZ === null) {
+            ny = groundX;
+            nz = currBz + 0.5;
+            if (dx > 0 && !this.hasGroundAt(floorX + 1, ny, currBz, 1)) nx = Math.min(floorX + 0.75, nx);
+            else if (dx < 0 && !this.hasGroundAt(floorX - 1, ny, currBz, 1)) nx = Math.max(floorX + 0.25, nx);
+          } else if (groundZ !== null && groundX === null) {
+            ny = groundZ;
+            nx = currBx + 0.5;
+            if (dz > 0 && !this.hasGroundAt(currBx, ny, floorZ + 1, 1)) nz = Math.min(floorZ + 0.75, nz);
+            else if (dz < 0 && !this.hasGroundAt(currBx, ny, floorZ - 1, 1)) nz = Math.max(floorZ + 0.25, nz);
+          } else {
+            // Stop at edge safely within current block
+            nx = Math.max(currBx + 0.25, Math.min(currBx + 0.75, this.position.x));
+            nz = Math.max(currBz + 0.25, Math.min(currBz + 0.75, this.position.z));
+            if (this.gameMode !== 'base') {
+              break;
+            }
+          }
+        }
       }
 
+      if (!bridge && !avoidVoid) {
+        // Ordinary movement may leave a ledge; tick() supplies gravity even while this action runs.
+        const groundY = this.hasGroundAt(nx, ny, nz, 1);
+        if (groundY !== null) ny = groundY;
+        this.isSneaking = false;
+      } else if (bridge && !this.isFootSupported(nx, ny, nz)) {
+        const groundY = this.hasGroundAt(nx, ny, nz, 2);
+        if (groundY !== null) ny = groundY;
+      }
       this.position.x = nx;
       this.position.y = ny;
       this.position.z = nz;
-      this.isSprinting = dist > 2.5 && !this.isSneaking;
+      this.isSprinting = canSprint;
       this.broadcastState({ swinging: placedBridgeThisStep });
       steps++;
       const waitMs = placedBridgeThisStep
@@ -2130,7 +2283,8 @@ export class GuestPeerSession {
     const dist = Math.hypot(targetChest.x + 0.5 - this.position.x, targetChest.z + 0.5 - this.position.z);
     if (dist > 4.2) {
       await this.moveStepToward(targetChest.x + 0.5, targetChest.y, targetChest.z + 0.5, {
-        bridge: Boolean(args.bridge ?? true),
+        avoidVoid: true,
+        bridge: Boolean(args.bridge ?? true) && (this.inventory.countPlaceableBlocks() > 0 || this.gamemode === 'creative'),
         stopWithin: 2.5,
         durationMs: args.duration_ms ?? 4000,
       });
@@ -2335,6 +2489,7 @@ export class GuestPeerSession {
     if (!goalPos) return { ok: false, reason: 'Could not locate generator' };
 
     await this.moveStepToward(goalPos.x, goalPos.y, goalPos.z, {
+      avoidVoid: true,
       bridge: Boolean(args.bridge ?? true),
       stopWithin: 0.6,
       durationMs: Math.max(2500, Number(args.duration_ms ?? 4000)),
@@ -2394,7 +2549,8 @@ export class GuestPeerSession {
     }
 
     await this.moveStepToward(bx + 0.5, by, bz + 0.5, {
-      bridge: Boolean(args.bridge ?? true),
+      avoidVoid: true,
+      bridge: Boolean(args.bridge ?? true) && (this.inventory.countPlaceableBlocks() > 0 || this.gamemode === 'creative'),
       stopWithin: 2.2,
       durationMs: args.duration_ms ?? 35000,
     });
@@ -2585,7 +2741,8 @@ export class GuestPeerSession {
     if (distAfterPearl > 3.2) {
       this.lastActionSummary = `moving toward ${peer.name || peer.id}`;
       await this.moveStepToward(px, py, pz, {
-        bridge: this.gameMode !== 'base',
+        avoidVoid: true,
+        bridge: this.gameMode !== 'base' && (this.inventory.countPlaceableBlocks() > 0 || this.gamemode === 'creative'),
         stopWithin: 2.2,
         durationMs: this.profile.brainMoveDurationMs,
       });
@@ -2748,6 +2905,9 @@ export class GuestPeerSession {
     });
 
     if (centerChests.length > 0 && this.strategy !== 'rusher' && this.difficulty !== 'easy' && (!nearestEnemy || nearestEnemyDist > (this.difficulty === 'normal' ? 14 : 11))) {
+      if (this.inventory.countPlaceableBlocks() < 4) {
+        return;
+      }
       centerChests.sort((a, b) =>
         Math.hypot(a.x + 0.5 - this.position.x, a.z + 0.5 - this.position.z) -
         Math.hypot(b.x + 0.5 - this.position.x, b.z + 0.5 - this.position.z)
@@ -2770,9 +2930,11 @@ export class GuestPeerSession {
 
     // Hold center high ground if no enemies spotted yet
     if (Math.hypot(this.position.x - 0.5, this.position.z - 0.5) > 4) {
+      const hasBlocks = this.inventory.countPlaceableBlocks() > 0;
       this.lastActionSummary = 'controlling center island';
       await this.moveStepToward(0.5, 31, 0.5, {
-        bridge: true,
+        avoidVoid: true,
+        bridge: hasBlocks,
         stopWithin: 2.0,
         durationMs: this.profile.brainMoveDurationMs,
       });
@@ -2888,6 +3050,7 @@ export class GuestPeerSession {
     if (this.inventory.countPlaceableBlocks() < 8) {
       this.lastActionSummary = `collecting resources at ${myTeam} forge`;
       await this.moveStepToward(myBase.forge.x, myBase.forge.y, myBase.forge.z, {
+        avoidVoid: true,
         bridge: false,
         stopWithin: 0.6,
         durationMs: this.profile.brainMoveDurationMs,
@@ -2911,6 +3074,7 @@ export class GuestPeerSession {
           const distToBed = Math.hypot(dx + 0.5 - this.position.x, dz + 0.5 - this.position.z);
           if (distToBed > 4.5) {
             await this.moveStepToward(dx + 0.5, dy, dz + 0.5, {
+              avoidVoid: true,
               bridge: false,
               stopWithin: 2.5,
               durationMs: this.profile.brainMoveDurationMs,
@@ -2937,7 +3101,8 @@ export class GuestPeerSession {
       if (pos && Math.hypot(pos.x - this.position.x, pos.z - this.position.z) <= 14) {
         this.lastActionSummary = `collecting ${gen.id} generator`;
         await this.moveStepToward(pos.x, pos.y, pos.z, {
-          bridge: true,
+          avoidVoid: true,
+          bridge: this.inventory.countPlaceableBlocks() > 0,
           stopWithin: 0.8,
           durationMs: this.profile.brainMoveDurationMs,
         });
@@ -2968,8 +3133,26 @@ export class GuestPeerSession {
       const [bx, by, bz] = targetBase.bed.foot;
       const distToBed = Math.hypot(bx + 0.5 - this.position.x, bz + 0.5 - this.position.z);
       if (distToBed > 4.2) {
+        // Buy wool if we have iron and need blocks
+        while (this.inventory.countPlaceableBlocks() < 32 && this.inventory.countItem('iron_ingot') >= 4) {
+          const bought = this.buyInBedWars('wool', 1);
+          if (!bought.ok) break;
+        }
+        if (this.inventory.countPlaceableBlocks() < 6) {
+          // If we lack blocks to bridge across the void, collect at forge first instead of void walking
+          this.lastActionSummary = `collecting resources at ${myTeam} forge for bridging`;
+          await this.moveStepToward(myBase.forge.x, myBase.forge.y, myBase.forge.z, {
+            avoidVoid: true,
+            bridge: false,
+            stopWithin: 0.6,
+            durationMs: this.profile.brainMoveDurationMs,
+          });
+          this.sendPacket({ t: 'game', data: { type: 'collect', gen: `f-${myTeam}` } });
+          return;
+        }
         this.lastActionSummary = `bridging to destroy ${targetBase.team} bed`;
         await this.moveStepToward(bx + 0.5, by, bz + 0.5, {
+          avoidVoid: true,
           bridge: true,
           stopWithin: 2.2,
           durationMs: this.profile.brainMoveDurationMs,
@@ -3049,6 +3232,7 @@ export class GuestPeerSession {
           const goalZ = companionPeer.z + Math.cos(flankAngle) * 3.0;
           this.lastActionSummary = `following ${companionPeer.name || 'player'}`;
           await this.moveStepToward(goalX, companionPeer.y ?? this.position.y, goalZ, {
+            avoidVoid: true,
             bridge: false,
             stopWithin: 1.5,
             durationMs: this.profile.brainMoveDurationMs,
@@ -3178,6 +3362,7 @@ export class GuestPeerSession {
     const distBefore = Math.hypot(peer.x - this.position.x, peer.z - this.position.z);
     if (distBefore > 3.5) {
       await this.moveStepToward(peer.x, peer.y, peer.z, {
+        avoidVoid: true,
         bridge: Boolean(args.bridge ?? (this.gameMode !== 'base')),
         stopWithin: 2.5,
         durationMs: args.duration_ms ?? 3000,
@@ -3352,6 +3537,7 @@ export class GuestPeerSession {
           const goal = this.resolveTargetPosition(args);
           if (!goal) return { ok: false, reason: 'Specify position [x,y,z] or a known target' };
           return this.moveStepToward(goal.x, goal.y, goal.z, {
+            avoidVoid: true,
             bridge: Boolean(args.bridge ?? (this.gameMode !== 'base')),
             stopWithin: 1.0,
             durationMs: args.duration_ms ?? 10000,
@@ -3382,6 +3568,7 @@ export class GuestPeerSession {
           const [bx, by, bz] = args.position;
           if (Math.hypot(bx + 0.5 - this.position.x, bz + 0.5 - this.position.z) > 4.5) {
             await this.moveStepToward(bx + 0.5, by, bz + 0.5, {
+              avoidVoid: true,
               bridge: Boolean(args.bridge ?? false),
               stopWithin: 2.5,
               durationMs: args.duration_ms ?? 4000,
@@ -3911,16 +4098,22 @@ export class MineflayerBot extends EventEmitter {
     if (!this.canDigBlock(this.blockAt(p))) {
       const dy = Math.abs(p.y - this.entity.position.y);
       if (dy > 1.2) {
-        await this.pathfinder.goto(new GoalNearXZ(p.x, p.z, 2.0));
+        await this.pathfinder.goto(new GoalNearXZ(p.x, p.z, 1.4));
       } else {
-        await this.pathfinder.goto(new GoalNear(p.x, p.y, p.z, 2.5));
+        await this.pathfinder.goto(new GoalNear(p.x, p.y, p.z, 2.0));
       }
     }
     this._check(gen);
     const current = this.blockAt(p);
     if (current.type === 0) return;
     if (!this.canDigBlock(current)) {
-      throw new Error(`Cannot reach block ${current.name} at ${p.x},${p.y},${p.z} to dig`);
+      try {
+        await this.pathfinder.goto(new GoalNearXZ(p.x, p.z, 1.1));
+      } catch {}
+    }
+    const finalBlock = this.blockAt(p);
+    if (!this.canDigBlock(finalBlock)) {
+      throw new Error(`Cannot reach block ${finalBlock.name} at ${p.x},${p.y},${p.z} to dig`);
     }
     if (!current.diggable) throw new Error(`${current.name} cannot be dug`);
     this._session.lookAt(p.x + 0.5, p.y + 0.5, p.z + 0.5);
@@ -4044,18 +4237,19 @@ export class MineflayerBot extends EventEmitter {
     if (!name) return [];
     return RECIPE_BOOK.filter((r) => {
       if (r.result !== name) return false;
-      if (!r.requiresTable) return true;
-      if (craftingTable !== null && craftingTable !== false) return true;
-      return this._nearbyCraftingTable() !== null ||
-        this.inventory.count('crafting_table') > 0 ||
-        this._canSatisfyIngredient('planks', 4);
+      if (craftingTable === false) return !r.requiresTable;
+      return true;
     }).map((r) => this._recipeView(r));
   }
   recipesFor(itemType, metadata = null, minResultCount = 1, craftingTable = null) {
-    return this.recipesAll(itemType, metadata, craftingTable).filter((view) => {
+    const all = this.recipesAll(itemType, metadata, craftingTable);
+    const available = all.filter((view) => {
       const times = Math.max(1, Math.ceil((minResultCount ?? 1) / view.result.count));
       return Object.entries(view._recipe.ingredients).every(([ing, n]) => this._canSatisfyIngredient(ing, n * times));
     });
+    if (available.length > 0) return available;
+    // Companion bot is proactive: if player asks for an item, return recipe so bot.craft can auto-gather!
+    return all;
   }
   _recipeView(r) {
     const id = this.registry.idOf(r.result);
@@ -4127,31 +4321,33 @@ export class MineflayerBot extends EventEmitter {
 
   async _autoGatherLogs(count, gen) {
     let gathered = 0;
+    const triedColumns = new Set();
+    const triedBlocks = new Set();
+    const maxAttempts = Math.max(16, count * 12);
     let attempts = 0;
-    const triedPositions = new Set();
-    while (gathered < count && attempts++ < count * 8) {
+
+    while (gathered < count && attempts++ < maxAttempts) {
       this._check(gen);
       const me = this.entity.position;
-      const logPositions = this.findBlocks({
+
+      // Find all log blocks within 48 blocks
+      const allLogs = this.findBlocks({
         matching: (b) => /_log$/.test(b.name),
         maxDistance: 48,
-        count: 50,
-      }).filter((p) => {
-        if (triedPositions.has(`${p.x},${p.y},${p.z}`)) return false;
-        return p.y >= me.y - 1.5 && p.y <= me.y + 4.2;
+        count: 200,
       });
 
-      if (!logPositions.length) {
-        // Fallback: look for placed planks nearby if no logs are accessible
+      if (!allLogs.length) {
+        // Fallback: look for placed planks or wood blocks nearby if no trees exist
         const plankPositions = this.findBlocks({
           matching: (b) => /_planks$/.test(b.name),
           maxDistance: 32,
-          count: 20,
-        }).filter((p) => !triedPositions.has(`${p.x},${p.y},${p.z}`) && p.y >= me.y - 1 && p.y <= me.y + 3.5);
+          count: 30,
+        }).filter((p) => !triedBlocks.has(`${p.x},${p.y},${p.z}`));
         if (!plankPositions.length) break;
         plankPositions.sort((a, b) => this.entity.position.distanceTo(a) - this.entity.position.distanceTo(b));
         const targetPos = plankPositions[0];
-        triedPositions.add(`${targetPos.x},${targetPos.y},${targetPos.z}`);
+        triedBlocks.add(`${targetPos.x},${targetPos.y},${targetPos.z}`);
         const block = this.blockAt(targetPos);
         if (block && block.type !== 0) {
           try {
@@ -4163,25 +4359,78 @@ export class MineflayerBot extends EventEmitter {
         continue;
       }
 
-      // Sort logs: lowest Y first so we harvest trunk from bottom to top, then closest horizontally
-      logPositions.sort((a, b) => {
-        const yDiff = a.y - b.y;
-        if (Math.abs(yDiff) >= 1) return yDiff;
+      // Group logs by tree column: (x, z)
+      const columnMap = new Map();
+      for (const p of allLogs) {
+        if (triedBlocks.has(`${p.x},${p.y},${p.z}`)) continue;
+        const key = `${p.x},${p.z}`;
+        if (triedColumns.has(key)) continue;
+        if (!columnMap.has(key)) columnMap.set(key, { x: p.x, z: p.z, logs: [] });
+        columnMap.get(key).logs.push(p);
+      }
+
+      if (columnMap.size === 0) {
+        // Clear triedColumns so remaining logs in partially chopped trees can be harvested if reachable
+        triedColumns.clear();
+        for (const p of allLogs) {
+          if (triedBlocks.has(`${p.x},${p.y},${p.z}`)) continue;
+          const key = `${p.x},${p.z}`;
+          if (!columnMap.has(key)) columnMap.set(key, { x: p.x, z: p.z, logs: [] });
+          columnMap.get(key).logs.push(p);
+        }
+        if (columnMap.size === 0) break;
+      }
+
+      // Sort columns by horizontal distance from bot
+      const columns = [...columnMap.values()].sort((a, b) => {
         const distA = Math.hypot(a.x - me.x, a.z - me.z);
         const distB = Math.hypot(b.x - me.x, b.z - me.z);
         return distA - distB;
       });
 
-      const targetPos = logPositions[0];
-      triedPositions.add(`${targetPos.x},${targetPos.y},${targetPos.z}`);
-      const block = this.blockAt(targetPos);
-      if (!block || block.type === 0) continue;
+      const targetCol = columns[0];
+      const colKey = `${targetCol.x},${targetCol.z}`;
+      // Sort logs in this tree column from lowest Y to highest Y
+      targetCol.logs.sort((a, b) => a.y - b.y);
+
+      // Walk to the tree base if not already right next to it
+      const lowestLog = targetCol.logs[0];
       try {
-        await this._autoEquipBestTool(block.name, gen);
-        await this.dig(block);
-        gathered++;
-      } catch (err) {}
+        if (this.entity.position.distanceTo(lowestLog) > 3.0) {
+          await this.pathfinder.goto(new GoalNearXZ(targetCol.x, targetCol.z, 1.3));
+        }
+      } catch (err) {
+        triedColumns.add(colKey);
+        continue;
+      }
+
+      // Now at tree base: harvest logs in this column within reach
+      let choppedInCol = 0;
+      for (const logPos of targetCol.logs) {
+        if (gathered >= count) break;
+        triedBlocks.add(`${logPos.x},${logPos.y},${logPos.z}`);
+        const block = this.blockAt(logPos);
+        if (!block || block.type === 0 || !/_log$/.test(block.name)) continue;
+
+        const curMe = this.entity.position;
+        const d = curMe.distanceTo(logPos);
+        if (d > 4.5 && Math.abs(logPos.y - curMe.y) > 3.8) {
+          continue;
+        }
+
+        try {
+          await this._autoEquipBestTool(block.name, gen);
+          await this.dig(block);
+          gathered++;
+          choppedInCol++;
+        } catch (err) {}
+      }
+
+      if (choppedInCol === 0) {
+        triedColumns.add(colKey);
+      }
     }
+
     return gathered;
   }
 
@@ -4192,20 +4441,37 @@ export class MineflayerBot extends EventEmitter {
     let gathered = 0;
     let attempts = 0;
     const triedPositions = new Set();
-    while (gathered < count && attempts++ < count * 8) {
+    while (gathered < count && attempts++ < count * 10) {
       this._check(gen);
       const me = this.entity.position;
       const stonePositions = this.findBlocks({
         matching: (b) => b.name === 'stone' || b.name === 'cobblestone',
         maxDistance: 48,
-        count: 40,
+        count: 50,
       }).filter((p) => {
         const floored = me.floored();
         if (p.x === floored.x && p.z === floored.z && p.y <= floored.y) return false;
         if (triedPositions.has(`${p.x},${p.y},${p.z}`)) return false;
-        return p.y >= me.y - 2.5 && p.y <= me.y + 3.5;
+        return true;
       });
-      if (!stonePositions.length) break;
+
+      if (!stonePositions.length) {
+        // If no surface stone is found, dig 1-2 dirt/grass blocks down to expose stone
+        const dirtPos = this.findBlock({
+          matching: (b) => b.name === 'dirt' || b.name === 'grass_block' || b.name === 'grass',
+          maxDistance: 8,
+        });
+        if (dirtPos && !triedPositions.has(`${dirtPos.position.x},${dirtPos.position.y},${dirtPos.position.z}`)) {
+          triedPositions.add(`${dirtPos.position.x},${dirtPos.position.y},${dirtPos.position.z}`);
+          try {
+            await this._autoEquipBestTool(dirtPos.name, gen);
+            await this.dig(dirtPos);
+          } catch {}
+          continue;
+        }
+        break;
+      }
+
       stonePositions.sort((a, b) => this.entity.position.distanceTo(a) - this.entity.position.distanceTo(b));
       const targetPos = stonePositions[0];
       triedPositions.add(`${targetPos.x},${targetPos.y},${targetPos.z}`);
@@ -4227,14 +4493,14 @@ export class MineflayerBot extends EventEmitter {
     let gathered = 0;
     let attempts = 0;
     const triedPositions = new Set();
-    while (gathered < count && attempts++ < count * 8) {
+    while (gathered < count && attempts++ < count * 10) {
       this._check(gen);
       const me = this.entity.position;
       const ironPositions = this.findBlocks({
-        matching: (b) => b.name === 'iron_ore',
+        matching: (b) => b.name === 'iron_ore' || b.name === 'deepslate_iron_ore',
         maxDistance: 48,
         count: 30,
-      }).filter((p) => !triedPositions.has(`${p.x},${p.y},${p.z}`) && p.y >= me.y - 3 && p.y <= me.y + 4);
+      }).filter((p) => !triedPositions.has(`${p.x},${p.y},${p.z}`));
       if (!ironPositions.length) break;
       ironPositions.sort((a, b) => this.entity.position.distanceTo(a) - this.entity.position.distanceTo(b));
       const targetPos = ironPositions[0];
@@ -4401,9 +4667,30 @@ export class MineflayerBot extends EventEmitter {
   /** bot.craft(recipe, count, craftingTable): `recipe` from recipesFor (an item name also works). */
   async craft(recipe, count = 1, craftingTable = null) {
     const gen = this.gen;
+    if (typeof recipe === 'string') {
+      const lower = recipe.toLowerCase().trim();
+      if (lower === 'wooden_tools' || lower === 'wooden_tool') {
+        for (const t of ['wooden_pickaxe', 'wooden_axe', 'wooden_sword', 'wooden_shovel']) {
+          await this.craft(t, count, craftingTable);
+        }
+        return;
+      }
+      if (lower === 'stone_tools' || lower === 'stone_tool') {
+        for (const t of ['stone_pickaxe', 'stone_axe', 'stone_sword', 'stone_shovel']) {
+          await this.craft(t, count, craftingTable);
+        }
+        return;
+      }
+      if (lower === 'iron_tools' || lower === 'iron_tool') {
+        for (const t of ['iron_pickaxe', 'iron_axe', 'iron_sword', 'iron_shovel']) {
+          await this.craft(t, count, craftingTable);
+        }
+        return;
+      }
+    }
     if (!recipe) {
       throw new Error(
-        'No recipe provided to bot.craft(). If using bot.recipesFor(id, ...)[0], it returned undefined because required ingredients or a nearby crafting table are missing. Check bot.inventory.items() before crafting, or call bot.craft("item_name") directly!'
+        'No recipe provided to bot.craft(). Please pass an item name such as bot.craft("wooden_pickaxe")!'
       );
     }
     let r = recipe?._recipe;
@@ -4429,8 +4716,7 @@ export class MineflayerBot extends EventEmitter {
     const neededPlanks = (r.ingredients.planks || 0) * times + (sticksToMake * 2) + tablePlanksNeeded;
     const havePlanks = this._countIngredient('planks');
     if (neededPlanks > havePlanks) {
-      const missingPlanks = neededPlanks - havePlanks;
-      await this._autoCraftPlanks(missingPlanks, gen);
+      await this._autoCraftPlanks(neededPlanks, gen);
     }
 
     if (needTablePlacement) {
@@ -4461,16 +4747,24 @@ export class MineflayerBot extends EventEmitter {
     // Auto-smelt iron if needed and raw iron / ore is available or gatherable
     if (r.ingredients.iron_ingot) {
       const neededIngots = r.ingredients.iron_ingot * times;
-      const haveIngots = this.inventory.count('iron_ingot');
+      let haveIngots = this.inventory.count('iron_ingot');
       if (neededIngots > haveIngots) {
-        const missingIngots = neededIngots - haveIngots;
+        let missingIngots = neededIngots - haveIngots;
         const availableRaw = this.inventory.count('raw_iron') + this.inventory.count('iron_ore');
         if (availableRaw < missingIngots) {
           await this._autoGatherIron(missingIngots - availableRaw, gen);
         }
-        const smeltSource = this.inventory.count('raw_iron') >= missingIngots ? 'raw_iron' : (this.inventory.count('iron_ore') >= missingIngots ? 'iron_ore' : null);
-        if (smeltSource) {
-          await this.smelt(smeltSource, null, missingIngots);
+        while (missingIngots > 0 && this.inventory.count('raw_iron') > 0) {
+          const batch = Math.min(missingIngots, this.inventory.count('raw_iron'));
+          await this.smelt('raw_iron', null, batch);
+          haveIngots = this.inventory.count('iron_ingot');
+          missingIngots = Math.max(0, neededIngots - haveIngots);
+        }
+        while (missingIngots > 0 && this.inventory.count('iron_ore') > 0) {
+          const batch = Math.min(missingIngots, this.inventory.count('iron_ore'));
+          await this.smelt('iron_ore', null, batch);
+          haveIngots = this.inventory.count('iron_ingot');
+          missingIngots = Math.max(0, neededIngots - haveIngots);
         }
       }
     }
@@ -4487,6 +4781,18 @@ export class MineflayerBot extends EventEmitter {
     }
 
     for (const [ing, n] of Object.entries(r.ingredients)) {
+      if (this._countIngredient(ing) < n * times) {
+        // Last-chance proactive gathering
+        if (ing === 'planks') {
+          await this._autoCraftPlanks(n * times, gen);
+        } else if (ing === 'stick') {
+          const sNeed = Math.ceil((n * times - this._countIngredient('stick')) / 4);
+          const stickRecipe = RECIPE_BOOK.find((x) => x.result === 'stick');
+          if (stickRecipe) await this._executeCraft(stickRecipe, sNeed, gen);
+        } else if (ing === 'cobblestone') {
+          await this._autoGatherStone(n * times - this._countIngredient('cobblestone'), gen);
+        }
+      }
       if (this._countIngredient(ing) < n * times) {
         throw new Error(`Missing ingredients for ${r.result}: need ${n * times} ${ing}, have ${this._countIngredient(ing)}`);
       }
@@ -4638,16 +4944,22 @@ export class MineflayerBot extends EventEmitter {
         if (this.inventory.count(f) > 0) { fuelName = f; break; }
       }
     }
-    if (!fuelName || this.inventory.count(fuelName) <= 0) {
-      if (this._canSatisfyIngredient('planks', 1)) {
-        await this._autoCraftPlanks(1, gen);
-        fuelName = 'oak_planks';
+    const fuelPerItem = (fuelName === 'coal' || fuelName === 'charcoal') ? 1 / 8 : 1;
+    let fuelNeeded = Math.max(1, Math.ceil(times * fuelPerItem));
+    if (!fuelName || this.inventory.count(fuelName) < fuelNeeded) {
+      if (this.inventory.count('coal') >= fuelNeeded) {
+        fuelName = 'coal';
       } else {
-        await this._autoGatherCoal(1, gen);
-        fuelName = this.inventory.count('coal') > 0 ? 'coal' : null;
-        if (!fuelName) {
-          await this._autoCraftPlanks(1, gen);
-          fuelName = 'oak_planks';
+        await this._autoGatherCoal(fuelNeeded, gen);
+        if (this.inventory.count('coal') >= fuelNeeded) {
+          fuelName = 'coal';
+        } else {
+          // Use planks as fuel
+          const neededPlanks = this._countIngredient('planks') + fuelNeeded;
+          await this._autoCraftPlanks(neededPlanks, gen);
+          for (const p of PLANKS) {
+            if (this.inventory.count(p) >= fuelNeeded) { fuelName = p; break; }
+          }
         }
       }
     }
@@ -4669,8 +4981,7 @@ export class MineflayerBot extends EventEmitter {
     }
     this._session.lookAt(furnace.position.x + 0.5, furnace.position.y + 0.5, furnace.position.z + 0.5);
 
-    const fuelPerItem = fuelName === 'coal' || fuelName === 'charcoal' ? 1 / 8 : 1;
-    const fuelNeeded = Math.max(1, Math.ceil(times * fuelPerItem));
+    fuelNeeded = Math.max(1, Math.ceil(times * ((fuelName === 'coal' || fuelName === 'charcoal') ? 1 / 8 : 1)));
     if (this.inventory.count(fuelName) < fuelNeeded) {
       throw new Error(`Need ${fuelNeeded} ${fuelName} as fuel, have ${this.inventory.count(fuelName)}`);
     }
@@ -4712,6 +5023,7 @@ export class MineflayerBot extends EventEmitter {
   _controlStep() {
     const s = this._session;
     const c = this.controlState;
+    if (s.isDead || s.gamemode === 'spectator' || s.knockbackActive) return;
     const f = (c.forward ? 1 : 0) - (c.back ? 1 : 0);
     const r = (c.right ? 1 : 0) - (c.left ? 1 : 0);
     if (!f && !r) return;
@@ -4719,12 +5031,21 @@ export class MineflayerBot extends EventEmitter {
     const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw), rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
     let dx = fx * f + rx * r, dz = fz * f + rz * r;
     const len = Math.hypot(dx, dz) || 1; dx = (dx / len) * speed; dz = (dz / len) * speed;
-    const nx = s.position.x + dx, nz = s.position.z + dz;
+    let nx = s.position.x + dx, nz = s.position.z + dz;
     let ny = s.position.y;
     if (s.isSolid(nx, ny, nz) || s.isSolid(nx, ny + 1, nz)) {
       if (!s.isSolid(nx, ny + 1, nz) && !s.isSolid(nx, ny + 2, nz)) ny += 1; else return;
     } else if (!s.isSolid(nx, ny - 1, nz) && s.isSolid(nx, ny - 2, nz)) ny -= 1;
-    if (c.sneak && !s.isSolid(nx, ny - 1, nz)) return;
+    // Only explicit, grounded sneaking gets Minecraft's edge restraint, in every game mode.
+    if (c.sneak && s.isFootSupported(s.position.x, s.position.y, s.position.z) && !s.isFootSupported(nx, ny, nz)) {
+      if (s.isFootSupported(nx, ny, s.position.z)) {
+        nz = s.position.z;
+      } else if (s.isFootSupported(s.position.x, ny, nz)) {
+        nx = s.position.x;
+      } else {
+        return;
+      }
+    }
     s.position.x = nx; s.position.y = ny; s.position.z = nz;
     s.isSprinting = Boolean(c.sprint); s.isSneaking = Boolean(c.sneak);
     s.broadcastState();
@@ -4770,7 +5091,7 @@ class Pathfinder {
       }
       const t = goal.target(bot);
       s.chatTaskBusy = true;
-      await s.moveStepToward(t.x, t.y, t.z, { bridge: false, stopWithin: Math.max(0.4, (t.range ?? 1) - 0.2), durationMs: 1500, maxDistance: 400, isCancelled: cancelled });
+      await s.moveStepToward(t.x, t.y, t.z, { avoidVoid: true, bridge: false, stopWithin: Math.max(0.4, (t.range ?? 1) - 0.2), durationMs: 1500, maxDistance: 400, isCancelled: cancelled });
       const d = Math.hypot(t.x - s.position.x, t.z - s.position.z);
       if (d >= lastDist - 0.05) stuck++; else stuck = 0;
       lastDist = d;
@@ -4964,33 +5285,48 @@ export async function runSessionCode(session, code, { sender = null, message = '
   const tryCompile = (str) => {
     try { return compile(str); } catch {}
 
-    // Strip dangling trailing closing braces
+    // Balance curly braces: count { vs }
     let repaired = str;
+    let openCount = (repaired.match(/\{/g) || []).length;
+    let closeCount = (repaired.match(/\}/g) || []).length;
+
+    // Remove excess closing braces from the end
+    while (closeCount > openCount && /\}[\s;]*$/.test(repaired)) {
+      repaired = repaired.replace(/\}[\s;]*$/, '').trim();
+      closeCount--;
+      try { return compile(repaired); } catch {}
+    }
+
+    // Add missing closing braces
+    while (openCount > closeCount) {
+      repaired = `${repaired}\n}`;
+      closeCount++;
+      try { return compile(repaired); } catch {}
+    }
+
+    // Strip dangling trailing closing braces
     while (/\}[\s;]*$/.test(repaired)) {
       repaired = repaired.replace(/\}[\s;]*$/, '').trim();
       try { return compile(repaired); } catch {}
     }
 
     // Wrap uninvoked anonymous functions: async function() { ... } or () => { ... }
-    if (/^\s*(?:async\s+)?(?:function\s*\(|\([^)]*\)\s*=>)/i.test(str)) {
-      try { return compile(`return await (${str.replace(/;+$/, '')})()`); } catch {}
+    if (/^\s*(?:async\s+)?(?:function\s*\(|\([^)]*\)\s*=>)/i.test(repaired)) {
+      try { return compile(`return await (${repaired.replace(/;+$/, '')})()`); } catch {}
     }
 
     // Wrap uninvoked arrow or function expression: (async () => { ... })
-    if (/^\s*\(\s*(?:async\s+)?(?:function|\([^)]*\)|[a-zA-Z0-9_$]+)/i.test(str) && !/\)\s*\(\s*\)\s*;?\s*$/.test(str)) {
-      try { return compile(`return await (${str})()`); } catch {}
+    if (/^\s*\(\s*(?:async\s+)?(?:function|\([^)]*\)|[a-zA-Z0-9_$]+)/i.test(repaired) && !/\)\s*\(\s*\)\s*;?\s*$/.test(repaired)) {
+      try { return compile(`return await (${repaired})()`); } catch {}
     }
 
     // Uncalled named function declaration: async function doTask() { ... }
-    const fnMatch = str.match(/(?:async\s+function|function)\s+([a-zA-Z0-9_$]+)/);
-    if (fnMatch && !new RegExp(`\\b${fnMatch[1]}\\s*\\(`).test(str.slice(fnMatch.index + fnMatch[0].length))) {
-      try { return compile(`${str}\nreturn await ${fnMatch[1]}();`); } catch {}
+    const fnMatch = repaired.match(/(?:async\s+function|function)\s+([a-zA-Z0-9_$]+)/);
+    if (fnMatch && !new RegExp(`\\b${fnMatch[1]}\\s*\\(`).test(repaired.slice(fnMatch.index + fnMatch[0].length))) {
+      try { return compile(`${repaired}\nreturn await ${fnMatch[1]}();`); } catch {}
     }
 
-    // Missing closing brace
-    try { return compile(`${str}\n}`); } catch {}
-
-    return compile(str);
+    return compile(repaired);
   };
 
   try {
@@ -5060,8 +5396,9 @@ Decide from what the player says whether they want you to DO something in the ga
 Answer with a single JSON object: {"reply": "short chat message (or empty)", "code": "JavaScript or null"}.
 - Just chatting, asking a question, or thanking you: put your answer in reply and set code to null.
 - Asking you to act (gather, craft, build, follow, come, stop, give/throw, fight, dig, go somewhere...): write sequential statements using await directly (do NOT wrap in an uncalled anonymous function \`function() {}\` or \`async function() {}\`, and do NOT add an extra closing brace "}" at the end).
-- Be proactive! When asked to make tools for both player and companion (e.g. "build wooden tools for yourself too so we can go mining", "throw the tools you built to me"), craft the requested tools using bot.craft(...) and toss the ones requested to the player. bot.craft automatically gathers missing wood/cobblestone/iron from nearby blocks, handles prerequisite planks/sticks/smelting, and places crafting tables/furnaces!
+- Be proactive! When asked to make tools for both player and companion (e.g. "build wooden tools for yourself too so we can go mining", "throw the tools you built to me"): call await bot.craft('wooden_pickaxe'); await bot.craft('wooden_axe'); await bot.craft('wooden_sword'); (or await bot.craft('wooden_tools')). bot.craft automatically gathers missing wood/cobblestone/iron from nearby blocks, handles prerequisite planks/sticks/smelting, and places crafting tables/furnaces! Never pass undefined to bot.craft().
 - To throw items to the player: face them (if (player) await bot.lookAt(player.position.offset(0, 1.6, 0))) and toss (e.g. await bot.toss('wooden_sword', null, 1);).
+- Progression: Wooden tools -> Stone tools & Furnace -> Smelt Iron Ore -> Iron tools! For stone tier use await bot.craft('stone_pickaxe'); for iron tier use await bot.craft('iron_pickaxe').
 - "stop"/"wait"/"stay" style requests: code like bot.pathfinder.stop(); bot.clearControlStates(); (the new code already cancels old tasks).
 - Keep reply under 200 characters. Never claim to have done something the code has not done; use bot.chat inside the code to report results.
 ${MINEFLAYER_API_REFERENCE}`;

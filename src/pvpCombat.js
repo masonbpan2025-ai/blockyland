@@ -17,7 +17,8 @@
 //     does not knock back (LivingEntity.hurt).
 import { STRONG_ATTACK_CHARGE } from './attackCooldown.js';
 
-export const TICKS_PER_SECOND = 20;
+import { TICKS_PER_SECOND } from '../packages/blockyland-mcp/knockback.js';
+export { TICKS_PER_SECOND, BASE_KNOCKBACK, KNOCKBACK_PER_LEVEL, applyKnockback, hitKnockback, hurtWindow } from '../packages/blockyland-mcp/knockback.js';
 /** Blocks a player can reach another with: "the 3 block attack reach" in Survival, 5 in Creative. */
 export const PVP_REACH = Object.freeze({ survival: 3, adventure: 3, creative: 5, spectator: 0 });
 export const reachFor = (gamemode) => PVP_REACH[gamemode] ?? PVP_REACH.survival;
@@ -25,9 +26,6 @@ export const reachFor = (gamemode) => PVP_REACH[gamemode] ?? PVP_REACH.survival;
 export const HURT_INVULNERABLE_SECONDS = 10 / TICKS_PER_SECOND;
 /** The red overlay on a hurt entity lasts its hurt time, 10 ticks. */
 export const HURT_OVERLAY_SECONDS = 10 / TICKS_PER_SECOND;
-/** Knockback of a hit, in blocks per tick; and the strength each level of Knockback (and a sprint) adds. */
-export const BASE_KNOCKBACK = 0.4;
-export const KNOCKBACK_PER_LEVEL = 0.5;
 /** A sprint-knockback attack leaves the attacker this share of its horizontal speed. */
 export const SPRINT_HIT_SLOWDOWN = 0.6;
 /** Damage a sweep deals to each other entity it catches, before Sweeping Edge, and how far around the target it reaches. */
@@ -59,46 +57,6 @@ export function classifyAttack({ charge, sprinting = false, onGround = true, fal
 
 /** The Knockback level a hit adds: the enchantment, plus one for a sprint-knockback attack. */
 export const extraKnockbackLevel = (enchantLevel = 0, sprintKnockback = false) => Math.max(0, enchantLevel) + (sprintKnockback ? 1 : 0);
-
-/**
- * LivingEntity.knockback: the new velocity of an entity pushed with `strength` (blocks/tick) in the horizontal
- * direction (dx, dz). Velocities are in blocks per second, as the game's are.
- */
-export function applyKnockback(velocity, { strength, dx, dz, onGround, resistance = 0 }) {
-  const s = strength * (1 - Math.min(1, Math.max(0, resistance)));
-  const length = Math.hypot(dx, dz);
-  if (s <= 0 || length < 1e-9) return { x: velocity.x, y: velocity.y, z: velocity.z };
-  const push = (s * TICKS_PER_SECOND) / length;
-  return {
-    x: velocity.x / 2 + dx * push,
-    y: onGround ? Math.min(BASE_KNOCKBACK * TICKS_PER_SECOND, velocity.y / 2 + s * TICKS_PER_SECOND) : velocity.y,
-    z: velocity.z / 2 + dz * push,
-  };
-}
-
-/**
- * The velocity of a player hit from `from`: the base push away from the attacker, then for a sprint hit or the
- * Knockback enchantment a further push along the attacker's facing (`fromYaw`, this game's yaw: forward is
- * (-sin, -cos)).
- */
-export function hitKnockback(velocity, { position, from, fromYaw = null, onGround, extraLevel = 0, resistance = 0 }) {
-  let v = applyKnockback(velocity, { strength: BASE_KNOCKBACK, dx: position.x - from.x, dz: position.z - from.z, onGround, resistance });
-  if (extraLevel > 0) {
-    const yaw = Number.isFinite(fromYaw) ? fromYaw : Math.atan2(-(position.x - from.x), -(position.z - from.z));
-    v = applyKnockback(v, { strength: extraLevel * KNOCKBACK_PER_LEVEL, dx: -Math.sin(yaw), dz: -Math.cos(yaw), onGround, resistance });
-  }
-  return v;
-}
-
-/**
- * The hurt window. `state` is `{ timer, lastAmount }` of the target. Returns what this hit deals and whether it
- * knocks back: a hit in the window counts only for what it adds over the last one (LivingEntity.hurt).
- */
-export function hurtWindow(state, amount) {
-  if (!(state.timer > 0)) return { amount, knockback: true, fresh: true };
-  if (amount <= (state.lastAmount ?? 0)) return { amount: 0, knockback: false, fresh: false };
-  return { amount: amount - (state.lastAmount ?? 0), knockback: false, fresh: false };
-}
 
 /**
  * The particles a landed hit shows, by name and count (Particles):

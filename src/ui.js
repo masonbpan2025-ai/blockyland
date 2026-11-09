@@ -14,6 +14,7 @@ const AGENT_CONTROL_STORAGE = 'mc_agent_control';
 const TERMINAL_COMPACT_STORAGE = 'mc_agent_terminal_compact';
 import { allowsAgentTerminal } from './sessionSettings.js';
 import { BLOCKS, BLOCK_DEFS, ITEMS, stackLimitFor } from './blocks.js';
+import { canMergeStacks } from './inventory.js';
 import { durabilityFraction, maxDurabilityFor } from './durability.js';
 import { getBiomeDef, BIOMES } from './biomes.js';
 import { VILLAGER_TRADES } from './crafting.js';
@@ -168,6 +169,20 @@ export function facingLabel(yaw = 0) {
   return 'north (-Z)';
 }
 
+/**
+ * Suppress browser context menu during gameplay so right-clicking to interact with blocks
+ * (crafting tables, chests, furnaces, etc.) or clicking in inventory/modals never opens
+ * the native "Save image as..." / "Copy image" menu.
+ * Allows the native context menu only inside editable form fields (input, textarea, select, contenteditable).
+ */
+export function preventGameContextMenu(e) {
+  const target = e.target;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+    return;
+  }
+  e.preventDefault();
+}
+
 export class UIManager {
   constructor(inventory, player, world, mobs, sounds, game = null) {
     this.inv = inventory;
@@ -287,6 +302,7 @@ export class UIManager {
     this.geminiViewToggle = document.getElementById('gemini-view-toggle');
     // Connect AI: the player's own AI app, through Agent Control (src/agentControl/)
     this.agentConnectBtn = document.getElementById('agent-connect-btn');
+    this.agentDisconnectBtn = document.getElementById('agent-disconnect-btn');
     this.agentConnectDrawer = document.getElementById('agent-connect-drawer');
     this.agentConnectStatus = document.getElementById('agent-connect-status');
     this.agentConnectCode = document.getElementById('agent-connect-code');
@@ -438,6 +454,10 @@ export class UIManager {
     }
     if (this.closeEnchantingBtn) {
       this.closeEnchantingBtn.onclick = () => this.closeEnchantingModal();
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('contextmenu', preventGameContextMenu, true);
     }
 
     window.addEventListener('keydown', (e) => {
@@ -1646,19 +1666,35 @@ export class UIManager {
 
     // 2x2 Craft Result
     const res2 = document.getElementById('craft2x2-result');
-    res2.onclick = () => {
-      this.inv.takeCraftResult(false);
-      this.renderInventoryGrids();
-      this.updateHotbar();
-    };
+    if (res2) {
+      res2.onclick = () => {
+        this.inv.takeCraftResult(false);
+        this.renderInventoryGrids();
+        this.updateHotbar();
+      };
+      res2.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.inv.takeCraftResult(false);
+        this.renderInventoryGrids();
+        this.updateHotbar();
+      };
+    }
 
     // 3x3 Craft Result
     const res3 = document.getElementById('craft3x3-result');
-    res3.onclick = () => {
-      this.inv.takeCraftResult(true);
-      this.renderCraftingGrids();
-      this.updateHotbar();
-    };
+    if (res3) {
+      res3.onclick = () => {
+        this.inv.takeCraftResult(true);
+        this.renderCraftingGrids();
+        this.updateHotbar();
+      };
+      res3.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.inv.takeCraftResult(true);
+        this.renderCraftingGrids();
+        this.updateHotbar();
+      };
+    }
   }
 
   renderInventoryGrids() {
@@ -1800,7 +1836,15 @@ export class UIManager {
     });
 
     const resSlot = document.getElementById('craft3x3-result');
-    this.renderSlotContent(resSlot, this.inv.craft3x3Result);
+    if (resSlot) {
+      this.renderSlotContent(resSlot, this.inv.craft3x3Result);
+      resSlot.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.inv.takeCraftResult(true);
+        this.renderCraftingGrids();
+        this.updateHotbar();
+      };
+    }
     this.recipeBook?.render('crafting');
     this.updateFloatingCursor();
   }
@@ -1924,19 +1968,26 @@ export class UIManager {
           furnace[slotKey] = this.inv.cursorItem;
           this.inv.cursorItem = null;
         }
-      } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
+      } else if (canMergeStacks(target, this.inv.cursorItem)) {
+        const slotLimit = stackLimitFor(target.id);
         if (isRightClick) {
-          if (target.count < stackLimitFor(target.id)) {
+          if (target.count < slotLimit) {
             target.count++;
             this.inv.cursorItem.count--;
             if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
           }
         } else {
-          const space = stackLimitFor(target.id) - target.count;
-          const transfer = Math.min(space, this.inv.cursorItem.count);
-          target.count += transfer;
-          this.inv.cursorItem.count -= transfer;
-          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          const space = slotLimit - target.count;
+          if (space <= 0) {
+            const tmp = furnace[slotKey];
+            furnace[slotKey] = this.inv.cursorItem;
+            this.inv.cursorItem = tmp;
+          } else {
+            const transfer = Math.min(space, this.inv.cursorItem.count);
+            target.count += transfer;
+            this.inv.cursorItem.count -= transfer;
+            if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+          }
         }
       } else {
         const tmp = furnace[slotKey];
@@ -1979,8 +2030,8 @@ export class UIManager {
         this.inv.cursorItem = target;
         furnace.output = null;
       }
-    } else if (this.inv.cursorItem.id === target.id && this.inv.cursorItem.isBlock === target.isBlock) {
-      const space = 64 - this.inv.cursorItem.count;
+    } else if (canMergeStacks(this.inv.cursorItem, target)) {
+      const space = stackLimitFor(this.inv.cursorItem.id) - this.inv.cursorItem.count;
       const transfer = Math.min(space, target.count);
       this.inv.cursorItem.count += transfer;
       target.count -= transfer;
@@ -2236,21 +2287,28 @@ export class UIManager {
           this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, this.inv.cursorItem);
           this.inv.cursorItem = null;
         }
-      } else if (target.id === this.inv.cursorItem.id && target.isBlock === this.inv.cursorItem.isBlock) {
+      } else if (canMergeStacks(target, this.inv.cursorItem)) {
+        const slotLimit = stackLimitFor(target.id);
         if (isRightClick) {
-          if (target.count < stackLimitFor(target.id)) {
+          if (target.count < slotLimit) {
             target.count++;
             this.inv.cursorItem.count--;
             if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
             this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
           }
         } else {
-          const space = stackLimitFor(target.id) - target.count;
-          const transfer = Math.min(space, this.inv.cursorItem.count);
-          target.count += transfer;
-          this.inv.cursorItem.count -= transfer;
-          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
-          this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
+          const space = slotLimit - target.count;
+          if (space <= 0) {
+            const tmp = target;
+            this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, this.inv.cursorItem);
+            this.inv.cursorItem = tmp;
+          } else {
+            const transfer = Math.min(space, this.inv.cursorItem.count);
+            target.count += transfer;
+            this.inv.cursorItem.count -= transfer;
+            if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+            this.game.chestManager.setCombinedSlot(x, y, z, slotIdx, target);
+          }
         }
       } else {
         const tmp = target;
@@ -2778,13 +2836,20 @@ export class UIManager {
           stand.ingredient = this.inv.cursorItem;
           this.inv.cursorItem = null;
           this.sounds.playClick?.();
-        } else if (stand.ingredient.id === this.inv.cursorItem.id) {
-          const space = 64 - stand.ingredient.count;
-          const add = Math.min(space, this.inv.cursorItem.count);
-          stand.ingredient.count += add;
-          this.inv.cursorItem.count -= add;
-          if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
-          this.sounds.playClick?.();
+        } else if (canMergeStacks(stand.ingredient, this.inv.cursorItem)) {
+          const space = stackLimitFor(stand.ingredient.id) - stand.ingredient.count;
+          if (space <= 0) {
+            const tmp = stand.ingredient;
+            stand.ingredient = this.inv.cursorItem;
+            this.inv.cursorItem = tmp;
+            this.sounds.playClick?.();
+          } else {
+            const add = Math.min(space, this.inv.cursorItem.count);
+            stand.ingredient.count += add;
+            this.inv.cursorItem.count -= add;
+            if (this.inv.cursorItem.count <= 0) this.inv.cursorItem = null;
+            this.sounds.playClick?.();
+          }
         } else {
           const tmp = stand.ingredient;
           stand.ingredient = this.inv.cursorItem;
@@ -2925,6 +2990,12 @@ export class UIManager {
     if (outputSlot) {
       this.renderSlotContent(outputSlot, calculation.valid ? calculation.result : null);
       outputSlot.onclick = () => {
+        if (calculation.valid) {
+          this.takeAnvilOutput(calculation);
+        }
+      };
+      outputSlot.oncontextmenu = (e) => {
+        e.preventDefault();
         if (calculation.valid) {
           this.takeAnvilOutput(calculation);
         }
@@ -3099,6 +3170,12 @@ export class UIManager {
           this.takeGrindstoneOutput(calculation);
         }
       };
+      outputSlot.oncontextmenu = (e) => {
+        e.preventDefault();
+        if (calculation.valid) {
+          this.takeGrindstoneOutput(calculation);
+        }
+      };
     }
 
     if (xpLabel) {
@@ -3242,6 +3319,10 @@ export class UIManager {
     if (outputSlot) {
       this.renderSlotContent(outputSlot, calculation.valid ? calculation.result : null);
       outputSlot.onclick = () => {
+        if (calculation.valid) this.takeSmithingOutput(calculation);
+      };
+      outputSlot.oncontextmenu = (e) => {
+        e.preventDefault();
         if (calculation.valid) this.takeSmithingOutput(calculation);
       };
     }
@@ -5189,18 +5270,27 @@ export class UIManager {
     }
     const control = new AgentControlBridge({
       ...(port ? { port } : {}),
-      runTool: (name, args) => runGameTool(name, args, {
+      runTool: (name, args, progressContext) => runGameTool(name, args, {
         game: geminiAgent.game,
         agent: geminiAgent,
         ui: this,
         clientLabel: appName,
         allowScreenshots: () => this.isViewCaptureEnabled(),
+        onProgress: progressContext?.onProgress,
       }),
       onMessageReceived: () => {
         tracker.pickedUp();
         this.addGeminiLog(`${appName()} picked up your request and is working on it.`, 'info');
       },
-      onToolCall: (tool, args) => tracker.toolCall(tool, args),
+      onToolCall: (tool, args) => {
+        tracker.toolCall(tool, args);
+        if (tracker.active && tool !== 'say') this.addGeminiLog(`${appName()}: ${tracker.step}.`, 'info');
+      },
+      onToolResult: (tool, ok) => tracker.toolResult(tool, ok),
+      onActivity: (message, progress) => {
+        tracker.reportProgress(progress, message);
+        this.addGeminiLog(`${appName()}: ${message}`, 'info');
+      },
       onAiWaiting: () => tracker.aiWaiting(),
       gameInfo: () => ({ title: 'Blockyland', mode: geminiAgent.game?.player?.gamemode || null }),
     });
@@ -5234,6 +5324,8 @@ export class UIManager {
           setTimeout(() => { if (Date.now() >= doneShownUntil) refreshAgentStatus(); }, 6100);
         }
         refreshAgentStatus();
+        renderRequestProgress(view);
+        renderConnectPanel();
       },
     });
     this.agentRequestTracker = tracker;
@@ -5257,10 +5349,45 @@ export class UIManager {
         this.geminiStatusText.textContent = `${appName().toUpperCase()} CONNECTED`;
       } else if (control.status === 'waiting') {
         this.geminiStatusText.textContent = 'WAITING FOR CODE';
+      } else if (control.status === 'off') {
+        this.geminiStatusText.textContent = 'DISCONNECTED';
       } else {
         this.geminiStatusText.textContent = 'LOOKING FOR AI APP';
       }
     };
+
+    // Unknown work sweeps; measured progress stays visible until the current tool finishes.
+    const renderRequestProgress = view => {
+      const wrapper = this.geminiProgressWrapper;
+      if (!wrapper) return;
+      if (view.state === 'sent' || view.state === 'working') {
+        wrapper.classList.add('active');
+        const building = Number.isFinite(view.progress);
+        wrapper.classList.toggle('indeterminate', !building);
+        wrapper.setAttribute('role', 'progressbar');
+        wrapper.setAttribute('aria-label', view.text);
+        if (building) {
+          wrapper.setAttribute('aria-valuenow', String(view.progress));
+          if (this.geminiProgressBar) this.geminiProgressBar.style.width = `${view.progress}%`;
+        } else {
+          wrapper.removeAttribute('aria-valuenow');
+          if (this.geminiProgressBar) this.geminiProgressBar.style.width = '';
+        }
+        if (this.geminiProgressLabel) {
+          this.geminiProgressLabel.textContent = `${view.text.replace(/^Working: /, '')}${building ? ` (${view.progress}%)` : ''} — ${view.elapsed}`;
+        }
+        return;
+      }
+      // Done, interrupted or idle: let the finished bar sit for a moment, then fold it away.
+      wrapper.classList.remove('indeterminate');
+      if (view.state === 'done') {
+        wrapper.setAttribute('aria-valuenow', '100');
+        if (this.geminiProgressBar) this.geminiProgressBar.style.width = '100%';
+        if (this.geminiProgressLabel) this.geminiProgressLabel.textContent = view.text;
+      }
+      setTimeout(() => { if (!tracker.active) wrapper.classList.remove('active'); }, 1500);
+    };
+    this.renderRequestProgress = renderRequestProgress;
 
     const renderConnectPanel = () => {
       if (this.agentConnectCode) this.agentConnectCode.textContent = control.code || '------';
@@ -5268,10 +5395,14 @@ export class UIManager {
       if (!this.agentConnectStatus) return;
       const found = control.aiApp && control.aiApp !== 'your AI app' ? control.aiApp : 'your AI app';
       const status = {
-        connected: `✓ Connected to ${appName()} (code ${control.code}). Type your requests below; it answers here.`,
+        connected: `✓ Connected to ${appName()} (code ${control.code}). ${control.listening
+          ? 'Listening for your next request.'
+          : tracker.active ? 'Working on your request.' : 'The AI app is not listening. Ask it to wait for your requests in Blockyland.'}`,
         waiting: `Found ${found}. Now tell it the code below.`,
         searching: 'Looking for your AI app… Do step 1 once, then start your AI app. Blockyland checks every few seconds.',
-        off: 'Switch Offline Mode off to connect your AI app.',
+        off: this.isAgentControlMode()
+          ? 'Disconnected. Click Connect AI to reconnect.'
+          : 'Switch Offline Mode off to connect your AI app.',
       }[control.status] || '';
       const outdated = control.status === 'off' ? null : {
         server: ` ⚠ Your AI app runs an older Blockyland server (${control.serverVersion || 'unknown version'}) than this game expects: restart your AI app so npx fetches the newest (the command in step 1 ends in @latest).`,
@@ -5338,6 +5469,11 @@ export class UIManager {
     };
 
     geminiAgent.onProgress = (pct, label) => {
+      if (tracker.active) {
+        tracker.reportProgress(pct, label);
+        return;
+      }
+      this.geminiProgressWrapper?.classList.remove('indeterminate');
       if (this.geminiProgressWrapper) {
         this.geminiProgressWrapper.classList.add('active');
       }
@@ -5358,7 +5494,7 @@ export class UIManager {
 
     geminiAgent.onComplete = () => {
       setTimeout(() => {
-        if (this.geminiProgressWrapper) {
+        if (this.geminiProgressWrapper && !tracker.active) {
           this.geminiProgressWrapper.classList.remove('active');
         }
       }, 1500);
@@ -5398,7 +5534,20 @@ export class UIManager {
     if (this.agentConnectBtn) {
       this.agentConnectBtn.onclick = () => {
         if (!this.isAgentControlMode()) return;
+        if (!control.enabled) {
+          control.enable();
+          this.setConnectDetailsCollapsed(false);
+          this.setConnectPanelOpen(true);
+          return;
+        }
         this.setConnectPanelOpen(this.agentConnectDrawer?.classList.contains('hidden'));
+      };
+    }
+    if (this.agentDisconnectBtn) {
+      this.agentDisconnectBtn.onclick = () => {
+        const label = appName();
+        control.disable();
+        this.addGeminiLog(`Disconnected from ${label}. Click Connect AI to reconnect.`, 'info');
       };
     }
     const copy = (text, what) => {

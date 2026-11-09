@@ -9,6 +9,8 @@ import { TOOLS, isAllowedOrigin } from '../src/agentControl/protocol.js';
 let rpcId = 0;
 const rpc = (server, method, params) => server.handle({ jsonrpc: '2.0', id: ++rpcId, method, params });
 const call = async (server, name, args = {}) => {
+  // Most tests exercise pairing only. Listening behavior is exercised explicitly below.
+  if (name === 'connect' && args.code) args = { listen: false, ...args };
   const response = await rpc(server, 'tools/call', { name, arguments: args });
   const [text, ...rest] = response.result.content;
   return { isError: response.result.isError, body: JSON.parse(text.text), images: rest };
@@ -19,7 +21,7 @@ async function startServer(t, options = {}) {
   const port = await server.listen();
   assert.ok(port, 'the server listens');
   t.after(() => server.close());
-  await rpc(server, 'initialize', { protocolVersion: '2025-06-18', clientInfo: { name: 'claude-code', version: '2.1' }, capabilities: {} });
+  await rpc(server, 'initialize', { protocolVersion: '2025-06-18', clientInfo: { name: options.clientName || 'claude-code', version: '2.1' }, capabilities: {} });
   return { server, port };
 }
 
@@ -55,7 +57,7 @@ test('initialize negotiates the protocol version and gives instructions', async 
   const server = createAgentControlServer({ port: 0 });
   const response = await rpc(server, 'initialize', { protocolVersion: '2025-06-18', clientInfo: { name: 'claude-code' } });
   assert.equal(response.result.protocolVersion, '2025-06-18');
-  assert.deepEqual(response.result.capabilities, { tools: { listChanged: false } });
+  assert.deepEqual(response.result.capabilities, { tools: { listChanged: false }, logging: {} });
   assert.equal(response.result.serverInfo.name, 'blockyland');
   assert.match(response.result.instructions, /connect/);
   const unknownVersion = await rpc(server, 'initialize', { protocolVersion: '1999-01-01' });
@@ -249,4 +251,100 @@ test('client names read the way a player knows them', () => {
   assert.equal(clientLabel({ name: 'gemini-cli-mcp-client' }), 'Gemini CLI');
   assert.equal(clientLabel({ name: 'codex-mcp-client' }), 'Codex');
   assert.equal(clientLabel(null), 'your AI app');
+});
+
+for (const clientName of ['claude-code', 'codex-mcp-client', 'gemini-cli-mcp-client', 'DeepSeek']) {
+  test(`${clientName}: default connect immediately pairs and picks up a request without another tool call`, { timeout: 8000 }, async t => {
+    const notifications = [];
+    const { server, port } = await startServer(t, { clientName, notify: n => notifications.push(n) });
+    const game = await fakeGame(t, port);
+    // Raw RPC deliberately exercises the default, with no test helper's listen:false.
+    const connecting = rpc(server, 'tools/call', {
+      name: 'connect', arguments: { code: '123456' }, _meta: { progressToken: 'pair' },
+    });
+    assert.equal((await game.next('paired')).client, clientLabel({ name: clientName }));
+    await game.next('ai_waiting');
+    const sentAt = Date.now();
+    game.send({ type: 'player_message', id: 42, text: 'build the attached house', images: [{ data: 'AAAA', mimeType: 'image/png' }] });
+    const { result } = await connecting;
+    const body = JSON.parse(result.content[0].text);
+    assert.equal(body.connected, true);
+    assert.equal(body.message, 'build the attached house');
+    assert.equal(body.request_id, 42);
+    assert.deepEqual(result.content[1], { type: 'image', data: 'AAAA', mimeType: 'image/png' });
+    assert.equal((await game.next('message_received')).id, 42);
+    assert.ok(Date.now() - sentAt < 2000, 'event-driven delivery does not wait for a polling interval');
+    assert.match(body.next_action, /report_progress/);
+    assert.ok(notifications.some(n => n.method === 'notifications/message' && /Picked up/.test(n.params.data)));
+    const updates = notifications.filter(n => n.method === 'notifications/progress');
+    assert.ok(updates.length >= 2);
+    assert.ok(updates.every((n, i) => n.params.progressToken === 'pair' && (i === 0 || n.params.progress > updates[i - 1].params.progress)));
+  });
+}
+
+test('initial listen timeout explains how to keep serving, and cancellation does not consume the next request', { timeout: 8000 }, async t => {
+  const { server, port } = await startServer(t);
+  const game = await fakeGame(t, port);
+  const connected = await call(server, 'connect', { code: '123456', listen: true, timeout_seconds: 1 });
+  assert.equal(connected.body.connected, true);
+  assert.equal(connected.body.waiting, true);
+  assert.match(connected.body.next_action, /immediately/);
+  const id = ++rpcId;
+  const listening = server.handle({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'wait_for_player_message', arguments: { timeout_seconds: 50 } } });
+  await server.handle({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: id } });
+  assert.equal(JSON.parse((await listening).result.content[0].text).kind, 'state');
+  game.send({ type: 'player_message', id: 9, text: 'still here' });
+  assert.equal((await call(server, 'wait_for_player_message', { timeout_seconds: 1 })).body.message, 'still here');
+});
+
+test('a disconnect or tab switch ends the old listener instead of giving it another tab\'s request', { timeout: 8000 }, async t => {
+  const { server, port } = await startServer(t);
+  const first = await fakeGame(t, port);
+  await call(server, 'connect', { code: '123456' });
+  const listening = call(server, 'wait_for_player_message');
+  const second = await fakeGame(t, port, { code: '654321' });
+  await call(server, 'connect', { code: '654321' });
+  assert.equal((await listening).body.kind, 'connection');
+  second.send({ type: 'player_message', id: 10, text: 'second tab' });
+  assert.equal((await call(server, 'wait_for_player_message')).body.message, 'second tab');
+  const disconnected = call(server, 'wait_for_player_message');
+  second.ws.close();
+  assert.equal((await disconnected).body.kind, 'connection');
+  first.ws.close();
+});
+
+test('work updates reach the game and logs; build progress uses active MCP tokens and stops at completion', { timeout: 8000 }, async t => {
+  const notifications = [];
+  const { server, port } = await startServer(t, { notify: n => notifications.push(n) });
+  const game = await fakeGame(t, port);
+  await call(server, 'connect', { code: '123456' });
+  await call(server, 'report_progress', { message: 'Planning the roof', progress: 20 });
+  assert.deepEqual(await game.next('agent_activity'), { type: 'agent_activity', message: 'Planning the roof', progress: 20 });
+  assert.equal((await call(server, 'report_progress', { message: 'bad', progress: 101 })).body.kind, 'usage');
+  assert.equal((await rpc(server, 'logging/setLevel', { level: 'invalid' })).error.code, -32602);
+  await rpc(server, 'logging/setLevel', { level: 'warning' });
+  const logged = notifications.filter(n => n.method === 'notifications/message').length;
+  await call(server, 'report_progress', { message: 'Preparing blocks' });
+  assert.equal(notifications.filter(n => n.method === 'notifications/message').length, logged, 'logging level is respected');
+
+  const building = rpc(server, 'tools/call', { name: 'run_plan', arguments: { plan: { action: 'build' } }, _meta: { progressToken: 0 } });
+  const task = await game.next('call');
+  game.send({ type: 'tool_progress', id: task.id, progress: 40, message: 'Placing walls' });
+  game.send({ type: 'tool_progress', id: task.id, progress: 100, message: 'Walls finished' });
+  game.send({ type: 'tool_progress', id: task.id, progress: 10, message: 'Starting roof' });
+  game.send({ type: 'result', id: task.id, ok: true, result: { built: true } });
+  assert.equal(JSON.parse((await building).result.content[0].text).built, true);
+  const progress = notifications.filter(n => n.method === 'notifications/progress');
+  assert.ok(progress.some(n => /Placing walls \(40%\)/.test(n.params.message)));
+  assert.ok(progress.every((n, i) => n.params.progressToken === 0 && (i === 0 || n.params.progress > progress[i - 1].params.progress)));
+  const count = notifications.length;
+  game.send({ type: 'tool_progress', id: task.id, progress: 100, message: 'late' });
+  await rpc(server, 'ping');
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(notifications.length, count, 'no notifications after the tool response');
+  const state = call(server, 'get_state');
+  const read = await game.next('call');
+  game.send({ type: 'result', id: read.id, ok: true, result: {} });
+  await state;
+  assert.equal(notifications.filter(n => n.method === 'notifications/progress').length, progress.length, 'clients without tokens still work');
 });

@@ -12,7 +12,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { EXHAUSTION, EXHAUSTION_THRESHOLD, SATURATION_PER_HEALTH } from '../src/hunger.js';
+import { createHungerState, EXHAUSTION, EXHAUSTION_THRESHOLD, SATURATION_PER_HEALTH } from '../src/hunger.js';
+import { Player } from '../src/player.js';
 
 /**
  * [key in EXHAUSTION, the value it must hold, the file that charges it, and what the charge looks like].
@@ -53,14 +54,14 @@ test('the model\'s own constants are the wiki\'s', () => {
   assert.equal(SATURATION_PER_HEALTH, 1.5);
 });
 
-test('the hunger model is ticked and the player owns the state', () => {
-  // The other half of the pairing: the charges are useless if nothing runs the model. `Player.update` calls
-  // it, and `Player.eatFood` is the one place eating goes through -- `main.js` used to do that arithmetic
-  // itself, which left the hunger system spending saturation that eating never granted.
-  const player = readFileSync('src/player.js', 'utf8');
-  assert.match(player, /this\.updateHungerModel\(dt\)/, 'the player should tick the hunger model');
-  assert.match(player, /eatFood\(hungerPoints, saturationPoints = 0\)/, 'and own the eating path');
-  const main = readFileSync('src/main.js', 'utf8');
-  assert.match(main, /this\.player\.eatFood\?\.\(it\.food \|\| 4, saturation\)/,
-    'eating in the game should go through the player');
+test('the player spends the saturation gained from a meal before losing hunger', () => {
+  const player = Object.assign(Object.create(Player.prototype), {
+    gamemode: 'survival', hunger: 8, saturation: 0, exhaustion: 0, health: 20, maxHealth: 20,
+    _hungerState: createHungerState(),
+  });
+  player.eatFood(4, 2);
+  player.addExhaustion(4);
+  player.updateHungerModel(0.05);
+  assert.equal(player.hunger, 12);
+  assert.equal(player.saturation, 1);
 });

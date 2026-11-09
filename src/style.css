@@ -307,6 +307,8 @@ html, body {
   height: 28px;
   object-fit: contain;
   image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .slot-count {
@@ -1801,6 +1803,20 @@ html, body {
 
 .gemini-progress-wrapper.active {
   display: flex;
+}
+
+/* Working with no percentage yet (reading, thinking, or a step that reports nothing): a moving sheen instead of a
+   bar that claims 0%. A build's real percentage replaces it (ui.js onProgress drops the class). */
+.gemini-progress-wrapper.indeterminate .gemini-progress-bar {
+  width: 100%;
+  background: linear-gradient(90deg, rgba(66, 133, 244, 0.12), #4285f4, #9b72cb, #34a853, rgba(52, 168, 83, 0.12));
+  background-size: 300% 100%;
+  animation: gemini-progress-sweep 1.6s linear infinite;
+}
+
+@keyframes gemini-progress-sweep {
+  from { background-position: 150% 0; }
+  to { background-position: -150% 0; }
 }
 
 .gemini-progress-bar {

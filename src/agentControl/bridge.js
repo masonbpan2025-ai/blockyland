@@ -19,16 +19,18 @@ function sessionStore() {
 export class AgentControlBridge {
   constructor({
     runTool, onStatus = () => {}, onMessageReceived = () => {}, onToolCall = () => {}, onAiWaiting = () => {},
+    onActivity = () => {}, onToolResult = () => {},
     gameInfo = () => ({ title: 'Blockyland' }),
     WebSocketImpl = globalThis.WebSocket, port = DEFAULT_PORT, host = '127.0.0.1',
     store = sessionStore(), timers = globalThis, retryMs = 3000,
   } = {}) {
-    Object.assign(this, { runTool, onStatus, onMessageReceived, onToolCall, onAiWaiting, gameInfo, WebSocketImpl, port, host, store, timers, retryMs });
+    Object.assign(this, { runTool, onStatus, onMessageReceived, onToolCall, onAiWaiting, onActivity, onToolResult, gameInfo, WebSocketImpl, port, host, store, timers, retryMs });
     this.status = 'off';
     this.outdated = null;
     this.serverVersion = null;
     this.code = null;
     this.aiApp = null;
+    this.listening = false;
     this.ws = null;
     this.retryTimer = null;
     this.nextMessageId = 1;
@@ -50,6 +52,7 @@ export class AgentControlBridge {
     const ws = this.ws;
     this.ws = null;
     this.aiApp = null;
+    this.listening = false;
     this.#forgetToken();
     this.#setStatus('off');
     try { ws?.close(); } catch { /* already closed */ }
@@ -77,7 +80,7 @@ export class AgentControlBridge {
   }
 
   #setStatus(status) {
-    const snapshot = `${status}|${this.code}|${this.aiApp}|${this.outdated}`;
+    const snapshot = `${status}|${this.code}|${this.aiApp}|${this.outdated}|${this.listening}`;
     this.status = status;
     if (snapshot === this.lastSnapshot) return;
     this.lastSnapshot = snapshot;
@@ -124,6 +127,7 @@ export class AgentControlBridge {
       if (this.ws !== ws) return;
       this.ws = null;
       this.aiApp = null;
+      this.listening = false;
       if (!this.enabled) return;
       this.#setStatus('searching');
       this.#retry();
@@ -151,6 +155,10 @@ export class AgentControlBridge {
         try { this.store?.setItem(TOKEN_KEY, message.sessionToken); } catch { /* storage unavailable */ }
         this.#setStatus('connected');
         break;
+      case 'listener_state':
+        this.listening = message.listening === true;
+        this.#setStatus(this.status);
+        break;
       case 'unpaired':
         this.aiApp = null;
         this.#forgetToken();
@@ -164,16 +172,27 @@ export class AgentControlBridge {
       case 'ai_waiting':
         this.onAiWaiting();
         break;
+      case 'agent_activity':
+        this.onActivity(message.message, message.progress);
+        break;
       case 'call': {
         const ws = this.ws;
         let reply;
+        let running = true;
+        const onProgress = (progress, label) => {
+          if (running && this.ws === ws && ws?.readyState === 1) {
+            ws.send(JSON.stringify({ type: 'tool_progress', id: message.id, progress, message: String(label || 'Working').slice(0, 500) }));
+          }
+        };
         this.onToolCall(message.tool, message.args || {});
         try {
-          const outcome = await this.runTool(message.tool, message.args || {});
+          const outcome = await this.runTool(message.tool, message.args || {}, { onProgress });
           reply = { type: 'result', id: message.id, ok: true, result: outcome?.result ?? {}, images: outcome?.images ?? [] };
         } catch (err) {
           reply = { type: 'result', id: message.id, ok: false, error: err?.kind ? toolError(err.kind, err.message) : toolError('failed', err?.message || String(err)) };
         }
+        running = false;
+        if (this.ws === ws) this.onToolResult(message.tool, reply.ok, reply.error);
         if (ws?.readyState === 1) ws.send(JSON.stringify(reply));
         break;
       }

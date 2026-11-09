@@ -90,6 +90,13 @@ changed in the 60 days to 2026-11-01.
 `tests/agentsMap.test.js` fails when a path or a group in this table no longer exists: update the row when you move a
 file.
 
+## Multiplayer & Agent Control Guidelines
+
+- **Never disconnect other agents in Bed Wars, SkyWars, or Share World:** Multiple AI agents (e.g. running in Claude, Gemini, DeepSeek, or automated test harnesses) frequently join the same match across opposing teams (e.g. Blue vs. Green) or cage slots.
+- **Use named disconnections:** When disconnecting your agent, always pass its name (`leave_game` with `{ name: "<my_agent_name>" }`). Never call `leave_game` without a name, as that disconnects all guest players connected through the server.
+- **Do not run blanket process killers:** When managing MCP processes or troubleshooting, never kill all `node.exe` processes or run broad cleanup scripts. Other agents or supervisor scripts (`mcp-supervise.mjs`) may be running concurrently. Strictly target only your own process ID.
+- **Provide unique names and teams:** Always supply a distinct `name` and target `team` (in Bed Wars) or slot (in SkyWars) so that incoming agents enter alongside existing agents smoothly without collisions.
+
 ## Assets
 
 - Every file under `public/assets/` needs an entry in `public/assets/PROVENANCE.json` that says where it came from:

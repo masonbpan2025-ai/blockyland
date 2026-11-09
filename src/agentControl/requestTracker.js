@@ -47,7 +47,7 @@ export class RequestTracker {
   }
 
   reset() {
-    Object.assign(this, { state: 'idle', request: '', startedAt: 0, lastActivityAt: 0, answered: false, step: '', steps: 0, finishedAt: 0, slow: false });
+    Object.assign(this, { state: 'idle', request: '', startedAt: 0, lastActivityAt: 0, answered: false, step: '', steps: 0, finishedAt: 0, slow: false, progress: null, runningTools: 0 });
   }
 
   get active() { return this.state === 'sent' || this.state === 'working'; }
@@ -73,16 +73,39 @@ export class RequestTracker {
   toolCall(tool, args) {
     if (!this.active) return;
     this.state = 'working';
+    this.answered = false;
+    this.progress = null;
+    this.runningTools += 1;
     this.step = describeStep(tool, args);
     this.steps += 1;
     this.lastActivityAt = this.now();
-    if (tool === 'say') this.answered = true;
+    this.#changed();
+  }
+
+  /** Real work progress persists until the next step, even when a frame or chunk takes seconds. */
+  reportProgress(pct, message) {
+    if (!this.active) return;
+    this.state = 'working';
+    this.answered = false;
+    this.step = String(message || this.step || 'working').slice(0, 500);
+    this.progress = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : null;
+    this.lastActivityAt = this.now();
+    this.#changed();
+  }
+
+  toolResult(tool, ok) {
+    if (!this.active) return;
+    this.runningTools = Math.max(0, this.runningTools - 1);
+    this.lastActivityAt = this.now();
+    this.progress = null;
+    if (tool === 'say' && ok) this.answered = true;
+    if (!ok) this.step = 'reviewing a tool error';
     this.#changed();
   }
 
   /** The AI app is waiting for the next request: whatever it was doing is finished. */
   aiWaiting() {
-    if (this.state === 'working') this.#finish('done');
+    if (this.state === 'working' && !this.runningTools) this.#finish('done');
   }
 
   /** The AI app went away. */
@@ -93,7 +116,7 @@ export class RequestTracker {
   /** Call about once a second: notices an answered request going quiet, and a request nobody picks up. */
   tick() {
     const now = this.now();
-    if (this.state === 'working' && this.answered && now - this.lastActivityAt >= IDLE_DONE_MS) {
+    if (this.state === 'working' && this.answered && !this.runningTools && now - this.lastActivityAt >= IDLE_DONE_MS) {
       this.#finish('done');
     } else if (this.state === 'sent' && !this.slow && now - this.startedAt >= SLOW_PICKUP_MS) {
       this.slow = true;
@@ -112,7 +135,7 @@ export class RequestTracker {
           ? 'Your AI app has not picked up your request yet. If it is not waiting, ask it in the app to "wait for my requests in Blockyland".'
           : 'Sent to your AI app, waiting for it to pick it up…' };
       case 'working':
-        return { state: 'working', icon: '⚙️', elapsed, text: `Working: ${this.step}…` };
+        return { state: 'working', icon: '⚙️', elapsed, progress: this.progress, text: `Working: ${this.step}…` };
       case 'done':
         return { state: 'done', icon: '✓', elapsed, text: `Done in ${elapsed}.` };
       case 'interrupted':

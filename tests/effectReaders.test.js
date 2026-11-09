@@ -17,11 +17,11 @@
 // disagreed with it both passed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { BLOCKS, ITEMS } from '../src/blocks.js';
 import { EXTRA_ITEMS } from '../src/extraItems.js';
 import { FOODS } from '../src/foodData.js';
+import { finishFoodUse } from '../src/foodUse.js';
 import { Inventory } from '../src/inventory.js';
 import { Player } from '../src/player.js';
 import { POTION_DATA } from '../src/brewing.js';
@@ -284,13 +284,19 @@ test('a golden apple is an apple that also shields you, and it feeds what vanill
   assert.ok(player.statusEffects.has('regeneration'));
 });
 
-test('the eating branch applies the effects an item declares', () => {
-  // Checked at the source because the eating branch lives in `main.js`, which needs most of an engine to
-  // drive. This proves the loop exists and reads `it.effects`, which is the whole of the wiring.
-  const source = readFileSync('src/main.js', 'utf8');
-  assert.match(source, /Array\.isArray\(it\.effects\)/, 'the eating branch should read the item effects');
-  assert.match(source, /applyStatusEffect\?\.\(effect, duration, level \?\? 1\)/,
-    'and apply each of them through the ordinary effect path');
+test('the eating branch applies the effects an item declares', (t) => {
+  const id = 'test_effect_food';
+  ITEMS[id] = { type: 'food', food: 1, effects: [['speed', 12], ['regeneration', 5, 2]] };
+  t.after(() => { delete ITEMS[id]; });
+  const player = standing();
+  player.hunger = 15;
+  const inventory = player.inventory;
+  inventory.hotbar[0] = { id, count: 1, isBlock: false };
+  assert.equal(finishFoodUse({ player, inventory }, inventory.getActiveItem()), true);
+  assert.equal(player.statusEffects.get('speed')?.level, 1);
+  assert.equal(player.statusEffects.get('speed')?.duration, 12);
+  assert.equal(player.statusEffects.get('regeneration')?.level, 2);
+  assert.equal(player.statusEffects.get('regeneration')?.duration, 5);
 });
 
 // --- the Inspector check that found the food bug ----------------------------

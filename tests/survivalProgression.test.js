@@ -18,6 +18,8 @@ import { SMELTING_RECIPES, FUEL_BURN_TIMES } from '../src/furnace.js';
 import { baseBlockDrop } from '../src/blockDrops.js';
 import { createHungerState, tickHunger, eat, MAX_HUNGER, EXHAUSTION } from '../src/hunger.js';
 import { Inventory } from '../src/inventory.js';
+import { EatingController } from '../src/eating.js';
+import { finishFoodUse } from '../src/foodUse.js';
 import { captureInventoryState, applyInventoryState } from '../src/saveSchema.js';
 
 const RECIPES = [...RECIPES_2X2, ...RECIPES_3X3];
@@ -219,15 +221,23 @@ test('eating restores hunger and saturation, and the saturation cannot exceed hu
 });
 
 test('the eating path refuses when the player is full, so food is not spent for nothing', () => {
-  const source = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  const i = source.indexOf("if (it && it.type === 'food')");
-  assert.ok(i > 0, 'the food branch exists');
-  const block = source.slice(i, i + 1400);
-  // Fullness is the wiki's rule in `canEat` (hunger.js); eating takes 1.6 s and completes in `finishEating`.
-  assert.match(block, /canEat\(activeItem\.id, this\.player\.hunger/, 'it checks fullness before eating');
-  const finish = source.slice(source.indexOf('  finishEating(activeItem) {'), source.indexOf('  finishEating(activeItem) {') + 2000);
-  assert.match(finish, /canEat\(activeItem\.id, this\.player\.hunger/, 'and again when the bite completes');
-  assert.match(finish, /this\.player\.eatFood\?\./, 'and the restore goes through the player, which owns it');
+  const inventory = new Inventory();
+  const bread = { id: 'bread', count: 2, isBlock: false };
+  inventory.hotbar[0] = bread;
+  const player = { gamemode: 'survival', hunger: 20, health: 6, eatFood: (food) => { player.hunger += food; } };
+  const game = { inventory, player, finishEating: (item) => finishFoodUse(game, item) };
+  const eating = new EatingController(game);
+  assert.equal(eating.startFood(bread), false, 'hurt but full');
+  player.hunger = 14;
+  assert.equal(eating.startFood(bread), true);
+  player.hunger = 20;
+  eating.update(1.6);
+  assert.equal(bread.count, 2, 'becoming full before completion does not spend the bread');
+  player.hunger = 14;
+  assert.equal(eating.startFood(bread), true);
+  eating.update(1.6);
+  assert.equal(player.hunger, 19, 'bread restores five food points');
+  assert.equal(bread.count, 1);
 });
 
 test('exhaustion comes from working, and is paid out of saturation first', () => {

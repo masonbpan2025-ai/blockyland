@@ -27,6 +27,7 @@ async function until(check, what, ms = 3000) {
 }
 
 async function callTool(server, name, args = {}) {
+  if (name === 'connect' && args.code) args = { listen: false, ...args };
   const response = await server.handle({ jsonrpc: '2.0', id: Math.random(), method: 'tools/call', params: { name, arguments: args } });
   return { isError: response.result.isError, body: JSON.parse(response.result.content[0].text), content: response.result.content };
 }
@@ -81,7 +82,9 @@ test('forwarded tools run in the page; a ToolFailure keeps its kind', async t =>
   await callTool(server, 'connect', { code: bridge.code });
   await until(() => bridge.connected, 'pairing');
 
-  assert.deepEqual((await callTool(server, 'say', { text: 'hello' })).body, { ran: 'say', args: { text: 'hello' } });
+  const said = (await callTool(server, 'say', { text: 'hello' })).body;
+  assert.deepEqual([said.ran, said.args], ['say', { text: 'hello' }]);
+  assert.match(said.next_action, /wait_for_player_message/);
   const refused = await callTool(server, 'run_plan', { plan: { action: 'destroy' } });
   assert.deepEqual([refused.isError, refused.body.kind], [true, 'confirm']);
   const shot = await callTool(server, 'screenshot');
@@ -206,4 +209,65 @@ test('new code unpairs; disable stops looking and forgets the session', async t 
   assert.equal(store.getItem('blockyland_agent_control_session'), null);
   await new Promise(resolve => setTimeout(resolve, 150));
   assert.equal(bridge.ws, null, 'no reconnection after disable');
+});
+
+test('the bridge streams tool progress before the result and delivers public activity updates', async t => {
+  const notifications = [];
+  const server = createAgentControlServer({ port: 0, notify: n => notifications.push(n) });
+  const port = await server.listen();
+  t.after(() => server.close());
+  const events = [];
+  let finish, report;
+  const { bridge } = makeBridge(t, port, {
+    onActivity: (message, progress) => events.push(['activity', message, progress]),
+    onToolResult: (tool, ok) => events.push(['result', tool, ok]),
+    runTool: async (name, args, { onProgress }) => {
+      report = onProgress;
+      onProgress(25, 'Placing walls');
+      await new Promise(resolve => { finish = resolve; });
+      onProgress(100, 'Walls complete');
+      return { result: { built: true } };
+    },
+  });
+  bridge.enable();
+  await until(() => bridge.aiApp, 'welcome');
+  await callTool(server, 'connect', { code: bridge.code });
+  await until(() => bridge.connected, 'pairing');
+  await callTool(server, 'report_progress', { message: 'Choosing materials', progress: 10 });
+  await until(() => events.some(e => e[0] === 'activity'), 'a public summary');
+  assert.deepEqual(events[0], ['activity', 'Choosing materials', 10]);
+  const building = server.handle({ jsonrpc: '2.0', id: 88, method: 'tools/call', params: {
+    name: 'run_plan', arguments: { plan: { action: 'build' } }, _meta: { progressToken: 'walls' },
+  } });
+  await until(() => notifications.some(n => /Placing walls/.test(n.params.message)), 'streamed work');
+  assert.ok(!events.some(e => e[0] === 'result'), 'progress arrived while the tool was still running');
+  finish();
+  assert.equal(JSON.parse((await building).result.content[0].text).built, true);
+  assert.deepEqual(events.at(-1), ['result', 'run_plan', true]);
+  const before = notifications.length;
+  report(50, 'late callback');
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(notifications.length, before);
+});
+
+test('connected and listening are separate states, and a timeout or cancellation updates the game', async t => {
+  const { server, port } = await startServer(t);
+  const { bridge } = makeBridge(t, port);
+  bridge.enable();
+  await until(() => bridge.aiApp, 'welcome');
+  await callTool(server, 'connect', { code: bridge.code });
+  await until(() => bridge.connected, 'pairing');
+  assert.equal(bridge.listening, false);
+  const waiting = callTool(server, 'wait_for_player_message', { timeout_seconds: 1 });
+  await until(() => bridge.listening, 'listening state');
+  assert.equal((await callTool(server, 'connect')).body.listening, true);
+  await waiting;
+  await until(() => !bridge.listening, 'listen timeout');
+  assert.equal(bridge.connected, true);
+  const id = 'cancel-listen';
+  const cancelled = server.handle({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'wait_for_player_message', arguments: {} } });
+  await until(() => bridge.listening, 'second listen');
+  await server.handle({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: id } });
+  await cancelled;
+  await until(() => !bridge.listening, 'cancelled listen');
 });

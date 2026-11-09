@@ -222,7 +222,7 @@ export class HeldItemRenderer {
     return a.id === b.id && a.isBlock === b.isBlock;
   }
 
-  update(dt, playerSpeed) {
+  update(dt, playerSpeed, useElapsed = null) {
     // 1. Walking bobbing
     if (playerSpeed > 0.1) {
       this.bobTime += dt * playerSpeed * 1.5;
@@ -247,17 +247,20 @@ export class HeldItemRenderer {
       swingRotZ = s * 0.35;
     }
 
+    // Raise the food or drink toward the mouth as soon as use starts, then bob it with each bite.
+    const using = useElapsed === null ? 0 : Math.min(1, (useElapsed + dt) * 7);
+    const bite = useElapsed === null ? 0 : Math.abs(Math.sin(useElapsed * Math.PI * 5));
     // Apply combined transforms
     this.container.position.set(
-      this.basePos.x + bobX,
-      this.basePos.y + bobY,
-      this.basePos.z
+      this.basePos.x + bobX - using * 0.30,
+      this.basePos.y + bobY + using * (0.28 + bite * 0.035),
+      this.basePos.z + using * 0.08
     );
 
     this.container.rotation.set(
       this.baseRot.x + swingRotX,
       this.baseRot.y + swingRotY,
-      this.baseRot.z + swingRotZ
+      this.baseRot.z + swingRotZ + using * 0.28
     );
   }
 

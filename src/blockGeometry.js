@@ -149,14 +149,14 @@ export function createBlockGeometry(id, textures, state = {}) {
   if (def?.door) {
     const isTop = Boolean(def.isTop || numericId === BLOCKS.OAK_DOOR_TOP || numericId === BLOCKS.OAK_DOOR_TOP_OPEN || numericId === BLOCKS.IRON_DOOR_TOP || numericId === BLOCKS.IRON_DOOR_TOP_OPEN);
     const facing = state.facing !== undefined ? state.facing : 3;
-    const open = state.open !== undefined ? state.open : (numericId === BLOCKS.OAK_DOOR_OPEN || numericId === BLOCKS.OAK_DOOR_TOP_OPEN || numericId === BLOCKS.IRON_DOOR_OPEN || numericId === BLOCKS.IRON_DOOR_TOP_OPEN);
+    const open = state.open !== undefined ? state.open : Boolean(def.name?.includes('Open') || def.solid === false || numericId === BLOCKS.OAK_DOOR_OPEN || numericId === BLOCKS.OAK_DOOR_TOP_OPEN || numericId === BLOCKS.IRON_DOOR_OPEN || numericId === BLOCKS.IRON_DOOR_TOP_OPEN);
     const isIron = Boolean(def.isIron);
     const hinge = state.hinge || 'left';
     return ensureFlameAttributes(createDoorGeometry(isTop, facing, open, isIron, hinge, textures, def));
   }
   if (def?.trapdoor) {
     const facing = state.facing !== undefined ? state.facing : 3;
-    const open = state.open !== undefined ? state.open : (numericId === BLOCKS.OAK_TRAPDOOR_OPEN || numericId === BLOCKS.IRON_TRAPDOOR_OPEN);
+    const open = state.open !== undefined ? state.open : Boolean(def.name?.includes('Open') || def.solid === false || numericId === BLOCKS.OAK_TRAPDOOR_OPEN || numericId === BLOCKS.IRON_TRAPDOOR_OPEN);
     const isIron = Boolean(def.isIron);
     return ensureFlameAttributes(createTrapdoorGeometry(facing, open, isIron, textures, def));
   }

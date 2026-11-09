@@ -845,6 +845,129 @@ test('guest peer: bot.craft auto-gathers logs from world to craft multiple woode
   assert.equal(res.shovel, 1, 'crafted wooden_shovel with auto-gathered wood');
 });
 
+test('proactive survival: bot crafts full wooden toolset from vertical tree columns and recipesFor fallback', async (t) => {
+  const { mcpServer, game } = await createHostEnvironment(t);
+  const { roomId } = await game.worldSync.hostWorld({ pvp: false });
+  const joined = await call(mcpServer, 'join_game', { code: roomId, name: 'ProactiveBot', autopilot: false });
+  assert.equal(joined.isError, false, JSON.stringify(joined.body));
 
+  const runResult = await call(mcpServer, 'guest_act', {
+    action: 'run_code',
+    code: `
+      const pos = bot.entity.position.floored();
+      // Ground platform
+      for (let dx = -4; dx <= 4; dx++) {
+        for (let dz = -4; dz <= 4; dz++) {
+          bot._session.setVoxel(pos.x + dx, pos.y - 1, pos.z + dz, BLOCKS.DIRT);
+        }
+      }
+      // Tree column at (pos.x + 2, pos.z + 2) with 4 logs stacked vertically
+      bot._session.setVoxel(pos.x + 2, pos.y, pos.z + 2, BLOCKS.OAK_LOG);
+      bot._session.setVoxel(pos.x + 2, pos.y + 1, pos.z + 2, BLOCKS.OAK_LOG);
+      bot._session.setVoxel(pos.x + 2, pos.y + 2, pos.z + 2, BLOCKS.OAK_LOG);
+      bot._session.setVoxel(pos.x + 2, pos.y + 3, pos.z + 2, BLOCKS.OAK_LOG);
 
+      // Another tree column at (pos.x - 2, pos.z - 2) with 3 logs stacked vertically
+      bot._session.setVoxel(pos.x - 2, pos.y, pos.z - 2, BLOCKS.BIRCH_LOG);
+      bot._session.setVoxel(pos.x - 2, pos.y + 1, pos.z - 2, BLOCKS.BIRCH_LOG);
+      bot._session.setVoxel(pos.x - 2, pos.y + 2, pos.z - 2, BLOCKS.BIRCH_LOG);
 
+      // Verify recipesFor returns recipe even before materials are in inventory
+      const [swordRecipe] = bot.recipesFor(mcData.itemsByName.wooden_sword.id);
+      if (!swordRecipe) throw new Error('recipesFor should return recipe view proactively');
+
+      // Craft pickaxe, axe, and sword in sequence without missing ingredients errors
+      await bot.craft('wooden_pickaxe', 1);
+      await bot.craft('wooden_axe', 1);
+      await bot.craft(swordRecipe, 1);
+
+      return {
+        pickaxe: bot.inventory.count('wooden_pickaxe'),
+        axe: bot.inventory.count('wooden_axe'),
+        sword: bot.inventory.count('wooden_sword'),
+      };
+    `,
+  });
+
+  assert.equal(runResult.isError, false, JSON.stringify(runResult.body));
+  const res = runResult.body.result;
+  assert.equal(res.pickaxe, 1, 'crafted wooden pickaxe');
+  assert.equal(res.axe, 1, 'crafted wooden axe');
+  assert.equal(res.sword, 1, 'crafted wooden sword');
+});
+
+test('code resilience: unbalanced braces and syntax quirks are automatically repaired', async (t) => {
+  const { mcpServer, game } = await createHostEnvironment(t);
+  const { roomId } = await game.worldSync.hostWorld({ pvp: false });
+  const joined = await call(mcpServer, 'join_game', { code: roomId, name: 'SyntaxBot', autopilot: false });
+  assert.equal(joined.isError, false);
+
+  // Extra closing brace at end
+  const res1 = await call(mcpServer, 'guest_act', {
+    action: 'run_code',
+    code: `
+      bot.chat("Hello from bot!");
+    }
+    `,
+  });
+  assert.equal(res1.isError, false, 'extra trailing brace was repaired');
+
+  // Double closing braces
+  const res2 = await call(mcpServer, 'guest_act', {
+    action: 'run_code',
+    code: `
+      if (true) {
+        bot.chat("Working!");
+      }}
+    `,
+  });
+  assert.equal(res2.isError, false, 'double closing brace was repaired');
+});
+
+test('explicit safe navigation: agent can choose to stop at the cliff edge', async (t) => {
+  const { mcpServer, game, voxels } = await createHostEnvironment(t);
+  // Platform only from x=0..3, z=0..3 at y=30
+  for (let x = 0; x <= 3; x++) {
+    for (let z = 0; z <= 3; z++) {
+      voxels.set(cellKey(x, 30, z), BLOCKS.STONE);
+    }
+  }
+  const { roomId } = await game.worldSync.hostWorld({ pvp: false });
+  const joined = await call(mcpServer, 'join_game', { code: roomId, name: 'SafeWalker', autopilot: false });
+  assert.equal(joined.isError, false);
+
+  const guestSession = mcpServer.state.activeGuest;
+  guestSession.position.x = 1.5;
+  guestSession.position.y = 31;
+  guestSession.position.z = 1.5;
+
+  // Walk far past the edge towards (10, 31, 1.5) with bridge = false
+  await guestSession.moveStepToward(10, 31, 1.5, { bridge: false, avoidVoid: true, durationMs: 2000, stepDelayMs: 20 });
+
+  // Verify position did not step into void: x must be <= 3.8 and y must still be 31
+  assert.ok(guestSession.position.x <= 3.8, `expected agent to stop at cliff edge, got x=${guestSession.position.x}`);
+  assert.equal(guestSession.position.y, 31, `expected agent not to fall, got y=${guestSession.position.y}`);
+  assert.ok(!guestSession.isDead, 'agent is not dead');
+});
+
+test('bridging: agent bridges across void gap without falling or stepping down', async (t) => {
+  const { mcpServer, game, voxels } = await createHostEnvironment(t);
+  // Platform at (0, 30, 0)
+  voxels.set(cellKey(0, 30, 0), BLOCKS.STONE);
+  const { roomId } = await game.worldSync.hostWorld({ pvp: false });
+  const joined = await call(mcpServer, 'join_game', { code: roomId, name: 'Bridger', autopilot: false });
+  assert.equal(joined.isError, false);
+
+  const guestSession = mcpServer.state.activeGuest;
+  guestSession.position.x = 0.5;
+  guestSession.position.y = 31;
+  guestSession.position.z = 0.5;
+  guestSession.inventory.addItem('cobblestone', true, 64);
+
+  // Bridge across void to (5, 31, 3) (diagonal bridge)
+  const res = await guestSession.moveStepToward(5.5, 31, 3.5, { bridge: true, durationMs: 6000, stopWithin: 0.8, stepDelayMs: 20 });
+  assert.ok(res.ok);
+  assert.ok(res.bridgedBlocks > 0, `bridged blocks: ${res.bridgedBlocks}`);
+  assert.equal(guestSession.position.y, 31, `stayed at bridge level 31, got ${guestSession.position.y}`);
+  assert.ok(!guestSession.isDead, 'agent did not fall into void');
+});

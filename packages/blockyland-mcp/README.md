@@ -38,7 +38,7 @@ For a JSON config (Claude Desktop, Cursor and others):
 1. Open Blockyland and start a world in **Creative**, or with cheats on.
 2. Press **C** to open the Agent Terminal, switch **Offline Mode** off, and open **🔌 Connect AI**. Once your AI app is
    running it says "Found Claude Code" (or your app) and shows a 6-digit code.
-3. Tell your AI app: **"Connect to Blockyland with code 123456"**.
+3. Tell your AI app: **"Connect to Blockyland with code 123456 and keep listening for my terminal requests"**.
 4. Type requests in the Agent Terminal ("build a lighthouse on that cliff"). Your AI app reads them, builds, and
    answers there. You can also ask it directly in the app.
 
@@ -48,10 +48,20 @@ For a JSON config (Claude Desktop, Cursor and others):
 | --- | --- |
 | `connect` | Pair with your game by its code |
 | `wait_for_player_message` | Wait for what you type in the Agent Terminal (with a screenshot of your view, if you allow it) |
+| `report_progress` | Show a brief work update and optional measured percentage for the current step |
 | `get_state`, `look_around`, `screenshot` | See your position, the terrain, the room you are in, nearby structures and creatures, and your view |
 | `plan_reference`, `run_plan` | Build, edit or destroy structures, summon, give, set weather or time, hang paintings, and more |
 | `run_command` | Run a chat command with your permissions |
 | `say` | Answer you in the Agent Terminal |
+
+`connect` pairs immediately and listens for the first request for up to 25 seconds. The AI should act on the
+returned request, or call `wait_for_player_message` again immediately if the listen times out, and keep listening
+after answering. `listen:false` opts out of the initial listen. The same flow applies to every MCP client.
+
+The game displays tool activity and real build progress. AI apps receive MCP logging notifications and progress
+notifications for calls with `_meta.progressToken`; each app chooses how to display them. The agent can use
+`report_progress` for brief public work summaries between tool calls, and should also give short updates in its own
+chat. An MCP server cannot make an idle client start a new model turn or expose private reasoning.
 
 ## Safety
 

@@ -20,12 +20,15 @@ test('a request goes sent, then working on each step, then done when the AI app 
   tracker.pickedUp();
   assert.equal(tracker.view().text, 'Working: reading your request…');
   tracker.toolCall('look_around');
+  tracker.toolResult('look_around', true);
   assert.equal(tracker.view().text, 'Working: looking around…');
   tracker.toolCall('run_plan', { plan: { action: 'build', name: 'Garden fence' } });
+  tracker.toolResult('run_plan', true);
   assert.equal(tracker.view().text, 'Working: building Garden fence…');
   advance(70_000);
   assert.equal(tracker.view().elapsed, '1 min 12 s');
   tracker.toolCall('say', { text: 'Done!' });
+  tracker.toolResult('say', true);
   tracker.aiWaiting();
   const done = tracker.view();
   assert.equal(done.state, 'done');
@@ -39,10 +42,12 @@ test('an AI app that answers and stops without waiting again is done after a qui
   tracker.start('make it rain');
   tracker.pickedUp();
   tracker.toolCall('run_command', { command: '/weather rain' });
+  tracker.toolResult('run_command', true);
   advance(IDLE_DONE_MS * 3);
   tracker.tick();
   assert.equal(tracker.state, 'working', 'no answer yet: a slow AI app is not cut off');
   tracker.toolCall('say', { text: 'It is raining.' });
+  tracker.toolResult('say', true);
   advance(IDLE_DONE_MS - 1);
   tracker.tick();
   assert.equal(tracker.state, 'working');
@@ -93,4 +98,45 @@ test('steps read the way a player would say them', () => {
   assert.equal(describeStep('run_plan', { plan: { action: 'build' } }), 'building');
   assert.equal(formatElapsed(4_400), '4 s');
   assert.equal(formatElapsed(125_000), '2 min 05 s');
+});
+
+test('measured progress persists through slow work and resets for the next step', () => {
+  const { tracker, advance } = clocked();
+  tracker.start('build a house');
+  tracker.pickedUp();
+  tracker.toolCall('run_plan', { plan: { action: 'build' } });
+  tracker.reportProgress(42, 'Placing walls');
+  advance(20_000);
+  tracker.tick();
+  assert.equal(tracker.view().progress, 42);
+  assert.match(tracker.view().text, /Placing walls/);
+  tracker.aiWaiting();
+  assert.equal(tracker.state, 'working', 'a concurrent listener cannot finish a running build');
+  tracker.toolResult('run_plan', true);
+  assert.equal(tracker.view().progress, null, 'the next model step has no measured percentage');
+  tracker.reportProgress(undefined, 'Designing the roof');
+  assert.equal(tracker.view().progress, null);
+  assert.match(tracker.view().text, /Designing the roof/);
+});
+
+test('an earlier answer cannot mark a later long build done, and failed say does not finish', () => {
+  const { tracker, advance } = clocked();
+  tracker.start('build a house');
+  tracker.toolCall('say', { text: 'Starting' });
+  tracker.toolResult('say', true);
+  tracker.toolCall('run_plan', { plan: { action: 'build' } });
+  advance(IDLE_DONE_MS * 2);
+  tracker.tick();
+  assert.equal(tracker.state, 'working');
+  tracker.toolResult('run_plan', true);
+  tracker.toolCall('say', { text: 'Done' });
+  tracker.toolResult('say', false);
+  advance(IDLE_DONE_MS * 2);
+  tracker.tick();
+  assert.equal(tracker.state, 'working');
+  tracker.toolCall('say', { text: 'Done' });
+  tracker.toolResult('say', true);
+  advance(IDLE_DONE_MS);
+  tracker.tick();
+  assert.equal(tracker.state, 'done');
 });

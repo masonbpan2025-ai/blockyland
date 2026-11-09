@@ -5,6 +5,37 @@ import { mapZoomResult } from './maps.js';
 import { BuildingLibrary } from './buildingLibrary.js';
 import { MobLibrary } from './mobLibrary.js';
 
+/**
+ * Whether two item stacks can merge into one slot.
+ * Two stacks can only merge if they share the same item/block identity, have a stack limit
+ * greater than 1, and share identical enchantments and metadata. Non-stackable items (tools,
+ * weapons, armor, bows, potions, etc.) can never merge and must swap instead.
+ */
+export function canMergeStacks(a, b) {
+  if (!a || !b) return false;
+  if (a.id !== b.id || !!a.isBlock !== !!b.isBlock) return false;
+  if (stackLimitFor(a.id) <= 1) return false;
+
+  const aEnch = Array.isArray(a.enchantments) && a.enchantments.length > 0 ? a.enchantments : null;
+  const bEnch = Array.isArray(b.enchantments) && b.enchantments.length > 0 ? b.enchantments : null;
+  if (aEnch || bEnch) {
+    if (!aEnch || !bEnch) return false;
+    if (aEnch.length !== bEnch.length) return false;
+    const aSorted = [...aEnch].map((e) => `${e.id}:${e.level}`).sort();
+    const bSorted = [...bEnch].map((e) => `${e.id}:${e.level}`).sort();
+    if (JSON.stringify(aSorted) !== JSON.stringify(bSorted)) return false;
+  }
+
+  if ((a.customName ?? '') !== (b.customName ?? '')) return false;
+  if ((a.durability ?? null) !== (b.durability ?? null)) return false;
+  if ((a.potion ?? '') !== (b.potion ?? '')) return false;
+  if (JSON.stringify(a.trim ?? null) !== JSON.stringify(b.trim ?? null)) return false;
+  if (JSON.stringify(a.mapData ?? null) !== JSON.stringify(b.mapData ?? null)) return false;
+  if ((a.color ?? null) !== (b.color ?? null)) return false;
+
+  return true;
+}
+
 export class Inventory {
   constructor(sounds = {}) {
     this.sounds = sounds || {};
@@ -560,7 +591,7 @@ export class Inventory {
           list[index] = this.cursorItem;
           this.cursorItem = null;
         }
-      } else if (target.id === this.cursorItem.id && target.isBlock === this.cursorItem.isBlock) {
+      } else if (canMergeStacks(target, this.cursorItem)) {
         // Merge identical stacks, up to the item's own limit rather than a literal 64.
         const slotLimit = stackLimitFor(target.id);
         if (isRightClick) {
@@ -571,10 +602,17 @@ export class Inventory {
           }
         } else {
           const space = slotLimit - target.count;
-          const transfer = Math.min(space, this.cursorItem.count);
-          target.count += transfer;
-          this.cursorItem.count -= transfer;
-          if (this.cursorItem.count <= 0) this.cursorItem = null;
+          if (space <= 0) {
+            // Target stack is already full; swap stacks on left click
+            const tmp = list[index];
+            list[index] = this.cursorItem;
+            this.cursorItem = tmp;
+          } else {
+            const transfer = Math.min(space, this.cursorItem.count);
+            target.count += transfer;
+            this.cursorItem.count -= transfer;
+            if (this.cursorItem.count <= 0) this.cursorItem = null;
+          }
         }
       } else {
         // Swap different items

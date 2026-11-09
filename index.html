@@ -981,6 +981,7 @@
               <span>Offline Mode</span><span class="gemini-offline-track" aria-hidden="true"></span><span id="gemini-offline-state">ON</span>
             </button>
             <button type="button" class="gemini-icon-btn" id="agent-connect-btn" aria-controls="agent-connect-drawer" aria-expanded="false" title="Connect your AI app">🔌 Connect AI</button>
+            <button type="button" class="gemini-icon-btn" id="agent-disconnect-btn" title="Disconnect your AI app" disabled>Disconnect</button>
             <button type="button" class="gemini-icon-btn" id="gemini-compact-btn" aria-pressed="false" title="Make the terminal small, so you can watch the world while the agent works">▁ Small</button>
             <button class="gemini-close-btn" id="gemini-close-btn" title="Close Terminal (ESC or C)">✕</button>
           </div>
@@ -1006,7 +1007,7 @@
             </li>
             <li>
               <span>Tell your AI app:</span>
-              <div class="agent-connect-cmd"><code id="agent-connect-prompt">Connect to Blockyland with code <b id="agent-connect-code">------</b></code><button type="button" class="gemini-btn-sm" id="agent-connect-copy-prompt">Copy</button></div>
+              <div class="agent-connect-cmd"><code id="agent-connect-prompt">Connect to Blockyland with code <b id="agent-connect-code">------</b> and keep listening for my terminal requests. Show brief work updates here and in the game terminal.</code><button type="button" class="gemini-btn-sm" id="agent-connect-copy-prompt">Copy</button></div>
             </li>
             <li><span>Type your requests in this terminal. Your AI app reads them, builds, and answers here.</span></li>
           </ol>

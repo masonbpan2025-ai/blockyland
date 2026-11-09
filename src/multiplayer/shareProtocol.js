@@ -6,6 +6,7 @@
 // refused; and every guest has a budget of messages per second.
 //
 // Pure functions only, so the same rules run in the browser and in the tests.
+import { knockbackDirection } from '../../packages/blockyland-mcp/knockback.js';
 
 // 2: a relay through the introduction service, a world's own game channel (`game`), and shared chest contents (`container`).
 // 5: shots (`shot`), so everyone sees what another player throws or fires, and a player's look in its state: armour,
@@ -64,6 +65,11 @@ export function sanitizeAttack(raw) {
   if (!finite(raw.damage) || (harmless ? raw.damage < 0 : raw.damage <= 0) || raw.damage > MAX_ATTACK_DAMAGE) return null;
   const attack = { target: raw.target, damage: harmless ? 0 : raw.damage };
   if (projectile) attack.projectile = projectile;
+  if (projectile && raw.direction !== undefined) {
+    const direction = knockbackDirection(raw.direction);
+    if (!direction) return null;
+    attack.direction = direction;
+  }
   // A Flame bow's arrow sets the player alight.
   if (projectile === 'arrow' && raw.flame === true) attack.flame = true;
   if (raw.isCritical) attack.isCritical = true;

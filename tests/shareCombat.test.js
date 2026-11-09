@@ -114,7 +114,8 @@ test('an arrow the guest shoots through the host hurts the host as an arrow, fro
   assert.equal(h.amount, 6);
   assert.equal(h.type, 'arrow', 'an arrow: shields and Projectile Protection answer it');
   assert.equal(h.options.fromPlayer, true, 'and it knocks back as a player\'s hit');
-  assert.ok(Math.abs(h.source.z - -20) < 0.5, 'away from the shooter');
+  assert.equal(h.source.z, -1, 'the source is one block behind the target along the arrow flight, not the shooter location');
+  assert.ok(Math.abs(Math.cos(h.options.fromYaw) + 1) < 1e-9, 'extra projectile knockback follows the same flight direction');
 });
 
 test('an arrow that misses, or flies past someone dead, hits nobody', async (t) => {

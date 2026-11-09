@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ITEMS, stackLimitFor } from '../src/blocks.js';
-import { Inventory } from '../src/inventory.js';
+import { Inventory, canMergeStacks } from '../src/inventory.js';
 import { registry } from '../src/resourceRegistry.js';
 import { ResourceShowcase, buildVanillaIndex } from '../src/resourceShowcase.js';
 
@@ -114,6 +114,58 @@ test('a stackable item still merges on the slot path', () => {
   inv.handleSlotClick(inv.hotbar, 0, false, false);
   assert.equal(inv.hotbar[0].count, 15);
   assert.equal(inv.cursorItem, null);
+});
+
+test('canMergeStacks distinguishes stackable and non-stackable items, and differing metadata', () => {
+  assert.equal(canMergeStacks({ id: 'oak_planks', isBlock: true, count: 5 }, { id: 'oak_planks', isBlock: true, count: 10 }), true);
+  assert.equal(canMergeStacks({ id: 'bow', isBlock: false, count: 1 }, { id: 'bow', isBlock: false, count: 1 }), false, 'bows are non-stackable');
+  assert.equal(canMergeStacks({ id: 'diamond_sword', isBlock: false, count: 1 }, { id: 'diamond_sword', isBlock: false, count: 1 }), false, 'swords are non-stackable');
+  assert.equal(canMergeStacks({ id: 'bow', isBlock: false, count: 1 }, { id: 'bow', isBlock: false, count: 1, enchantments: [{ id: 'power', level: 1 }] }), false);
+});
+
+test('clicking an enchanted bow onto a regular bow in hotbar replaces it by swapping', () => {
+  const inv = new Inventory({ playClick() {} });
+  inv.hotbar = new Array(9).fill(null);
+  inv.storage = new Array(27).fill(null);
+  const regularBow = { id: 'bow', isBlock: false, count: 1 };
+  const enchantedBow = { id: 'bow', isBlock: false, count: 1, enchantments: [{ id: 'power', level: 1 }] };
+  inv.hotbar[0] = regularBow;
+  inv.cursorItem = enchantedBow;
+
+  inv.handleSlotClick(inv.hotbar, 0, false, false);
+
+  assert.equal(inv.hotbar[0], enchantedBow, 'the hotbar slot now holds the enchanted bow');
+  assert.equal(inv.cursorItem, regularBow, 'the cursor now holds the regular bow');
+});
+
+test('clicking two non-stackable items of the same id swaps them', () => {
+  const inv = new Inventory({ playClick() {} });
+  inv.hotbar = new Array(9).fill(null);
+  inv.storage = new Array(27).fill(null);
+  const pickaxeA = { id: 'diamond_pickaxe', isBlock: false, count: 1, durability: 100 };
+  const pickaxeB = { id: 'diamond_pickaxe', isBlock: false, count: 1, durability: 500 };
+  inv.hotbar[0] = pickaxeA;
+  inv.cursorItem = pickaxeB;
+
+  inv.handleSlotClick(inv.hotbar, 0, false, false);
+
+  assert.equal(inv.hotbar[0], pickaxeB, 'the slot receives the item from the cursor');
+  assert.equal(inv.cursorItem, pickaxeA, 'the cursor receives the item from the slot');
+});
+
+test('clicking a full stack with more of the same item swaps them on left click', () => {
+  const inv = new Inventory({ playClick() {} });
+  inv.hotbar = new Array(9).fill(null);
+  inv.storage = new Array(27).fill(null);
+  const fullStack = { id: 'oak_planks', isBlock: true, count: 64 };
+  const partialStack = { id: 'oak_planks', isBlock: true, count: 32 };
+  inv.hotbar[0] = fullStack;
+  inv.cursorItem = partialStack;
+
+  inv.handleSlotClick(inv.hotbar, 0, false, false);
+
+  assert.equal(inv.hotbar[0], partialStack, 'hotbar now has the 32 planks');
+  assert.equal(inv.cursorItem, fullStack, 'cursor now has the 64 planks');
 });
 
 test('the craft-result path respects the limit', () => {
