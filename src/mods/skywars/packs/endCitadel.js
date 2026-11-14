@@ -10,7 +10,8 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "end_citadel",
     "templates": [
-      "citadel"
+      "citadel",
+      "tiers"
     ],
     "name": "End Citadel",
     "description": "Purpur towers on end stone, obsidian pillars crowned with end rods, and more ender pearls than anywhere.",

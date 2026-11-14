@@ -10,7 +10,8 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "nether_rift",
     "templates": [
-      "classic"
+      "classic",
+      "twin_peaks"
     ],
     "name": "Nether Rift",
     "description": "Crimson nylium over netherrack, huge fungi, basalt columns and lava pools in the middle; a brewing stand.",

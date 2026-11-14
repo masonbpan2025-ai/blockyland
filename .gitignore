@@ -103,3 +103,6 @@ public/cinema-weddings/
 
 arena-runs/
 public/cinema-arena/
+
+# Agent Arena runs: recordings, videos, transcripts (large; kept out of git)
+agentArena/runs/

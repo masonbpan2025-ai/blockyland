@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Agent Expedition: Gemini on Horizon (Option B) · Blockyland</title>
+  <link rel="stylesheet" href="/src/cinema/filmPreview.css">
+</head>
+<body data-run="hz-gemini10">
+  <main>
+    <header>
+      <div>
+        <a href="./movies.html">← Movies</a>
+        <h1>The Agent Expedition: Gemini on Horizon <small>10-minute match · Option B Cinema Replay</small></h1>
+      </div>
+      <span>Horizon Java Edition 26.3 · four Gemini agents · survival</span>
+    </header>
+    <div id="stage"><p>Loading the game recording…</p></div>
+    <div class="controls">
+      <button id="play" disabled>Play film</button>
+      <button id="restart" disabled>Restart</button>
+      <input id="seek" aria-label="Film position" type="range" min="0" max="240" step=".04" value="0">
+      <span id="time">0:00</span>
+    </div>
+    <footer>
+      <span id="shot">Four AI players on Horizon, one world, one dragon.</span>
+      <span>Option B Cinema Replay: multi-camera switching, cutaways, and live commentary.</span>
+    </footer>
+  </main>
+  <script type="module" src="/src/cinema/replicationFilm.js"></script>
+</body>
+</html>
+

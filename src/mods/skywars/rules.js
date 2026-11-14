@@ -6,13 +6,17 @@
 //                start only once at least one other player has joined.
 //   countdown -- 3, 2, 1 on screen; nobody can fight yet.
 //   playing   -- the cages open. "The main goal is to be the last person or team alive to win" (Tutorial:SkyWars).
-//                Chests refill twice, the second time adding ender pearls (Hypixel); time running out is a draw.
+//                Chests refill twice, the second time adding ender pearls (Hypixel). Over the last stretch of the
+//                time limit the zone closes on the middle (../closingZone.js): the border comes in and the void
+//                rises under the islands, so the last players must meet; time running out is still a draw.
 //   ended     -- the winner (or the draw) is shown; the host can play again, which rebuilds the islands.
 //
 // The map is the host's choice in the lobby: a template and a data pack (arena.js). Its seed is drawn afresh when the
 // host picks a map, asks for new islands, or plays again, so no two rounds are fought on the same islands.
 import { ARENA, DEFAULT_MAP, normalizeMap } from './arena.js';
 import { MODES } from './loot.js';
+import { ALL_TEMPLATES } from './templates.js';
+import { zoneAt, ZoneWatch, publishedZone } from '../closingZone.js';
 
 export const PHASES = Object.freeze(['lobby', 'countdown', 'playing', 'ended']);
 export const DIFFICULTIES = Object.freeze(['easy', 'normal', 'hard']);
@@ -31,6 +35,7 @@ export function deathMessage(victim, killer, cause) {
   if (cause === 'void') return killer ? `${victim} was knocked into the void by ${killer}` : `${victim} fell into the void`;
   if (cause === 'fall') return killer ? `${victim} hit the ground too hard whilst trying to escape ${killer}` : `${victim} hit the ground too hard`;
   if (cause === 'left') return `${victim} left the game`;
+  if (cause === 'zone') return `${victim} was swallowed by the closing void`;
   if (cause === 'arrow') return killer ? `${victim} was shot by ${killer}` : `${victim} was shot`;
   if (killer) return `${victim} was slain by ${killer}`;
   return `${victim} died`;
@@ -54,6 +59,12 @@ export class SkyWarsMatch {
     this.endReason = null;
     this.lastHit = new Map(); // target -> { by, at }
     this.events = [];
+    /** Seconds of play before the draw; the closing zone works back from it. The Agent Arena sets its own. */
+    this.timeLimit = TIME_LIMIT_SECONDS;
+    /** The map's zone (closingZone.js planZone), which the host works out from the islands it built; none, no zone. */
+    this.zonePlan = null;
+    this.zoneWatch = new ZoneWatch();
+    this.zoneAnnounced = false;
   }
 
   emit(event) { this.events.push(event); }
@@ -61,7 +72,9 @@ export class SkyWarsMatch {
 
   freeSlot() {
     const taken = new Set([...this.players.values()].map((p) => p.slot).filter((s) => s !== null));
-    for (let slot = 0; slot < ARENA.maxPlayers; slot++) if (!taken.has(slot)) return slot;
+    // A map with fewer spawn islands (the practice map's two) has fewer slots.
+    const slots = ALL_TEMPLATES[this.map.template]?.slots ?? ARENA.maxPlayers;
+    for (let slot = 0; slot < slots; slot++) if (!taken.has(slot)) return slot;
     return null;
   }
 
@@ -73,6 +86,21 @@ export class SkyWarsMatch {
     this.players.set(id, player);
     this.emit({ kind: 'joined', id, slot });
     return player;
+  }
+
+  /**
+   * A player chooses to watch instead of play (the lobby's Spectate toggle), or to play again: watching, they give up
+   * their island and are no contender; playing again, they take a free island. Only in the lobby. The choice is kept
+   * from round to round.
+   */
+  setSpectating(id, on) {
+    const player = this.players.get(id);
+    if (!player || this.phase !== 'lobby' || Boolean(player.spectating) === Boolean(on)) return false;
+    player.spectating = Boolean(on);
+    player.slot = on ? null : this.freeSlot();
+    player.alive = player.slot !== null;
+    this.emit({ kind: 'spectating', id, on: player.spectating });
+    return true;
   }
 
   /** A player leaves: gone from the lobby; out of a match being played. */
@@ -150,6 +178,8 @@ export class SkyWarsMatch {
         this.elapsed = 0;
         this.refills = 0;
         this.lastHit.clear();
+        this.zoneWatch.reset();
+        this.zoneAnnounced = false;
         this.emit({ kind: 'start' });
       }
       return;
@@ -160,7 +190,26 @@ export class SkyWarsMatch {
       this.refills++;
       this.emit({ kind: 'refill', refill: this.refills });
     }
-    if (this.elapsed >= TIME_LIMIT_SECONDS) this.end(null, 'time');
+    const zone = this.zone();
+    if (zone && !this.zoneAnnounced) {
+      this.zoneAnnounced = true;
+      this.emit({ kind: 'closing', message: 'The void is rising and the border is closing on the middle!' });
+    }
+    if (this.elapsed >= this.timeLimit) this.end(null, 'time');
+  }
+
+  /** Where the zone is now: null until it starts closing (closingZone.js). */
+  zone() { return this.phase === 'playing' ? zoneAt(this.zonePlan, this.timeLimit, this.elapsed) : null; }
+
+  /**
+   * The host's step of the zone, from where it sees each player (`positionOf(id)`, null when it does not know): a
+   * player long enough in the void is out. @returns the eliminations
+   */
+  closeIn(dt, positionOf) {
+    const zone = this.zone();
+    if (!zone) return [];
+    const taken = this.zoneWatch.update(dt, zone, this.alive().map((p) => [p.id, positionOf(p.id)]));
+    return taken.map((id) => this.eliminate(id, 'zone')).filter(Boolean);
   }
 
   /** The host saw `attacker` hit `target`: remembered for the kill credit. */
@@ -213,7 +262,10 @@ export class SkyWarsMatch {
     this.lastHit.clear();
     const here = [...this.players.values()].filter((p) => p.connected !== false);
     this.players.clear();
-    for (const p of here) this.join(p.id, p.name);
+    for (const p of here) {
+      const again = this.join(p.id, p.name);
+      if (p.spectating) { again.spectating = true; again.slot = null; again.alive = false; }
+    }
     this.emit({ kind: 'reset', round: this.round });
     return true;
   }
@@ -239,10 +291,11 @@ export class SkyWarsMatch {
       elapsed: Math.floor(this.elapsed),
       refills: this.refills,
       nextRefill: this.refills < REFILL_TIMES.length ? REFILL_TIMES[this.refills] : null,
-      timeLimit: TIME_LIMIT_SECONDS,
+      timeLimit: this.timeLimit,
+      zone: publishedZone(this.zone()),
       winner: this.winner,
       endReason: this.endReason,
-      players: [...this.players.values()].map(({ id, name, slot, alive, kills }) => ({ id, name, slot, alive, kills })),
+      players: [...this.players.values()].map(({ id, name, slot, alive, kills, spectating }) => ({ id, name, slot, alive, kills, ...(spectating ? { spectating: true } : {}), ...(this.zoneWatch.of(id) > 0 ? { inVoid: +this.zoneWatch.of(id).toFixed(1) } : {}) })),
     };
   }
 }

@@ -11,8 +11,13 @@
 //   - "Bed Destruction: All remaining beds are simultaneously destroyed"; then "Sudden Death"; the last team standing wins.
 // The event times are the wiki timetable's: Diamond II 6:00, Emerald II 12:00, Diamond III 18:00, Emerald III 24:00, Bed
 // Destruction 30:00, Sudden Death 40:00, Game End 50:00. The "fast" pace halves them, for a game among friends.
+// Bed Destruction, Sudden Death and Game End are 60%, 80% and 100% of the game's length; a match given a shorter time
+// limit (the Agent Arena's) keeps those fractions of it. From Bed Destruction the zone closes on the middle
+// (../closingZone.js: the border comes in and the void rises under the islands), fully closed at 90%, so the last
+// teams must meet: Hypixel's ender dragons do that job there, and this game has none.
 import { MODES, TEAMS } from './teams.js';
-import { DEFAULT_MAP, normalizeMap } from './arena.js';
+import { zoneAt, ZoneWatch, publishedZone } from '../closingZone.js';
+import { DEFAULT_MAP, normalizeMap, mapKey, publishedPlan } from './arena.js';
 import { upgradeCost, trapCost, UPGRADES, TRAPS } from './shop.js';
 
 export const PHASES = Object.freeze(['lobby', 'countdown', 'playing', 'ended']);
@@ -64,6 +69,7 @@ export function deathMessage(victim, killer, cause, final = false) {
   else if (cause === 'arrow') text = killer ? `${victim} was shot by ${killer}.` : `${victim} was shot.`;
   else if (cause === 'explosion') text = killer ? `${victim} was blown up by ${killer}.` : `${victim} blew up.`;
   else if (cause === 'left') text = `${victim} disconnected.`;
+  else if (cause === 'zone') text = `${victim} was swallowed by the closing void.`;
   else text = killer ? `${victim} was killed by ${killer}.` : `${victim} died.`;
   return final ? `${text} FINAL KILL!` : text;
 }
@@ -92,7 +98,40 @@ export class BedWarsMatch {
     this.suddenDeath = false;
     this.lastHit = new Map();
     this.events = [];
+    /** A time limit in seconds of play (the Agent Arena's), or null for the timetable's own Game End. */
+    this.timeLimit = null;
+    /** The map's zone (closingZone.js planZone), which the host works out from the islands it built; none, no zone. */
+    this.zonePlan = null;
+    this.zoneWatch = new ZoneWatch();
+    this.zoneAnnounced = false;
+    this.timetable = this.makeTimetable();
     this.resetTeams();
+  }
+
+  /** The game's length: the time limit, or Game End at this pace. */
+  length() { return this.timeLimit ?? 3000 * PACES[this.pace]; }
+
+  /** The timed events in seconds of play, in order: the tiers at the pace; the ending at fractions of the length. */
+  makeTimetable() {
+    const end = this.length(), FRACTION = { bed_gone: 0.6, sudden_death: 0.8, game_end: 1 };
+    return EVENTS.map((e) => ({ ...e, at: FRACTION[e.kind] !== undefined ? FRACTION[e.kind] * end : e.at * PACES[this.pace] }))
+      .filter((e) => e.at <= end).sort((a, b) => a.at - b.at);
+  }
+
+  /** Where the zone is now: null until it starts closing (closingZone.js). */
+  zone() { return this.phase === 'playing' ? zoneAt(this.zonePlan, this.length(), this.elapsed) : null; }
+
+  /**
+   * The host's step of the zone, from where it sees each player (`positionOf(id)`, null when it does not know): a
+   * player long enough in the void is out for good (the beds are gone by then). @returns the players it took
+   */
+  closeIn(dt, positionOf) {
+    const zone = this.zone();
+    if (!zone) return [];
+    const living = [...this.players.values()].filter((p) => p.alive && !p.dead);
+    const taken = this.zoneWatch.update(dt, zone, living.map((p) => [p.id, positionOf(p.id)]));
+    for (const id of taken) { const p = this.players.get(id); if (p?.alive && !p.dead && this.phase === 'playing') this.eliminate(p, null, 'zone'); }
+    return taken;
   }
 
   emit(event) { this.events.push(event); }
@@ -146,13 +185,29 @@ export class BedWarsMatch {
     }
   }
 
-  /** A player picks a team in the lobby, if it has room. */
+  /** A player picks a team in the lobby, if it has room. Picking a team is choosing to play: no longer spectating. */
   chooseTeam(id, teamId) {
     const player = this.players.get(id);
     if (!player || this.phase !== 'lobby' || !this.teams.has(teamId) || player.team === teamId) return false;
     if (this.members(teamId).length >= this.modeInfo.size) return false;
     player.team = teamId;
     player.alive = true;
+    player.spectating = false;
+    return true;
+  }
+
+  /**
+   * A player chooses to watch instead of play (the lobby's Spectate toggle), or to play again: watching, they leave
+   * their team and are no contender (they watch the game as a spectator); playing again, they join the team with the
+   * most room. Only in the lobby. The choice is kept from round to round, and through a change of mode.
+   */
+  setSpectating(id, on) {
+    const player = this.players.get(id);
+    if (!player || this.phase !== 'lobby' || Boolean(player.spectating) === Boolean(on)) return false;
+    player.spectating = Boolean(on);
+    player.team = on ? null : this.openTeam();
+    player.alive = player.team !== null;
+    this.emit({ kind: 'spectating', id, on: player.spectating });
     return true;
   }
 
@@ -164,7 +219,7 @@ export class BedWarsMatch {
     this.resetTeams();
     const everyone = [...this.players.values()];
     for (const p of everyone) p.team = null;
-    for (const p of everyone) { p.team = this.openTeam(); p.alive = p.team !== null; }
+    for (const p of everyone) { p.team = p.spectating ? null : this.openTeam(); p.alive = p.team !== null; }
     return true;
   }
 
@@ -184,6 +239,20 @@ export class BedWarsMatch {
     if (by !== HOST_ID || this.phase !== 'lobby') return false;
     this.map = normalizeMap({ ...this.map, theme, seed: this.newSeed() });
     return this.map.theme === theme;
+  }
+
+  /** The host picks the layout: the real map, or the three-island practice map (two teams only; arena.js). */
+  setLayout(by, layout) {
+    if (by !== HOST_ID || this.phase !== 'lobby') return false;
+    this.map = normalizeMap({ ...this.map, layout, seed: this.newSeed() });
+    return this.map.layout === layout;
+  }
+
+  /** The current map's published plan (arena.js), worked out once per map. */
+  plan() {
+    const key = mapKey(this.map);
+    if (this.planCache?.key !== key) this.planCache = publishedPlan(this.map);
+    return this.planCache;
   }
 
   contenders() { return [...this.players.values()].filter((p) => p.team !== null); }
@@ -212,6 +281,9 @@ export class BedWarsMatch {
     this.phase = 'playing';
     this.elapsed = 0;
     this.nextEvent = 0;
+    this.timetable = this.makeTimetable();
+    this.zoneWatch.reset();
+    this.zoneAnnounced = false;
     this.suddenDeath = false;
     this.lastHit.clear();
     this.resetTeams();
@@ -219,7 +291,9 @@ export class BedWarsMatch {
     for (const team of this.teams.values()) if (!this.members(team.id).length) { team.bed = false; team.eliminated = true; }
     this.gens = [];
     for (const id of this.teamIds()) this.gens.push({ id: `f-${id}`, kind: 'forge', team: id, stock: emptyStock(), timers: { iron: 0, gold: 0, emerald: 0 } });
-    const counts = { diamond: this.map.teams === 2 ? 2 : 4, emerald: this.map.teams === 8 ? 4 : 2 };
+    // As many diamond and emerald generators as the map's layout has (layouts.js).
+    const plan = this.plan();
+    const counts = { diamond: plan.diamonds.length, emerald: plan.emeralds.length };
     for (const kind of ['diamond', 'emerald']) {
       for (let i = 0; i < counts[kind]; i++) this.gens.push({ id: `${kind[0]}${i}`, kind, tier: 1, stock: emptyStock(), timer: 0 });
     }
@@ -230,8 +304,8 @@ export class BedWarsMatch {
 
   /** When the next timed event comes, in seconds of play, and its name. */
   upcoming() {
-    const event = EVENTS[this.nextEvent];
-    return event ? { label: event.label, at: event.at * PACES[this.pace] } : null;
+    const event = this.timetable[this.nextEvent];
+    return event ? { label: event.label, at: event.at } : null;
   }
 
   update(dt) {
@@ -245,7 +319,11 @@ export class BedWarsMatch {
     }
     if (this.phase !== 'playing') return;
     this.elapsed += dt;
-    while (this.nextEvent < EVENTS.length && this.elapsed >= EVENTS[this.nextEvent].at * PACES[this.pace]) this.fire(EVENTS[this.nextEvent++]);
+    while (this.nextEvent < this.timetable.length && this.elapsed >= this.timetable[this.nextEvent].at) this.fire(this.timetable[this.nextEvent++]);
+    if (this.phase === 'playing' && this.zone() && !this.zoneAnnounced) {
+      this.zoneAnnounced = true;
+      this.emit({ kind: 'closing', message: 'The void is rising and the border is closing on the middle!' });
+    }
     if (this.phase !== 'playing') return;
     this.runGenerators(dt);
     for (const p of this.players.values()) {
@@ -267,7 +345,7 @@ export class BedWarsMatch {
     } else if (event.kind === 'sudden_death') {
       this.suddenDeath = true;
       // Hypixel sends ender dragons at every island here; this game has no dragons for it yet, so it is announced only.
-      this.emit({ kind: 'sudden_death', message: `SUDDEN DEATH! The game ends in ${Math.round(((3000 - 2400) * PACES[this.pace]) / 60)} minutes.` });
+      this.emit({ kind: 'sudden_death', message: `SUDDEN DEATH! The game ends in ${Math.max(1, Math.round((this.length() - this.elapsed) / 60))} minute(s).` });
     } else if (event.kind === 'game_end') {
       this.end(null, 'time');
     }
@@ -474,6 +552,7 @@ export class BedWarsMatch {
     this.players.clear();
     for (const p of here) {
       const again = this.join(p.id, p.name);
+      if (p.spectating) { again.spectating = true; again.team = null; again.alive = false; continue; }
       if (p.team && this.members(p.team).length < this.modeInfo.size && again.team !== p.team) { again.team = p.team; again.alive = true; }
     }
     this.emit({ kind: 'reset', round: this.round });
@@ -490,14 +569,19 @@ export class BedWarsMatch {
       pace: this.pace,
       difficulty: this.difficulty,
       map: { ...this.map },
+      // The map's plan, for guests that do not build the map themselves (headless guest bots).
+      plan: this.plan(),
       countdown: Math.ceil(this.countdown),
       elapsed: Math.floor(this.elapsed),
+      timeLimit: this.length(),
+      zone: publishedZone(this.zone()),
       next: next ? { label: next.label, in: Math.max(0, Math.ceil(next.at - this.elapsed)) } : null,
       suddenDeath: this.suddenDeath,
       winner: this.winner,
       endReason: this.endReason,
-      players: [...this.players.values()].map(({ id, name, team, alive, dead, respawnAt, kills, finalKills, beds }) => ({
-        id, name, team, alive, dead, respawnIn: dead && respawnAt !== null ? Math.max(0, Math.ceil(respawnAt - this.elapsed)) : null, kills, finalKills, beds,
+      players: [...this.players.values()].map(({ id, name, team, alive, dead, respawnAt, kills, finalKills, beds, spectating }) => ({
+        id, name, team, alive, dead, ...(spectating ? { spectating: true } : {}), respawnIn: dead && respawnAt !== null ? Math.max(0, Math.ceil(respawnAt - this.elapsed)) : null, kills, finalKills, beds,
+        ...(this.zoneWatch.of(id) > 0 ? { inVoid: +this.zoneWatch.of(id).toFixed(1) } : {}),
       })),
       teams: [...this.teams.values()].map((t) => ({ id: t.id, bed: t.bed, eliminated: t.eliminated, upgrades: { ...t.upgrades }, traps: [...t.traps] })),
       gens: this.gens.map((g) => ({

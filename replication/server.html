@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Blockyland server</title></head>
+<body>
+<!-- The replication run's server (replication/server/engine.js). No game screen: main.js must not start its own game. -->
+<script>window.BLOCKYLAND_NO_AUTOSTART = true;</script>
+<p id="status">Starting…</p>
+<script type="module" src="./server/page.js"></script>
+</body>
+</html>

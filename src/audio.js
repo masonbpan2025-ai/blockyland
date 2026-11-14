@@ -317,6 +317,72 @@ export class SoundEngine {
     this.noiseBurst(0.22, 160, 0.8, 0.3);
   }
 
+  /** The wind charge's throw: Java plays the bow's shot, quieter (volume 0.5) and lower (pitch 1/3 to 1/2). */
+  playWindChargeThrow() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime, pitch = 1 / 3 + Math.random() / 6;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(350 * pitch, now);
+    osc.frequency.exponentialRampToValueAtTime(120 * pitch, now + 0.16);
+    g.gain.setValueAtTime(0.15, now);
+    g.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.16);
+  }
+
+  /** A fence gate creaks open or shut (Fence Gate: volume 0.9, pitch 0.9-1.0). */
+  playFenceGate(open = true) {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    this.noiseBurst(open ? 0.16 : 0.12, open ? 520 : 380, 2.2, 0.22);
+  }
+
+  /** A candle lit: a small strike and catch. */
+  playCandleLight() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    this.noiseBurst(0.08, 2600, 1.5, 0.12);
+  }
+
+  /** A candle put out: a soft puff. */
+  playCandleExtinguish() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    this.noiseBurst(0.12, 700, 0.7, 0.1);
+  }
+
+  /** The wind burst: a short rush of air. */
+  playWindBurst() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    this.noiseBurst(0.35, 420, 0.6, 0.35);
+    this.noiseBurst(0.18, 1400, 0.9, 0.12);
+  }
+
+  /** A bell struck: a bright tone with a long fade. */
+  playBell() {
+    this.ensureContext();
+    if (!this.soundEnabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    for (const [f, v] of [[880, 0.18], [1760, 0.07], [2640, 0.04]]) {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now);
+      g.gain.setValueAtTime(v, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+      osc.connect(g);
+      g.connect(this.masterGain);
+      osc.start();
+      osc.stop(now + 1.6);
+    }
+  }
+
   playBowShoot() {
     this.ensureContext();
     if (!this.soundEnabled || !this.ctx) return;

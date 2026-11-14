@@ -13,8 +13,11 @@ import { knockbackDirection } from '../../packages/blockyland-mcp/knockback.js';
 // off hand, a raised shield, a drawn bow, flames, invisibility and a fishing line.
 export const PROTOCOL_VERSION = 5;
 
-/** Host and guests together. "A small number of players": the host plus seven friends. */
-export const MAX_PLAYERS = 8;
+/**
+ * Host and guests together: enough for Bed Wars' largest mode, five teams of four (4v4v4v4v4, src/mods/bedwars/teams.js),
+ * with a host that only referees, and a few watching.
+ */
+export const MAX_PLAYERS = 24;
 
 export const MAX_NAME_LENGTH = 24;
 export const MAX_CHAT_LENGTH = 256;
@@ -23,7 +26,7 @@ export const MAX_COORDINATE = 30_000_000;
 export const WORLD_HEIGHT = 64;
 export const MAX_BLOCK_ID = 65535;
 
-export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container', 'skin', 'death_drops', 'claim', 'shot']);
+export const GUEST_TO_HOST = Object.freeze(['hello', 'ping', 'pong', 'player_state', 'block_update', 'chat', 'attack', 'game', 'container', 'skin', 'death_drops', 'claim', 'shot', 'request_snapshot']);
 export const HOST_TO_GUEST = Object.freeze([
   'welcome', 'snapshot', 'peer_joined', 'peer_left', 'player_state', 'block_update', 'chat', 'ping', 'pong', 'error', 'host_closing',
   'hurt', 'settings', 'time_sync', 'peer_hurt', 'game', 'container', 'skin', 'drops', 'taken', 'shot',
@@ -50,10 +53,24 @@ export const MAX_ATTACK_DAMAGE = 100;
  */
 export const MAX_ATTACK_REACH = 7;
 /** Projectiles one player can hit another with, and how far, in blocks, a shot may come from: an arrow flies about 100. */
-export const PROJECTILES = Object.freeze(['arrow', 'snowball', 'egg']);
+export const PROJECTILES = Object.freeze(['arrow', 'snowball', 'egg', 'wind_charge']);
 export const MAX_PROJECTILE_RANGE = 128;
 /** A snowball or an egg deals no damage to a player, but knocks back (Snowball, Egg). */
 const HARMLESS_PROJECTILES = new Set(['snowball', 'egg']);
+
+/**
+ * A wind charge (Wind Charge): a direct hit deals 1, its burst none -- it pushes. The push, in blocks a tick, is the
+ * Explosion rule's, at most 1.22 (a player's charge at the feet); a little over it is allowed for rounding.
+ */
+export const WIND_CHARGE_MAX_DAMAGE = 1;
+export const MAX_WIND_PUSH = 1.25;
+
+/** A wind charge's push ({x, y, z} blocks a tick), or null when it is not one. */
+export function sanitizeWindPush(raw) {
+  if (!raw || typeof raw !== 'object' || ![raw.x, raw.y, raw.z].every(finite)) return null;
+  if (Math.hypot(raw.x, raw.y, raw.z) > MAX_WIND_PUSH) return null;
+  return { x: raw.x, y: raw.y, z: raw.z };
+}
 
 /** A guest's attack, or null when it is not one. */
 export function sanitizeAttack(raw) {
@@ -62,6 +79,15 @@ export function sanitizeAttack(raw) {
   const projectile = PROJECTILES.includes(raw.projectile) ? raw.projectile : null;
   if (raw.projectile !== undefined && raw.projectile !== null && !projectile) return null;
   const harmless = projectile && HARMLESS_PROJECTILES.has(projectile);
+  if (projectile === 'wind_charge') {
+    // A direct hit's 1 damage or a burst's 0, and always the push.
+    if (!finite(raw.damage) || raw.damage < 0 || raw.damage > WIND_CHARGE_MAX_DAMAGE) return null;
+    const push = sanitizeWindPush(raw.push);
+    if (!push) return null;
+    const attack = { target: raw.target, damage: raw.damage, projectile, push };
+    if (finite(raw.floorY)) attack.floorY = raw.floorY;
+    return attack;
+  }
   if (!finite(raw.damage) || (harmless ? raw.damage < 0 : raw.damage <= 0) || raw.damage > MAX_ATTACK_DAMAGE) return null;
   const attack = { target: raw.target, damage: harmless ? 0 : raw.damage };
   if (projectile) attack.projectile = projectile;
@@ -102,7 +128,7 @@ export function refuseAttack({ settings, attackerId, targetId, attackerPos, targ
  * with a velocity; a firework rises to its burst height (`top`); a splash or lingering potion and an experience
  * bottle break where they land, named by their item (`item`). An egg is drawn and breaks, and hatches nothing there.
  */
-export const MOVING_SHOTS = Object.freeze(['arrow', 'snowball', 'egg', 'ender_pearl', 'ender_eye', 'fireball']);
+export const MOVING_SHOTS = Object.freeze(['arrow', 'snowball', 'egg', 'ender_pearl', 'ender_eye', 'fireball', 'wind_charge']);
 export const LANDING_SHOTS = Object.freeze(['splash_potion', 'lingering_potion', 'experience_bottle']);
 export const SHOT_KINDS = Object.freeze([...MOVING_SHOTS, 'firework', ...LANDING_SHOTS]);
 const SHOT_ITEM = /^[a-z0-9_]{1,64}$/;
@@ -143,7 +169,9 @@ export function sanitizeShot(raw) {
 // --- a world's own game, and chest contents ---------------------------------------------------------
 
 /** The largest `game` message, as JSON: a mod's lobby state or event, never a world. */
-export const MAX_GAME_DATA_CHARS = 8192;
+// A mod's state with its map's plan and the round in the general state's words (generalState.js) runs to 8-10 KB on a
+// four-team map; this bounds it well above that and far below anything that could be a world.
+export const MAX_GAME_DATA_CHARS = 32768;
 
 /**
  * A mod's game message (`{t:'game', data}`): a plain object of data, small. The mod checks what it means; this only
@@ -224,6 +252,23 @@ export function sanitizeDeathDrops(raw) {
 
 /** A drop's name, as the host gives it. */
 export const isDropId = (id) => typeof id === 'string' && /^d[0-9]{1,9}$/.test(id);
+
+/** Java's reach for using or changing a block (the block_interaction_range attribute), from the eyes. */
+export const BLOCK_REACH = 4.5;
+/** A standing player's eyes above its feet (Java: 1.62). */
+export const EYE_HEIGHT = 1.62;
+
+/**
+ * Whether a player at `pos` (its feet) can reach the block at x, y, z: from its eyes to the nearest point of the
+ * block's cube, within Java's 4.5 and the server's tolerance of 1 more (ServerPlayer.canInteractWithBlock(pos, 1.0):
+ * the guest's position here is up to a state message old). A guest the host has no position for yet is not judged.
+ */
+export function withinBlockReach(pos, { x, y, z }, slack = 1) {
+  if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y) || !Number.isFinite(pos.z)) return true;
+  const ey = pos.y + EYE_HEIGHT;
+  const dx = Math.max(x - pos.x, 0, pos.x - (x + 1)), dy = Math.max(y - ey, 0, ey - (y + 1)), dz = Math.max(z - pos.z, 0, pos.z - (z + 1));
+  return Math.hypot(dx, dy, dz) <= BLOCK_REACH + slack;
+}
 
 /**
  * One chest's contents (`{t:'container', x, y, z, items}`): whole-block coordinates in the world and 27 stacks or
@@ -368,6 +413,8 @@ export function guestLimiters(now) {
   return {
     state: new RateLimiter({ perSecond: 40, burst: 60, now }),
     block: new RateLimiter({ perSecond: 30, burst: 90, now }),
+    // A headless guest asks for the world again when a mini-game's round or map changes: now and then.
+    snapshot: new RateLimiter({ perSecond: 0.2, burst: 3, now }),
     chat: new RateLimiter({ perSecond: 1.5, burst: 5, now }),
     // Faster than any weapon swings at full strength; the attack cooldown makes quicker hits weak anyway.
     attack: new RateLimiter({ perSecond: 5, burst: 5, now }),

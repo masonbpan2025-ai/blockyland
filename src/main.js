@@ -17,6 +17,8 @@ import { placeBonusChest } from './bonusChest.js';
 import { regenerateEndPlatform } from './worldgen/generators/endFeatures.js';
 import { placeEndWorldSpawn, placeNetherSpawnPortal } from './dimensionSpawns.js';
 import { EndItemController } from './endItems.js';
+import { WindChargeSystem } from './windCharge.js';
+import { toggleFenceGate, lightCandle, extinguishCandle, CANDLE_LIGHTERS } from './blockStateActions.js';
 import { updateEndGatewayTravel, endReturnArrival, cacheEndResidents, restoreEndResidents, endStateFor } from './endProgression.js';
 import { showEndCredits } from './endCredits.js';
 import { MonsterSpawners } from './monsterSpawner.js';
@@ -417,12 +419,16 @@ export class Game {
     // 2. Initialize Player & Controls
     this.player = new Player(this.camera, this.renderer.domElement, this.world, this.sounds, this.settings);
     this.player.game = this;
+    // Other players push this one, as Java's players push each other (playerPush.js).
+    this.player.pushingPlayers = () => this.worldSync?.remotePlayers?.pushers?.() ?? [];
     this.scene.add(this.player.model);
     this.player.model.traverse(obj => { if (obj.isMesh) obj.castShadow = obj.receiveShadow = true; });
 
     // 3. Initialize Mobs & Entities
     this.entities = new EntityManager(this.scene, this.world, this.sounds, this.textures);
     this.mobs = new MobManager(this.scene, this.world, this.sounds, this.entities);
+    // Every wind charge in flight, the player's and the breezes' (windCharge.js); flown in animate.
+    this.windCharges = new WindChargeSystem(this);
     this.mobs.game = this;
     // Mob level of detail (mobLod.js): far mobs think ~12 times a second, unseen mobs are not re-posed, and distant
     // mobs are drawn without the parts too small to see. A village's mobs were most of its frame.
@@ -2508,6 +2514,12 @@ export class Game {
       return;
     }
 
+    // A wind charge in flight is turned by a melee hit (the wiki): it flies off where the player looks.
+    if (this.windCharges?.deflect(eyePos, lookDir)) {
+      this.sounds?.playPunch?.();
+      return;
+    }
+
     // 2. Check End Crystal hit
     if (this.bossManager?.checkCrystalHit(eyePos, lookDir)) {
       return;
@@ -2912,6 +2924,8 @@ export class Game {
       return;
     }
 
+    this.windCharges ??= new WindChargeSystem(this);
+    if (this.windCharges.use()) return;
     if (useSnowball(this)) return;
     this.endItems??=new EndItemController(this);
     if(this.endItems.use())return;
@@ -3215,6 +3229,15 @@ export class Game {
     const clickedDef = BLOCK_DEFS[clickedBlock];
     if(clickedDef?.fence && tieHorseLeads(this.mobs,this.player,bX,bY,bZ))return;
 
+    // A fence gate opens or closes when used (Fence Gate); sneaking with a block in hand places against it instead.
+    if (clickedDef?.fenceGate && !(this.player.isSneaking && activeItem?.isBlock)) {
+      if (toggleFenceGate(this.world, bX, bY, bZ, { sounds: this.sounds })) {
+        const chunk = this.world.getChunk(Math.floor(bX / 16), Math.floor(bZ / 16));
+        if (chunk) this.rebuildChunkMesh(chunk);
+      }
+      return;
+    }
+
     // Door interaction (swing open/close)
     if (clickedDef?.door) {
       if (this.doorManager) {
@@ -3440,6 +3463,23 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
       const chunk = this.world.getChunk(Math.floor(bX / 16), Math.floor(bZ / 16));
       if (chunk) this.rebuildChunkMesh(chunk);
       return;
+    }
+
+    // Candles (Candle): flint and steel or a fire charge lights one; an empty hand puts a lit one out.
+    if (clickedDef?.candle) {
+      const lighter = CANDLE_LIGHTERS.includes(activeItem?.id);
+      const changed = lighter ? lightCandle(this.world, bX, bY, bZ, { sounds: this.sounds })
+        : !activeItem && extinguishCandle(this.world, bX, bY, bZ, { sounds: this.sounds });
+      if (changed) {
+        if (lighter && this.player.gamemode === 'survival') {
+          if (activeItem.id === 'fire_charge') this.inventory.consumeActiveItem?.(1);
+          else if (spendDurability(activeItem, 1).broke) this.inventory.consumeActiveItem?.(1);
+          this.ui.updateHotbar();
+        }
+        const chunk = this.world.getChunk(Math.floor(bX / 16), Math.floor(bZ / 16));
+        if (chunk) this.rebuildChunkMesh(chunk);
+        return;
+      }
     }
 
     // Mature crop right-click harvest & replant
@@ -5329,6 +5369,7 @@ for(const slots of [this.inventory.hotbar,this.inventory.storage])for(let i=0;i<
     updateEndGatewayTravel(this,dt);
     this.updatePlayerVibrations();
     this.endItems?.update(worldDt);
+    this.windCharges?.update(worldDt);
     this.updateEnderEyes(dt);
 
     // 5b. Update World Mechanism System & Active World Mechanics

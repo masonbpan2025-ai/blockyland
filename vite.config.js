@@ -6,6 +6,7 @@ import { agentControlPlugin } from './server/agentControlVite.js';
 import { loadModTable } from './src/mods/manifestFile.js';
 import { modGamesPlugin } from './server/modGames.js';
 import { studioSchematicsPlugin } from './server/studioSchematics.js';
+import { houseBotsPlugin } from './server/houseBotsVite.js';
 
 export function designedWorldFiles() {
   const files = new Map();
@@ -97,6 +98,7 @@ export default defineConfig({
     agentControlPlugin(),
     modGamesPlugin(),
     studioSchematicsPlugin(),
+    houseBotsPlugin(),
     rebaseScriptAssetPaths(base),
     emitDesignedWorlds(),
     leaveOutMovieFiles(),

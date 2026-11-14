@@ -59,6 +59,8 @@ export function blockParticleSources(id){
   if(id===B.MYCELIUM)return ['mycelium'];
   if(id===B.LAVA)return ['lava'];
   if([B.FIRE,B.TORCH,B.WALL_TORCH,B.CAMPFIRE].includes(id))return ['flame','smoke'];
+  // A lit candle (or candle cake) "also emit[s] fire particles" (Candle).
+  if(BLOCK_DEFS[id]?.candle&&BLOCK_DEFS[id]?.lit)return ['flame','smoke'];
   if([B.SOUL_FIRE,B.SOUL_TORCH,B.SOUL_WALL_TORCH,B.SOUL_CAMPFIRE].includes(id))return ['soul_fire_flame','smoke'];
   if(id===B.WET_SPONGE)return ['falling_water'];
   if(id===B.CRYING_OBSIDIAN)return ['falling_obsidian_tear'];

@@ -10,7 +10,9 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "desert_fortress",
     "templates": [
-      "citadel"
+      "citadel",
+      "tiers",
+      "rush"
     ],
     "name": "Desert Fortress",
     "description": "A sandstone fortress among cacti and dead bushes. TNT and flint and steel in the chests.",

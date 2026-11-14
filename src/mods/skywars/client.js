@@ -5,18 +5,29 @@
 // two players cannot both pick up the same sword. The islands are built from the match's map -- a template, a data
 // pack and a seed (arena.js) -- by every browser alike, so a new map costs one small message, not thousands of blocks.
 import * as THREE from 'three';
-import { ARENA, buildArena, arenaDifferences, allCageCells, DEFAULT_MAP, mapKey, normalizeMap } from './arena.js';
+import { keepTicking } from '../backgroundTicker.js';
+import { requestHouseBot } from '../houseBots.js';
+import { ARENA, buildArena, arenaDifferences, allCageCells, DEFAULT_MAP, mapKey, normalizeMap, cellKey } from './arena.js';
+import { planZone, islandColumns, outsideZone, CLOSING } from '../closingZone.js';
 import { fillChests } from './loot.js';
 import { SkyWarsMatch, HOST_ID } from './rules.js';
+import { describeSkyWars } from './generalState.js';
 import { createSkyWarsUi } from './ui.js';
 import { collectDeathDrops } from '../../deathAndRespawn.js';
 import { BLOCKS } from '../../blocks.js';
+
+/** Whether this browser hosts as a referee: it runs the match and does not play (localStorage 'mc-referee-host' = '1'). */
+function refereeHost() {
+  try { return globalThis.localStorage?.getItem('mc-referee-host') === '1'; } catch { return false; }
+}
 
 /** The seed of the map a lobby is built on before the match names one. */
 export const ARENA_SEED = DEFAULT_MAP.seed;
 /** SkyWars is always played at midday: the clock is stopped there (worldTime 6000 is noon). */
 export const SKYWARS_TIME = 6000;
-const GUEST_MESSAGES = new Set(['died', 'drop_items', 'claim', 'start', 'reset', 'mode']);
+/** Java: what a player drops on death cannot be picked up for 40 ticks (Player.drop: ItemEntity.setPickUpDelay(40)). */
+export const DEATH_DROP_PICKUP_DELAY_MS = 2000;
+const GUEST_MESSAGES = new Set(['died', 'drop_items', 'claim', 'start', 'reset', 'mode', 'spectate']);
 
 export class SkyWarsManager {
   constructor(game) {
@@ -39,6 +50,9 @@ export class SkyWarsManager {
   activate() {
     this.deactivate();
     this.active = true;
+    // The match goes on in a background tab (the frame loop stops there): bots and friends keep playing it.
+    this.lastUpdateAt = globalThis.performance?.now?.() ?? Date.now();
+    this.ticker = keepTicking((dt) => this.update(dt), () => this.lastUpdateAt);
     this.state = null;
     this.round = 0;
     this.cagedRound = 0;
@@ -46,7 +60,9 @@ export class SkyWarsManager {
     this.lastPhase = null;
     this.error = null;
     this.drops = new Map(); // id -> { entry, item }
-    this.dropRecords = new Map(); // host: id -> { item, taken }
+    this.dropRecords = new Map(); // host: id -> { item, taken, readyAt }
+    /** The host's clock for the pickup delay (a test may set it). */
+    this.now = () => Date.now();
     this.dropSeq = 0;
     this.offs = [];
     this.publishTimer = 0;
@@ -59,6 +75,8 @@ export class SkyWarsManager {
   deactivate() {
     if (!this.active) return;
     this.active = false;
+    this.ticker?.stop();
+    this.ticker = null;
     for (const off of this.offs ?? []) { try { off(); } catch { /* gone */ } }
     this.offs = [];
     if (this.session && this.session.attackPolicy) this.session.attackPolicy = null;
@@ -96,7 +114,9 @@ export class SkyWarsManager {
 
   async startHosting() {
     this.match = new SkyWarsMatch({ seed: Math.floor(Math.random() * 0xffffffff) });
-    this.match.join(HOST_ID, this.sync?.playerName?.() ?? 'Host');
+    // A referee host runs the match without playing in it (the Agent Arena's referee, agentArena/botMatch.mjs).
+    this.referee = refereeHost();
+    if (!this.referee) this.match.join(HOST_ID, this.sync?.playerName?.() ?? 'Host');
     this.applyState(this.match.snapshot());
     try {
       const shared = await this.sync.hostWorld({ quiet: true, pvp: true });
@@ -129,6 +149,8 @@ export class SkyWarsManager {
       this.dropFor(peerId, data);
     } else if (data.type === 'claim') {
       this.grantClaim(peerId, String(data.id ?? ''));
+    } else if (data.type === 'spectate') {
+      if (this.match.setSpectating(peerId, data.on === true)) this.publish();
     }
     // 'start', 'reset' and 'mode' are the host's alone: a guest asking is refused by the rules (by !== host).
   }
@@ -153,6 +175,26 @@ export class SkyWarsManager {
   newIslands() {
     if (!this.isHost || !this.match?.newIslands(HOST_ID)) return;
     this.publish();
+  }
+
+  /** Whether this player chose to watch (the lobby's Spectate toggle). */
+  get spectating() { return Boolean(this.me()?.spectating); }
+
+  /** The Spectate toggle: watch the bots (and anyone else) play instead of playing, or play again. Lobby only. */
+  setSpectating(on) {
+    if (this.isHost) { if (this.match?.setSpectating(HOST_ID, on)) this.publish(); }
+    else this.session?.sendGame?.({ type: 'spectate', on: Boolean(on) });
+  }
+
+  /** Bot join: the server starts a house bot that joins this room on a free island (src/mods/houseBots.js). */
+  async botJoin() {
+    if (!this.isHost || !this.code || this.botJoining) return;
+    this.botJoining = true;
+    this.render();
+    const r = await requestHouseBot({ code: this.code, game: 'skywars' });
+    this.botJoining = false;
+    this.error = r.ok ? null : `Bot could not join: ${r.reason}`;
+    this.render();
   }
 
   requestStart() {
@@ -184,6 +226,8 @@ export class SkyWarsManager {
       ...state,
       spawns: this.arena?.spawns ?? [],
       chests: (this.arena?.chests ?? []).map((c) => ({ x: c.x, y: c.y, z: c.z, slot: c.slot ?? null, kind: c.kind ?? 'island' })),
+      // The same round in the general state's words, for players that know no SkyWars (../generalState.js).
+      general: describeSkyWars(state, this.arena),
     });
   }
 
@@ -209,7 +253,7 @@ export class SkyWarsManager {
       const item = { id: raw.id, count: raw.count, isBlock: Boolean(raw.isBlock), ...(Array.isArray(raw.enchantments) ? { enchantments: raw.enchantments.slice(0, 12) } : {}),
         ...(Number.isFinite(raw.durability) ? { durability: raw.durability } : {}) };
       const id = `${this.match.round}-${++this.dropSeq}`;
-      this.dropRecords.set(id, { item, taken: false });
+      this.dropRecords.set(id, { item, taken: false, readyAt: this.now() + DEATH_DROP_PICKUP_DELAY_MS });
       drops.push({ id, x, y: Math.max(y, ARENA.voidY + 2), z, item, from: peerId });
     }
     if (!drops.length) return;
@@ -219,7 +263,7 @@ export class SkyWarsManager {
 
   grantClaim(by, id) {
     const record = this.dropRecords.get(id);
-    if (!record || record.taken) return;
+    if (!record || record.taken || this.now() < (record.readyAt ?? 0)) return;
     const player = this.match?.players.get(by);
     if (!player?.alive || this.phase !== 'playing') return;
     record.taken = true;
@@ -262,9 +306,10 @@ export class SkyWarsManager {
     }
     const me = this.me();
     const phase = state.phase;
-    if ((phase === 'lobby' || phase === 'countdown') && me?.slot !== null && me?.slot !== undefined && this.cagedRound !== state.round) {
+    const cageKey = `${state.round}|${me?.slot}`;
+    if ((phase === 'lobby' || phase === 'countdown') && me?.slot !== null && me?.slot !== undefined && this.cagedRound !== cageKey) {
       this.enterCage(me.slot);
-      this.cagedRound = state.round;
+      this.cagedRound = cageKey;
     }
     if (me && me.slot === null && phase !== 'ended' && this.game.player?.gamemode !== 'spectator') this.becomeSpectator();
     if (phase === 'playing' && previous?.phase !== 'playing') this.openCages(me);
@@ -316,6 +361,10 @@ export class SkyWarsManager {
       this.game.ui?.addChatMessage?.(winner ? `${winner.name} won SkyWars!` : 'SkyWars ended in a draw.', 'system');
       if (mine) this.game.entities?.launchTournamentFireworks?.();
       try { document.exitPointerLock?.(); } catch { /* none held */ }
+    } else if (event.kind === 'closing') {
+      this.game.ui?.addChatMessage?.(event.message, 'system');
+      this.ui?.title('The zone is closing!', 'Get to the middle: the void rises under the islands.', 2.5);
+      sounds?.playTone?.(220, 0.5);
     } else if (event.kind === 'cancelled') {
       this.game.ui?.addChatMessage?.('Not enough players: back to the lobby.', 'system');
     }
@@ -411,6 +460,9 @@ export class SkyWarsManager {
     p.isDead = false;
     p.health = p.maxHealth ?? 20;
     p.setGameMode('spectator');
+    // A watcher moves as a Creative player does: flying to start with, a double tap of Space to land or fly again.
+    p.creativeFlight = true;
+    p.isFlying = true;
     const spot = this.arena.spectator;
     p.position.set(spot.x, spot.y, spot.z);
     p.velocity?.set(0, 0, 0);
@@ -494,10 +546,13 @@ export class SkyWarsManager {
 
   update(dt) {
     if (!this.active) return;
+    this.lastUpdateAt = globalThis.performance?.now?.() ?? Date.now();
     this.holdMidday();
     const p = this.game.player;
     const phase = this.phase;
     const me = this.me();
+    // A watcher who stopped flying and fell below the islands is brought back to watch, flying.
+    if (p?.gamemode === 'spectator' && p.creativeFlight && p.position.y < ARENA.voidY - 12) this.becomeSpectator();
     // Waiting players stay in their cages, whatever moved them (the join places a guest beside the host first).
     if ((phase === 'lobby' || phase === 'countdown') && me?.slot !== null && me?.slot !== undefined && p) {
       const spot = this.arena.spawns[me.slot];
@@ -518,20 +573,46 @@ export class SkyWarsManager {
       this.becomeSpectator();
     }
     if (phase !== 'playing') this.reportedVoid = false;
+    // In the closing zone's void: warned once a second until back inside (the host counts the seconds).
+    this.zoneWarnAt = (this.zoneWarnAt ?? 0) - dt;
+    if (phase === 'playing' && me?.alive && p && this.zoneWarnAt <= 0 && (me.inVoid > 0 || outsideZone(this.state?.zone, p.position))) {
+      this.zoneWarnAt = 1;
+      const left = Math.max(0, CLOSING.exposure - (this.state?.players?.find((q) => q.id === this.myId)?.inVoid ?? 0));
+      this.ui?.title('In the void!', `Back inside the zone: ${Math.ceil(left)} s`, 1.1);
+    }
     if (!this.match) return;
     // Host: the rules' clock, and the void for everyone by the positions their browsers send.
+    this.match.zonePlan = this.zonePlanFor(this.match.map);
     this.match.update(dt);
     if (this.match.phase === 'playing') {
       for (const player of this.match.alive()) {
         const pos = player.id === HOST_ID ? null : this.session?.positions?.get(player.id);
         if (pos && pos.y < ARENA.voidY) this.match.eliminate(player.id, 'void');
       }
+      // The closing zone takes whoever stays in the void it leaves: the host by its own player, guests as they send.
+      this.match.closeIn(dt, (id) => {
+        if (id !== HOST_ID) return this.session?.positions?.get(id) ?? null;
+        const hp = this.game.player?.position;
+        return hp ? { x: hp.x, y: hp.y, z: hp.z } : null;
+      });
     }
     this.publishTimer += dt;
     if (this.match.events.length || this.publishTimer >= 1) {
       this.publishTimer = 0;
       this.publish();
     }
+  }
+
+  /** The closing zone of a map (../closingZone.js), from its islands: worked out once per map, cages left out. */
+  zonePlanFor(map) {
+    const key = mapKey(map);
+    if (this.zonePlanCache?.key !== key) {
+      const arena = key === this.arenaKey ? this.arena : buildArena(map);
+      const cages = new Set(allCageCells(arena).map(([x, y, z]) => cellKey(x, y, z)));
+      const blocks = [...arena.blocks].filter(([k]) => !cages.has(k));
+      this.zonePlanCache = { key, plan: planZone(islandColumns(blocks), { voidY: ARENA.voidY, cells: blocks }) };
+    }
+    return this.zonePlanCache.plan;
   }
 
   /** Whether the panels need the mouse, which keeps the game from taking it. */

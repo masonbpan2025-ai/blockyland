@@ -10,7 +10,8 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "stone_keep",
     "templates": [
-      "citadel"
+      "citadel",
+      "tiers"
     ],
     "name": "Stone Keep",
     "description": "A stone-brick castle on green islands, with lanterns on the towers. Shields and axes for the siege.",

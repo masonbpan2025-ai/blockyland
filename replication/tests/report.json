@@ -1,0 +1,16 @@
+[
+  {
+    "part": "helpers",
+    "ok": true,
+    "seconds": 0.3,
+    "error": null,
+    "output": "=== program 1 (Ada): ok, 0.0 s ===\nreturned: {\"ok\":true}"
+  },
+  {
+    "part": "save",
+    "ok": true,
+    "seconds": 2.2,
+    "error": null,
+    "output": "=== program 2 (Ada): ok, 0.0 s ===\nreturned: {\"ok\":true,\"mb\":0.32,\"players\":[{\"name\":\"Ada\",\"dimSame\":true,\"posDiff\":0,\"invSame\":true},{\"name\":\"Bo\",\"dimSame\":true,\"posDiff\":0,\"invSame\":true}],\"blocksSame\":4682,\"blocksDiff\":0,\"chunks\":2,\"weather\":true}\n--- chat and messages since your last program ---\n[fixture] FIXTURE {\"mb\":0.32,\"players\":[{\"name\":\"Ada\",\"dimSame\":true,\"posDiff\":0,\"invSame\":true},{\"name\":\"Bo\",\"dimSame\":true,\"posDiff\":0,\"invSame\":true}],\"blocksSame\":4682,\"blocksDiff\":0,\"chunks\":2,\"weather\":true}"
+  }
+]

@@ -8,6 +8,7 @@
 //   * anvils: one with nothing under it falls like sand, hurts what it lands on, and may wear a stage;
 //   * the beacon: its beam into the sky (beaconBeamRenderer.js) -- when it shows, what stops it, and how stained glass
 //     colours it, as the wiki's Beacon page says. Drawn in the preview, to be watched.
+//   * the wind charge (windChargeScenarios.js): every property on the wiki's Wind Charge page.
 //
 // Each runs against small stand-ins (a map of voxels, an Inventory), not the inspector's preview world, so a scenario
 // cannot disturb the block on show -- except the anvil's, which is there to be watched falling in the preview and
@@ -21,6 +22,7 @@ import { BedManager, BED_EXPLOSION_POWER } from './bed.js';
 import { canSupportPlant } from './resourceVisualPolicy.js';
 import { FallingBlocks, ANVILS } from './fallingBlocks.js';
 import { BeaconBeamRenderer } from './beaconBeamRenderer.js';
+import { windChargeScenarios } from './windChargeScenarios.js';
 
 const isBlockValue = (value) => typeof value === 'number';
 
@@ -250,5 +252,5 @@ export function beaconScenarios(entry, session) {
 /** Every gameplay scenario above that applies to a resource. */
 export function gameplayScenarios(entry, session = null, textures = null) {
   if (!entry) return [];
-  return [...recipeBookScenarios(entry), ...bedScenarios(entry), ...sunflowerScenarios(entry), ...anvilScenarios(entry, session, textures), ...beaconScenarios(entry, session)];
+  return [...recipeBookScenarios(entry), ...bedScenarios(entry), ...sunflowerScenarios(entry), ...anvilScenarios(entry, session, textures), ...beaconScenarios(entry, session), ...windChargeScenarios(entry, session)];
 }

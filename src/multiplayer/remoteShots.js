@@ -21,6 +21,9 @@ export const FLYING = Object.freeze({
   ender_eye: { radius: 0.18, color: 0x86efac, gravity: 14, life: ENDER_EYE_LIFE, burst: 0x86efac, collide: false, basic: true },
   // A Bed Wars fireball (mods/bedwars): straight, glowing; its explosion comes as its own message.
   fireball: { radius: 0.32, color: 0xff7a1a, gravity: 0, life: 4, burst: 0xffa500, collide: true, basic: true },
+  // A wind charge (windCharge.js): straight, with no gravity, bursting into wind where it strikes. What it pushes and
+  // flips is the thrower's game's, sent as hits and block changes.
+  wind_charge: { radius: 0.16, color: 0xd8f2ff, emissive: 0x6fa8c8, gravity: 0, life: 10, burst: 0xe4f6ff, collide: true },
 });
 
 const solidAt = (world, p) => {

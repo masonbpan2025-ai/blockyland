@@ -23,7 +23,7 @@
 import { BLOCKS, BLOCK_DEFS } from './blocks.js';
 import { effectsFor, immuneToEffect, instantOutcomeOnMob, tickEffect, speedMultiplier, damageTakenMultiplier, attackDamageBonus, FALL_DAMAGE } from './statusEffects.js';
 import { applyMobWither } from './witherEffect.js';
-import { windChargeBurst, WIND_CHARGE_BURST } from './breezeBehavior.js';
+import { windChargeBurst } from './breezeBehavior.js';
 
 export const INFESTED_CHANCE = 0.1;
 export const OOZING_SLIMES = 2, OOZING_SLIME_SIZE = 2, OOZING_CRAMMING = 24;
@@ -189,9 +189,8 @@ export function onMobDeath(manager, mob, random = Math.random) {
   if (effects.has('wind_charged')) {
     const position = p.clone ? p.clone() : { ...p };
     if (position.y !== undefined) position.y += (mob.height ?? 1) / 2;
-    const player = manager.game?.player;
-    const near = player?.position && Math.hypot(player.position.x - position.x, player.position.y - position.y, player.position.z - position.z) <= WIND_CHARGE_BURST.radius;
-    windChargeBurst(manager, { position, shooter: mob, target: near ? player : null });
+    // Wind Charged: a burst "similar to that caused by a thrown wind charge" at the middle of its body.
+    windChargeBurst(manager, { position, shooter: mob, source: 'player' });
     result.burst = true;
   }
   return result;

@@ -10,7 +10,8 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "sweet_slices",
     "templates": [
-      "sectors"
+      "sectors",
+      "sub_mids"
     ],
     "name": "Sweet Slices",
     "description": "Hypixel's Desserted Islands remembered: frosted cake islands, candy canes and cakes; cookies to eat.",

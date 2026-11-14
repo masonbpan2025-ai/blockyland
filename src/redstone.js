@@ -593,6 +593,9 @@ export class Redstone {
     }
     if(s.id===B.DISPENSER&&['arrow','spectral_arrow','tipped_arrow'].includes(item.id)){
       g.mobs?.spawnArrow?.(new V(...p),new V(...d),s);
+    } else if(s.id===B.DISPENSER&&item.id==='wind_charge'&&g.windCharges){
+      // A dispenser fires wind charges (the wiki's Wind Charge).
+      g.windCharges.launch({origin:new V(...p),direction:new V(...d),owner:null,source:'dispenser'});
     } else if(s.id===B.DISPENSER&&item.isBlock&&item.id===B.TNT){
       g.entities?.spawnPrimedTNT?.(new V(...p));
     } else if(s.id===B.DISPENSER&&item.id==='water_bucket'){

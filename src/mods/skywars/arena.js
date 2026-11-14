@@ -6,7 +6,7 @@
 // "Often there is a central, larger island that has better loot, an enchanting table, and sometimes several anvils."
 import { BLOCKS } from '../../blocks.js';
 import { ARENA, seededRandom, cellKey } from './generator.js';
-import { TEMPLATES, DEFAULT_TEMPLATE, generateArena } from './templates.js';
+import { ALL_TEMPLATES, DEFAULT_TEMPLATE, generateArena } from './templates.js';
 import { PACKS, defaultPackFor } from './packs.js';
 
 export { ARENA, seededRandom, cellKey };
@@ -19,7 +19,7 @@ export const mapKey = (map) => `${map?.template}/${map?.pack}/${map?.seed >>> 0}
 
 /** A map that names a template and a pack this build has; anything else falls back to the default's. */
 export function normalizeMap(map = {}) {
-  const template = TEMPLATES[map.template] ? map.template : DEFAULT_MAP.template;
+  const template = ALL_TEMPLATES[map.template] ? map.template : DEFAULT_MAP.template;
   const pack = PACKS.get(map.pack)?.templates.includes(template) ? map.pack : defaultPackFor(template);
   const seed = Number.isFinite(map.seed) ? map.seed >>> 0 : DEFAULT_MAP.seed;
   return { template, pack, seed };
@@ -34,7 +34,7 @@ export function buildArena(map = DEFAULT_MAP) {
   const { template, pack, seed } = normalizeMap(typeof map === 'number' ? { ...DEFAULT_MAP, seed: map } : map);
   const resolved = PACKS.get(pack);
   const arena = generateArena({ template, pack, generation: resolved.generation, seed });
-  arena.name = `${TEMPLATES[template].name}: ${resolved.name}`;
+  arena.name = `${ALL_TEMPLATES[template].name}: ${resolved.name}`;
   return arena;
 }
 

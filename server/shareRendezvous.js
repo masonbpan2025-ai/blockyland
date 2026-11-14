@@ -12,7 +12,9 @@ export const WRONG_CODE_WINDOW_MS = 60_000;
 
 /**
  * What one connection may push through the relay (resilientPeerLink.js), for browsers that cannot connect directly:
- * a burst large enough for a world being sent, then a steady game's worth. Counted apart from the introductions.
+ * a burst large enough for a world being sent, then a steady game's worth. Counted apart from the introductions. A host
+ * has this allowance for each guest it sends to (it passes every player's movement on to every other player, so a
+ * room of twenty sends twenty times what a pair does); a guest, which sends only to its host, has one.
  */
 export const RELAY_LIMITS = Object.freeze({ burst: 4000, perSecond: 800, burstBytes: 16 * 1024 * 1024, bytesPerSecond: 4 * 1024 * 1024 });
 
@@ -76,7 +78,7 @@ export function createGuessLimiter({ max = WRONG_CODES_PER_WINDOW, windowMs = WR
  */
 export function createShareRendezvous({
   path = SHARE_PATH,
-  maxGuestsPerRoom = 16,
+  maxGuestsPerRoom = 24,
   maxRooms = 1000,
   maxPayload = 64 * 1024,
   heartbeatMs = 30_000,
@@ -110,6 +112,12 @@ export function createShareRendezvous({
     let bucket = 200;
     let last = Date.now();
     const relayAllowance = createRelayAllowance(relayLimits, now);
+    const hostAllowances = new Map(); // a host's allowance toward each of its guests
+    const allowanceFor = (to) => {
+      if (role !== 'host') return relayAllowance;
+      if (!hostAllowances.has(to)) { if (hostAllowances.size > 64) hostAllowances.clear(); hostAllowances.set(to, createRelayAllowance(relayLimits, now)); }
+      return hostAllowances.get(to);
+    };
 
     ws.on('message', (raw) => {
       // Relayed game frames have their own, larger allowance, so they are told apart before the introductions' one.
@@ -117,7 +125,7 @@ export function createShareRendezvous({
         let msg;
         try { msg = JSON.parse(raw.toString()); } catch { fail(ws, 'bad_json', 'Messages must be JSON.'); return; }
         if (typeof msg?.data !== 'string') { fail(ws, 'bad_message', 'A relayed frame must be text.'); return; }
-        if (!relayAllowance.take(raw.length)) { fail(ws, 'rate_limited', 'Too many messages.'); ws.close(1008); return; }
+        if (!allowanceFor(String(msg.to)).take(raw.length)) { fail(ws, 'rate_limited', 'Too many messages.'); ws.close(1008); return; }
         if (role === 'guest') send(room.host, { type: 'relay', from: guestId, data: msg.data });
         else {
           const guest = room.guests.get(String(msg.to));

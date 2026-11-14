@@ -10,7 +10,9 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "frozen_peaks",
     "templates": [
-      "classic"
+      "classic",
+      "twin_peaks",
+      "rush"
     ],
     "name": "Frozen Peaks",
     "description": "Snow-capped islands, spruces, ice spikes in the middle and icicles below. Snowballs in every chest.",

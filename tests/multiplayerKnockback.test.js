@@ -161,3 +161,12 @@ test('projectile flight direction is normalized, while malformed directions and 
     assert.equal(sanitizeAttack({ target: 'guest', damage: 4, projectile: 'arrow', direction }), null);
   assert.equal(sanitizeAttack({ target: 'guest', damage: 4, direction: { x: 1, z: 0 } }).direction, undefined);
 });
+
+test('absorption (a golden apple\'s) takes a hit before health, as in Java', async t => {
+  const { host, guest } = await bridgeGame(t);
+  guest.absorption = 4;
+  host.attackPlayer(guest.clientId, 3, { weapon: 'stone_sword' });
+  await until(() => guest.absorption < 4, 'the hit lands');
+  assert.equal(guest.health, 20, 'health untouched while absorption lasts');
+  assert.equal(guest.absorption, 1);
+});

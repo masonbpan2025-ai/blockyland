@@ -87,6 +87,7 @@ import { witchPotionDrop } from './witchPotions.js';
 import { WANDERING_TRADER_HEALTH, WANDERING_TRADER_DIMENSIONS, WANDERING_TRADER_SPEED, WANDERING_TRADER_DESPAWN_SECONDS, WANDERING_TRADER_WANDER_RANGE, WANDERING_TRADER_SPAWN_RANGE, WANDERING_TRADER_LLAMAS, WANDERING_TRADER_INVISIBILITY, WANDERING_TRADER_AVOIDED, WANDERING_TRADER_AVOID_RANGE, WANDERING_TRADER_DROP_CHANCE, WANDERING_TRADER_DROP_LOOTING_BONUS, WANDERING_TRADER_COLORS, TRADES, TRADE_LAYOUT, isWanderingTrader, wanderingTraderHasBabyForm, isResolvableTradeItem, availableTrades, rollTrades, tradeLocked, useTrade, usableTradeCount, updateTraderDespawn, traderWantsInvisibility, updateTraderInvisibility, findTraderHazard, wanderingTraderDrops, wanderingTraderXp, spawnTraderWithLlamas, traderLlamaRetaliates, createWanderingTraderModel, poseWanderingTrader } from './wanderingTraderBehavior.js';
 import { ALLAY_HEALTH, ALLAY_DIMENSIONS, ALLAY_SPEED, ALLAY_FALL_IMMUNE, ALLAY_FOLLOW_RANGE, ALLAY_SEEK_RANGE, ALLAY_PICKUP_RANGE, ALLAY_DROP_RANGE, ALLAY_DELIVER_DELAY, ALLAY_INVENTORY_SLOTS, ALLAY_STACK_SIZE, ALLAY_NOTE_FOCUS, ALLAY_DANCE_RANGE, ALLAY_DUPLICATION, ALLAY_REGEN_PER_SECOND, ALLAY_OWNER_IMMUNE, ALLAY_COLORS, isAllay, allayHasBabyForm, allayHeldItem, giveAllayItem, takeAllayItem, allaySeeksItem, allayCanPickUp, allayDeliveryTarget, hearNoteBlock, allayDances, duplicateAllay, findSeekableItem, updateAllayJob, updateAllayRegen, allayRefusesDamage, allayDrops, allayXp, createAllayModel, poseAllay } from './allayBehavior.js';
 import { SNIFFER_HEALTH, SNIFFER_DIMENSIONS, SNIFFLET_DIMENSIONS, SNIFFLET_SCALE, SNIFFER_SPEED, SNIFFER_HEAD_OFFSET, SNIFFER_DIG_MEMORY, SNIFFER_SEARCH_COOLDOWN, SNIFFER_DIG, SNIFFER_DIG_DROPS, SNIFFER_DIGGABLE_NAMES, SNIFFER_BREEDING_FOOD, SNIFFLET_GROWTH_SECONDS, SNIFFLET_FEED_ACCELERATION, SNIFFER_EGG_HATCH, SNIFFER_BREEDING, SNIFFER_COLORS, diggableBlockIds, isSniffer, isSnifflet, snifferDimensions, snifferHeadPosition, isDiggableBlock, snifferDigRefusal, wasDugRecently, rememberDig, findDiggableSpot, updateSnifferDig, isSnifferBreedingFood, updateSniffletGrowth, accelerateSniffletGrowth, snifferEggHatchSeconds, snifferDrops, snifferXp, snifferBreedingXp, createSnifferModel, poseSniffer } from './snifferBehavior.js';
+import { WindChargeSystem } from './windCharge.js';
 import { BREEZE_HEALTH, BREEZE_DIMENSIONS, WIND_CHARGE_DAMAGE, BREEZE_JUMP, BREEZE_ATTACK, BREEZE_JUMP_COOLDOWN, WIND_CHARGE_SPEED, WIND_CHARGE_BURST, BREEZE_TRAITS, BREEZE_NON_RETALIATION, BREEZE_PREFERRED_PREY, BREEZE_ROD_DROP, BREEZE_ALWAYS_VISIBLE, BREEZE_COLORS, isBreeze, windChargeDamageFor, rollBreezeJumpDelay, breezeJumpVelocity, canBreezeLeap, findBreezeTarget, breezeRetaliates, shouldDeflect, deflectVelocity, updateBreezeLeap, fireWindCharge, windChargeBurst, breezeDrops, breezeXp, createBreezeModel, poseBreeze } from './breezeBehavior.js';
 import { PARCHED_ATTACK_COOLDOWN, PARCHED_WEAKNESS_SECONDS, PARCHED_WEAKNESS_IMMUNE, PARCHED_CONVERSIONS, PARCHED_PICKUP, PARCHED_EQUIPPED_IS_PERSISTENT, VARIANT_HEALTH, VARIANT_DIMENSIONS, HUSK_BABY_DIMENSIONS, HUSK_BABY_SCALE, HUSK_ARMOR, HUSK_SPEED, HUSK_HUNGER_SECONDS, HUSK_DROWNING, STRAY_SLOWNESS_SECONDS, BOGGED_POISON_SECONDS, BOGGED_ATTACK_COOLDOWN, BOGGED_SHEAR_DROPS, VARIANT_UNDEAD_TRAITS, VARIANT_ATTACK_EFFECT, VARIANT_TINTS, isUndeadVariant, variantHealth, variantDimensions, variantBurnsInDaylight, variantAvoidsWater, variantAttackEffect, updateSubmergedConversion, boggedAttackCooldown, shearBogged, variantBonusDrops, variantXp, huskDamageFor, variantTint, variantProfile } from './undeadVariants.js';
 import { ARMADILLO_HEALTH, ARMADILLO_DIMENSIONS, ARMADILLO_BABY_DIMENSIONS, ARMADILLO_BABY_SCALE, ARMADILLO_SPEED, ARMADILLO_GROWTH_SECONDS, ARMADILLO_COLORS, ARMADILLO_BREEDING_FOOD, ARMADILLO_SPIDER_TYPES, ARMADILLO_SPIDER_FEAR_RANGE, ARMADILLO_UNDEAD, isArmadillo, armadilloDamageReduction, canRollUp, isArmadilloThreat, findArmadilloThreat, updateArmadilloRoll, isRolledUp, onArmadilloHurt, armadilloDimensions, updateArmadilloScutes, rollScuteDelay, brushArmadillo, spidersFleeFrom, repelsMob, updateArmadilloGrowth, accelerateArmadilloGrowth, armadilloFollows, isArmadilloBreedingFood, armadilloDrops, armadilloXp, armadilloBreedingXp, poseArmadillo } from './armadilloBehavior.js';
@@ -10740,80 +10741,27 @@ export class MobManager {
   }
 
   /**
-   * Advance the breeze wind charges and burst them on impact.
-   *
-   * Wiki: "When a breeze's wind charge attack directly hits an entity, the entity takes damage, and a
-   * burst of wind appears. If a wind charge hits a block, only a burst of wind appears. This wind burst
-   * deals knockback but does not deal any damage by itself."
+   * The wind charges a breeze fires: the game's own (windCharge.js), so a breeze's charge flies, strikes, bursts and is
+   * deflected as a player's does, with the breeze's own figures. A manager with no game behind it (a test, the mob
+   * debug page) keeps one of its own, flown by updateWindCharges.
    */
-  updateWindCharges(dt) {
-    if (!this.windCharges?.length) return;
-    for (let i = this.windCharges.length - 1; i >= 0; i--) {
-      const charge = this.windCharges[i];
-      charge.age += dt;
-      charge.velocity.y -= 6 * dt;
-      charge.position.addScaledVector(charge.velocity, dt);
-      charge.mesh?.position.copy(charge.position);
-
-      let burst = charge.age > WIND_CHARGE_BURST.lifetime;
-      if (!burst) {
-        const block = this.world.getVoxel(
-          Math.floor(charge.position.x),
-          Math.floor(charge.position.y),
-          Math.floor(charge.position.z)
-        );
-        if (block && block !== BLOCKS.AIR && block !== BLOCKS.WATER) {
-          burst = true;
-        } else {
-          // A direct hit on an entity: damage, then the burst.
-          const hit = this.findWindChargeHit(charge);
-          if (hit) {
-            charge.target = hit.target;
-            charge.hitBlock = false;
-            const damage = charge.damage ?? windChargeDamageFor(this.game?.difficulty ?? 'normal');
-            if (damage > 0 && typeof hit.target.takeDamage === 'function') {
-              hit.target.takeDamage(damage, charge.position.clone(), 'breeze');
-            } else if (damage > 0) {
-              this.damageMob(hit.target, damage, charge.position.clone(), false, charge.shooter);
-            }
-            burst = true;
-          }
-        }
-      }
-
-      if (burst) {
-        windChargeBurst(this, charge, { hitBlock: charge.hitBlock === true });
-        charge.mesh?.removeFromParent?.();
-        charge.mesh?.geometry?.dispose?.();
-        charge.mesh?.material?.dispose?.();
-        this.windCharges.splice(i, 1);
-      }
-    }
+  breezeChargeSystem() {
+    if (this.game?.windCharges) return this.game.windCharges;
+    const manager = this;
+    this.ownWindCharges ??= new WindChargeSystem({
+      get world() { return manager.world; },
+      get scene() { return manager.scene; },
+      get sounds() { return manager.sounds; },
+      get entities() { return manager.entities; },
+      get player() { return manager.game?.player ?? null; },
+      mobs: manager,
+    });
+    return this.ownWindCharges;
   }
 
-  /** The first mob or player a wind charge is inside. */
-  findWindChargeHit(charge) {
-    const player = this.game?.player;
-    if (player?.position && player.health > 0) {
-      const dims = { width: 0.6, height: 1.8 };
-      if (Math.abs(charge.position.x - player.position.x) < dims.width * 0.5 + 0.3
-        && Math.abs(charge.position.z - player.position.z) < dims.width * 0.5 + 0.3
-        && charge.position.y > player.position.y - 0.3
-        && charge.position.y < player.position.y + dims.height + 0.3) {
-        return { target: player };
-      }
-    }
-    for (const mob of this.mobs) {
-      if (mob === charge.shooter || mob.health <= 0) continue;
-      const dims = this.getMobDimensions(mob.type);
-      if (Math.abs(charge.position.x - mob.mesh.position.x) < dims.width * 0.5 + 0.3
-        && Math.abs(charge.position.z - mob.mesh.position.z) < dims.width * 0.5 + 0.3
-        && charge.position.y > mob.mesh.position.y - 0.3
-        && charge.position.y < mob.mesh.position.y + dims.height + 0.3) {
-        return { target: mob };
-      }
-    }
-    return null;
+  /** Fly this manager's own wind charges (the game's are flown by its frame loop, main.js). */
+  updateWindCharges(dt) {
+    if (!this.game?.windCharges) this.ownWindCharges?.update(dt);
   }
 
   update(dt, player) {
@@ -12281,15 +12229,9 @@ export class MobManager {
       // Wiki: it shoots a wind charge at a target within 16 blocks on a 1.6 s cooldown.
       const charge = fireWindCharge(this, mob, dt, target);
       if (charge) {
-        if (!this.windCharges) this.windCharges = [];
-        const mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.28, 6, 6),
-          new THREE.MeshBasicMaterial({ color: BREEZE_COLORS.wind, transparent: true, opacity: 0.8 })
-        );
-        mesh.position.copy(charge.position);
-        this.scene.add(mesh);
-        charge.mesh = mesh;
-        this.windCharges.push(charge);
+        this.breezeChargeSystem().launch({
+          origin: charge.position, direction: charge.velocity, owner: mob, source: 'breeze', damage: charge.damage,
+        });
       }
 
       // The leap, which is this mob's locomotion. Wiki: it can leap up to 15 blocks horizontally

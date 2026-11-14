@@ -3837,6 +3837,8 @@ body.hud-hidden #offhand-hud-slot {
 
 /* A compass in the hotbar shows its needle (compass.js): red toward the target, spinning where there is none. */
 .hotbar-slot { position: relative; }
+/* An item's cooldown (the wind charge's 0.5 s): a white overlay over the slot, shrinking as it recharges. */
+.item-cooldown { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(255, 255, 255, 0.5); pointer-events: none; }
 .compass-needle { position: absolute; left: 50%; top: 50%; width: 3px; height: 38%; background: linear-gradient(#e53935 0 55%, #f5f5f5 55%); transform-origin: 50% 100%; transform: translate(-50%, -100%); border-radius: 2px; pointer-events: none; box-shadow: 0 0 1px rgba(0,0,0,.8); }
 .compass-needle.lodestone { background: linear-gradient(#7e57c2 0 55%, #f5f5f5 55%); }
 

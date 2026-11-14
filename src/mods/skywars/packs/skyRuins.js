@@ -10,7 +10,8 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "sky_ruins",
     "templates": [
-      "archipelago"
+      "archipelago",
+      "sub_mids"
     ],
     "name": "Sky Ruins",
     "description": "Moss and broken stone-brick walls to hide behind, azaleas, hanging roots; the connector chests hold the treasure.",

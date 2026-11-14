@@ -806,6 +806,15 @@ export class UIManager {
     ctx.beginPath(); ctx.arc(Math.max(1, Math.min(127, px)), Math.max(1, Math.min(127, pz)), 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 
+  /** The cooldown overlay of every hotbar slot holding `id`: `fraction` (0 to 1) of the slot still covered. */
+  updateItemCooldowns(id, fraction) {
+    this.itemCooldowns ??= {};
+    this.itemCooldowns[id] = fraction;
+    for (const shade of this.hotbarEl?.querySelectorAll?.(`.item-cooldown[data-cooldown="${id}"]`) ?? []) {
+      shade.style.height = `${Math.round(fraction * 100)}%`;
+    }
+  }
+
   updateHotbar() {
     // Anything new in the inventory unlocks the recipes it goes into (recipeBook.js).
     this.recipeBook?.learn();
@@ -840,6 +849,14 @@ export class UIManager {
           // The hotbar is where a tool is watched while mining, so it gets the bar too.
           this.addDurabilityBar(slot, item);
           // A compass shows where it points (compass.js), turned every frame by updateCompassNeedles.
+          // An item on cooldown (the wind charge) wears a white overlay that shrinks as it recharges.
+          if (item.id === 'wind_charge') {
+            const shade = document.createElement('div');
+            shade.className = 'item-cooldown';
+            shade.dataset.cooldown = item.id;
+            shade.style.height = `${Math.round((this.itemCooldowns?.[item.id] ?? 0) * 100)}%`;
+            slot.appendChild(shade);
+          }
           if (item.id === 'compass') {
             const needle = document.createElement('div');
             needle.className = 'compass-needle' + (item.lodestone ? ' lodestone' : '');

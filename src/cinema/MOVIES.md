@@ -49,6 +49,17 @@ Files: `volumeLines.js`, `volumeStory.js`, `volumeSets.js`, `volumeBlocks.js` (b
 drop-in builds), `volumeFilm.js` (direction and the write-on math overlay), `volumeScore.js`.
 Voices are in `public/cinema-volume/audio/`.
 
+## 04 · The Agent Expedition (Replication Films)
+
+162–240 seconds. A replication of arXiv:2610.22319, styled as a live esports broadcast with play-by-play and colour commentators. Four autonomous AI players (Aria, Basil, Corin, Delphi) enter a shared survival world (seed `20261103`) equipped with the team playbook and safety kit reflexes.
+- **Sonnet Squad** (`agent-expedition-dry10-sonnet`): High coding skill and fast tech progression, but solitary risks lead to 5 deaths.
+- **Haiku Squad** (`agent-expedition-dry10-haiku`): Extremely cautious and huddled around base camp; 1 fall death, slow technological advance.
+- **Gemini Squad on Blockyland** (`agent-expedition-dry10-gemini`): Four Gemini 3.8 Flash agents (`dry10-gemini2`); 0 deaths, 25 advancements, diamonds at 16:30, diamond pickaxe & sword at 17:34, and obsidian mined (`Ice Bucket Challenge`) at 28:16.
+- **Gemini Squad on Horizon 26.3** (`agent-expedition-horizon-gemini`): Four Gemini 3.8 Flash agents playing in real Minecraft Java Edition 26.3 rewritten in Rust (`hz-dry10-gemini`), recorded with ReplayMod 2.6.28 (`recording.mcpr` + 3D camera keyframes) and rendered with subterranean quarry cutaways; 8 advancements (`Stone Age` ×4, `Getting an Upgrade` ×3, `Acquire Hardware`), twin furnaces, Iron Sword forged at 6:46, and rapid squad recovery after a flooded cave hazard. See [`replication/horizon/HORIZON_FILMING.md`](../../replication/horizon/HORIZON_FILMING.md) for the complete step-by-step Horizon movie playbook.
+
+Files: `replicationFilm.js`, `replicationEditHzDry10Gemini.js` (`replication-film-hz-dry10-gemini.html`), `replicationEditDry10Gemini.js` (`replication-film-dry10-gemini.html`), `replicationEditDry10Sonnet.js` (`replication-film-dry10-sonnet.html`), `replicationEditDry10Haiku.js` (`replication-film-dry10-haiku.html`).
+Run data in `replication/runs/` and `public/cinema-replication/`.
+
 ## Shared toolkit
 
 | Module | Role |

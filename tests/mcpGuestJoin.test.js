@@ -330,15 +330,17 @@ test('SkyWars: MCP agent joins by 4-digit lobby code, unlocks match start, loots
   hostSkywars.update(0.1);
   await settle(3);
 
-  // Agent loots its island chest
-  const islandChest = hostSkywars.arena.chests.find((c) => c.slot === 1);
-  assert.ok(islandChest, 'island 1 has a chest');
-  const looted = await call(mcpServer, 'guest_act', {
-    action: 'loot_chest',
-    position: [islandChest.x, islandChest.y, islandChest.z],
-  });
-  assert.equal(looted.isError, false, JSON.stringify(looted.body));
-  assert.ok(looted.body.taken.length > 0, 'looted items from the SkyWars island chest');
+  // Agent loots its island's chests, one at a time and each within reach, as in Java
+  const islandChests = hostSkywars.arena.chests.filter((c) => c.slot === 1);
+  assert.ok(islandChests.length, 'island 1 has chests');
+  for (const islandChest of islandChests) {
+    const looted = await call(mcpServer, 'guest_act', {
+      action: 'loot_chest',
+      position: [islandChest.x, islandChest.y, islandChest.z],
+    });
+    assert.equal(looted.isError, false, JSON.stringify(looted.body));
+    assert.ok(looted.body.taken.length > 0, 'looted items from the SkyWars island chest');
+  }
 
   // Agent bridges toward the center island
   const bridged = await call(mcpServer, 'guest_act', {

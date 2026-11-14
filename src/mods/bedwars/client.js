@@ -9,10 +9,15 @@
 //   - each player: their own inventory -- what they buy, what they carry -- reported to the host when it matters (what
 //     they carried when they died goes to their killer).
 import * as THREE from 'three';
+import { keepTicking } from '../backgroundTicker.js';
+import { requestHouseBot } from '../houseBots.js';
 import { BLOCKS, BLOCK_DEFS } from '../../blocks.js';
 import { ARENA, buildArena, normalizeMap, mapKey, isMapBlock, arenaDifferences, DEFAULT_MAP } from './arena.js';
 import { BedWarsMatch, HOST_ID, PICKUP_REACH, SPLIT_REACH, RESOURCES } from './rules.js';
 import { teamById } from './teams.js';
+import { describeBedWars } from './generalState.js';
+import { withinBlockReach } from '../../multiplayer/shareProtocol.js';
+import { planZone, islandColumns, outsideZone, CLOSING } from '../closingZone.js';
 import {
   ITEM_SHOP, UPGRADES, TRAPS, RESOURCE_ITEMS, priceGroup, upgradeCost, trapCost, buy, newKit, afterDeath,
   armorFor, loadoutFor, enchantsFor, resourcesOf, canAfford, pay,
@@ -22,7 +27,12 @@ import { GeneratorView, textSprite, primedTntMesh, fireballMesh } from './visual
 import { createBedWarsUi } from './ui.js';
 import { rememberAttachment } from '../../wallAttached.js';
 
-const GUEST_MESSAGES = new Set(['died', 'bed', 'collect', 'upgrade', 'trap', 'team', 'milk', 'boom', 'tnt']);
+/** Whether this browser hosts as a referee: it runs the match and does not play (localStorage 'mc-referee-host' = '1'). */
+function refereeHost() {
+  try { return globalThis.localStorage?.getItem('mc-referee-host') === '1'; } catch { return false; }
+}
+
+const GUEST_MESSAGES = new Set(['died', 'bed', 'collect', 'upgrade', 'trap', 'team', 'milk', 'boom', 'tnt', 'spectate']);
 /** Hypixel's potion strengths and lengths, applied when one of the shop's potions is drunk. */
 export const SHOP_POTIONS = Object.freeze({ speed: ['speed', 2, 45], jump: ['jump_boost', 5, 45], invis: ['invisibility', 1, 30] });
 export const MILK_SECONDS = 30;
@@ -51,6 +61,9 @@ export class BedWarsManager {
   activate() {
     this.deactivate();
     this.active = true;
+    // The match goes on in a background tab (the frame loop stops there): bots and friends keep playing it.
+    this.lastUpdateAt = globalThis.performance?.now?.() ?? Date.now();
+    this.ticker = keepTicking((dt) => this.update(dt), () => this.lastUpdateAt);
     this.state = null;
     this.round = 0;
     this.arenaKey = null;
@@ -80,6 +93,8 @@ export class BedWarsManager {
   deactivate() {
     if (!this.active) return;
     this.active = false;
+    this.ticker?.stop();
+    this.ticker = null;
     for (const off of this.offs ?? []) { try { off(); } catch { /* gone */ } }
     this.offs = [];
     if (this.session && this.session.attackPolicy) this.session.attackPolicy = null;
@@ -111,7 +126,9 @@ export class BedWarsManager {
 
   async startHosting() {
     this.match = new BedWarsMatch({ seed: Math.floor(Math.random() * 0xffffffff) });
-    this.match.join(HOST_ID, this.sync?.playerName?.() ?? 'Host');
+    // A referee host runs the match without playing in it (the Agent Arena's referee, agentArena/botMatch.mjs).
+    this.referee = refereeHost();
+    if (!this.referee) this.match.join(HOST_ID, this.sync?.playerName?.() ?? 'Host');
     this.applyState(this.match.snapshot());
     try {
       const shared = await this.sync.hostWorld({ quiet: true, pvp: true });
@@ -144,16 +161,44 @@ export class BedWarsManager {
     const m = this.match;
     switch (data.type) {
       case 'died': m.died(by, ['void', 'fall', 'player', 'arrow', 'explosion', 'other'].includes(data.cause) ? data.cause : 'other', data.resources ?? {}); break;
-      case 'bed': m.bedBroken(String(data.team ?? ''), by); break;
+      case 'bed': if (by === HOST_ID || this.canBreakBed(by, String(data.team ?? ''))) m.bedBroken(String(data.team ?? ''), by); break;
       case 'collect': this.hostCollect(by, String(data.gen ?? '')); break;
       case 'upgrade': m.buyUpgrade(by, String(data.key ?? '')); break;
       case 'trap': m.buyTrap(by, String(data.trap ?? '')); break;
       case 'team': if (m.chooseTeam(by, String(data.team ?? ''))) m.emit({ kind: 'team_change', id: by }); break;
       case 'milk': this.milkUntil.set(by, m.elapsed + MILK_SECONDS); break;
+      case 'spectate': m.setSpectating(by, data.on === true); break;
       case 'boom': this.hostBoom(by, data); break;
       case 'tnt': this.hostRelay({ type: 'tnt', by, x: Number(data.x), y: Number(data.y), z: Number(data.z) }); break;
       default: break;
     }
+  }
+
+  /**
+   * Whether a guest can break a team's bed from where the host last saw it: one half of the bed within block reach
+   * (Java's 4.5 from the eyes, and the server's slack), and that half open to the air on a side or on top -- a bed
+   * covered all round is dug out first, as in Minecraft, where a block is broken only by aiming at a face of it.
+   */
+  canBreakBed(by, teamId) {
+    const base = this.baseOf(teamId), world = this.game.world;
+    if (!base || !world) return false;
+    const pos = this.positionOf(by);
+    if (!pos) return false;
+    const halves = [base.bed.foot, base.bed.head];
+    const isBed = (x, y, z) => halves.some((h) => h[0] === x && h[1] === y && h[2] === z);
+    return halves.some(([x, y, z]) => withinBlockReach(pos, { x, y, z })
+      && [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]].some(([dx, dy, dz]) => !isBed(x + dx, y + dy, z + dz) && world.getVoxel(x + dx, y + dy, z + dz) === BLOCKS.AIR));
+  }
+
+  /** The closing zone of a map (../closingZone.js), from its islands: worked out once per map, the waiting room left out. */
+  zonePlanFor(map) {
+    const key = mapKey(map);
+    if (this.zonePlanCache?.key !== key) {
+      const arena = key === this.arenaKey ? this.arena : buildArena(map);
+      const cells = [...arena.blocks].filter(([k]) => Number(k.split(',')[1]) < ARENA.lobbyY - 4);
+      this.zonePlanCache = { key, plan: planZone(islandColumns(arena.blocks, { maxY: ARENA.lobbyY - 4 }), { voidY: ARENA.voidY, cells }) };
+    }
+    return this.zonePlanCache.plan;
   }
 
   /** Where the host last saw a player: its own player, or a guest's last position. */
@@ -193,7 +238,26 @@ export class BedWarsManager {
   choosePace(pace) { if (this.isHost && this.match?.setPace(HOST_ID, pace)) this.publish(); }
   chooseDifficulty(difficulty) { if (this.isHost && this.match?.setDifficulty(HOST_ID, difficulty)) this.publish(); }
   chooseTheme(theme) { if (this.isHost && this.match?.setTheme(HOST_ID, theme)) this.publish(); }
+  /** The host picks the layout: 'standard', or 'practice' (three islands, two teams; the Agent Arena's practice games). */
+  chooseLayout(layout) { if (this.isHost && this.match?.setLayout(HOST_ID, layout)) this.publish(); }
   chooseTeam(team) { this.ask({ type: 'team', team }); }
+
+  /** Whether this player chose to watch (the lobby's Spectate toggle). */
+  get spectating() { return Boolean(this.me()?.spectating); }
+
+  /** The Spectate toggle: watch the game (the bots, say) instead of playing, or play again. Lobby only. */
+  setSpectating(on) { this.ask({ type: 'spectate', on: Boolean(on) }); }
+
+  /** Bot join: the server plays a bot on `team`: the Agent Arena bot the team was given (src/mods/houseBots.js). */
+  async botJoin(team) {
+    if (!this.isHost || !this.code || this.botJoining) return;
+    this.botJoining = true;
+    this.render();
+    const r = await requestHouseBot({ code: this.code, game: 'bedwars', team });
+    this.botJoining = false;
+    this.error = r.ok ? null : `Bot could not join: ${r.reason}`;
+    this.render();
+  }
 
   requestStart() {
     if (!this.isHost || !this.match) return;
@@ -219,7 +283,8 @@ export class BedWarsManager {
       this.showEvent(event);
     }
     const state = this.match.snapshot();
-    this.session?.sendGame?.(state);
+    // With the same round in the general state's words, for players that know no Bed Wars (../generalState.js).
+    this.session?.sendGame?.({ ...state, general: describeBedWars(state, this.arena) });
     this.applyState(state);
   }
 
@@ -311,6 +376,7 @@ export class BedWarsManager {
       case 'bed_gone': chat(event.message); for (const b of this.arena.bases) this.removeBed(b.team); this.ui?.title('BED DESTRUCTION', 'All beds have been destroyed!', 3, '#ff5555'); break;
       case 'tier': chat(event.message); break;
       case 'sudden_death': chat(event.message); this.ui?.title('SUDDEN DEATH', '', 2.5, '#ff5555'); break;
+      case 'closing': chat(event.message); this.ui?.title('THE ZONE IS CLOSING', 'Get to the middle: the void rises under the islands.', 2.5, '#ff5555'); break;
       case 'team_out': chat(event.message); break;
       case 'upgrade': {
         const def = UPGRADES[event.key];
@@ -547,6 +613,9 @@ export class BedWarsManager {
     if (!p) return;
     this.heal(p);
     p.setGameMode?.('spectator');
+    // A watcher moves as a Creative player does: flying to start with, a double tap of Space to land or fly again.
+    p.creativeFlight = true;
+    p.isFlying = true;
     const at = this.arena.spectator;
     p.position.set(at.x, at.y, at.z);
     this.game.ui?.updateStats?.();
@@ -571,6 +640,9 @@ export class BedWarsManager {
     // Waiting to respawn (or out): watching from above the middle.
     this.heal(p);
     p.setGameMode?.('spectator');
+    // A watcher moves as a Creative player does: flying to start with, a double tap of Space to land or fly again.
+    p.creativeFlight = true;
+    p.isFlying = true;
     const at = this.arena.spectator;
     p.position.set(at.x, at.y, at.z);
     return true;
@@ -930,10 +1002,13 @@ export class BedWarsManager {
 
   update(dt) {
     if (!this.active) return;
+    this.lastUpdateAt = globalThis.performance?.now?.() ?? Date.now();
     this.holdMidday();
     const p = this.game.player;
     const phase = this.phase;
     const me = this.me();
+    // A watcher who stopped flying and fell below the islands is brought back to watch, flying.
+    if (p?.gamemode === 'spectator' && p.creativeFlight && p.position.y < ARENA.voidY - 12) this.becomeSpectator();
     for (const view of this.genViews.values()) view.update(view.state, dt);
     this.updateProjectiles(dt);
     // Waiting players stay in the glass room.
@@ -957,9 +1032,19 @@ export class BedWarsManager {
       this.tickTimer -= dt;
       if (this.tickTimer <= 0) { this.tickTimer = 0.5; this.applyUpgrades(); }
     }
+    // In the closing zone's void: warned once a second until back inside (the host counts the seconds).
+    this.zoneWarnAt = (this.zoneWarnAt ?? 0) - dt;
+    if (phase === 'playing' && me?.alive && !me.dead && p && this.zoneWarnAt <= 0 && (me.inVoid > 0 || outsideZone(this.state?.zone, p.position))) {
+      this.zoneWarnAt = 1;
+      const left = Math.max(0, CLOSING.exposure - (me.inVoid ?? 0));
+      this.ui?.title('IN THE VOID!', `Back inside the zone: ${Math.ceil(left)} s`, 1.1, '#ff5555');
+    }
     if (!this.match) return;
+    this.match.zonePlan = this.zonePlanFor(this.match.map);
     this.match.update(dt);
     if (this.match.phase === 'playing') {
+      // The closing zone takes whoever stays in the void it leaves, by the positions the host sees.
+      this.match.closeIn(dt, (id) => this.positionOf(id));
       // A guest far below the islands is dead, whatever its browser says.
       for (const player of this.match.players.values()) {
         if (player.id === HOST_ID || !player.alive || player.dead) continue;

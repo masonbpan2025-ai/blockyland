@@ -5,7 +5,7 @@ const ROOM_ALPHABET = '0123456789';
 const ROOM_CODE_LENGTH = 4;
 const WRONG_CODES_PER_WINDOW = 10;
 const WRONG_CODE_WINDOW_MS = 60_000;
-const MAX_GUESTS_PER_ROOM = 16;
+const MAX_GUESTS_PER_ROOM = 24; // MAX_PLAYERS (src/multiplayer/shareProtocol.js): Bed Wars' five teams of four
 const MAX_ROOMS = 1000;
 const MAX_PAYLOAD_BYTES = 64 * 1024;
 const RENDEZVOUS_ID = 'all-shared-world-rooms';
@@ -76,18 +76,23 @@ export class ShareRendezvous {
     this.ctx = ctx;
     this.wrongCodes = new Map(); // address -> { misses, until }
     // In memory only: after the object hibernates an allowance starts full again, and the lookup is rebuilt.
-    this.relayAllowances = new WeakMap(); // socket -> { messages, bytes, last }
+    this.relayAllowances = new WeakMap(); // socket -> Map(guest it sends to, or '' -> { messages, bytes, last })
     this.relayTargets = new Map(); // `${room}/${guestId or 'host'}` -> socket
   }
 
-  takeRelayAllowance(socket, size) {
+  /** A guest's allowance, or a host's toward one guest (`to`): a host passes every player's movement to every other. */
+  takeRelayAllowance(socket, size, to = null) {
     const now = Date.now();
-    const a = this.relayAllowances.get(socket) ?? { messages: RELAY_LIMITS.burst, bytes: RELAY_LIMITS.burstBytes, last: now };
+    let mine = this.relayAllowances.get(socket);
+    if (!mine) { mine = new Map(); this.relayAllowances.set(socket, mine); }
+    const key = to ?? '';
+    if (!mine.has(key) && mine.size > 64) mine.clear();
+    const a = mine.get(key) ?? { messages: RELAY_LIMITS.burst, bytes: RELAY_LIMITS.burstBytes, last: now };
     const seconds = Math.max(0, (now - a.last) / 1000);
     a.last = now;
     a.messages = Math.min(RELAY_LIMITS.burst, a.messages + seconds * RELAY_LIMITS.perSecond);
     a.bytes = Math.min(RELAY_LIMITS.burstBytes, a.bytes + seconds * RELAY_LIMITS.bytesPerSecond);
-    this.relayAllowances.set(socket, a);
+    mine.set(key, a);
     if (a.messages < 1 || a.bytes < size) return false;
     a.messages -= 1;
     a.bytes -= size;
@@ -116,7 +121,7 @@ export class ShareRendezvous {
     let messageData;
     try { messageData = JSON.parse(text); } catch { fail(socket, 'bad_json', 'Messages must be JSON.'); return; }
     if (typeof messageData?.data !== 'string') { fail(socket, 'bad_message', 'A relayed frame must be text.'); return; }
-    if (!this.takeRelayAllowance(socket, size)) {
+    if (!this.takeRelayAllowance(socket, size, state.role === 'host' ? String(messageData.to) : null)) {
       fail(socket, 'rate_limited', 'Too many messages.');
       socket.close(1008, 'Too many messages');
       return;

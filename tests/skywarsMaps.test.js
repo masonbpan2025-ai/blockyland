@@ -26,8 +26,8 @@ const solid = (arena, x, y, z) => arena.blocks.has(cellKey(x, y, z));
 
 // --- the packs --------------------------------------------------------------------------------------------------
 
-test('packs: twelve bundled data packs, three made for each of the four templates, all loading cleanly', () => {
-  assert.equal(TEMPLATE_IDS.length, 4);
+test('packs: twelve bundled data packs, three for each of the eight templates, all loading cleanly', () => {
+  assert.equal(TEMPLATE_IDS.length, 8);
   assert.equal(PACKS.size, 12);
   for (const template of TEMPLATE_IDS) assert.equal(packsFor(template).length, 3, template);
   for (const [id, pack] of PACKS) {

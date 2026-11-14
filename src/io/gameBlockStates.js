@@ -44,6 +44,9 @@ for (const [key, id] of Object.entries(BLOCKS)) {
     trapdoorOpen.set(id, BLOCKS[`${key}_OPEN`]);
     variantOf.set(BLOCKS[`${key}_OPEN`], { baseId: id, props: { open: 'true' } });
   }
+  // An open fence gate and a lit candle or candle cake are their own ids (blockStateVariants.js): open=true, lit=true.
+  if (def?.fenceGate && def.open && def.closedId !== undefined) variantOf.set(id, { baseId: def.closedId, props: { open: 'true' } });
+  if (def?.candle && def.lit && def.unlitId !== undefined) variantOf.set(id, { baseId: def.unlitId, props: { lit: 'true' } });
   if (def?.bed && !def.isHead && BLOCKS[`${key}_HEAD`] !== undefined && !bedHead.has(id)) {
     bedHead.set(id, BLOCKS[`${key}_HEAD`]);
     variantOf.set(BLOCKS[`${key}_HEAD`], { baseId: id, props: { part: 'head' } });
@@ -159,6 +162,12 @@ export function gameBlockFromState(state) {
     if (facing) Object.assign(orientation, { facing, half: upper ? 'upper' : 'lower', hinge: props.hinge === 'right' ? 'right' : 'left' });
   } else if (def?.trapdoor && trapdoorOpen.has(id)) {
     if (props.open === 'true') id = trapdoorOpen.get(id);
+  } else if (def?.fenceGate && (def.openId !== undefined || def.closedId !== undefined)) {
+    const closed = def.closedId ?? id;
+    if (props.open !== undefined) id = props.open === 'true' ? BLOCK_DEFS[closed].openId ?? closed : closed;
+  } else if (def?.candle && (def.litId !== undefined || def.unlitId !== undefined)) {
+    const unlit = def.unlitId ?? id;
+    if (props.lit !== undefined) id = props.lit === 'true' ? BLOCK_DEFS[unlit].litId ?? unlit : unlit;
   } else if (cropStages.has(state.name.replace(/^minecraft:/, ''))) {
     if (props.age !== undefined) {
       id = cropIdForAge(state.name.replace(/^minecraft:/, ''), props.age) ?? id;
@@ -227,6 +236,10 @@ export function blockIdToCanonicalState(id, stored = null) {
     if (facing) { props.facing = facing; props.hinge = o.hinge === 'right' ? 'right' : 'left'; }
   } else if (def?.trapdoor) {
     props.open ??= 'false';
+  } else if (def?.fenceGate && def.openId !== undefined) {
+    props.open ??= 'false';
+  } else if (def?.candle && def.litId !== undefined) {
+    props.lit ??= 'false';
   } else if (def?.bed && bedHead.has(baseId)) {
     props.part ??= 'foot';
     if (facing) props.facing = facing;

@@ -384,7 +384,14 @@ export function createFenceGateGeometry(def, tm) {
     buildBox({ x: post, y: 1, z: post }, { x: 1 - post, y: 0, z: 1 - post }, def, tm),
   ];
   for (const y of railY) {
-    parts.push(buildBox({ x: 1, y: railH, z: 1 / 16 }, { x: 0, y, z: (1 - 1 / 16) / 2 }, def, tm));
+    if (def?.open) {
+      // Open (Fence Gate: "The two sides of the fence gate separates when opened"): each half swung back against its
+      // side, its rails running out from the post instead of across the gap.
+      parts.push(buildBox({ x: 1 / 16, y: railH, z: 0.5 }, { x: post, y, z: 0.5 }, def, tm));
+      parts.push(buildBox({ x: 1 / 16, y: railH, z: 0.5 }, { x: 1 - post - 1 / 16, y, z: 0.5 }, def, tm));
+    } else {
+      parts.push(buildBox({ x: 1, y: railH, z: 1 / 16 }, { x: 0, y, z: (1 - 1 / 16) / 2 }, def, tm));
+    }
   }
   const merged = mergeBoxes(parts);
   for (const p of parts) p.dispose();

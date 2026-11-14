@@ -10,7 +10,8 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "cherry_grove",
     "templates": [
-      "sectors"
+      "sectors",
+      "sub_mids"
     ],
     "name": "Cherry Grove",
     "description": "Cherry trees and pink petals on calcite-veined islands; honey and sweet berries in the chests.",

@@ -1471,3 +1471,21 @@ test('every breakable block resolves a blast resistance', () => {
   assert.deepEqual(bad, [], `blocks that are neither breakable nor marked unbreakable:\n  ${bad.join('\n  ')}`);
 });
 
+
+test('every block texture is the format its name says, so the browser can decode it', () => {
+  // A browser decodes /assets/blocks/x.svg as SVG whatever its bytes are: a PNG saved under a .svg name fails to load,
+  // and the block is drawn with the placeholder tile (a cornflower showed as two dark panes this way).
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  const wrong = [];
+  for (const [id, def] of Object.entries(BLOCK_DEFS)) {
+    for (const tile of new Set(Object.values(def?.textures ?? {}).filter((v) => typeof v === 'string'))) {
+      const file = path.join('public', 'assets', 'blocks', tile);
+      if (!existsSync(file)) continue;
+      const head = readFileSync(file).subarray(0, 256);
+      const isPng = head.subarray(0, 4).equals(PNG);
+      if (tile.endsWith('.svg') && (isPng || !/<svg|<\?xml/.test(head.toString('utf8')))) wrong.push(`${def.name ?? id}: ${tile} is not SVG`);
+      if (tile.endsWith('.png') && !isPng) wrong.push(`${def.name ?? id}: ${tile} is not PNG`);
+    }
+  }
+  assert.deepEqual(wrong, []);
+});

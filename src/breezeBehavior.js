@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WindChargeSystem, BREEZE_WIND_CHARGE } from './windCharge.js';
 
 /**
  * Breeze rules: leaping movement, wind charges, and projectile deflection.
@@ -31,11 +32,19 @@ export const BREEZE_ATTACK = { range: 16, cooldown: 1.6 };
 /** Wiki: it "leaps around between firing wind charges at its target", so jumps and shots interleave. */
 export const BREEZE_JUMP_COOLDOWN = { min: 1.2, max: 2.6 };
 
-/** Wiki: a wind charge is a small fast projectile. */
-export const WIND_CHARGE_SPEED = 14;
+/** The breeze's charge flies at 0.7 blocks a tick (Java's shot; windCharge.js BREEZE_WIND_CHARGE). */
+export const WIND_CHARGE_SPEED = BREEZE_WIND_CHARGE.speed;
 
-/** Wiki: the burst "deals knockback but does not deal any damage by itself". */
-export const WIND_CHARGE_BURST = { radius: 3, knockback: 8, upward: 4, lifetime: 3 };
+/**
+ * The breeze's burst (Wind Charge): it "deals knockback but does not deal any damage by itself", reaches "a 6-block
+ * sphere" (an explosion of power 3) and pushes with "40% less knockback than regular explosions" (0.6). The push
+ * itself is the Explosion rule in windCharge.js burstImpulse.
+ */
+export const WIND_CHARGE_BURST = Object.freeze({
+  radius: 2 * BREEZE_WIND_CHARGE.power,
+  power: BREEZE_WIND_CHARGE.power,
+  knockbackMultiplier: BREEZE_WIND_CHARGE.knockbackMultiplier,
+});
 
 /**
  * Wiki entity tags: `deflects_arrows`, `deflects_tridents`, `fall_damage_immune`,
@@ -300,37 +309,22 @@ export function fireWindCharge(manager, mob, dt, target) {
 }
 
 /**
- * The wind burst when a charge strikes something.
+ * A wind burst at `charge.position`, by the game's own wind charges (windCharge.js): a breeze's (`charge.shooter` a
+ * breeze, or `source: 'breeze'`) or a thrown one's (`source: 'player'`, which the Wind Charged effect's burst is
+ * "similar to"). Every player and mob in reach is pushed by the Explosion rule; nobody is hurt by it. Returns the
+ * entities it pushed.
  *
  * Wiki: "When a breeze's wind charge attack directly hits an entity, the entity takes damage, and a
  * burst of wind appears. If a wind charge hits a block, only a burst of wind appears. This wind burst
  * deals knockback but does not deal any damage by itself."
  */
-export function windChargeBurst(manager, charge, { hitBlock = false } = {}) {
-  const position = charge.position.clone();
-  const targets = [];
-  if (!hitBlock && charge.target) targets.push(charge.target);
-  // The burst pushes everything nearby, which is what makes it dangerous near a ledge.
-  for (const other of manager?.mobs ?? []) {
-    if (other === charge.shooter || other.health <= 0) continue;
-    if (other.mesh.position.distanceTo(position) > WIND_CHARGE_BURST.radius) continue;
-    if (!targets.includes(other)) targets.push(other);
-  }
-  for (const target of targets) {
-    const pos = target.position ?? target.mesh?.position;
-    if (!pos) continue;
-    const away = pos.clone().sub(position);
-    const dist = away.length();
-    if (dist < 1e-6) away.set(0, 1, 0);
-    else away.normalize();
-    if (target.velocity) {
-      target.velocity.x += away.x * WIND_CHARGE_BURST.knockback;
-      target.velocity.z += away.z * WIND_CHARGE_BURST.knockback;
-      target.velocity.y = Math.max(target.velocity.y ?? 0, 0) + WIND_CHARGE_BURST.upward;
-    }
-  }
-  manager?.spawnParticleBurst?.(position, BREEZE_COLORS.wind, 10);
-  return targets;
+export function windChargeBurst(manager, charge) {
+  if (!charge?.position) return [];
+  const system = manager?.breezeChargeSystem?.() ?? new WindChargeSystem({ world: manager?.world, player: manager?.game?.player, mobs: manager, sounds: manager?.sounds });
+  const source = charge.source ?? (isBreeze(charge.shooter) || !charge.shooter ? 'breeze' : 'player');
+  const center = new THREE.Vector3(charge.position.x, charge.position.y, charge.position.z);
+  const { pushed } = system.burst(center, { source, owner: charge.shooter ?? null });
+  return pushed.map((p) => p.entity);
 }
 
 /** Wiki: 1-2 breeze rods, with Looting adding 1-2 more. */

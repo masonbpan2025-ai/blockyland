@@ -11,6 +11,7 @@ import { BLOCK_MODEL_SHAPES, CROSSED_PLANTS } from './blockModelShapes.js';
 import { TIPPED_ARROWS } from './tippedArrowItems.js';
 import { FUTURE_BLOCK_IDS, FUTURE_BLOCK_DEFS, FUTURE_ITEMS } from './futureContent.js';
 import { applyWikiItemStats, applyWikiBlockStats, applyVanillaShapes, normaliseFutureFlags, addFutureDoorStates } from './futureContentWiki.js';
+import { addStateVariants } from './blockStateVariants.js';
 
 export const BLOCKS = {
   AIR: 0,
@@ -3222,6 +3223,8 @@ for (const def of Object.values(BLOCK_DEFS)) {
 applyVanillaShapes(BLOCK_DEFS, FUTURE_BLOCK_DEFS);
 normaliseFutureFlags(BLOCK_DEFS, FUTURE_BLOCK_DEFS, BLOCKS);
 addFutureDoorStates(BLOCKS, BLOCK_DEFS, FUTURE_BLOCK_IDS);
+// Open fence gates and lit candles, as their own blocks with fixed ids (blockStateVariants.js).
+addStateVariants(BLOCKS, BLOCK_DEFS);
 
 // Every tipped arrow (tippedArrowItems.js); the three hand-written ones above keep their entries.
 for (const arrow of TIPPED_ARROWS) {

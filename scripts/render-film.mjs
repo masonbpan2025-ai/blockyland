@@ -13,17 +13,63 @@ import { STUMP_STORY, STUMP_REVIEW_TIMES } from '../src/cinema/stumpStory.js';
 import { VOLUME_STORY, VOLUME_REVIEW_TIMES } from '../src/cinema/volumeStory.js';
 import { CIV_STORY, CIV_REVIEW_TIMES } from '../src/cinema/civStory.js';
 import { WED_STORY, WED_REVIEW_TIMES } from '../src/cinema/wedStory.js';
+import { ARENA_STORY, ARENA_REVIEW_TIMES } from '../src/cinema/arenaEdit.js';
+import { DUEL_STORY, DUEL_REVIEW_TIMES, arenaTimeline } from '../src/cinema/arenaDuelEdit.js';
+import { DS_LOW_VS_MAX_EDIT, DS_UNSEEN_EDIT, FFA5_DROPS_EDIT, FIVE_BOTS_EDIT, BEDWARS_FIVE_R2_EDIT, FIVE_BOTS_R2_EDIT } from '../src/cinema/arenaSeriesEdits.js';
+import { REPLICATION_STORY, REPLICATION_REVIEW_TIMES } from '../src/cinema/replicationEdit.js';
+import { REPLICATION_DRY8_STORY, REPLICATION_DRY8_REVIEW_TIMES } from '../src/cinema/replicationEditDry8.js';
+import { REPLICATION_DRY10_HAIKU_STORY, REPLICATION_DRY10_HAIKU_REVIEW_TIMES } from '../src/cinema/replicationEditDry10Haiku.js';
+import { REPLICATION_DRY10_SONNET_STORY, REPLICATION_DRY10_SONNET_REVIEW_TIMES } from '../src/cinema/replicationEditDry10Sonnet.js';
+import { REPLICATION_DRY10_GEMINI_STORY, REPLICATION_DRY10_GEMINI_REVIEW_TIMES } from '../src/cinema/replicationEditDry10Gemini.js';
+import { REPLICATION_HZ_GEMINI_STORY, REPLICATION_HZ_GEMINI_REVIEW_TIMES } from '../src/cinema/replicationEditHzGemini.js';
+import { REPLICATION_HZ_DRY10_GEMINI_STORY, REPLICATION_HZ_DRY10_GEMINI_REVIEW_TIMES } from '../src/cinema/replicationEditHzDry10Gemini.js';
 
 const movieId = process.argv.find(a => a.startsWith('--movie='))?.slice(8);
+// A scripted-arena series film (src/cinema/arenaSeriesEdits.js): its length and a review frame in the middle of each scene.
+function seriesFilm(edit, page) {
+  const tl = arenaTimeline(edit);
+  return { story: { duration: tl.duration, fps: edit.fps, posterTime: tl.posterTime }, page, review: tl.scenes.map(s => +(s.start + s.dur / 2).toFixed(2)), out: `outputs/${edit.id}` };
+}
 const FILMS = {
   'well-see-claude': { story: CLAUDE_STORY, page: 'well-see-claude.html', review: CLAUDE_REVIEW_TIMES, out: 'outputs/well-see-claude' },
   'stump-claude': { story: STUMP_STORY, page: 'stump-claude.html', review: STUMP_REVIEW_TIMES, out: 'outputs/stump-claude' },
   'volume-layers': { story: VOLUME_STORY, page: 'volume-layers.html', review: VOLUME_REVIEW_TIMES, out: 'outputs/volume-layers' },
   'civ-1500': { story: CIV_STORY, page: 'civ-1500.html', review: CIV_REVIEW_TIMES, out: 'outputs/civ-1500' },
   'civ-weddings': { story: WED_STORY, page: 'civ-weddings.html', review: WED_REVIEW_TIMES, out: 'outputs/civ-weddings' },
+  'arena-5v5': { story: ARENA_STORY, page: 'arena-film.html', review: ARENA_REVIEW_TIMES, out: 'outputs/arena-5v5' },
+  'arena-duel-sw3': { story: DUEL_STORY, page: 'arena-duel-film.html', review: DUEL_REVIEW_TIMES, out: 'outputs/arena-duel-sw3' },
+  'arena-series-ds-low-vs-max': seriesFilm(DS_LOW_VS_MAX_EDIT, 'arena-series-ds-low-vs-max.html'),
+  'arena-series-ds-unseen-5maps': seriesFilm(DS_UNSEEN_EDIT, 'arena-series-ds-unseen-5maps.html'),
+  'arena-series-ffa5-drops': seriesFilm(FFA5_DROPS_EDIT, 'arena-series-ffa5-drops.html'),
+  'arena-series-five-bots': seriesFilm(FIVE_BOTS_EDIT, 'arena-series-five-bots.html'),
+  'arena-series-five-bots-r2': seriesFilm(FIVE_BOTS_R2_EDIT, 'arena-series-five-bots-r2.html'),
+  'arena-series-bedwars-five-r2': seriesFilm(BEDWARS_FIVE_R2_EDIT, 'arena-series-bedwars-five-r2.html'),
+  'agent-expedition': { story: REPLICATION_STORY, page: 'replication-film.html', review: REPLICATION_REVIEW_TIMES, out: 'outputs/agent-expedition' },
+  'agent-expedition-dry8': { story: REPLICATION_DRY8_STORY, page: 'replication-film-dry8.html', review: REPLICATION_DRY8_REVIEW_TIMES, out: 'outputs/agent-expedition-dry8' },
+  'agent-expedition-dry10-sonnet': { story: REPLICATION_DRY10_SONNET_STORY, page: 'replication-film-dry10-sonnet.html', review: REPLICATION_DRY10_SONNET_REVIEW_TIMES, out: 'outputs/agent-expedition-dry10-sonnet' },
+  'agent-expedition-dry10-haiku': { story: REPLICATION_DRY10_HAIKU_STORY, page: 'replication-film-dry10-haiku.html', review: REPLICATION_DRY10_HAIKU_REVIEW_TIMES, out: 'outputs/agent-expedition-dry10-haiku' },
+  'agent-expedition-dry10-gemini': { story: REPLICATION_DRY10_GEMINI_STORY, page: 'replication-film-dry10-gemini.html', review: REPLICATION_DRY10_GEMINI_REVIEW_TIMES, out: 'outputs/agent-expedition-dry10-gemini' },
+  'agent-expedition-hz-gemini10': { story: REPLICATION_HZ_GEMINI_STORY, page: 'replication-film-hz-gemini10.html', review: REPLICATION_HZ_GEMINI_REVIEW_TIMES, out: 'outputs/agent-expedition-hz-gemini10' },
+  'agent-expedition-horizon-gemini': { story: REPLICATION_HZ_DRY10_GEMINI_STORY, page: 'replication-film-hz-dry10-gemini.html', review: REPLICATION_HZ_DRY10_GEMINI_REVIEW_TIMES, out: 'outputs/agent-expedition-horizon-gemini' },
 };
 if (!FILMS[movieId]) throw new Error(`Choose a film with --movie=: ${Object.keys(FILMS).join(', ')}`);
 const film = FILMS[movieId], PILOT = film.story, previewPage = film.page;
+// An Agent Arena film must clear src/cinema/ARENA_FILM_GUIDELINES.md before it is rendered (scripts/check-arena-film.mjs):
+// the commentary voiced, unbroken and with no long silence, every elimination and bed on screen, every draw explained.
+// An arena film is any film whose page runs the arena film (arenaDuelFilm.js), whatever its name; its edit is the page's
+// data-edit (a series edit), and one without a checkable edit is refused too.
+const pageHtml = await readFile(previewPage, 'utf8').catch(() => '');
+if (/arenaDuelFilm\.js/.test(pageHtml) && !process.argv.includes('--preview') && !process.argv.includes('--skip-check')) {
+  const { checkArenaFilm } = await import('./check-arena-film.mjs');
+  const editKey = /data-edit="([^"]+)"/.exec(pageHtml)?.[1];
+  if (!editKey) throw new Error(`${previewPage} is an Agent Arena film with no series edit (data-edit) for scripts/check-arena-film.mjs: give it one (src/cinema/arenaSeriesEdits.js), or pass --skip-check to render anyway.`);
+  const check = await checkArenaFilm(editKey);
+  for (const w of check.warn) console.log(`warning: ${w}`);
+  if (check.fail.length) {
+    for (const f of check.fail) console.log(`FAIL: ${f}`);
+    throw new Error(`${check.fail.length} arena film check(s) fail: fix them (src/cinema/ARENA_FILM_GUIDELINES.md), or pass --skip-check to render anyway.`);
+  }
+}
 // --from=<s> --to=<s> renders a clip of the film (to <film>-clip.mp4) for quick review; a clip is never published
 const arg = name => process.argv.find(a => a.startsWith(`--${name}=`))?.split('=')[1];
 const from = Number(arg('from') ?? 0), to = Math.min(PILOT.duration, Number(arg('to') ?? PILOT.duration)), clip = from > 0 || to < PILOT.duration;
@@ -98,7 +144,8 @@ try {
     // mixes old frames into a new cut. Other game code is left out: agents edit it all day, and it rarely changes a
     // film frame. After a change there that does, pass --fresh to start again.
     const hash = createHash('sha1').update(JSON.stringify({ movieId, from, to, BATCH, fps: PILOT.fps }));
-    const sources = [...(await readdir('src/cinema')).filter(f => f.endsWith('.js')).sort().map(f => `src/cinema/${f}`), 'src/blocks.js', 'src/mesher.js', previewPage];
+    // The player model draws every film's people (their armour included), so a change to it is a new cut too.
+    const sources = [...(await readdir('src/cinema')).filter(f => f.endsWith('.js')).sort().map(f => `src/cinema/${f}`), 'src/blocks.js', 'src/mesher.js', 'src/playerModel.js', previewPage];
     for (const f of sources) hash.update(f).update(await readFile(f));
     const segDir = path.join(output, `segments-${hash.digest('hex').slice(0, 12)}`);
     for (const d of await readdir(output)) if (d.startsWith('segments-') && (path.join(output, d) !== segDir || process.argv.includes('--fresh'))) await rm(path.join(output, d), { recursive: true, force: true });

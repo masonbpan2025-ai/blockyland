@@ -65,7 +65,7 @@ test('the same map from the same teams, theme and seed; every theme builds; nons
   const a = buildArena({ teams: 4, theme: 'desert', seed: 77 }), b = buildArena({ teams: 4, theme: 'desert', seed: 77 });
   assert.deepEqual([...a.blocks.entries()], [...b.blocks.entries()]);
   for (const theme of THEME_IDS) assert.ok(buildArena({ teams: 4, theme, seed: 1 }).blocks.size > 5000, theme);
-  assert.deepEqual(normalizeMap({ teams: 3, theme: 'moon', seed: 'x' }), { teams: 4, theme: 'meadow', seed: 2017 });
+  assert.deepEqual(normalizeMap({ teams: 3, theme: 'moon', seed: 'x' }), { teams: 4, theme: 'meadow', seed: 2017, layout: 'standard' });
 });
 
 // --- the match ------------------------------------------------------------------------------------------------------
@@ -335,6 +335,6 @@ test('an explosion hurts an enemy, its thrower half as much, a teammate not at a
 });
 
 test('the modes are Hypixel\'s queues', () => {
-  assert.deepEqual(Object.values(MODES).map((m) => [m.name, m.teams, m.size]), [['Solo', 8, 1], ['Doubles', 8, 2], ['3v3v3v3', 4, 3], ['4v4v4v4', 4, 4], ['4v4', 2, 4]]);
+  assert.deepEqual(Object.values(MODES).map((m) => [m.name, m.teams, m.size]), [['Solo', 8, 1], ['Doubles', 8, 2], ['3v3v3v3', 4, 3], ['4v4v4v4', 4, 4], ['4v4', 2, 4], ['4v4v4v4v4', 5, 4]]);
   assert.ok(isMapBlock(buildArena({ teams: 2, seed: 1 }), 0, ARENA.surfaceY, 0));
 });

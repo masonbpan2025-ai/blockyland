@@ -23,8 +23,8 @@ import { generateRoomCode, normalizeRoomCode, isValidRoomCode, buildShareUrl } f
 import {
   PROTOCOL_VERSION, MAX_PLAYERS, GUEST_TO_HOST, HOST_TO_GUEST, FrameReassembler, ProtocolError, encodeFrames,
   packSnapshot, unpackSnapshot, sanitizeName, sanitizeChat, sanitizePlayerState, sanitizeBlockUpdate, guestLimiters,
-  sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE, sanitizeGameData, sanitizeContainer, sanitizeSkin,
-  sanitizeDeathDrops, isDropId, PROJECTILES, sanitizeShot, MAX_SHOT_OFFSET,
+  sanitizeAttack, refuseAttack, sanitizeShareSettings, MAX_ATTACK_DAMAGE, sanitizeGameData, sanitizeContainer, withinBlockReach, sanitizeSkin,
+  sanitizeDeathDrops, isDropId, PROJECTILES, sanitizeShot, MAX_SHOT_OFFSET, sanitizeWindPush, WIND_CHARGE_MAX_DAMAGE,
 } from './shareProtocol.js';
 
 const HOST_ID = 'host';
@@ -303,10 +303,18 @@ export class ShareSession {
         this.broadcast({ t: 'player_state', peerId: entry.peerId, state }, entry.peerId);
         break;
       }
+      case 'request_snapshot': {
+        // A guest that cannot build a mini-game's arena itself (a headless bot) asks for the world as it now is.
+        if (!entry.limiters.snapshot.take()) break;
+        this.emit('request_snapshot', { targetPeerId: entry.peerId, peerName: entry.name });
+        break;
+      }
       case 'block_update': {
         if (!entry.limiters.block.take()) break;
         const block = sanitizeBlockUpdate(msg, { isBlockId: this.options.isBlockId });
         if (!block) { this.strike(entry); break; }
+        // A block is placed or broken within reach, as in Java.
+        if (!withinBlockReach(this.positions.get(entry.peerId), block)) break;
         this.emit('block_update', { peerId: entry.peerId, ...block, playerName: entry.name });
         this.broadcast({ t: 'block_update', peerId: entry.peerId, ...block }, entry.peerId);
         break;
@@ -339,6 +347,8 @@ export class ShareSession {
         if (!entry.limiters.container.take()) break;
         const container = sanitizeContainer(msg);
         if (!container) { this.strike(entry); break; }
+        // A chest is opened within reach, as in Java: a change to one out of reach is not made (or passed on).
+        if (!withinBlockReach(this.positions.get(entry.peerId), container)) break;
         this.emit('container', { peerId: entry.peerId, ...container });
         this.broadcast({ t: 'container', ...container }, entry.peerId);
         break;
@@ -421,7 +431,9 @@ export class ShareSession {
     if (this.mySkin) void this.send(entry.link, { t: 'skin', peerId: HOST_ID, ...this.mySkin });
     for (const [peerId, skin] of this.skins) if (peerId !== entry.peerId) void this.send(entry.link, { t: 'skin', peerId, ...skin });
     this.emit('peer_joined', { peerId: entry.peerId, peerName: entry.name, isHost: false });
-    this.emit('request_snapshot', { targetPeerId: entry.peerId, peerName: entry.name });
+    // The world, serialised for this guest -- unless it builds its own (a house bot says `world: false`): serialising
+    // froze the host for seconds while a bot joined.
+    if (msg.world !== false) this.emit('request_snapshot', { targetPeerId: entry.peerId, peerName: entry.name });
   }
 
   dropGuest(entry, reason = 'closed') {
@@ -687,7 +699,10 @@ export class ShareSession {
         // Shot by an arrow, a snowball or an egg; a snowball or an egg hurts nothing and only knocks back.
         const projectile = PROJECTILES.includes(msg.projectile) ? msg.projectile : null;
         const harmless = projectile === 'snowball' || projectile === 'egg';
-        if (!(harmless ? damage === 0 : damage > 0 && damage <= MAX_ATTACK_DAMAGE)) break;
+        // A wind charge: its direct hit's 1 or its burst's 0, and a push that must be one.
+        const push = projectile === 'wind_charge' ? sanitizeWindPush(msg.push) : null;
+        if (projectile === 'wind_charge' ? !(push && damage >= 0 && damage <= WIND_CHARGE_MAX_DAMAGE)
+          : !(harmless ? damage === 0 : damage > 0 && damage <= MAX_ATTACK_DAMAGE)) break;
         const from = msg.from && [msg.from.x, msg.from.y, msg.from.z].every(Number.isFinite)
           ? { x: msg.from.x, y: msg.from.y, z: msg.from.z, ...(Number.isFinite(msg.from.yaw) ? { yaw: msg.from.yaw } : {}) } : null;
         const level = (v, max) => (Number.isInteger(v) && v > 0 ? Math.min(max, v) : 0);
@@ -704,6 +719,7 @@ export class ShareSession {
           projectile,
           ...(projectile && knockbackDirection(msg.direction) ? { direction: knockbackDirection(msg.direction) } : {}),
           flame: projectile === 'arrow' && msg.flame === true,
+          ...(push ? { push, ...(Number.isFinite(msg.floorY) ? { floorY: msg.floorY } : {}) } : {}),
         });
         break;
       }
@@ -807,6 +823,8 @@ export class ShareSession {
       projectile: attack.projectile ?? null,
       ...(attack.direction ? { direction: attack.direction } : {}),
       flame: Boolean(attack.flame),
+      // A wind charge's push (blocks a tick) and the height of its burst.
+      ...(attack.push ? { push: attack.push, ...(Number.isFinite(attack.floorY) ? { floorY: attack.floorY } : {}) } : {}),
     };
     this.emit('attack_landed', { attackerId, targetId: target, damage });
     if (target === HOST_ID) this.emit('hurt', hit);

@@ -220,7 +220,7 @@ const FAMILIES = [
     // the pane silhouette is the honest approximation and is documented on the builder.
     id: 'bars',
     match: (n) => /^iron_bars$/.test(n),
-    texture: (n) => (textureExists(n + ".png") ? n + ".png" : "iron_bars.svg"),
+    texture: (n) => (textureExists(n + ".png") ? n + ".png" : "iron_bars.png"),
     sound: 'stone',
     extra: { pane: true },
   },
@@ -399,6 +399,8 @@ const FAMILIES = [
     match: (n) => /^(brown_mushroom|red_mushroom|dandelion|poppy|blue_orchid|allium|azure_bluet|oxeye_daisy|cornflower|lily_of_the_valley|wither_rose|red_tulip|orange_tulip|white_tulip|pink_tulip|sweet_berry_bush|nether_sprouts|crimson_roots|warped_roots|glow_lichen)$/.test(n),
     texture: (n) => {
       if (textureExists(n + ".png")) return n + ".png";
+      // A bush that grows shows its grown stage (sweet_berry_bush_stage3.png).
+      if (textureExists(n + "_stage3.png")) return n + "_stage3.png";
       return n + ".svg";
     },
     sound: "grass",

@@ -30,7 +30,7 @@ export const teamById = (id) => TEAMS.find((t) => t.id === id) ?? null;
 /**
  * The modes, as Hypixel's queues: how many teams, and how many players a team holds. Solo and Doubles have eight teams
  * and the cheaper prices; 3v3v3v3 and 4v4v4v4 have four and the dearer ones (shop.js). "Duel" is the 4v4 mode's two
- * teams, here for two friends or two pairs.
+ * teams, here for two friends or two pairs; "fives" is five teams of four, on a ring of five bases.
  */
 export const MODES = Object.freeze({
   solo: { id: 'solo', name: 'Solo', teams: 8, size: 1, prices: 'small' },
@@ -38,5 +38,7 @@ export const MODES = Object.freeze({
   threes: { id: 'threes', name: '3v3v3v3', teams: 4, size: 3, prices: 'large' },
   fours: { id: 'fours', name: '4v4v4v4', teams: 4, size: 4, prices: 'large' },
   duel: { id: 'duel', name: '4v4', teams: 2, size: 4, prices: 'large' },
+  // Not a Hypixel queue: five teams of four (the Agent Arena's five-team series), with the 4v4v4v4 prices.
+  fives: { id: 'fives', name: '4v4v4v4v4', teams: 5, size: 4, prices: 'large' },
 });
 export const MODE_IDS = Object.freeze(Object.keys(MODES));

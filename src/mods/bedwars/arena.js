@@ -8,10 +8,16 @@
 // waits in a glass room above the middle.
 //
 // Pure and seeded, as SkyWars' arena is (../skywars/arena.js): the host and every guest build the same map from
-// { teams, theme, seed }, and tests can check it without a browser.
+// { teams, theme, seed, layout }, and tests can check it without a browser. The layout is a template (layouts.js:
+// Classic Cross, Offset Ring, Flanking Diamonds, High Middle, Stepping Stones, Compact Middle, Archipelago, and the arena's practice
+// map), and the seed lays it out afresh -- distances, angles, island sizes, shapes and heights, and which way the map
+// turns -- so no two rounds are fought on the same map, while every base is built alike.
 import { BLOCKS } from '../../blocks.js';
 import { seededRandom, cellKey } from '../skywars/generator.js';
 import { TEAMS } from './teams.js';
+import { LAYOUT_TEMPLATES, LAYOUT_IDS, PRACTICE, planLayout } from './layouts.js';
+
+export { LAYOUT_TEMPLATES, LAYOUT_IDS, PRACTICE, planLayout };
 
 export { cellKey };
 
@@ -52,48 +58,37 @@ export const THEMES = Object.freeze({
 });
 export const THEME_IDS = Object.freeze(Object.keys(THEMES));
 
-export const DEFAULT_MAP = Object.freeze({ teams: 4, theme: 'meadow', seed: 2017 });
-
-/** A map this build can make: two, four or eight teams, a known theme, a whole seed. */
-export function normalizeMap(map = {}) {
-  const teams = [2, 4, 8].includes(map.teams) ? map.teams : DEFAULT_MAP.teams;
-  const theme = THEMES[map.theme] ? map.theme : DEFAULT_MAP.theme;
-  const seed = Number.isFinite(map.seed) ? map.seed >>> 0 : DEFAULT_MAP.seed;
-  return { teams, theme, seed };
-}
-export const mapKey = (map) => `${map?.teams}/${map?.theme}/${map?.seed >>> 0}`;
+export const DEFAULT_MAP = Object.freeze({ teams: 4, theme: 'meadow', seed: 2017, layout: 'standard' });
+/** Every layout, the practice map included. */
+export const LAYOUTS = Object.freeze(Object.keys(LAYOUT_TEMPLATES));
 
 /**
- * Where each base stands and which way it faces (toward the middle, along a compass direction so its blocks stay square):
- * two on opposite sides; four, one on each side; eight, two on each side.
+ * A map this build can make: two, four, five or eight teams, a known theme, a whole seed, and a layout that takes that many
+ * teams (otherwise the Classic Cross).
  */
-export function baseLayout(teams) {
-  const sides = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // north, east, south, west: where the base is
-  const out = [];
-  if (teams === 2) {
-    for (const [sx, sz] of [sides[0], sides[2]]) out.push({ x: sx * 44, z: sz * 44, fx: -sx, fz: -sz });
-  } else if (teams === 4) {
-    for (const [sx, sz] of sides) out.push({ x: sx * 44, z: sz * 44, fx: -sx, fz: -sz });
-  } else {
-    // Two to a side, either side of its middle, in order round the map.
-    for (const [sx, sz] of sides) {
-      const rx = -sz, rz = sx; // along the side
-      for (const along of [-1, 1]) out.push({ x: sx * 52 + rx * along * 19, z: sz * 52 + rz * along * 19, fx: -sx, fz: -sz });
-    }
-  }
-  return out;
+export function normalizeMap(map = {}) {
+  const teams = [2, 4, 5, 8].includes(map.teams) ? map.teams : DEFAULT_MAP.teams;
+  const theme = THEMES[map.theme] ? map.theme : DEFAULT_MAP.theme;
+  const seed = Number.isFinite(map.seed) ? map.seed >>> 0 : DEFAULT_MAP.seed;
+  const layout = LAYOUT_TEMPLATES[map.layout]?.teams.includes(teams) ? map.layout : 'standard';
+  return { teams, theme, seed, layout };
 }
+export const mapKey = (map) => `${map?.teams}/${map?.theme}/${map?.seed >>> 0}/${map?.layout ?? 'standard'}`;
 
-/** Where the diamond islands are: between the bases. */
-export function diamondLayout(teams) {
-  if (teams === 2) return [{ x: 26, z: 0 }, { x: -26, z: 0 }];
-  const d = teams === 8 ? 38 : 30;
-  return [{ x: d, z: -d }, { x: d, z: d }, { x: -d, z: d }, { x: -d, z: -d }];
-}
-
-/** Where the emerald generators are on the middle island: four with eight teams, two otherwise (Hypixel). */
-export function emeraldLayout(teams) {
-  return teams === 8 ? [{ x: 4, z: 4 }, { x: -4, z: -4 }, { x: 4, z: -4 }, { x: -4, z: 4 }] : [{ x: 4, z: 0 }, { x: -4, z: 0 }];
+/**
+ * A map's plan as the host publishes it to guests that do not build the map themselves (the headless guest bots):
+ * every base's centre and facing, the generators and the islands.
+ */
+export function publishedPlan(map) {
+  const n = normalizeMap(map);
+  const p = planLayout(n);
+  return {
+    key: mapKey(n), template: p.template, middle: { ...p.middle },
+    bases: p.bases.map((b) => ({ x: b.x, z: b.z, fx: b.fx, fz: b.fz })),
+    diamonds: p.diamonds.map((d, i) => ({ id: `d${i}`, x: d.x, y: d.y, z: d.z })),
+    emeralds: p.emeralds.map((e, i) => ({ id: `e${i}`, x: e.x, y: e.y, z: e.z })),
+    islands: p.islands.map((i) => ({ x: i.x, y: i.y, z: i.z, r: i.r, role: i.role })),
+  };
 }
 
 class Builder {
@@ -111,10 +106,9 @@ class Builder {
    * An island's top at ARENA.surfaceY over the cells `inside(x, z)` says, with the earth hanging below it deepest at the
    * middle -- a floating island, as SkyWars' are. `edge(x, z)` marks the rim, which `rim` paints.
    */
-  island(cells, { rim = null } = {}) {
+  island(cells, { rim = null, y = ARENA.surfaceY } = {}) {
     const set = new Set(cells.map(([x, z]) => `${x},${z}`));
     const has = (x, z) => set.has(`${x},${z}`);
-    const y = ARENA.surfaceY;
     for (const [x, z] of cells) {
       // Depth: how far in from the edge, plus a little roughness.
       let inward = 0;
@@ -126,12 +120,11 @@ class Builder {
     }
   }
 
-  tree(x, z) {
+  tree(x, z, y = ARENA.surfaceY) {
     if (!this.theme.log) {
-      if (this.theme.cactus) for (let h = 1; h <= 3; h++) this.set(x, ARENA.surfaceY + h, z, 'CACTUS');
+      if (this.theme.cactus) for (let h = 1; h <= 3; h++) this.set(x, y + h, z, 'CACTUS');
       return;
     }
-    const y = ARENA.surfaceY;
     const height = 4 + Math.floor(this.random() * 2);
     for (let h = 1; h <= height; h++) this.set(x, y + h, z, this.theme.log);
     for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = height - 1; dy <= height + 1; dy++) {
@@ -140,12 +133,26 @@ class Builder {
     }
   }
 
-  flower(x, z) {
+  flower(x, z, y = ARENA.surfaceY) {
     const list = this.theme.flowers;
-    if (!list?.length || this.get(x, ARENA.surfaceY + 1, z) !== BLOCKS.AIR) return;
-    this.set(x, ARENA.surfaceY + 1, z, list[Math.floor(this.random() * list.length)]);
+    if (!list?.length || this.get(x, y, z) === BLOCKS.AIR || this.get(x, y + 1, z) !== BLOCKS.AIR) return;
+    this.set(x, y + 1, z, list[Math.floor(this.random() * list.length)]);
   }
 }
+
+/**
+ * An island's outline: a circle of radius r whose edge wanders in and out (two waves of the seed's choosing), never in
+ * so far that the centre's generator loses its ground.
+ */
+const blob = (cx, cz, r, random) => {
+  const a1 = 0.1 + random() * 0.12, p1 = random() * Math.PI * 2, a2 = 0.05 + random() * 0.08, p2 = random() * Math.PI * 2;
+  const out = [], R = Math.ceil(r * 1.3) + 1;
+  for (let x = -R; x <= R; x++) for (let z = -R; z <= R; z++) {
+    const t = Math.atan2(z, x), edge = r * (1 + a1 * Math.sin(t + p1) + a2 * Math.sin(2 * t + p2));
+    if (x * x + z * z <= edge * edge + edge * 0.6) out.push([cx + x, cz + z]);
+  }
+  return out;
+};
 
 const disc = (cx, cz, r) => {
   const out = [];
@@ -167,13 +174,15 @@ const mobYawToward = (fx, fz) => Math.atan2(fx, fz);
  * emerald generators, the waiting room, and the box it all fits in.
  */
 export function buildArena(map = DEFAULT_MAP) {
-  const { teams, theme: themeId, seed } = normalizeMap(map);
+  const { teams, theme: themeId, seed, layout } = normalizeMap(map);
+  const plan = planLayout({ teams, layout, seed });
+  const practice = layout === 'practice';
   const theme = THEMES[themeId];
   const b = new Builder(seed, theme);
   const y = ARENA.surfaceY;
   const bases = [];
 
-  baseLayout(teams).forEach((at, index) => {
+  plan.bases.forEach((at, index) => {
     const team = TEAMS[index];
     const fx = at.fx, fz = at.fz, rx = -fz, rz = fx; // forward toward the middle, right across
     const W = (u, v) => [at.x + u * rx + v * fx, at.z + u * rz + v * fz];
@@ -223,26 +232,30 @@ export function buildArena(map = DEFAULT_MAP) {
     });
   });
 
-  // Diamond islands: a small island each, the generator a diamond block in the middle.
-  const diamonds = diamondLayout(teams).map((at, i) => {
-    b.island(disc(at.x, at.z, 4));
-    b.set(at.x, y, at.z, 'DIAMOND_BLOCK');
-    b.flower(at.x + 2, at.z - 1);
-    return { id: `d${i}`, kind: 'diamond', x: at.x + 0.5, y: y + 1, z: at.z + 0.5 };
-  });
+  // The generator islands and the other islands of the layout, each its own shape and height.
+  for (const island of plan.islands) {
+    b.island(blob(island.x, island.z, island.r, b.random), { y: island.y });
+    if (island.role === 'diamond') b.flower(island.x + 2, island.z - 1, island.y);
+  }
 
-  // The middle island, bigger with eight teams, its plaza holding the emerald generators.
-  const r = teams === 8 ? 12 : 10;
-  b.island(disc(0, 0, r));
-  for (let x = -6; x <= 6; x++) for (let z = -6; z <= 6; z++) if (Math.abs(x) + Math.abs(z) <= 8) b.set(x, y, z, Math.abs(x) + Math.abs(z) === 8 ? theme.trim : theme.plaza);
-  const emeralds = emeraldLayout(teams).map((at, i) => {
-    b.set(at.x, y, at.z, 'EMERALD_BLOCK');
-    return { id: `e${i}`, kind: 'emerald', x: at.x + 0.5, y: y + 1, z: at.z + 0.5 };
-  });
-  for (const [tx, tz] of [[r - 3, 0], [-(r - 3), 0], [0, r - 3], [0, -(r - 3)]]) if (b.random() < 0.75) b.tree(tx, tz);
-  for (let i = 0; i < 10; i++) {
-    const a = b.random() * Math.PI * 2, d = 8 + b.random() * (r - 8);
-    b.flower(Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d));
+  // The middle island, its plaza holding the emerald generators (on some layouts the diamond generators too).
+  const mid = plan.middle, r = mid.r, my = mid.y;
+  const plaza = practice ? 5 : Math.min(8, r - 2);
+  b.island(practice ? disc(0, 0, r) : blob(0, 0, r, b.random), { y: my });
+  for (let x = -8; x <= 8; x++) for (let z = -8; z <= 8; z++) if (Math.abs(x) + Math.abs(z) <= plaza) b.set(x, my, z, Math.abs(x) + Math.abs(z) === plaza ? theme.trim : theme.plaza);
+
+  // The generators: a block of their resource in the floor, where they drop.
+  for (const d of plan.diamonds) b.set(d.x, d.y - 1, d.z, 'DIAMOND_BLOCK');
+  for (const e of plan.emeralds) b.set(e.x, e.y - 1, e.z, 'EMERALD_BLOCK');
+  const diamonds = plan.diamonds.map((d, i) => ({ id: `d${i}`, kind: 'diamond', x: d.x + 0.5, y: d.y, z: d.z + 0.5 }));
+  const emeralds = plan.emeralds.map((e, i) => ({ id: `e${i}`, kind: 'emerald', x: e.x + 0.5, y: e.y, z: e.z + 0.5 }));
+
+  // Trees on the middle, clear of every generator, and flowers (none on the practice middle: no room).
+  const clear = (x, z) => [...plan.diamonds, ...plan.emeralds].every((g) => Math.hypot(g.x - x, g.z - z) > ARENA.keepClear + 2);
+  if (!practice) for (const [tx, tz] of [[r - 3, 0], [-(r - 3), 0], [0, r - 3], [0, -(r - 3)]]) if (b.random() < 0.75 && clear(tx, tz)) b.tree(tx, tz, my);
+  for (let i = 0; i < (practice ? 4 : 10); i++) {
+    const a = b.random() * Math.PI * 2, d = plaza + b.random() * Math.max(0, r - plaza);
+    b.flower(Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d), my);
   }
 
   // The waiting room: a glass box above the middle, where everyone stands until the game starts.
@@ -260,13 +273,15 @@ export function buildArena(map = DEFAULT_MAP) {
     minY = Math.min(minY, yy); maxY = Math.max(maxY, yy);
   }
   return {
-    teams, theme: themeId, seed, name: `${theme.name} (${teams} teams)`,
+    teams, theme: themeId, seed, layout, template: plan.template,
+    name: practice ? `${theme.name} practice (2 teams, 3 islands)` : `${LAYOUT_TEMPLATES[layout].name}: ${theme.name} (${teams} teams)`,
+    middle: { ...plan.middle }, islands: plan.islands.map((i) => ({ ...i })),
     blocks: b.blocks,
     bases,
     diamonds,
     emeralds,
     lobby: { x: 0.5, y: L + 1, z: 0.5 },
-    spectator: { x: 0.5, y: y + 18, z: 0.5 },
+    spectator: { x: 0.5, y: my + 18, z: 0.5 },
     bounds: { minX: minX - 1, maxX: maxX + 1, minZ: minZ - 1, maxZ: maxZ + 1, minY: Math.max(0, minY - 1), maxY: Math.min(63, maxY + 1) },
   };
 }

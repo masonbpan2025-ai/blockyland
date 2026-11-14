@@ -10,7 +10,8 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "meadow",
     "templates": [
-      "classic"
+      "classic",
+      "twin_peaks"
     ],
     "name": "Meadow",
     "description": "Grass and flowers, oaks on the spawn islands, birches and glowstone lamps in the middle.",

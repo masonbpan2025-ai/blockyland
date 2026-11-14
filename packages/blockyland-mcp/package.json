@@ -19,6 +19,9 @@
     "protocol.js",
     "guestPeer.js",
     "knockback.js",
+    "playerPush.js",
+    "projectiles.js",
+    "generalState.js",
     "README.md",
     "LICENSE"
   ],

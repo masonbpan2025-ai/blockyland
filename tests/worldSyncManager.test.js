@@ -309,13 +309,15 @@ test('block edits flow both ways and redraw the chunk, and its neighbour on an e
   await guest.manager.joinWorld(host.manager.roomId);
   await settle(20);
 
-  guest.manager.onBlockPlaced(5, 70 - 10, 5, BLOCKS.DIAMOND_BLOCK);
+  // A block within the guest's reach (Java's 4.5 from the eyes; the host makes no edit out of reach): under its feet.
+  const [bx, by, bz] = besideFeet(guest);
+  guest.manager.onBlockPlaced(bx, by, bz, BLOCKS.DIAMOND_BLOCK);
   await settle(30);
-  assert.equal(host.game.world.getVoxel(5, 60, 5), BLOCKS.DIAMOND_BLOCK, 'the guest\'s block reached the host');
+  assert.equal(host.game.world.getVoxel(bx, by, bz), BLOCKS.DIAMOND_BLOCK, 'the guest\'s block reached the host');
 
-  host.manager.onBlockBroken(5, 60, 5);
+  host.manager.onBlockBroken(bx, by, bz);
   await settle(30);
-  assert.equal(guest.game.world.getVoxel(5, 60, 5), BLOCKS.AIR, 'the host\'s break reached the guest');
+  assert.equal(guest.game.world.getVoxel(bx, by, bz), BLOCKS.AIR, 'the host\'s break reached the guest');
 
   guest.game.rebuilt.length = 0;
   host.manager.onBlockPlaced(16, 10, 5, BLOCKS.STONE); // on a chunk's west edge: x & 15 === 0
@@ -331,11 +333,21 @@ test('a guest is never sent its own edit back', async (t) => {
   t.after(() => { host.session.disconnect(true); guest.session.disconnect(true); });
   await host.manager.hostWorld();
   await guest.manager.joinWorld(host.manager.roomId);
+  await settle(20);
   guest.game.rebuilt.length = 0;
-  guest.manager.onBlockPlaced(1, 2, 3, BLOCKS.STONE);
+  // Within reach, so the host makes it and passes it on to everyone else: but not back to the guest.
+  const [bx, by, bz] = besideFeet(guest);
+  guest.manager.onBlockPlaced(bx, by, bz, BLOCKS.STONE);
   await settle(30);
+  assert.equal(host.game.world.getVoxel(bx, by, bz), BLOCKS.STONE, 'the host made the edit');
   assert.equal(guest.game.rebuilt.length, 0, 'no echo to redraw');
 });
+
+/** The block under a player's feet: within its reach (Java's 4.5 from the eyes). */
+function besideFeet({ game }) {
+  const p = game.player.position;
+  return [Math.floor(p.x), Math.floor(p.y) - 1, Math.floor(p.z)];
+}
 
 test('chat appears for everyone, with the sender\'s name, and nothing in it can become markup', async (t) => {
   setupMockDom(t);

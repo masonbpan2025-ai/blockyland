@@ -9,6 +9,7 @@ import { spendDurability } from './durability.js';
 import { shieldWear } from './toolWear.js';
 import { hurtWindow, hitKnockback } from './pvpCombat.js';
 import { dragKnockback, KNOCKBACK_TICK } from '../packages/blockyland-mcp/knockback.js';
+import { pushImpulse, PUSH_TICK } from '../packages/blockyland-mcp/playerPush.js';
 import * as THREE from 'three';
 import { bowFov } from './bow.js';
 import { waterHeight, waterCurrent } from './waterGeometry.js';
@@ -67,6 +68,13 @@ export class Player {
     this.isSneaking = false;
     this.isSprinting = false;
     this.isFlying = false;    // Survival, not Creative.
+    /**
+     * A spectator who moves as a Creative player does (a mini-game's watcher, SkyWars and Bed Wars): flies and stops
+     * flying with a double tap of Space, falls when not flying, and stands on and bumps into blocks. Still a spectator
+     * in every other way (no breaking, placing, attacking, damage or pickups). Plain spectator mode (`/gamemode
+     * spectator`) keeps Minecraft's: always flying, through blocks. Cleared when the game mode changes.
+     */
+    this.creativeFlight = false;
     //
     // This was hard-coded `'creative'`, so every player began able to fly, break anything and mint items,
     // and the only way into Survival was a later toggle that did not always clean up the abilities. The mode
@@ -214,6 +222,26 @@ export class Player {
     return false;
   }
 
+  /** Whether a double tap of Space switches flight on and off: Creative, and a spectator moving as one. */
+  canToggleFlight() { return this.gamemode === 'creative' || (this.gamemode === 'spectator' && this.creativeFlight); }
+
+  /**
+   * A fresh press of Space at `now` (ms): the second within 280 ms of the first switches flight, where flight can be
+   * switched. Returns whether it did.
+   */
+  spacePressed(now) {
+    if (now - this.lastSpacePress < 280) {
+      // The pair is consumed, so a third quick press starts a new pair instead of toggling again.
+      this.lastSpacePress = 0;
+      if (!this.canToggleFlight()) return false;
+      this.isFlying = !this.isFlying;
+      this.velocity.y = 0;
+      return true;
+    }
+    this.lastSpacePress = now;
+    return false;
+  }
+
   setupInputs() {
     if (typeof window === 'undefined') return;
     window.addEventListener('keydown', (e) => {
@@ -228,19 +256,7 @@ export class Player {
       // Only a fresh press counts as a tap: holding Space auto-repeats keydown, and those repeats used to read
       // as extra taps, switching flight off while the player was flying higher. Flight now changes only on a
       // genuine second press, however long either press is held.
-      if (e.code === 'Space' && !e.repeat) {
-        const now = performance.now();
-        if (now - this.lastSpacePress < 280) {
-          if (this.gamemode === 'creative') {
-            this.isFlying = !this.isFlying;
-            this.velocity.y = 0;
-          }
-          // The pair is consumed, so a third quick press starts a new pair instead of toggling again.
-          this.lastSpacePress = 0;
-        } else {
-          this.lastSpacePress = now;
-        }
-      }
+      if (e.code === 'Space' && !e.repeat) this.spacePressed(performance.now());
 
       // Double tap W to sprint, as vanilla's secondary sprint binding does.
       if (e.code === 'KeyW' && !e.repeat) {
@@ -491,6 +507,7 @@ export class Player {
     if (this.isDead) {
       this.pvpKnockbackActive = false;
       this.pvpKnockbackAccumulator = 0;
+      this.pushVelocity = null;
       if (this.velocity) this.velocity.set(0, 0, 0);
       this.updateCameraAndModel(dt);
       return;
@@ -691,7 +708,11 @@ export class Player {
       }
     }
 
+    // Other players' push (playerPush.js): its own velocity, advanced at 20 Hz.
+    const push = this.advancePlayerPush(dt);
     if (this.pvpKnockbackActive && !this.isFlying && !this.inWater && !this.isDungeonMode) {
+      // Knockback's ticks move the player with Java's drag already: the push joins that velocity.
+      this.velocity.x += push.x; this.velocity.z += push.z; push.x = 0; push.z = 0;
       this.movePvpKnockback(dt, moveDir, targetSpeed, controlsDisabled);
     } else {
       this.pvpKnockbackActive = false;
@@ -760,8 +781,12 @@ export class Player {
         }
       }
 
-      // Apply movement with 3-axis AABB collision
+      // Apply movement with 3-axis AABB collision, the push riding on the walk for this move only (Java's motion is
+      // linear, so the two add). A wall or the sneak edge guard that stops an axis stops the push on it too.
+      this.velocity.x += push.x; this.velocity.z += push.z;
       this.moveWithCollision(dt);
+      if (this.velocity.x === 0) push.x = 0; else this.velocity.x -= push.x;
+      if (this.velocity.z === 0) push.z = 0; else this.velocity.z -= push.z;
     }
 
     // Footstep audio
@@ -809,6 +834,30 @@ export class Player {
   }
 
   /** A hit carries momentum at 20 Hz; the walking controller must not lerp it away before collision/replication. */
+  /**
+   * Advance the push of other players (playerPush.js; Java's Entity.push) by this frame's 20 Hz ticks, and return the
+   * push velocity (blocks/second, horizontal). `this.pushingPlayers()` (set by the game) lists the players who can
+   * push: [{x, y, z, sneaking}]. A dead player or a spectator is neither pushed nor pushes.
+   */
+  advancePlayerPush(dt) {
+    if (!this.pushVelocity) { this.pushVelocity = { x: 0, z: 0 }; this.pushAccumulator = 0; }
+    const v = this.pushVelocity;
+    if (this.isDead || this.gamemode === 'spectator' || typeof this.pushingPlayers !== 'function') { v.x = 0; v.z = 0; return v; }
+    this.pushAccumulator += dt;
+    let others = null;
+    while (this.pushAccumulator + 1e-9 >= PUSH_TICK) {
+      this.pushAccumulator -= PUSH_TICK;
+      others ??= this.pushingPlayers() ?? [];
+      // Travel's drag (on the ground 0.6 * 0.91, in the air 0.91), then this tick's push (LivingEntity.aiStep order).
+      const drag = this.onGround ? 0.6 * 0.91 : 0.91;
+      const impulse = others.length ? pushImpulse({ x: this.position.x, y: this.position.y, z: this.position.z, sneaking: this.isSneaking }, others) : { x: 0, z: 0 };
+      v.x = v.x * drag + impulse.x / PUSH_TICK;
+      v.z = v.z * drag + impulse.z / PUSH_TICK;
+      if (Math.hypot(v.x, v.z) < 1e-3) { v.x = 0; v.z = 0; }
+    }
+    return v;
+  }
+
   movePvpKnockback(dt, moveDir, targetSpeed, controlsDisabled) {
     this.pvpKnockbackAccumulator = (this.pvpKnockbackAccumulator || 0) + dt;
     while (this.pvpKnockbackAccumulator + 1e-9 >= KNOCKBACK_TICK) {
@@ -930,7 +979,7 @@ export class Player {
 
   moveWithCollision(dt) {
     // A spectator "can ... go through blocks and entities": no collision at all.
-    if (modeRules(this.gamemode).noclip) {
+    if (modeRules(this.gamemode).noclip && !this.creativeFlight) {
       this.isFlying = true;
       this.position.addScaledVector(this.velocity, dt);
       this.onGround = false;
@@ -994,7 +1043,9 @@ export class Player {
       if (i < parts - 1 && this.checkCollision(newPos)) break;
     }
     if (this.velocity.y < 0) {
-      this.fallDistance += Math.max(0, startY - newPos.y);
+      // After a wind charge's launch, only the fall below the burst's height counts (the wiki's Wind Charge).
+      const top = this.windChargeFloorY == null ? startY : Math.min(startY, this.windChargeFloorY);
+      this.fallDistance += Math.max(0, top - newPos.y);
     }
     this.onGround = false;
     if (this.checkCollision(newPos)) {
@@ -1021,6 +1072,7 @@ export class Player {
           const fell = this.fallDistance;
           this.velocity.y = 0;
           this.fallDistance = 0;
+          this.windChargeFloorY = null;
           this.applyFallDamage(fell, belowY);
         }
       } else {
@@ -1800,6 +1852,7 @@ export class Player {
     const next = normaliseGameMode(mode);
     const previous = this.gamemode;
     this.gamemode = next;
+    if (next !== 'spectator') this.creativeFlight = false;
     if (next !== 'creative') {
       // The two abilities that are Creative-only, and the ones a later toggle used to leave behind.
       this.isFlying = false;

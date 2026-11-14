@@ -10,7 +10,8 @@ export default {
   "data/skywars/skywars/arena.json": {
     "id": "mushroom_isles",
     "templates": [
-      "archipelago"
+      "archipelago",
+      "rush"
     ],
     "name": "Mushroom Isles",
     "description": "Mycelium under huge red and brown mushrooms, four semi-middle islands, mushroom stew to eat.",

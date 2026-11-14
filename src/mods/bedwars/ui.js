@@ -3,7 +3,8 @@
 // and Team Upgrades windows, and the end. As SkyWars' screen (../skywars/ui.js): one root that leaves with the mod, and
 // text set with textContent, never HTML, since names come from other players.
 import { TEAMS, MODES, MODE_IDS, teamById } from './teams.js';
-import { THEMES, THEME_IDS } from './arena.js';
+import { houseBotsAvailable } from '../houseBots.js';
+import { THEMES, THEME_IDS, LAYOUT_TEMPLATES, LAYOUT_IDS } from './arena.js';
 import { ITEM_SHOP, CATEGORIES, UPGRADES, TRAPS, RESOURCE_NAMES, priceOf, whyNot, upgradeCost, trapCost, resourcesOf, canAfford, PICKAXES, AXES } from './shop.js';
 
 const CSS = `
@@ -84,6 +85,9 @@ export function createBedWarsUi(manager) {
   const paceButtons = row('Pace', ['normal', 'fast'], (id) => (id === 'normal' ? 'Normal (Hypixel times)' : 'Fast (half)'), (id) => manager.choosePace(id));
   const diffButtons = row('Difficulty', ['easy', 'normal', 'hard'], (id) => id[0].toUpperCase() + id.slice(1), (id) => manager.chooseDifficulty?.(id));
   const themeButtons = row('Map', THEME_IDS, (id) => THEMES[id].name, (id) => manager.chooseTheme(id));
+  // The layout (layouts.js): a template the seed lays out afresh every game.
+  const layoutButtons = row('Layout', LAYOUT_IDS, (id) => LAYOUT_TEMPLATES[id].name, (id) => manager.chooseLayout?.(id));
+  for (const b of layoutButtons) b.title = LAYOUT_TEMPLATES[b.dataset.id].description;
   const teamsLabel = el('div', 'bw-label', 'Teams');
   const teams = el('div', 'bw-teams');
   teams.id = 'bedwars-teams';
@@ -95,7 +99,15 @@ export function createBedWarsUi(manager) {
   startRow.append(start);
   const reason = el('div', 'bw-reason');
   reason.id = 'bedwars-start-reason';
-  lobby.append(el('h2', null, 'Bed Wars'), codeLabel, code, hint, hostBlock, teamsLabel, teams, startRow, reason);
+  // Spectate (off by default): watch the game -- the bots, say -- instead of playing on a team.
+  const spectate = el('button', null, 'Spectate: off');
+  spectate.id = 'bedwars-spectate';
+  spectate.type = 'button';
+  spectate.title = 'Watch this game instead of playing it';
+  spectate.onclick = () => manager.setSpectating?.(!manager.spectating);
+  const spectateRow = el('div', 'bw-row');
+  spectateRow.append(spectate);
+  lobby.append(el('h2', null, 'Bed Wars'), codeLabel, code, hint, hostBlock, teamsLabel, teams, spectateRow, startRow, reason);
 
   // --- titles, scoreboard, end --------------------------------------------------------------------------------
   const title = el('div', 'bw-title');
@@ -235,11 +247,18 @@ export function createBedWarsUi(manager) {
       lobby.classList.toggle('bw-hidden', phase !== 'lobby');
       lobby.classList.toggle('bw-corner', !isHost);
       for (const n of [codeLabel, code, hostBlock, startRow]) n.classList.toggle('bw-hidden', !isHost);
+      spectate.textContent = `Spectate: ${me?.spectating ? 'on' : 'off'}`;
+      spectate.setAttribute('aria-pressed', String(!!me?.spectating));
       for (const b of modeButtons) b.setAttribute('aria-pressed', String(state?.mode === b.dataset.id));
       for (const b of paceButtons) b.setAttribute('aria-pressed', String(state?.pace === b.dataset.id));
       const activeDiff = state?.difficulty ?? 'normal';
       for (const b of diffButtons) b.setAttribute('aria-pressed', String(activeDiff === b.dataset.id));
       for (const b of themeButtons) b.setAttribute('aria-pressed', String(state?.map?.theme === b.dataset.id));
+      for (const b of layoutButtons) {
+        b.setAttribute('aria-pressed', String((state?.map?.layout ?? 'standard') === b.dataset.id));
+        // A layout made for fewer teams than the mode has is not offered.
+        b.disabled = !LAYOUT_TEMPLATES[b.dataset.id].teams.includes(state?.map?.teams ?? 4);
+      }
       const size = MODES[state?.mode]?.size ?? 1;
       teams.replaceChildren(...(state?.teams ?? []).map((t) => {
         const team = teamById(t.id);
@@ -249,12 +268,26 @@ export function createBedWarsUi(manager) {
         const name = el('span', null, `${team.name} (${players.filter((p) => p.team === t.id).length}/${size})`);
         name.style.color = team.color;
         head.append(name);
+        // Join, and below it Bot join: a bot joins this team -- the Agent Arena bot the team was given (agentArena/bots/ai/).
+        const actions = el('div', 'bw-team-actions');
+        actions.style.cssText = 'display:flex;flex-direction:column;gap:4px;align-items:stretch;white-space:nowrap';
         if (me && me.team !== t.id) {
           const join = el('button', null, 'Join');
           join.type = 'button';
           join.onclick = () => manager.chooseTeam(t.id);
-          head.append(join);
+          actions.append(join);
         }
+        const room = players.filter((p) => p.team === t.id).length < size;
+        if (isHost && (state?.phase ?? 'lobby') === 'lobby' && room && houseBotsAvailable(() => manager.render?.())) {
+          const bot = el('button', null, 'Bot join');
+          bot.type = 'button';
+          bot.dataset.team = t.id;
+          bot.title = `A bot joins ${team.name}: the team plays one of the five Agent Arena bots (Opus, Sol, Gemini, DeepSeek or the scripted bot), drawn when its first bot joins`;
+          bot.disabled = !!manager.botJoining;
+          bot.onclick = () => manager.botJoin?.(t.id);
+          actions.append(bot);
+        }
+        if (actions.childElementCount) head.append(actions);
         card.append(head, ...players.filter((p) => p.team === t.id).map((p) => el('div', 'bw-member', `${p.name}${p.id === myId ? ' (you)' : ''}`)));
         return card;
       }));

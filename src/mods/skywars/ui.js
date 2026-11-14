@@ -1,8 +1,9 @@
 // SkyWars on screen: the lobby, the 3-2-1 titles, the scoreboard at the side, and the end of a match. Everything
 // lives under one root that leaves with the mod. Text is set with textContent, never HTML, since names come from
 // other players.
-import { TEMPLATES, TEMPLATE_IDS } from './templates.js';
+import { TEMPLATES, ALL_TEMPLATES, TEMPLATE_IDS } from './templates.js';
 import { packsFor, PACKS } from './packs.js';
+import { houseBotsAvailable } from '../houseBots.js';
 
 const CSS = `
 .skywars-root { position: fixed; inset: 0; pointer-events: none; z-index: 60; font-family: var(--ui-font, system-ui, sans-serif); color: #fff; }
@@ -121,7 +122,24 @@ export function createSkyWarsUi(manager) {
   startRow.append(start);
   const reason = el('div', 'sw-reason');
   reason.id = 'skywars-start-reason';
-  lobby.append(lobbyTitle, codeLabel, code, hint, list, mapBlock, guestMap, modeLabel, modes, diffLabel, diffs, startRow, reason);
+  // Bot join: one of the Agent Arena's five bots (agentArena/bots/ai/), drawn at random, takes a free island. Only where
+  // the server can play one (the dev server).
+  const botJoin = el('button', null, 'Bot join');
+  botJoin.id = 'skywars-bot-join';
+  botJoin.type = 'button';
+  botJoin.title = 'A bot joins on a free island: one of the five Agent Arena bots (Opus, Sol, Gemini, DeepSeek or the scripted bot), drawn at random';
+  botJoin.onclick = () => manager.botJoin?.();
+  const botRow = el('div', 'sw-row sw-hidden');
+  botRow.append(botJoin);
+  // Spectate (off by default): watch the game -- the bots, say -- instead of playing in it.
+  const spectate = el('button', null, 'Spectate: off');
+  spectate.id = 'skywars-spectate';
+  spectate.type = 'button';
+  spectate.title = 'Watch this game instead of playing it';
+  spectate.onclick = () => manager.setSpectating?.(!manager.spectating);
+  const spectateRow = el('div', 'sw-row');
+  spectateRow.append(spectate);
+  lobby.append(lobbyTitle, codeLabel, code, hint, list, botRow, spectateRow, mapBlock, guestMap, modeLabel, modes, diffLabel, diffs, startRow, reason);
 
   // Titles.
   const title = el('div', 'sw-title');
@@ -200,11 +218,18 @@ export function createSkyWarsUi(manager) {
         }));
       }
       for (const b of packs.children) b.setAttribute('aria-pressed', String(map.pack === b.dataset.pack));
-      const template = TEMPLATES[map.template];
+      const template = ALL_TEMPLATES[map.template];
       const pack = PACKS.get(map.pack);
       mapInfo.textContent = template && pack ? `${template.description} ${pack.description}` : '';
       startRow.classList.toggle('sw-hidden', !isHost);
       fillPlayers(list, players);
+      const lobbyPhase = (state?.phase ?? 'lobby') === 'lobby';
+      botRow.classList.toggle('sw-hidden', !(isHost && lobbyPhase && houseBotsAvailable(() => manager.render?.())));
+      // The islands are for those who play: a spectator takes none, so it does not count.
+      botJoin.disabled = !!manager.botJoining || players.filter((p) => !p.spectating).length >= 8;
+      spectateRow.classList.toggle('sw-hidden', !lobbyPhase);
+      spectate.textContent = `Spectate: ${manager.spectating ? 'on' : 'off'}`;
+      spectate.setAttribute('aria-pressed', String(!!manager.spectating));
       for (const b of modeButtons) b.setAttribute('aria-pressed', String(state?.mode === b.dataset.mode));
       const activeDiff = state?.difficulty ?? 'normal';
       for (const b of diffButtons) b.setAttribute('aria-pressed', String(activeDiff === b.dataset.difficulty));

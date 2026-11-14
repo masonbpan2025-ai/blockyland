@@ -7,6 +7,8 @@ Blockyland shares most of what makes Minecraft great: endless worlds, survival a
 - **Agent Terminal:** describe what you want built or changed in the world, in plain words.
 - **Multiplayer:** share your world with a link, without running a server.
 - **Mods:** make new games with an AI coding assistant.
+- **Mini-games:** SkyWars, Bed Wars and Mining Simulator, with friends, AI agents or bots that AI models wrote.
+- **Agent Arena:** AI agents write the code for SkyWars and Bed Wars players, then play it against each other.
 - **Building Studio:** design large structures with AI and save them as WorldEdit `.schem` files.
 - **Movies:** make short films out of blocks.
 
@@ -24,6 +26,8 @@ Blockyland shares most of what makes Minecraft great: endless worlds, survival a
   - [3. Make mods with AI](#3-make-mods-with-ai)
   - [4. Design big builds in Building Studio and save them as .schem](#4-design-big-builds-in-building-studio-and-save-them-as-schem)
   - [5. Make movies out of blocks](#5-make-movies-out-of-blocks)
+  - [6. Play SkyWars, Bed Wars and Mining Simulator, with friends, AI agents and bots](#6-play-skywars-bed-wars-and-mining-simulator-with-friends-ai-agents-and-bots)
+  - [7. Agent Arena: AI agents code their own players and play each other](#7-agent-arena-ai-agents-code-their-own-players-and-play-each-other)
 - [Getting started](#getting-started)
 - [Under the hood](#under-the-hood)
 - [Testing](#testing)
@@ -75,6 +79,8 @@ Everything starts from one screen. Each button below leads to one of the feature
 Then restart the app, and tell it the 6-digit code Connect AI shows: "Connect to Blockyland with code 123456". With **Offline Mode** on (the default), a set of built-in presets answers instead, so you can try the terminal without any app. The screenshots above were taken in Offline Mode. The full guide is [`docs/agent-control.md`](docs/agent-control.md).
 
 **It's safe by design.** The agent returns a plan made of the game's own actions, and the game checks the plan before carrying it out. Code written by the model is never run. Every structure remembers the blocks it replaced, so "destroy it" restores the ground while keeping your own later edits.
+
+**Your AI app can also play.** With `join_game` and a 4-digit room code, it joins a shared world, a SkyWars lobby or a Bed Wars team as a player of its own, then reads the game with `guest_status` and plays with `guest_act`: walk, bridge, loot chests, buy from the shop, fight, break beds. See [section 6](#6-play-skywars-bed-wars-and-mining-simulator-with-friends-ai-agents-and-bots).
 
 The same terminal also drives a **player bot**, which needs no AI app: `mine 8 coal ore`, `go to 10 64 10`, `follow cow`, `attack zombie`. See [`docs/player-bot.md`](docs/player-bot.md).
 
@@ -155,10 +161,11 @@ A game mod's rules never touch the screen directly. They run in a Web Worker for
 | **Voxel Dash in play** | **Rescue Adventure: a co-op campaign** |
 | ![A creeper-faced cube leaping over spikes through a sunlit meadow](docs/images/readme/mod-voxel-dash-play.jpg) | ![Rescue Suki: choose one or two players and a difficulty, then begin the story](docs/images/readme/mod-rescue.jpg) |
 
-The three bundled mods show how different a mod can be from the base game:
-- **Voxel Dash:** five Geometry Dash-style levels set in biomes, with 240 Hz physics.
+The bundled mods show how different a mod can be from the base game:
+- **Voxel Dash:** eleven Geometry Dash-style levels set in Minecraft biomes, with 240 Hz physics.
 - **Rescue Adventure:** a five-realm co-op campaign with bosses and elemental weapons, ported from a standalone browser game.
 - **World Martial Arts Tournament:** an arena with Ki skills and a dungeon mode.
+- **SkyWars**, **Bed Wars** and **Mining Simulator:** multiplayer mini-games, described in [section 6](#6-play-skywars-bed-wars-and-mining-simulator-with-friends-ai-agents-and-bots).
 
 Mods are trusted code that is part of the build, not a sandbox for downloaded code. See [`docs/mod-system.md`](docs/mod-system.md).
 
@@ -199,6 +206,34 @@ A film can be about anything. The same toolkit handled two fables and a math les
 
 Watch the films at [blockyland.online/movies](https://blockyland.online/movies). Each film also has an interactive 3D preview. How the films are made, and the standards they meet, is in [`src/cinema/CINEMA_GUIDELINES.md`](src/cinema/CINEMA_GUIDELINES.md) and [`src/cinema/MOVIES.md`](src/cinema/MOVIES.md).
 
+The same toolkit also films the [Agent Arena](#7-agent-arena-ai-agents-code-their-own-players-and-play-each-other): a series of rounds replayed from the match records, with every elimination and broken bed on screen, commentary on the strategies throughout, and diagrams explaining the draws. Those films follow [`src/cinema/ARENA_FILM_GUIDELINES.md`](src/cinema/ARENA_FILM_GUIDELINES.md), and `node scripts/check-arena-film.mjs --movie=<film>` checks each one before `scripts/render-film.mjs` will render it.
+
+### 6. Play SkyWars, Bed Wars and Mining Simulator, with friends, AI agents and bots
+
+Three multiplayer mini-games come with the game. The host opens a lobby and gets a **4-digit room code**; friends, AI apps and bots join with it.
+
+- **SkyWars:** up to 8 players, each in a cage on an island floating over the void. Loot your chests, bridge across, and be the last one alive. Twelve map packs, from Meadow and Cherry Grove to Nether Rift and End Citadel.
+- **Bed Wars:** teams on islands, each guarding a bed. Collect iron, gold, diamonds and emeralds from the generators, buy gear and team upgrades, break the other beds, and be the last team standing. Modes from Solo and Doubles (eight teams) to 4v4 and five teams of four.
+- **Mining Simulator:** start with a wooden pickaxe and a hut, sell the ores you dig for coins, and buy better pickaxes, a bigger house and the Superstick. Progress is saved.
+
+A timed SkyWars or Bed Wars match ends with a **closing zone**: over the last stretch a border closes in on the middle and the void rises under the middle's islands, so the last players have to meet instead of hiding until the clock runs out. Matches keep running while the host's tab is in the background.
+
+**Bot join.** No friends online? In a SkyWars lobby, or on a Bed Wars team, click **Bot join**. A bot joins in under a second. Each one plays the strategy code an AI model wrote in the Agent Arena (Claude Opus, Sol, Gemini or DeepSeek), or the scripted bot they all started from, drawn at random; its name says which, as in `GeminiBot-15`. The bots play with human reaction times and Minecraft Java's reach and attack cooldown, and a bot stuck behind a wall digs or builds its way out. Up to 24 bots can play. The AI-written bots live in `agentArena/bots/ai/`, and [`CHANGES.md`](agentArena/bots/ai/CHANGES.md) lists every change made to them since they were collected.
+
+**Spectate.** Turn on **Spectate** in the lobby to watch instead of play: you fly freely over the match, as in Creative, and your island or team place goes to someone else.
+
+**AI apps as players.** Give the room code to Claude Code, Gemini CLI or another app connected through `blockyland-mcp`, and it joins as a player of its own (`join_game`). Several agents can play the same match on different teams. See [`docs/agent-control.md`](docs/agent-control.md).
+
+### 7. Agent Arena: AI agents code their own players and play each other
+
+The Agent Arena (`agentArena/`) runs series of SkyWars and Bed Wars rounds between AI agents: Claude models through Claude Code, and Gemini and DeepSeek. The agents don't steer a character by hand. Each writes a **strategy program** against one fixed, Mineflayer-style bot API, with human reaction times and the same view rules for everyone, and the program plays the round. Between rounds each agent studies its replay and the referee's review and improves its code. After every round the agents are interviewed, and the series is recorded for a film.
+
+- **Scripted arena:** every agent starts from the same scripted bot and rewrites it. In Bed Wars each agent's code plays a whole squad of four in five-team games, with practice games and a second round of coding before the final games.
+- **House bots:** bots with no AI behind them, which choose their moves with a small Monte Carlo tree search, to practise against.
+- **A model as the slow thinker:** a planner in which a model writes JSON plans that the bot carries out.
+
+Running a series, its rules and the bot API are in [`agentArena/docs/running.md`](agentArena/docs/running.md), [`operating.md`](agentArena/docs/operating.md), [`agent-rules.md`](agentArena/docs/agent-rules.md) and [`strategy-api.md`](agentArena/docs/strategy-api.md). The agents run on your own accounts and use their usage limits.
+
 ---
 
 ## Getting started
@@ -237,15 +272,22 @@ Plain JavaScript (ES modules), three.js and Vite. No game server is needed.
 
 ## Testing
 
+The full suite takes more than seven minutes, so while you work, run the tests your change can reach:
+
 ```sh
-npm test                    # node --test: real voxel and game code, mocked AI responses
+node scripts/test.mjs --files src/bed.js   # the tests nearest to the files you changed (--list shows the choice)
+node scripts/test.mjs --changed            # every file changed in the working tree
 npm run test:list           # list the grouped suites
 npm run test:mob | test:agent | test:redstone | test:world | test:build | test:combat | test:render | test:persist
 npm run test:bot            # player bot controller
 npm run test:bot:browser    # Playwright: the bot in a private arena in the real game
 npm run test:share:browser  # Playwright: two real browsers join one world through a link
 npm run test:mods
+npm run test:preflight      # before every push: the public-tree check, a production build and every start-screen button
+npm test                    # everything (slow): real voxel and game code, mocked AI responses
 ```
+
+[`AGENTS.md`](AGENTS.md) has the rules for working in this repository and a map of where each area of the game lives.
 
 Automated tests make no billable API calls.
 
@@ -260,9 +302,12 @@ src/                           game and engine modules (main.js, world.js, meshe
 src/worldgen/                  structure generators, jigsaw, NBT templates
 src/io/                        block-state model, NBT, Sponge .schem and vanilla codecs, .mcworld export
 src/engine/                    engine services for mod games
-src/mods/                      mods, loader, registry, compatibility checks
+src/mods/                      mods (SkyWars, Bed Wars, Mining Simulator, ...), loader, registry, compatibility checks
 src/multiplayer/               world sharing: links, WebRTC session, remote players
-server/, functions/, cloudflare/   sharing service (Node, Cloudflare Pages Function and Durable Object), mod-game host
+server/, functions/, cloudflare/   sharing service (Node, Cloudflare Pages Function and Durable Object), mod-game host, Bot join
+packages/blockyland-mcp/       the MCP server for AI apps, and the guest player it plays with
+agentArena/                    the Agent Arena: series runner, referee, scripted and house bots, the AI-written bots
+replication/                   the replication of arXiv:2610.22319
 public/                        data packs, textures and other assets
 docs/                          architecture notes, parity reports, mod API, images
 tests/, e2e/, scripts/         unit and browser tests, tooling
@@ -276,13 +321,15 @@ tests/, e2e/, scripts/         unit and browser tests, tooling
 | --- | --- |
 | Sharing a world | `docs/sharing.md`, `docs/deploy-cloudflare.md` |
 | Mods | `docs/mod-system.md`, `docs/mod-api.md`, `docs/creating-mods.md` |
-| Movies | `src/cinema/MOVIES.md`, `src/cinema/CINEMA_GUIDELINES.md` |
+| Movies | `src/cinema/MOVIES.md`, `src/cinema/CINEMA_GUIDELINES.md`, `src/cinema/ARENA_FILM_GUIDELINES.md` |
+| AI apps (MCP), playing as a guest | `docs/agent-control.md` |
+| Agent Arena | `agentArena/docs/running.md`, `operating.md`, `agent-rules.md`, `strategy-api.md`, `skywars-rulebook.md`, `bedwars-rulebook.md`; bots: `agentArena/bots/README.md` |
 | Import/export (.schem, NBT) | `docs/MINECRAFT_IO_ARCHITECTURE.md`, `_PARITY.md`, `_REFERENCES.md` |
 | Engine design and benchmarks | `docs/voxel-engine-plan.md`, `docs/reef-performance.md` |
 | Structures | `docs/STRUCTURE_ARCHITECTURE.md`, `STRUCTURE_PARITY.md` |
 | Mob spawning | `docs/MOB_SPAWNING_ARCHITECTURE.md`, `MOB_SPAWNING_PARITY.md` |
 | Per-mob behavior | `docs/*-parity.md` |
-| Testing | `docs/parity-testing-summary.md`, `docs/test-determinism.md` |
+| Testing | `AGENTS.md`, `docs/parity-testing-summary.md`, `docs/test-determinism.md` |
 | Player bot, `/give` | `docs/player-bot.md`, `docs/give-command-agent-guide.md` |
 
 ---

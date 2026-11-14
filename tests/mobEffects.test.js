@@ -195,7 +195,8 @@ test('Wind Charged: a wind burst on death that throws what is near', () => {
   pig.velocity.set(0, 0, 0);
   cow.applyStatusEffect('wind_charged', 180, 1);
   assert.equal(onMobDeath(manager, cow).burst, true);
-  assert.ok(pig.velocity.y > 0 && pig.velocity.x > 0, 'pushed up and away');
+  // Pushed up, and away (+x): a mob's sideways push is its knockback, as a hit's is.
+  assert.ok(pig.velocity.y > 0 && (pig.knockback?.x ?? 0) + pig.velocity.x > 0, 'pushed up and away');
 });
 
 test('a mob\'s effects are saved and come back', () => {

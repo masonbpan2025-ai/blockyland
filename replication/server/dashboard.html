@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Replication run</title>
+<style>
+:root{--bg:#101418;--fg:#e8eaed;--mut:#9aa3ab;--card:#1a2027;--acc:#7fd3ff}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;padding:16px}
+h1{font-size:18px;margin:0 0 12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.card{background:var(--card);border-radius:8px;padding:12px}.mut{color:var(--mut)}pre{white-space:pre-wrap;margin:0;font-size:12px;max-height:340px;overflow:auto}
+.bar{height:8px;background:#333;border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:#52d273}
+button{background:var(--acc);border:0;border-radius:6px;padding:6px 12px;cursor:pointer;margin-right:6px}
+</style></head><body>
+<h1>Blockyland replication run <span id="tick" class="mut"></span></h1>
+<p><button onclick="ctl('pause')">Pause world</button><button onclick="ctl('resume')">Resume</button><span id="ctl" class="mut"></span></p>
+<div class="grid" id="players"></div>
+<div class="grid" style="margin-top:12px"><div class="card"><b>Chat</b><pre id="chat"></pre></div><div class="card"><b>Deaths, advancements, dimensions</b><pre id="ev"></pre></div><div class="card"><b>Programs</b><pre id="prog"></pre></div></div>
+<script>
+let since = 0; const chat = [], ev = [], prog = [];
+async function ctl(what){ const token = prompt('Admin token (runs/<run>/admin.json)'); const r = await fetch('/'+what,{method:'POST',headers:{'x-admin-token':token||''}}); document.getElementById('ctl').textContent = ' '+(await r.text()); }
+async function tick(){
+  try {
+    const s = await (await fetch('/status')).json();
+    document.getElementById('tick').textContent = `tick ${s.tick} · ${(s.tick/72000).toFixed(2)} h of game time`;
+    document.getElementById('players').innerHTML = s.players.map(p => `<div class="card"><b>${p.name}</b> <span class="mut">${p.dim}</span><div class="mut">${p.pos.join(', ')}</div><div class="bar"><i style="width:${p.health*5}%"></i></div><div class="mut">health ${(+p.health).toFixed(1)} · food ${p.food} · deaths ${p.deaths} · ${p.items} stacks</div></div>`).join('');
+    const e = await (await fetch('/events?since='+since)).json(); since = e.next;
+    for (const x of e.events) {
+      const t = x.wall?.slice(11,19);
+      if (x.kind==='chat') chat.push(`${t} <${x.from}> ${x.text}`);
+      else if (['death','advancement','dimension','respawn','night_skipped','restored','saved','ender_eye'].includes(x.kind)) ev.push(`${t} ${x.kind} ${x.player??''} ${x.message??x.title??x.to??x.file??''}`);
+      else if (x.kind==='program') prog.push(`${t} ${x.player} #${x.n} ${x.status} ${x.seconds}s`);
+    }
+    for (const [id, list] of [['chat',chat],['ev',ev],['prog',prog]]) document.getElementById(id).textContent = list.slice(-80).reverse().join('\n');
+  } catch {}
+  setTimeout(tick, 2000);
+}
+tick();
+</script></body></html>

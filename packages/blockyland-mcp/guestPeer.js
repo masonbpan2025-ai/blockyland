@@ -9,13 +9,24 @@ import zlib from 'node:zlib';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { WebSocket } from 'ws';
-import { hitKnockback, hurtWindow, stepKnockback, knockbackDirection, KNOCKBACK_TICK } from './knockback.js';
+import { hitKnockback, hurtWindow, stepKnockback, knockbackDirection, KNOCKBACK_TICK, nearestFreeSpot } from './knockback.js';
+import { pushImpulse, stepPushVelocity, movePushed, PUSH_TICK } from './playerPush.js';
+import { THROWABLES, PEARL_DAMAGE, bowPower, arrowDamage, launch, flyShot } from './projectiles.js';
+import { sanitizeGeneralState } from './generalState.js';
+
+/** How long a guest waits for the world it asked for before taking the host to be one that cannot send it again. */
+const WORLD_ANSWER_MS = 4000;
 
 export const PROTOCOL_VERSION = 5;
 const MAX_MESSAGE_BYTES = 16_000;
 const CHUNK_SIZE_X = 16;
 const CHUNK_SIZE_Z = 16;
 const CHUNK_HEIGHT = 64;
+/** Wait, for movement that pauses while knockback plays out (moveStepToward). */
+/** How long without headway toward a place before a bot that escapes (escapeWhenStuck) breaks out, and between tries. */
+const STUCK_MS = 8000;
+const STUCK_RETRY_MS = 1500;
+const sleep = (ms) => new Promise((resolve) => { const t = setTimeout(resolve, ms); t.unref?.(); });
 
 export const BLOCKS = Object.freeze({
   AIR: 0,
@@ -124,13 +135,27 @@ function baseGameDrop(blockId) {
 
 const NAME_BY_BLOCK = new Map(Object.entries(BLOCKS).map(([k, v]) => [v, k.toLowerCase()]));
 
+/**
+ * How near a Bed Wars shopkeeper a player must stand to buy from it, in blocks across: a little beyond Java's entity
+ * reach, so a player at the forge (about 5.4 from either keeper) can buy without a step.
+ */
+export const SHOP_REACH = 6;
+
+/** Java's reach for using a block (block_interaction_range), from the eyes (1.62 above the feet). */
+export const CHEST_REACH = 4.5;
+/** From a player's eyes (feet at `pos`) to the nearest point of the block at x, y, z. */
+export function chestReach(pos, { x, y, z }) {
+  const ey = pos.y + 1.62;
+  return Math.hypot(Math.max(x - pos.x, 0, pos.x - (x + 1)), Math.max(y - ey, 0, ey - (y + 1)), Math.max(z - pos.z, 0, pos.z - (z + 1)));
+}
+
 const NON_SOLID_BLOCKS = new Set([
   BLOCKS.AIR, BLOCKS.WATER, BLOCKS.LAVA, BLOCKS.TORCH, 30, 31, 50, 51, 56, 57, 58, 68, 69,
   135, 146, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179,
   180, 184, 186, 187, 1219, 1220,
 ]);
 
-const BED_BLOCK_IDS = new Set([
+export const BED_BLOCK_IDS = new Set([
   BLOCKS.RED_BED_FOOT, BLOCKS.RED_BED_HEAD,
   BLOCKS.BLUE_BED, BLOCKS.BLUE_BED_HEAD,
   BLOCKS.CYAN_BED, BLOCKS.CYAN_BED_HEAD,
@@ -143,7 +168,7 @@ const BED_BLOCK_IDS = new Set([
   254, 772, 256, 774, 260, 778, 261, 779, 263, 781, 264, 782, 266, 784,
 ]);
 
-const WEAPON_DAMAGE = Object.freeze({
+export const WEAPON_DAMAGE = Object.freeze({
   netherite_sword: 8,
   diamond_sword: 7,
   iron_sword: 6,
@@ -260,20 +285,68 @@ const BEDWARS_TRAPS = Object.freeze({
 
 export const DIFFICULTIES = Object.freeze(['easy', 'normal', 'hard']);
 
+/**
+ * The autopilot's melee reach, as a survival player's in Minecraft (Minecraft Wiki, Reach): 3 blocks, from the
+ * attacker's eyes (1.62 above the feet) to the nearest point of the target's hitbox (0.6 wide, 1.8 tall), at every
+ * difficulty. meleeReachDistance measures it.
+ */
+export const AUTOPILOT_MELEE_REACH = 3;
+
+/** From an attacker standing at `from` (feet) to a target standing at `to` (feet): eyes to the nearest point of its box. */
+export function meleeReachDistance(from, to) {
+  const ex = from.x ?? 0, ey = (from.y ?? 0) + 1.62, ez = from.z ?? 0;
+  const tx = to.x ?? 0, ty = to.y ?? 0, tz = to.z ?? 0;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  return Math.hypot(clamp(ex, tx - 0.3, tx + 0.3) - ex, clamp(ey, ty, ty + 1.8) - ey, clamp(ez, tz - 0.3, tz + 0.3) - ez);
+}
+
+/**
+ * Weapons hurt the same at every difficulty, as in Minecraft Java (a world's difficulty changes what mobs do to
+ * players, not what players do to each other). Kept for code that reads it: 1 everywhere.
+ */
+export const AUTOPILOT_DAMAGE_MULTIPLIER = Object.freeze({ easy: 1, normal: 1, hard: 1 });
+
+/**
+ * Java's attack recharge (Minecraft Wiki, Damage#Attack cooldown): the time from one swing to the next at full
+ * strength, from each weapon's attack speed (1 / speed seconds). Anything else, a fist included, recharges in 0.25 s.
+ */
+export const ATTACK_COOLDOWN_MS = Object.freeze({
+  wooden_sword: 625, stone_sword: 625, iron_sword: 625, golden_sword: 625, diamond_sword: 625, netherite_sword: 625,
+  wooden_axe: 1250, stone_axe: 1250, iron_axe: 1111, golden_axe: 1000, diamond_axe: 1000, netherite_axe: 1000,
+  trident: 909, mace: 1667,
+});
+export function attackCooldownMs(itemId) { return ATTACK_COOLDOWN_MS[itemId] ?? 250; }
+/** A swing's strength after `sinceMs` of recharge (Java: 0.2 + 0.8 x charge^2, charge capped at 1). */
+export function attackStrength(sinceMs, cooldownMs) {
+  const charge = Math.max(0, Math.min(1, sinceMs / cooldownMs));
+  return 0.2 + 0.8 * charge * charge;
+}
+
+/** Java's foods (Minecraft Wiki, Food): [hunger, saturation] restored. */
+export const JAVA_FOODS = Object.freeze({
+  apple: [4, 2.4], bread: [5, 6], cooked_beef: [8, 12.8], beef: [3, 1.8], cooked_porkchop: [8, 12.8], porkchop: [3, 1.8],
+  cooked_chicken: [6, 7.2], chicken: [2, 1.2], cooked_mutton: [6, 9.6], mutton: [2, 1.2], carrot: [3, 3.6], potato: [1, 0.6],
+  baked_potato: [5, 6], golden_carrot: [6, 14.4], golden_apple: [4, 9.6], enchanted_golden_apple: [4, 9.6],
+  cooked_cod: [5, 6], cooked_salmon: [6, 9.6], melon_slice: [2, 1.2], cookie: [2, 0.4], pumpkin_pie: [8, 4.8],
+});
+/** Eating or drinking takes 1.6 s (32 ticks); a splash potion acts when thrown. */
+export const EAT_MS = 1600;
+
 export const DIFFICULTY_PROFILES = Object.freeze({
   easy: Object.freeze({
     id: 'easy',
     label: 'Easy (Beginner Human)',
-    walkSpeed: 2.4,
-    sprintSpeed: 2.8,
+    // Java's speeds at every difficulty (walking 4.317 blocks/s, sprinting 5.612); sprinting itself is a skill.
+    walkSpeed: 4.317,
+    sprintSpeed: 5.612,
     sprintAllowed: false,
-    stepDelayMs: 55,
+    stepDelayMs: 50,
     bridgePlaceDelayMs: 450,
     chestLootDelayMs: 1400,
+    // How often it decides (about 1 a second), and how long one move lasts.
     brainIntervalMs: 1000,
-    brainMoveDurationMs: 350,
-    meleeCooldownMs: 1300,
-    critChance: 0.0,
+    brainMoveDurationMs: 950,
+    // Hits recharge as in Java, by weapon (ATTACK_COOLDOWN_MS), at every difficulty.
     strafe: false,
     projectileCooldownMs: 8000,
     useProjectiles: false,
@@ -283,16 +356,17 @@ export const DIFFICULTY_PROFILES = Object.freeze({
   normal: Object.freeze({
     id: 'normal',
     label: 'Normal (Casual Human)',
-    walkSpeed: 3.1,
-    sprintSpeed: 3.7,
-    sprintAllowed: false,
+    // Java's speeds at every difficulty (walking 4.317 blocks/s, sprinting 5.612); sprinting itself is a skill.
+    walkSpeed: 4.317,
+    sprintSpeed: 5.612,
+    sprintAllowed: true,
     stepDelayMs: 50,
     bridgePlaceDelayMs: 260,
     chestLootDelayMs: 800,
-    brainIntervalMs: 600,
+    // How often it decides (about 2 a second), and how long one move lasts.
+    brainIntervalMs: 500,
     brainMoveDurationMs: 450,
-    meleeCooldownMs: 800,
-    critChance: 0.0,
+    // Hits recharge as in Java, by weapon (ATTACK_COOLDOWN_MS), at every difficulty.
     strafe: false,
     projectileCooldownMs: 6000,
     useProjectiles: false,
@@ -302,16 +376,17 @@ export const DIFFICULTY_PROFILES = Object.freeze({
   hard: Object.freeze({
     id: 'hard',
     label: 'Hard (Competitive Human)',
-    walkSpeed: 3.6,
-    sprintSpeed: 4.32,
-    sprintAllowed: false,
+    // Java's speeds at every difficulty (walking 4.317 blocks/s, sprinting 5.612); sprinting itself is a skill.
+    walkSpeed: 4.317,
+    sprintSpeed: 5.612,
+    sprintAllowed: true,
     stepDelayMs: 50,
     bridgePlaceDelayMs: 220,
     chestLootDelayMs: 600,
-    brainIntervalMs: 550,
-    brainMoveDurationMs: 450,
-    meleeCooldownMs: 650,
-    critChance: 0.0,
+    // How often it decides (about 3 a second), and how long one move lasts.
+    brainIntervalMs: 333,
+    brainMoveDurationMs: 300,
+    // Hits recharge as in Java, by weapon (ATTACK_COOLDOWN_MS), at every difficulty.
     strafe: false,
     projectileCooldownMs: 4500,
     useProjectiles: false,
@@ -355,12 +430,20 @@ export function normalizeShareUrl(rawUrl = 'ws://localhost:3000/ws/share') {
   }
 }
 
-function buildBedWarsArenaLayout(map = {}) {
-  const teams = [2, 4, 8].includes(map.teams) ? map.teams : 4;
+// The Bed Wars layout: the bases, the generators, the middle and the other islands. A host publishes the map's plan
+// in its state (src/mods/bedwars/arena.js publishedPlan: every layout is laid out afresh from its seed, so a guest
+// cannot work it out alone), and the bases are built from it as the game builds them. Without a plan (an older host)
+// the fixed layouts this package knew are used: the cross of 2, 4 or 8 teams, and the three-island practice map.
+function buildBedWarsArenaLayout(map = {}, plan = null) {
+  const teams = [2, 4, 5, 8].includes(map.teams) ? map.teams : 4;
+  const practice = map.layout === 'practice' && teams === 2;
   const sides = [[0, -1], [1, 0], [0, 1], [-1, 0]];
   const rawBases = [];
-  if (teams === 2) {
-    for (const [sx, sz] of [sides[0], sides[2]]) rawBases.push({ x: sx * 44, z: sz * 44, fx: -sx, fz: -sz });
+  if (plan?.bases?.length) {
+    for (const b of plan.bases) rawBases.push({ x: b.x, z: b.z, fx: b.fx, fz: b.fz });
+  } else if (teams === 2) {
+    const d = practice ? 30 : 44;
+    for (const [sx, sz] of [sides[0], sides[2]]) rawBases.push({ x: sx * d, z: sz * d, fx: -sx, fz: -sz });
   } else if (teams === 4) {
     for (const [sx, sz] of sides) rawBases.push({ x: sx * 44, z: sz * 44, fx: -sx, fz: -sz });
   } else {
@@ -400,16 +483,21 @@ function buildBedWarsArenaLayout(map = {}) {
       cells,
     };
   });
-  const diamondCoords = teams === 2
+  const diamondCoords = plan?.diamonds ? plan.diamonds : practice ? [{ x: -3, z: 0 }] : teams === 2
     ? [{ x: 26, z: 0 }, { x: -26, z: 0 }]
     : (() => { const d = teams === 8 ? 38 : 30; return [{ x: d, z: -d }, { x: d, z: d }, { x: -d, z: d }, { x: -d, z: -d }]; })();
-  const diamonds = diamondCoords.map((at, i) => ({ id: `d${i}`, kind: 'diamond', x: at.x + 0.5, y: y + 1, z: at.z + 0.5, center: at }));
-  const emeraldCoords = teams === 8
+  const diamonds = diamondCoords.map((at, i) => ({ id: `d${i}`, kind: 'diamond', x: at.x + 0.5, y: at.y ?? y + 1, z: at.z + 0.5, center: at }));
+  const emeraldCoords = plan?.emeralds ? plan.emeralds : practice ? [{ x: 3, z: 0 }] : teams === 8
     ? [{ x: 4, z: 4 }, { x: -4, z: -4 }, { x: 4, z: -4 }, { x: -4, z: 4 }]
     : [{ x: 4, z: 0 }, { x: -4, z: 0 }];
-  const emeralds = emeraldCoords.map((at, i) => ({ id: `e${i}`, kind: 'emerald', x: at.x + 0.5, y: y + 1, z: at.z + 0.5, center: at }));
+  const emeralds = emeraldCoords.map((at, i) => ({ id: `e${i}`, kind: 'emerald', x: at.x + 0.5, y: at.y ?? y + 1, z: at.z + 0.5, center: at }));
   return {
     teams,
+    layout: plan?.template ?? (practice ? 'practice' : 'standard'),
+    key: plan?.key ?? `${teams}/${practice ? 'practice' : 'standard'}`,
+    // The generator and other islands, and the middle's height (from the plan; the fixed layouts' are at the surface).
+    islands: plan?.islands ?? (practice ? [] : diamondCoords.map((at) => ({ x: at.x, y, z: at.z, r: 4, role: 'diamond' }))),
+    midY: plan?.middle?.y ?? y,
     surfaceY: y,
     voidY: -4,
     lobby: { x: 0.5, y: 53, z: 0.5 },
@@ -417,7 +505,7 @@ function buildBedWarsArenaLayout(map = {}) {
     bases,
     diamonds,
     emeralds,
-    midRadius: teams === 8 ? 12 : 10,
+    midRadius: plan?.middle?.r ?? (practice ? 7 : teams === 8 ? 12 : 10),
   };
 }
 
@@ -645,6 +733,9 @@ class GuestInventory {
 }
 
 export class GuestPeerSession {
+  /** Bed Wars: the block being dug ({ key, id, progress, at }); a block breaks once progress reaches 1 (breakMs). */
+  #dig = null;
+
   constructor({
     code,
     name = 'AgentBot',
@@ -657,7 +748,22 @@ export class GuestPeerSession {
     chatReplyDelayMs = 260,
     buildBlockDelayMs = 180,
     brain = null,
+    buildWorld = null,
+    escapeWhenStuck = false,
   } = {}) {
+    /**
+     * A bot that has made no headway toward where it is going for a while builds or digs its way there (#breakOut): a
+     * house bot knocked into a notch walled on three sides, its foe on a bridge across the void, used to stand there for
+     * the rest of the game. Off by default: an MCP agent or an arena match keeps its bots' own judgement.
+     */
+    this.escapeWhenStuck = Boolean(escapeWhenStuck);
+    this.stuckWatch = null;
+    /**
+     * A mini-game's world built here instead of sent by the host: (game, map) => the arena's blocks ("x,y,z" -> id). A
+     * guest that has the game's own arena code (a house bot in this repository) tells the host it needs no world, so the
+     * host does not stop to serialise one (seconds, in a browser), and the guest builds each round's arena from its map.
+     */
+    this.buildWorld = typeof buildWorld === 'function' ? buildWorld : null;
     this.roomId = String(code ?? '').trim();
     this.name = String(name || 'AgentBot').slice(0, 24);
     this.signalingUrl = normalizeShareUrl(url);
@@ -693,12 +799,16 @@ export class GuestPeerSession {
     this.velocity = { x: 0, y: 0, z: 0 };
     this.knockbackActive = false;
     this.knockbackAccumulator = 0;
+    // Other players' push (playerPush.js), blocks/second, integrated at 20 Hz apart from walking.
+    this.pushVelocity = { x: 0, z: 0 };
+    this.pushAccumulator = 0;
     this.onGround = true;
     this.spawnPoint = { x: 0.5, y: 31, z: 0.5 };
     this.yaw = 0;
     this.pitch = 0;
     this.health = 20;
     this.maxHealth = 20;
+    this.resetVitals();
     this.gamemode = 'survival';
     this.isDead = false;
     this.isSneaking = false;
@@ -719,6 +829,7 @@ export class GuestPeerSession {
     // Bed Wars state
     this.bedwarsState = null;
     this.bedwarsArena = null;
+    this.generalState = null;
     this.bedwarsKit = { armor: 0, pickaxe: 0, axe: 0, shears: false };
     this.bedwarsRound = 0;
     this.bedwarsPlacedRound = 0;
@@ -921,7 +1032,7 @@ export class GuestPeerSession {
           return;
         }
         if (msg.type === 'signal' && msg.data?.kind === 'relay_ok') {
-          this.sendPacket({ t: 'hello', protocol: PROTOCOL_VERSION, name: this.name });
+          this.sendPacket({ t: 'hello', protocol: PROTOCOL_VERSION, name: this.name, ...(this.buildWorld ? { world: false } : {}) });
           return;
         }
         if (msg.type === 'host_left') {
@@ -959,7 +1070,7 @@ export class GuestPeerSession {
       }
     });
 
-    if (waitForSnapshot && !this.snapshotReceived) {
+    if (waitForSnapshot && !this.snapshotReceived && !this.buildWorld) {
       await new Promise((resolve) => {
         const t = setTimeout(resolve, 2500);
         t.unref?.();
@@ -1095,6 +1206,8 @@ export class GuestPeerSession {
         if (peerId === this.clientId) break;
         const existing = this.peers.get(peerId) || { id: peerId, name: peerId === 'host' ? this.hostName : peerId, isHost: peerId === 'host' };
         Object.assign(existing, msg.state);
+        // Where the player really is, and when that was heard (players push each other only from a heard position).
+        existing.stateAt = Date.now();
         this.peers.set(peerId, existing);
         break;
       }
@@ -1197,9 +1310,10 @@ export class GuestPeerSession {
       this.worldTime = typeof data.worldTime === 'number' ? data.worldTime : (mapData.worldTime ?? 6000);
 
       this.chunks.clear();
-      if (this.gameMode === 'base') {
-        this.voxels.clear();
-      }
+      // The snapshot is the whole world, in a mini-game too: drop every edit kept over the old one -- the islands stamped
+      // as a guess before the real world came (#stampSkyWarsIslands), which were taken for ground that was not there:
+      // bots bridged around them, leaving gaps, and walked on air.
+      this.voxels.clear();
       for (const ch of mapData.chunks ?? []) {
         const cx = ch.cx ?? ch.x ?? 0;
         const cz = ch.cz ?? ch.z ?? 0;
@@ -1244,16 +1358,10 @@ export class GuestPeerSession {
         this.spawnPoint = { ...this.position };
       }
 
-      if (this.gameMode === 'skywars') {
-        this.#stampSkyWarsIslands();
-        if (this.skywarsState?.phase === 'playing') {
-          this.#openSkyWarsCages();
-        }
-      } else if (this.gameMode === 'bedwars') {
-        this.#stampBedWarsArena();
-      }
+      if (this.gameMode === 'skywars' && this.skywarsState?.phase === 'playing') this.#openSkyWarsCages();
 
       this.snapshotReceived = true;
+      this.awaitingWorld = false;
       for (const resolve of this.snapshotWaiters.splice(0)) resolve();
     } catch {
       // Malformed snapshot ignored.
@@ -1263,6 +1371,9 @@ export class GuestPeerSession {
   #onGameMessage(data) {
     if (!data || typeof data !== 'object') return;
     if (data.type === 'state') {
+      // The round in the general state's words, when the mod reports it (generalState.js): what a bot that knows no
+      // particular game plays from. Null from a host whose mod does not report it.
+      this.generalState = sanitizeGeneralState(data.general);
       if (Array.isArray(data.teams) || Array.isArray(data.gens)) {
         this.gameMode = 'bedwars';
         this.#applyBedWarsState(data);
@@ -1366,10 +1477,15 @@ export class GuestPeerSession {
       }
       this.peers.set(p.id, peer);
     }
-    this.#stampSkyWarsIslands();
+    this.#followHostWorld(state);
+    if (this.#mustGuessArena()) this.#stampSkyWarsIslands();
     const me = this.me();
     const phase = state.phase;
-    if ((phase === 'lobby' || phase === 'countdown') && me?.slot !== null && me?.slot !== undefined && this.skywarsCagedRound !== state.round) {
+    // Into my cage once for each round, map and slot: the map can change in the lobby with the round the same, and I
+    // stayed where the last map's cage was -- in the void of the new one, falling as the cages opened (a round won at
+    // once, with nobody killed).
+    const cageKey = `${this.hostWorldKey}|${me?.slot}`;
+    if ((phase === 'lobby' || phase === 'countdown') && me?.slot !== null && me?.slot !== undefined && this.skywarsCagedRound !== cageKey) {
       const spot = this.skywarsSpawns[me.slot] ?? this.skywarsSpawns[0];
       if (spot) {
         this.position = { x: spot.x, y: spot.y, z: spot.z };
@@ -1377,11 +1493,12 @@ export class GuestPeerSession {
         this.yaw = spot.yaw ?? 0;
       }
       this.health = 20;
+      this.resetVitals?.();
       this.isDead = false;
       this.gamemode = 'adventure';
       this.inventory.clearCarried();
       this.lootedChestKeys.clear();
-      this.skywarsCagedRound = state.round;
+      this.skywarsCagedRound = cageKey;
       this.broadcastState();
     }
     if (phase === 'playing' && prevPhase !== 'playing') {
@@ -1390,6 +1507,7 @@ export class GuestPeerSession {
         this.gamemode = 'survival';
         this.isDead = false;
         this.health = 20;
+        this.resetVitals?.();
         const groundY = this.#findGroundY(this.position.x, this.position.y, this.position.z);
         this.position.y = groundY ?? 31;
       } else {
@@ -1404,6 +1522,58 @@ export class GuestPeerSession {
       this.gamemode = 'spectator';
       this.isDead = true;
     }
+  }
+
+  /**
+   * A mini-game builds each round's arena anew from its map, in every browser; a headless guest cannot, so when the
+   * round or the map changes it asks the host for the world as it now is (`request_snapshot`). The first state after
+   * joining needs nothing: the world came with the welcome.
+   *
+   * A host from before that message does not answer it (and counts it against the guest: twenty such and the guest is
+   * dropped). Unanswered for WORLD_ANSWER_MS, the host is taken to be such a one: the guest stops asking, and guesses
+   * the islands as it used to (#stampSkyWarsIslands, #stampBedWarsArena) -- better than an old map's world.
+   */
+  #followHostWorld(state) {
+    if (this.buildWorld) { this.#buildOwnWorld(state); return; }
+    const key = `${state.round ?? 0}|${JSON.stringify(state.map ?? null)}`;
+    const changed = this.hostWorldKey !== undefined && key !== this.hostWorldKey;
+    this.hostWorldKey = key;
+    if (!changed) return;
+    if (this.hostCannotResend) { this.#guessArena(); return; }
+    this.sendPacket({ t: 'request_snapshot' });
+    this.awaitingWorld = true;
+    const timer = setTimeout(() => {
+      if (!this.awaitingWorld) return;
+      this.awaitingWorld = false;
+      this.hostCannotResend = true;
+      this.#guessArena();
+    }, WORLD_ANSWER_MS);
+    timer.unref?.();
+  }
+
+  /**
+   * The world built here (`buildWorld`): each round, or when the map changes, the arena's blocks replace the world, as a
+   * host's snapshot would. Blocks the host changes come as block updates, as they do for every guest.
+   */
+  #buildOwnWorld(state) {
+    if (!state?.map) return;
+    const key = `${state.round ?? 0}|${JSON.stringify(state.map)}`;
+    if (key === this.hostWorldKey && this.snapshotReceived) return;
+    this.hostWorldKey = key;
+    const blocks = this.buildWorld(this.gameMode, state.map);
+    if (!blocks) return;
+    this.chunks.clear();
+    this.voxels.clear();
+    for (const [k, id] of blocks) if (id) this.voxels.set(k, id);
+    this.snapshotReceived = true;
+  }
+
+  /** Whether the islands must be guessed: no world from the host at all, or a host that cannot send it again. */
+  #mustGuessArena() { return !this.snapshotReceived || this.hostCannotResend; }
+
+  #guessArena() {
+    if (this.gameMode === 'skywars') this.#stampSkyWarsIslands();
+    else if (this.gameMode === 'bedwars' && this.bedwarsArena) this.#stampBedWarsArena();
   }
 
   #findGroundY(x, startY, z) {
@@ -1461,16 +1631,19 @@ export class GuestPeerSession {
       this.setDifficulty(state.difficulty);
     }
     const teamsCount = state.map?.teams ?? 4;
-    if (!this.bedwarsArena || this.bedwarsArena.teams !== teamsCount) {
-      this.bedwarsArena = buildBedWarsArenaLayout(state.map);
-      this.#stampBedWarsArena();
+    const layout = state.map?.layout === 'practice' && teamsCount === 2 ? 'practice' : 'standard';
+    const key = state.plan?.key ?? `${teamsCount}/${layout}`;
+    this.#followHostWorld(state);
+    if (!this.bedwarsArena || this.bedwarsArena.key !== key) {
+      this.bedwarsArena = buildBedWarsArenaLayout(state.map, state.plan ?? null);
+      if (this.#mustGuessArena()) this.#stampBedWarsArena();
     }
     if (state.round !== this.bedwarsRound) {
       this.bedwarsRound = state.round;
       this.bedwarsPlacedRound = 0;
       this.bedwarsKit = { armor: 0, pickaxe: 0, axe: 0, shears: false };
       this.bedDefenseCount = 0;
-      this.#stampBedWarsArena();
+      if (this.#mustGuessArena()) this.#stampBedWarsArena();
     }
     for (const p of state.players ?? []) {
       if (p.id === this.clientId) continue;
@@ -1498,20 +1671,22 @@ export class GuestPeerSession {
     }
     const me = this.me();
     const phase = state.phase;
-    if ((phase === 'lobby' || phase === 'countdown') && this.bedwarsPlacedRound !== state.round) {
+    // Once for each round and map (the map can change in the lobby with the round the same).
+    if ((phase === 'lobby' || phase === 'countdown') && this.bedwarsPlacedRound !== this.hostWorldKey) {
       this.position = { ...this.bedwarsArena.lobby };
       this.spawnPoint = { ...this.position };
       this.health = 20;
+      this.resetVitals?.();
       this.isDead = false;
       this.waitingRespawn = false;
       this.bedDefenseCount = 0;
       this.gamemode = 'adventure';
       this.inventory.clearCarried();
-      this.bedwarsPlacedRound = state.round;
+      this.bedwarsPlacedRound = this.hostWorldKey;
       this.broadcastState();
     }
     if (phase === 'playing' && prevPhase !== 'playing') {
-      this.#stampBedWarsArena();
+      if (this.#mustGuessArena()) this.#stampBedWarsArena();
       this.bedDefenseCount = 0;
       if (me?.alive) {
         this.#spawnAtBedWarsBase({ fresh: true });
@@ -1549,17 +1724,20 @@ export class GuestPeerSession {
       this.setVoxel(base.bed.head[0], base.bed.head[1], base.bed.head[2], teamDef.bedHead);
       this.setVoxel(base.chest.x, base.chest.y, base.chest.z, BLOCKS.CHEST);
     }
-    for (const d of this.bedwarsArena.diamonds) {
-      for (let dx = -4; dx <= 4; dx++) {
-        for (let dz = -4; dz <= 4; dz++) {
-          if (dx * dx + dz * dz <= 18) this.setVoxel(d.center.x + dx, y, d.center.z + dz, BLOCKS.GRASS);
+    // The generator and other islands, where and as high as the plan puts them (on some layouts the diamond generators
+    // are on the middle island, stamped below).
+    for (const island of this.bedwarsArena.islands ?? []) {
+      const r = Math.max(2, Math.round(island.r));
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dz = -r; dz <= r; dz++) {
+          if (dx * dx + dz * dz <= r * r + r * 0.6) this.setVoxel(island.x + dx, island.y, island.z + dz, BLOCKS.GRASS);
         }
       }
     }
     const r = this.bedwarsArena.midRadius;
     for (let dx = -r; dx <= r; dx++) {
       for (let dz = -r; dz <= r; dz++) {
-        if (dx * dx + dz * dz <= r * r + r * 0.6) this.setVoxel(dx, y, dz, BLOCKS.GRASS);
+        if (dx * dx + dz * dz <= r * r + r * 0.6) this.setVoxel(dx, this.bedwarsArena.midY ?? y, dz, BLOCKS.GRASS);
       }
     }
   }
@@ -1579,6 +1757,7 @@ export class GuestPeerSession {
     this.waitingRespawn = false;
     this.isDead = false;
     this.health = 20;
+    this.resetVitals?.();
     this.gamemode = 'survival';
     this.position = { x: base.spawn.x, y: base.spawn.y, z: base.spawn.z };
     this.spawnPoint = { ...this.position };
@@ -1679,14 +1858,15 @@ export class GuestPeerSession {
       this.knockbackAccumulator = 0;
     }
 
-    this.health = Math.max(0, Number((this.health - finalDamage).toFixed(2)));
+    // Absorption hearts take damage first (a golden apple's).
+    let left = finalDamage;
+    if ((this.absorption ?? 0) > 0) { const took = Math.min(this.absorption, left); this.absorption -= took; left -= took; }
+    this.addExhaustion(0.1);
+    this.health = Math.max(0, Number((this.health - left).toFixed(2)));
     if (this.health <= 0) {
       const cause = hit.projectile === 'arrow' ? 'arrow' : 'player';
       this.#handleDeath(cause);
     } else {
-      if (this.health <= 12) {
-        this.#consumeHealingItem();
-      }
       this.broadcastState();
     }
   }
@@ -1751,6 +1931,7 @@ export class GuestPeerSession {
     }
     this.inventory.clearCarried();
     this.health = 20;
+    this.resetVitals?.();
     this.isDead = false;
     this.position = { ...this.spawnPoint };
     this.broadcastState();
@@ -1777,6 +1958,20 @@ export class GuestPeerSession {
   tick(dt = 0.05) {
     if (!this.connected) return;
 
+    // 0. Never inside blocks: a player whose feet or head are in a solid block is put in the nearest place it fits, as
+    // Java pushes a player out to the closest open space (movement treats blocks it is already in as open, so a player
+    // left inside would walk on through them). "In" is judged as the walk judges it, by the column at the player's
+    // centre: the walk lets a body's edge overlap the next column, and judging the whole body here fought every step
+    // along a wall or onto an island's rim.
+    if (!this.isDead && this.gamemode === 'survival') {
+      const solid = (x, y, z) => this.isSolid(x, y, z);
+      const cx = Math.floor(this.position.x), cz = Math.floor(this.position.z);
+      if (solid(cx, Math.floor(this.position.y + 0.01), cz) || solid(cx, Math.floor(this.position.y + 1.01), cz)) {
+        const spot = nearestFreeSpot(this.position, solid);
+        if (spot) { this.position = spot; this.velocity = { x: 0, y: Math.min(0, this.velocity.y), z: 0 }; }
+      }
+    }
+
     // 1. Gravity & ground snapping when in survival
     if (!this.isDead && this.gamemode === 'survival' &&
         (this.knockbackActive || !this.isFootSupported(this.position.x, this.position.y, this.position.z) || this.velocity.y !== 0)) {
@@ -1784,10 +1979,19 @@ export class GuestPeerSession {
       this.knockbackAccumulator += Math.max(0, Math.min(dt, 0.5));
       while (this.knockbackAccumulator + 1e-9 >= KNOCKBACK_TICK) {
         this.knockbackAccumulator -= KNOCKBACK_TICK;
+        if (this.fallPeakY == null) this.fallPeakY = this.position.y; // where this airborne stretch starts
         const motion = stepKnockback(this, (x, y, z) => this.isSolid(x, y, z));
         Object.assign(this.position, motion.position);
         this.velocity = motion.velocity;
         this.onGround = motion.onGround;
+        // Fall damage, as Java's: from the highest point of a fall to the landing, each block past 3 hurts 1 (rounded up).
+        if (!this.onGround) this.fallPeakY = Math.max(this.fallPeakY, this.position.y);
+        else if (this.fallPeakY != null) {
+          const fell = this.fallPeakY - this.position.y;
+          this.fallPeakY = null;
+          if (fell > 3) this.hurtSelf(Math.ceil(fell - 3), 'fall');
+          if (this.isDead) break;
+        }
         if (this.onGround && Math.hypot(this.velocity.x, this.velocity.z) < 0.05) {
           this.knockbackActive = false;
           this.velocity = { x: 0, y: 0, z: 0 };
@@ -1796,6 +2000,12 @@ export class GuestPeerSession {
         }
       }
     }
+
+    // 1b. Other players push this one, as Java's players push each other (playerPush.js).
+    this.#stepPlayerPush(dt);
+
+    // 1c. Hunger, saturation and regeneration, as Java's.
+    this.vitalsTick(dt);
 
     // 2. Auto-claim nearby shared drops (unless we just dropped a gift for the player)
     if (!this.isDead && this.gamemode !== 'spectator' && Date.now() - this.lastGiftDropAt >= 8000) {
@@ -1838,8 +2048,52 @@ export class GuestPeerSession {
       }
     }
 
-    this.broadcastState();
+    this.broadcastState({ force: false });
     if (this._bot) { this._bot.emit('physicsTick'); this._bot.emit('physicTick'); }
+  }
+
+  /** The players who can push this one: alive, heard from lately, and in a mini-game, among its living players. */
+  #pushingPlayers() {
+    const out = [];
+    const roster = this.gameMode === 'skywars' ? this.skywarsState?.players : this.gameMode === 'bedwars' ? this.bedwarsState?.players : null;
+    const now = Date.now();
+    for (const peer of this.peers.values()) {
+      if (peer.dead || !(now - (peer.stateAt ?? 0) <= 3000)) continue;
+      // A mini-game's referee host and its spectators are not in the arena.
+      if (roster && !roster.some((p) => p.id === peer.id && p.alive !== false && !p.dead)) continue;
+      out.push({ x: peer.x, y: peer.y, z: peer.z, sneaking: Boolean(peer.isSneaking) });
+    }
+    return out;
+  }
+
+  #stepPlayerPush(dt) {
+    if (this.isDead || this.waitingRespawn || this.gamemode !== 'survival') {
+      this.pushVelocity = { x: 0, z: 0 };
+      this.pushAccumulator = 0;
+      return;
+    }
+    const others = this.#pushingPlayers();
+    this.pushAccumulator += Math.max(0, Math.min(dt, 0.5));
+    const isSolid = (x, y, z) => this.isSolid(x, y, z);
+    while (this.pushAccumulator + 1e-9 >= PUSH_TICK) {
+      this.pushAccumulator -= PUSH_TICK;
+      const impulse = others.length ? pushImpulse({ ...this.position, sneaking: this.isSneaking }, others) : { x: 0, z: 0 };
+      if (this.knockbackActive) {
+        // Knockback's own ticks already move the player with Java's drag: the push joins that velocity.
+        this.velocity.x += this.pushVelocity.x + impulse.x / PUSH_TICK;
+        this.velocity.z += this.pushVelocity.z + impulse.z / PUSH_TICK;
+        this.pushVelocity = { x: 0, z: 0 };
+        continue;
+      }
+      if (!this.pushVelocity.x && !this.pushVelocity.z && !impulse.x && !impulse.z) continue;
+      const grounded = this.isFootSupported(this.position.x, this.position.y, this.position.z);
+      const step = stepPushVelocity(this.pushVelocity, impulse, grounded);
+      const moved = movePushed(this.position, step.velocity, step.move, isSolid, {
+        sneaking: this.isSneaking, grounded, hasGround: (p) => this.isFootSupported(p.x, p.y, p.z),
+      });
+      Object.assign(this.position, moved.position);
+      this.pushVelocity = moved.velocity;
+    }
   }
 
   #bedWarsGenPosition(genId) {
@@ -1851,9 +2105,11 @@ export class GuestPeerSession {
     return [...this.bedwarsArena.diamonds, ...this.bedwarsArena.emeralds].find((g) => g.id === genId) ?? null;
   }
 
-  broadcastState({ swinging = this.isSwinging } = {}) {
+  broadcastState({ swinging = this.isSwinging, force = true } = {}) {
     if (!this.connected) return false;
-    const held = this.inventory.getActiveItem();
+    // While eating, the food is what is in my hand (as a player's is), at my mouth; while drawing, the bow, held out.
+    const eating = this.isEating?.() && this.eatingId;
+    const held = eating ? { id: this.eatingId } : this.inventory.getActiveItem();
     const state = {
       x: Number(this.position.x.toFixed(3)),
       y: Number(this.position.y.toFixed(3)),
@@ -1864,11 +2120,29 @@ export class GuestPeerSession {
       isSprinting: Boolean(this.isSprinting),
       isSwinging: Boolean(swinging),
       activeItem: held ? held.id : null,
-      armor: this.inventory.armor,
-      offhand: this.inventory.offhand,
+      // What the others see me wear and hold in the off hand, as a browser player sends it (src/multiplayer/playerLook.js):
+      // the four armour pieces in head, chest, legs, feet order, each its item and trim, and the off hand's item. Sent as
+      // the inventory's own objects, the host's check (shareProtocol.js sanitizePlayerState) dropped them, and nobody saw
+      // a bot's armour or shield.
+      armor: ['head', 'chest', 'legs', 'feet'].map((slot) => {
+        const item = this.inventory.armor?.[slot];
+        if (!item?.id) return null;
+        const t = item.trim;
+        return t?.pattern && t?.material ? { id: item.id, trim: { pattern: t.pattern, material: t.material } } : { id: item.id };
+      }),
+      offhand: this.inventory.offhand?.id ?? null,
+      // How the others draw my arms (playerLook.js `using`): a bow being drawn, or food being eaten.
+      using: this._bot?._drawStart ? 'bow' : eating ? 'eat' : null,
       ...(this.isDead || this.waitingRespawn ? { dead: true } : {}),
       ...(this.blocking ? { blocking: true } : {}),
     };
+    // From the tick (force: false), the same state again within a second is not sent: a bot standing at its forge would otherwise send 20 a second,
+    // and the host passes each on to every other player (twenty bots: thousands a second). One a second still goes, so
+    // the others know it is there (they judge a player fresh for 3 s).
+    const key = JSON.stringify(state), now = Date.now();
+    if (!force && key === this.lastStateKey && now - (this.lastStateAt ?? 0) < 1000) return true;
+    this.lastStateKey = key;
+    this.lastStateAt = now;
     return this.sendPacket({ t: 'player_state', state });
   }
 
@@ -1889,6 +2163,126 @@ export class GuestPeerSession {
   }
 
   // --- direct actions & high-level goals -------------------------------------------------------------------
+
+  // --- hunger, saturation, regeneration and eating, as Minecraft Java's (Minecraft Wiki: Hunger, Food) --------------
+
+  /** Full hunger and some saturation, no effects: a new round, a respawn. */
+  resetVitals() {
+    this.food = 20;
+    this.saturation = 5;
+    this.exhaustion = 0;
+    this.absorption = 0;
+    this.regenEffect = null;
+    this.regenTicks = 0;
+    this.eatingUntil = 0;
+    this.lastVitalsPos = null;
+    this.fallPeakY = null; // a respawn or a new round: no fall carried over
+  }
+
+  /** Exhaustion (attacking 0.1, being hurt 0.1, sprinting 0.1 a block, healing 6 an HP): each 4 take 1 saturation, then 1 hunger. */
+  addExhaustion(amount) {
+    this.exhaustion = (this.exhaustion ?? 0) + amount;
+    while (this.exhaustion >= 4) {
+      this.exhaustion -= 4;
+      if (this.saturation > 0) this.saturation = Math.max(0, this.saturation - 1);
+      else this.food = Math.max(0, this.food - 1);
+    }
+  }
+
+  /** Heal, up to the maximum. */
+  healBy(amount) {
+    if (this.isDead) return;
+    this.health = Math.min(this.maxHealth, Number((this.health + amount).toFixed(2)));
+  }
+
+  /**
+   * One tick of regeneration (dt seconds): an effect (Regeneration I heals 1 HP every 50 ticks, II every 25); and
+   * natural regeneration -- hunger full with saturation left, 1 HP every 10 ticks; hunger 18 or more, 1 HP every 80;
+   * each costing 6 exhaustion. At hunger 0, starving: 1 HP lost every 80 ticks, down to 1 (Normal's rule).
+   */
+  vitalsTick(dt) {
+    if (this.isDead || this.gamemode !== 'survival') { this.lastVitalsPos = null; return; }
+    if (this.food === undefined) this.resetVitals();
+    const ticks = dt * 20;
+    if (this.isSprinting && this.lastVitalsPos) this.addExhaustion(0.1 * Math.hypot(this.position.x - this.lastVitalsPos.x, this.position.z - this.lastVitalsPos.z));
+    this.lastVitalsPos = { x: this.position.x, z: this.position.z };
+    const r = this.regenEffect;
+    if (r) {
+      if (Date.now() >= r.until) this.regenEffect = null;
+      else {
+        r.ticks += ticks;
+        while (r.ticks >= r.every) { r.ticks -= r.every; if (this.health < this.maxHealth) this.healBy(1); }
+      }
+    }
+    this.regenTicks = (this.regenTicks ?? 0) + ticks;
+    const every = this.food >= 20 && this.saturation > 0 ? 10 : this.food >= 18 ? 80 : this.food <= 0 ? 80 : null;
+    if (every === null) { this.regenTicks = 0; return; }
+    if (this.regenTicks < every) return;
+    this.regenTicks = 0;
+    if (this.food <= 0) { if (this.health > 1) this.health = Math.max(1, this.health - 1); return; }
+    if (this.health < this.maxHealth) { this.healBy(1); this.addExhaustion(6); }
+  }
+
+  /** Whether I am eating or drinking now (no attack meanwhile, as in Java). */
+  isEating() { return Date.now() < (this.eatingUntil ?? 0); }
+
+  /**
+   * Eat or drink an item I carry: 1.6 s, then its hunger and saturation (Java's foods), and for a golden apple
+   * Regeneration II 5 s and 4 absorption (enchanted: Regeneration II 20 s, 16 absorption); a healing potion 4 HP, a
+   * regeneration potion Regeneration I 45 s. A splash potion acts at once. Ordinary food only when not full.
+   * Returns false when it cannot start.
+   */
+  startEating(id) {
+    if (this.isDead || this.isEating() || this.inventory.countItem(id) < 1) return false;
+    const food = JAVA_FOODS[id];
+    if (food && !String(id).includes('golden_apple') && this.food >= 20) return false;
+    const apply = () => {
+      if (this.isDead) return;
+      if (food) { this.food = Math.min(20, this.food + food[0]); this.saturation = Math.min(this.food, this.saturation + food[1]); }
+      if (id === 'golden_apple') { this.regenEffect = { every: 25, ticks: 0, until: Date.now() + 5000 }; this.absorption = Math.max(this.absorption ?? 0, 4); }
+      if (id === 'enchanted_golden_apple') { this.regenEffect = { every: 25, ticks: 0, until: Date.now() + 20000 }; this.absorption = Math.max(this.absorption ?? 0, 16); }
+      if (id === 'potion_of_healing' || id === 'splash_potion_of_healing') this.healBy(4);
+      if (id === 'potion_of_regeneration') this.regenEffect = { every: 50, ticks: 0, until: Date.now() + 45000 };
+      if (id === 'splash_potion_of_regeneration') this.regenEffect = { every: 50, ticks: 0, until: Date.now() + 33000 };
+      this.broadcastState();
+    };
+    if (!this.inventory.takeItem(id, 1)) return false;
+    this.lastActionSummary = `eating ${id}`;
+    this.broadcastState({ swinging: true });
+    if (id.startsWith('splash_')) { apply(); return true; }
+    this.eatingUntil = Date.now() + EAT_MS;
+    this.eatingId = id;
+    const t = setTimeout(apply, EAT_MS);
+    t.unref?.();
+    return true;
+  }
+
+  /**
+   * The bots' eating rule, the same at every difficulty: at 8 health or less, a golden apple or a healing potion;
+   * otherwise, hungry (not full) with no foe within 6 blocks, the most filling ordinary food. True when it started.
+   */
+  healIfNeeded() {
+    if (this.isDead || this.isEating() || this.gamemode !== 'survival') return false;
+    if (this.health <= 8) {
+      for (const id of ['enchanted_golden_apple', 'golden_apple', 'splash_potion_of_healing', 'potion_of_healing', 'splash_potion_of_regeneration', 'potion_of_regeneration']) {
+        if (this.startEating(id)) { this.lastActionSummary = `healed with ${id}`; return true; }
+      }
+    }
+    if (this.food >= 20) return false;
+    const foe = [...this.peers.values()].some((p) => p.id !== this.clientId && !p.dead && Math.hypot((p.x ?? 0) - this.position.x, (p.z ?? 0) - this.position.z) < 6);
+    if (foe) return false;
+    const foods = Object.keys(JAVA_FOODS).filter((id) => !id.includes('golden_apple') && this.inventory.countItem(id) > 0)
+      .sort((a, b) => JAVA_FOODS[b][1] - JAVA_FOODS[a][1]);
+    return foods.length ? this.startEating(foods[0]) : false;
+  }
+
+  /** Damage I did to myself (an ender pearl's landing): no knock-back, and armour does not lessen it (as a fall). */
+  hurtSelf(amount, cause = 'other') {
+    if (this.isDead) return;
+    this.health = Math.max(0, Number((this.health - amount).toFixed(2)));
+    if (this.health <= 0) this.#handleDeath(cause);
+    else this.broadcastState();
+  }
 
   lookAt(x, y, z) {
     const dx = x - this.position.x;
@@ -1929,10 +2323,47 @@ export class GuestPeerSession {
     return { ok: true, position: [bx, by, bz], blockId, block: NAME_BY_BLOCK.get(blockId) ?? blockId };
   }
 
+  /** The block being dug in Bed Wars, [x, y, z], or null. */
+  get digTarget() { return this.#dig ? this.#dig.key.split(',').map(Number) : null; }
+
+  /**
+   * Bed Wars: a block breaks only after Java's time to break it (breakMs: the held tool, its Efficiency, the team's
+   * Haste, on the ground or not), dug without a pause longer than DIG_GAP_MS and one block at a time, as a player
+   * holds the button: each call digs on, and the one that completes the time breaks it. Null when it may break now;
+   * else the answer for the caller ({ ok: false, digging: true, ... }).
+   */
+  #digOn(bx, by, bz, id) {
+    const name = BED_BLOCK_IDS.has(id) ? 'bed' : NAME_BY_BLOCK.get(id) ?? '';
+    const haste = this.bedwarsState?.teams?.find((t) => t.id === this.me()?.team)?.upgrades?.haste ?? 0;
+    const ms = breakMs(name, this.inventory.getActiveItem(), { haste, onGround: this.onGround !== false });
+    if (ms <= 0) { this.#dig = null; return null; }
+    const key = `${bx},${by},${bz}`, now = Date.now();
+    const d = this.#dig;
+    if (!d || d.key !== key || d.id !== id || now - d.at > DIG_GAP_MS) this.#dig = { key, id, progress: 0, at: now };
+    else { d.progress += (now - d.at) / ms; d.at = now; }
+    if (this.#dig.progress >= 1 - 1e-9) { this.#dig = null; return null; }
+    this.broadcastState({ swinging: true });
+    const left = Math.max(0, (1 - this.#dig.progress) * ms);
+    return { ok: false, digging: true, progress: +this.#dig.progress.toFixed(3), ms, reason: `Digging ${name || id}: ${(left / 1000).toFixed(2)} s more`, position: [bx, by, bz] };
+  }
+
+  /** Dig a block until it breaks (or another answer comes): breakBlockAt again and again, as a held button. */
+  async digBlockAt(x, y, z, { timeoutMs = 60000 } = {}) {
+    const until = Date.now() + timeoutMs;
+    for (;;) {
+      const r = this.breakBlockAt(x, y, z);
+      if (!r?.digging || Date.now() > until) return r;
+      await sleep(Math.min(100, Math.max(10, r.ms * (1 - r.progress))));
+    }
+  }
+
   breakBlockAt(x, y, z, { harvest = true } = {}) {
     const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
     const oldId = this.getVoxel(bx, by, bz);
     if (oldId === BLOCKS.AIR) return { ok: false, reason: 'Block is already air', position: [bx, by, bz] };
+    if (this.gameMode === 'bedwars' && chestReach(this.position, { x: bx, y: by, z: bz }) > CHEST_REACH) {
+      return { ok: false, reason: `Out of reach (${CHEST_REACH} blocks from the eyes)`, position: [bx, by, bz] };
+    }
 
     this.lookAt(bx + 0.5, by + 0.5, bz + 0.5);
     if (this.gameMode === 'bedwars' && this.bedwarsArena) {
@@ -1944,6 +2375,16 @@ export class GuestPeerSession {
         if (bedBase.team === this.me()?.team) {
           return { ok: false, reason: 'Cannot break your own team bed' };
         }
+        // What the host checks (bedwars/client.js canBreakBed): a half of the bed in reach, open to the air.
+        const halves = [bedBase.bed.foot, bedBase.bed.head];
+        const isBed = (x, y, z) => halves.some((h) => h[0] === x && h[1] === y && h[2] === z);
+        const open = ([hx, hy, hz]) => [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]]
+          .some(([dx, dy, dz]) => !isBed(hx + dx, hy + dy, hz + dz) && this.getVoxel(hx + dx, hy + dy, hz + dz) === BLOCKS.AIR);
+        const inReach = halves.filter((h) => chestReach(this.position, { x: h[0], y: h[1], z: h[2] }) <= CHEST_REACH);
+        if (!inReach.length) return { ok: false, reason: `The ${bedBase.team} bed is out of reach (${CHEST_REACH} blocks from the eyes)`, position: [bx, by, bz] };
+        if (!inReach.some(open)) return { ok: false, reason: `The ${bedBase.team} bed is covered: break the blocks round it first`, position: [bx, by, bz] };
+        const digging = this.#digOn(bx, by, bz, oldId);
+        if (digging) return digging;
         this.#removeBedWarsBedBlocks(bedBase.team);
         this.sendPacket({ t: 'game', data: { type: 'bed', team: bedBase.team } });
         this.sendPacket({ t: 'block_update', x: bx, y: by, z: bz, blockId: BLOCKS.AIR });
@@ -1952,6 +2393,7 @@ export class GuestPeerSession {
       }
     }
 
+    if (this.gameMode === 'bedwars') { const digging = this.#digOn(bx, by, bz, oldId); if (digging) return digging; }
     this.setVoxel(bx, by, bz, BLOCKS.AIR);
     this.sendPacket({ t: 'block_update', x: bx, y: by, z: bz, blockId: BLOCKS.AIR });
     if (this.gameMode === 'base' && harvest && !BED_BLOCK_IDS.has(oldId)) {
@@ -2028,6 +2470,11 @@ export class GuestPeerSession {
   }
 
   async moveStepToward(tx, ty, tz, { bridge = false, avoidVoid = false, maxDistance = 120, durationMs = 15000, stopWithin = 1.2, stepDelayMs = null, abortToken = null, isCancelled = null } = {}) {
+    if (this.escapeWhenStuck) {
+      const way = await this.#escapeIfStuck(tx, ty, tz, stopWithin);
+      if (way?.result) return way.result;
+      if (way?.bridge) bridge = true;
+    }
     const startedAt = Date.now();
     let lastStepAt = startedAt;
     const prof = this.profile;
@@ -2234,6 +2681,17 @@ export class GuestPeerSession {
         const groundY = this.hasGroundAt(nx, ny, nz, 2);
         if (groundY !== null) ny = groundY;
       }
+      // A house bot (escapeWhenStuck) does not walk into blocks: a wall it could neither step up nor steer round stops
+      // it, or it slides along it, as a player does; stuck there, it digs or towers out (#escapeIfStuck). Other guests
+      // keep the old step, which passes through a wall two or more blocks high (an MCP agent's way round a tree).
+      if (this.escapeWhenStuck) {
+        const blocked = (x, z) => this.isSolid(x, ny + 0.01, z) || this.isSolid(x, ny + 1.01, z);
+        if (blocked(nx, nz)) {
+          if (!blocked(nx, this.position.z)) nz = this.position.z;
+          else if (!blocked(this.position.x, nz)) nx = this.position.x;
+          else { nx = this.position.x; ny = this.position.y; nz = this.position.z; }
+        }
+      }
       this.position.x = nx;
       this.position.y = ny;
       this.position.z = nz;
@@ -2259,6 +2717,65 @@ export class GuestPeerSession {
       remainingDistance: remaining,
       bridgedBlocks,
     };
+  }
+
+  /**
+   * Headway toward a place (cells of 3 blocks: a foe shifting on the spot is the same place): none for STUCK_MS, and
+   * the bot is stuck. Then it builds or digs one step of a way there (#breakOut), and looks again soon after.
+   */
+  async #escapeIfStuck(tx, ty, tz, stopWithin) {
+    const phase = this.gameMode === 'skywars' ? this.skywarsState?.phase : this.gameMode === 'bedwars' ? this.bedwarsState?.phase : null;
+    if (phase !== 'playing' || this.isDead || this.gamemode === 'spectator') { this.stuckWatch = null; return null; }
+    const now = Date.now(), dist = Math.hypot(tx - this.position.x, tz - this.position.z);
+    const key = `${Math.round(tx / 3)},${Math.round(tz / 3)}`;
+    const w = this.stuckWatch?.key === key ? this.stuckWatch : (this.stuckWatch = { key, best: dist, since: now });
+    if (dist < w.best - 0.75 || dist <= stopWithin + 1.5) { w.best = Math.min(w.best, dist); w.since = now; return null; }
+    if (now - w.since < STUCK_MS) return null;
+    // Stuck. One step of a way out now; if that is not enough, the next soon after.
+    w.since = now - STUCK_MS + STUCK_RETRY_MS;
+    return this.#breakOut(tx, ty, tz);
+  }
+
+  /**
+   * One step of a way toward (tx, tz) for a stuck bot, as a player would make one:
+   * - a wall ahead (two blocks high): in SkyWars dig through it (the map can be broken there); with blocks, tower up
+   *   (jump and place underneath) until over it;
+   * - the void ahead: bridge, with blocks;
+   * - otherwise (a step, a ledge): walk on, bridging.
+   * Returns { bridge: true } to walk on bridging, or { result } when there is no way: no blocks to cross the void.
+   */
+  async #breakOut(tx, ty, tz) {
+    const dx = tx - this.position.x, dz = tz - this.position.z, d = Math.hypot(dx, dz) || 1;
+    // The first block along the way that is not the one it stands in.
+    const bx0 = Math.floor(this.position.x), bz0 = Math.floor(this.position.z);
+    let ax = bx0, az = bz0;
+    for (let k = 0.2; k <= 1.6 && ax === bx0 && az === bz0; k += 0.1) { ax = Math.floor(this.position.x + (dx / d) * k); az = Math.floor(this.position.z + (dz / d) * k); }
+    const feet = Math.floor(this.position.y + 1e-3);
+    const blocks = this.inventory.countPlaceableBlocks?.() ?? 0;
+    const wall = this.isSolid(ax, feet, az) && this.isSolid(ax, feet + 1, az);
+    if (wall && this.gameMode === 'skywars') {
+      this.lastActionSummary = 'stuck: digging a way through';
+      for (const y of [feet, feet + 1]) if (this.getVoxel(ax, y, az) !== BLOCKS.CHEST) this.breakBlockAt(ax, y, az, { harvest: false });
+      return { bridge: blocks > 0 };
+    }
+    if (wall) {
+      if (blocks <= 0) return { result: { ok: false, stuck: true, reason: 'Walled in, with no blocks to tower out' } };
+      this.lastActionSummary = 'stuck: towering up';
+      const bx = Math.floor(this.position.x), bz = Math.floor(this.position.z);
+      for (let i = 0; i < 8 && this.isSolid(ax, Math.floor(this.position.y + 1e-3), az) && this.inventory.countPlaceableBlocks() > 0; i++) {
+        const y = Math.floor(this.position.y + 1e-3);
+        if (this.isSolid(bx, y + 2, bz)) break; // a ceiling
+        this.position.y = y + 1;
+        if (!this.placeBlockAt(bx, y, bz)?.ok) { this.position.y = y; break; }
+        this.broadcastState({ swinging: true });
+        await sleep(Math.max(this.buildBlockDelayMs, 250));
+      }
+      return { bridge: true };
+    }
+    const voidAhead = !this.hasGroundAt(ax + 0.5, this.position.y, az + 0.5, 3);
+    if (voidAhead && blocks <= 0) return { result: { ok: false, stuck: true, reason: 'The void is in the way, with no blocks to bridge it' } };
+    this.lastActionSummary = 'stuck: bridging a way there';
+    return { bridge: true };
   }
 
   async lootChest(args = {}) {
@@ -2290,21 +2807,16 @@ export class GuestPeerSession {
       });
     }
 
-    const finalDist = Math.hypot(targetChest.x + 0.5 - this.position.x, targetChest.z + 0.5 - this.position.z);
-    if (finalDist > 5.5) {
-      return { ok: false, reason: `Could not reach chest at [${targetChest.x}, ${targetChest.y}, ${targetChest.z}] (distance ${finalDist.toFixed(1)})` };
+    // Java's reach for opening a chest: 4.5 blocks from the eyes to the nearest point of the chest's block. One chest is
+    // opened at a time, the one looked at (this used to empty every chest within 6 blocks of it as well).
+    const reach = chestReach(this.position, targetChest);
+    if (reach > CHEST_REACH) {
+      return { ok: false, reason: `Could not reach chest at [${targetChest.x}, ${targetChest.y}, ${targetChest.z}] (${reach.toFixed(1)} blocks from the eyes; reach is ${CHEST_REACH})` };
     }
 
     this.lookAt(targetChest.x + 0.5, targetChest.y + 0.5, targetChest.z + 0.5);
     const looted = [];
-    const chestsToLoot = [
-      targetChest,
-      ...[...this.chests.values()].filter((c) =>
-        c !== targetChest &&
-        (c.items?.some(Boolean) || (this.gameMode === 'skywars' && !this.lootedChestKeys.has(`${c.x},${c.y},${c.z}`))) &&
-        Math.hypot(c.x - targetChest.x, c.z - targetChest.z) <= 6
-      ),
-    ];
+    const chestsToLoot = [targetChest];
     for (const chest of chestsToLoot) {
       const ck = `${chest.x},${chest.y},${chest.z}`;
       this.lootedChestKeys.add(ck);
@@ -2367,6 +2879,16 @@ export class GuestPeerSession {
     const teamDef = BEDWARS_TEAMS.find((t) => t.id === myTeamId);
     const myTeamState = this.bedwarsState?.teams?.find((t) => t.id === myTeamId);
     if (!teamDef || !myTeamState) return { ok: false, reason: 'Not assigned to a Bed Wars team' };
+    // At the shopkeeper, as on Hypixel (a player buys by opening its window): the item shop for items, the team
+    // upgrades keeper for upgrades and traps, both on my own base.
+    const keeper = BEDWARS_UPGRADES[key] || BEDWARS_TRAPS[key] ? 'upgrades' : 'shop';
+    const npc = this.bedwarsArena?.bases?.find((b) => b.team === myTeamId)?.[keeper];
+    if (npc) {
+      const d = Math.hypot(this.position.x - npc.x, this.position.z - npc.z);
+      if (d > SHOP_REACH || Math.abs(this.position.y - npc.y) > 3) {
+        return { ok: false, reason: `Too far from your team's ${keeper === 'shop' ? 'item shop' : 'team upgrades'} (${d.toFixed(1)} blocks; buy within ${SHOP_REACH})` };
+      }
+    }
 
     const mode = this.bedwarsState.mode || 'fours';
     const group = (mode === 'solo' || mode === 'doubles') ? 'small' : 'large';
@@ -2564,25 +3086,37 @@ export class GuestPeerSession {
       };
     }
 
-    // If a bed defense block covers the bed, mine it first
-    const topId = this.getVoxel(bx, by + 1, bz);
-    if (topId !== BLOCKS.AIR && !BED_BLOCK_IDS.has(topId)) {
-      this.breakBlockAt(bx, by + 1, bz);
+    // Dig the bed through an open face; covered all round, the block on top first. Each takes Java's time.
+    const until = Date.now() + 40000;
+    for (;;) {
+      let r = this.breakBlockAt(bx, by, bz);
+      if (!r.ok && !r.digging && /covered/.test(r.reason ?? '')) {
+        const topId = this.getVoxel(bx, by + 1, bz);
+        if (topId === BLOCKS.AIR || BED_BLOCK_IDS.has(topId)) return r;
+        r = this.breakBlockAt(bx, by + 1, bz);
+        if (r.ok) continue;
+      }
+      if (!r.digging || Date.now() > until) return r;
+      await sleep(100);
     }
-    return this.breakBlockAt(bx, by, bz);
   }
 
   #findAliveEnemies(requested = '') {
     const clean = String(requested || '').toLowerCase().trim();
     const myTeam = this.gameMode === 'bedwars' ? this.me()?.team : null;
     const candidates = [...this.peers.values()].filter((p) => {
-      if (p.id === this.clientId || p.dead) return false;
+      if (p.id === this.clientId || p.dead || p.gamemode === 'spectator') return false;
+      // In a mini-game only the round's players are enemies: not a spectator, nor anyone else outside the match.
       if (this.gameMode === 'skywars') {
-        const sp = this.skywarsState?.players?.find((q) => q.id === p.id);
+        const list = this.skywarsState?.players;
+        const sp = list?.find((q) => q.id === p.id);
+        if (list?.length && !sp) return false;
         if (sp && !sp.alive) return false;
       }
       if (this.gameMode === 'bedwars') {
-        const bp = this.bedwarsState?.players?.find((q) => q.id === p.id);
+        const list = this.bedwarsState?.players;
+        const bp = list?.find((q) => q.id === p.id);
+        if (list?.length && !bp) return false;
         if (bp && (!bp.alive || bp.dead || bp.team === myTeam)) return false;
       }
       if (clean) {
@@ -2597,32 +3131,11 @@ export class GuestPeerSession {
     return candidates;
   }
 
+  /** The autopilot's healing: the shared eating rule (healIfNeeded), the same at every difficulty. */
   #consumeHealingItem() {
-    const now = Date.now();
-    if (this.health >= 15 || now - this.lastHealAt < 2000) return false;
-    const healOptions = [
-      { id: 'enchanted_golden_apple', heal: 8 },
-      { id: 'golden_apple', heal: 6 },
-      { id: 'splash_potion_of_healing', heal: 6 },
-      { id: 'potion_of_healing', heal: 6 },
-      { id: 'splash_potion_of_regeneration', heal: 5 },
-      { id: 'potion_of_regeneration', heal: 5 },
-      { id: 'golden_carrot', heal: 4 },
-      { id: 'cooked_beef', heal: 4 },
-      { id: 'cooked_porkchop', heal: 4 },
-      { id: 'bread', heal: 3 },
-    ];
-    for (const opt of healOptions) {
-      if (this.inventory.takeItem(opt.id, 1)) {
-        this.lastHealAt = now;
-        this.health = Math.min(this.maxHealth, Number((this.health + opt.heal).toFixed(2)));
-        this.lastActionSummary = `healed with ${opt.id}`;
-        this.broadcastState({ swinging: true });
-        return true;
-      }
-    }
-    return false;
+    return this.healIfNeeded();
   }
+
 
   #fireProjectileAt(peer) {
     if (!this.profile.useProjectiles) return false;
@@ -2699,9 +3212,7 @@ export class GuestPeerSession {
   async #engageEnemy(peer) {
     if (!peer) return { ok: false, reason: 'No enemy target' };
     this.inventory.equipBest();
-    if (this.health <= 12) {
-      this.#consumeHealingItem();
-    }
+    this.#consumeHealingItem();
 
     const px = peer.x ?? 0;
     const py = peer.y ?? 31;
@@ -2748,8 +3259,8 @@ export class GuestPeerSession {
       });
     }
 
-    const distNow = Math.hypot(px - this.position.x, py - this.position.y, pz - this.position.z);
-    if (distNow > 5.8) {
+    const distNow = meleeReachDistance(this.position, { x: px, y: py, z: pz });
+    if (distNow > AUTOPILOT_MELEE_REACH) {
       return { ok: false, reason: 'Closing distance to enemy', distance: Number(distNow.toFixed(2)) };
     }
 
@@ -2776,22 +3287,21 @@ export class GuestPeerSession {
 
     this.lookAt(px, py + 1.2, pz);
     const now = Date.now();
-    if (now - this.lastMeleeAt < this.profile.meleeCooldownMs) {
+    const held = this.inventory.getActiveItem();
+    const weaponId = held && typeof held.id === 'string' ? held.id : null;
+    // Java's recharge for this weapon; never while eating.
+    if (this.isEating() || now - this.lastMeleeAt < attackCooldownMs(weaponId)) {
       this.broadcastState();
       return { ok: true, mode: 'cooldown', target: peer.name || peer.id };
     }
     this.lastMeleeAt = now;
+    this.addExhaustion(0.1);
 
-    const held = this.inventory.getActiveItem();
-    const weaponId = held && typeof held.id === 'string' ? held.id : null;
     let damage = (weaponId && WEAPON_DAMAGE[weaponId]) ? WEAPON_DAMAGE[weaponId] : 1;
     const sharp = (held?.enchantments ?? []).find((e) => e.id === 'sharpness');
     if (sharp) damage += 0.5 * sharp.level + 0.5;
     const kb = (held?.enchantments ?? []).find((e) => e.id === 'knockback')?.level ?? 0;
-    const isCritical = Math.random() < this.profile.critChance;
-    if (isCritical) damage = Number((damage * 1.25).toFixed(2));
-    const damageMultiplier = this.difficulty === 'easy' ? 0.6 : (this.difficulty === 'normal' ? 0.8 : 1.0);
-    damage = Math.max(1, Number((damage * damageMultiplier).toFixed(2)));
+    const isCritical = false;
 
     this.isSprinting = this.profile.sprintAllowed;
     this.broadcastState({ swinging: true });
@@ -2835,11 +3345,8 @@ export class GuestPeerSession {
     const me = this.me();
     if (!me?.alive || this.isDead || this.gamemode !== 'survival') return;
 
-    // 1. Emergency healing (scaled by difficulty so easy/normal are easier to defeat)
-    const healThreshold = this.difficulty === 'hard' ? 12 : (this.difficulty === 'normal' ? 8 : 4);
-    if (this.health <= healThreshold) {
-      this.#consumeHealingItem();
-    }
+    // 1. Healing: the shared eating rule, the same at every difficulty.
+    this.#consumeHealingItem();
 
     const enemies = this.#findAliveEnemies();
     const nearestEnemy = enemies[0] ?? null;
@@ -2904,7 +3411,7 @@ export class GuestPeerSession {
       return Math.hypot(c.x, c.z) <= 14 && (c.items ?? []).some(Boolean);
     });
 
-    if (centerChests.length > 0 && this.strategy !== 'rusher' && this.difficulty !== 'easy' && (!nearestEnemy || nearestEnemyDist > (this.difficulty === 'normal' ? 14 : 11))) {
+    if (centerChests.length > 0 && this.strategy !== 'rusher' && (!nearestEnemy || nearestEnemyDist > 12)) {
       if (this.inventory.countPlaceableBlocks() < 4) {
         return;
       }
@@ -2970,9 +3477,7 @@ export class GuestPeerSession {
     const myTeamState = this.bedwarsState.teams?.find((t) => t.id === myTeam);
     if (!myBase || !myTeamState) return;
 
-    if (this.health <= 12) {
-      this.#consumeHealingItem();
-    }
+    this.#consumeHealingItem();
 
     const enemies = this.#findAliveEnemies();
 
@@ -3159,12 +3664,13 @@ export class GuestPeerSession {
         });
         return;
       }
+      this.lastActionSummary = `breaking ${targetBase.team} bed!`;
+      const hit = this.breakBlockAt(bx, by, bz);
       const topId = this.getVoxel(bx, by + 1, bz);
-      if (topId !== BLOCKS.AIR && !BED_BLOCK_IDS.has(topId)) {
+      if (!hit.ok && !hit.digging && /covered/.test(hit.reason ?? '') && topId !== BLOCKS.AIR && !BED_BLOCK_IDS.has(topId)) {
+        this.lastActionSummary = `digging through the ${targetBase.team} bed's cover`;
         this.breakBlockAt(bx, by + 1, bz);
       }
-      this.lastActionSummary = `breaking ${targetBase.team} bed!`;
-      this.breakBlockAt(bx, by, bz);
       return;
     }
 
@@ -3177,9 +3683,7 @@ export class GuestPeerSession {
   async #brainBaseGame() {
     if (this.isDead || this.gamemode === 'spectator') return;
 
-    if (this.health <= 12) {
-      this.#consumeHealingItem();
-    }
+    this.#consumeHealingItem();
 
     // 1. Self-defense or PvP strategy
     const provoked = this.lastAttackerId && (Date.now() - this.lastAttackedAt < 15_000);
@@ -3369,12 +3873,12 @@ export class GuestPeerSession {
       });
     }
 
-    const distNow = Math.hypot(peer.x - this.position.x, peer.y - this.position.y, peer.z - this.position.z);
+    const distNow = meleeReachDistance(this.position, peer);
     const held = this.inventory.getActiveItem();
     const hasBow = this.inventory.allSlots().some((s) => s && s.id === 'bow');
     const hasArrow = this.inventory.countItem('arrow') > 0;
 
-    if (distNow > 5.8 && hasBow && hasArrow && distNow <= 60) {
+    if (distNow > AUTOPILOT_MELEE_REACH && hasBow && hasArrow && distNow <= 60) {
       this.inventory.takeItem('arrow', 1);
       this.lookAt(peer.x, peer.y + 1.4, peer.z);
       const dx = peer.x - this.position.x, dy = peer.y - this.position.y, dz = peer.z - this.position.z;
@@ -3394,10 +3898,10 @@ export class GuestPeerSession {
       return { ok: true, mode: 'ranged', target: peer.name, targetId: peer.id, damage: 6, distance: Number(distNow.toFixed(2)) };
     }
 
-    if (distNow > 5.8) {
+    if (distNow > AUTOPILOT_MELEE_REACH) {
       return {
         ok: false,
-        reason: `Target ${peer.name} is ${distNow.toFixed(1)} blocks away (melee reach is 5.8)`,
+        reason: `Target ${peer.name} is ${distNow.toFixed(1)} blocks away (melee reach is ${AUTOPILOT_MELEE_REACH}, eyes to body)`,
         position: [Number(this.position.x.toFixed(2)), Number(this.position.y.toFixed(2)), Number(this.position.z.toFixed(2))],
       };
     }
@@ -3418,12 +3922,12 @@ export class GuestPeerSession {
         damage,
         weapon: weaponId,
         isCritical: false,
-        isSprint: true,
+        isSprint: this.profile.sprintAllowed,
         knockbackLevel: kb,
         fireAspect: 0,
       });
       if (i + 1 < swings) {
-        await new Promise((r) => setTimeout(r, this.profile.meleeCooldownMs));
+        await new Promise((r) => setTimeout(r, attackCooldownMs(weaponId)));
       }
     }
 
@@ -3574,7 +4078,7 @@ export class GuestPeerSession {
               durationMs: args.duration_ms ?? 4000,
             });
           }
-          return this.breakBlockAt(bx, by, bz);
+          return this.digBlockAt(bx, by, bz);
         }
         case 'break_bed': {
           return this.breakEnemyBed(args);
@@ -3618,6 +4122,7 @@ export class GuestPeerSession {
         case 'respawn': {
           this.isDead = false;
           this.health = 20;
+          this.resetVitals?.();
           this.position = { ...this.spawnPoint };
           this.broadcastState();
           return { ok: true, position: [this.position.x, this.position.y, this.position.z] };
@@ -3986,9 +4491,11 @@ export class MineflayerBot extends EventEmitter {
     this.registry = buildRegistry();
     this.pathfinder = new Pathfinder(this);
     this.inventory = new InventoryView(this);
-    this.food = 20;
-    this.foodSaturation = 5;
   }
+
+  /** Hunger and saturation are the session's (Java's rules). */
+  get food() { return this._session.food; }
+  get foodSaturation() { return this._session.saturation; }
 
   get username() { return this._session.name; }
   get health() { return this._session.health; }
@@ -4117,6 +4624,21 @@ export class MineflayerBot extends EventEmitter {
     }
     if (!current.diggable) throw new Error(`${current.name} cannot be dug`);
     this._session.lookAt(p.x + 0.5, p.y + 0.5, p.z + 0.5);
+    if (this._session.gameMode === 'bedwars') {
+      // The game times the digging itself (breakBlockAt): hold on until it breaks.
+      this._digging = true;
+      let res;
+      try {
+        for (;;) {
+          res = this._session.breakBlockAt(p.x, p.y, p.z);
+          if (!res?.digging) break;
+          await this._sleep(100, gen);
+        }
+      } finally { this._digging = false; }
+      if (!res.ok) throw new Error(res.reason || `Could not dig ${current.name}`);
+      this.emit('diggingCompleted', current);
+      return;
+    }
     const ms = this.digTime(current);
     const started = Date.now();
     this._digging = true;
@@ -4158,8 +4680,85 @@ export class MineflayerBot extends EventEmitter {
   }
 
   async activateBlock(block) { if (block?.position) await this.lookAt(block.position.offset(0.5, 0.5, 0.5)); }
-  async activateItem() { await this.consume().catch(() => {}); }
-  deactivateItem() {}
+  /**
+   * Use the held item: a bow starts drawing (deactivateItem looses the arrow, its power from the time drawn); a
+   * snowball, an egg or an ender pearl is thrown where I look; food is eaten.
+   */
+  async activateItem() {
+    const s = this._session;
+    const held = s.inventory.getActiveItem();
+    const name = held ? (typeof held.id === 'string' ? held.id : this.registry.nameOf(held.id)) : null;
+    if (name === 'bow') {
+      if (s.inventory.countItem('arrow') < 1) throw new Error('No arrows to shoot');
+      this._drawStart = Date.now();
+      return;
+    }
+    if (THROWABLES.includes(name)) {
+      if (!s.inventory.takeItem(name, 1)) throw new Error(`No ${name} left`);
+      this._release(name, 1);
+      return;
+    }
+    await this.consume().catch(() => {});
+  }
+
+  deactivateItem() {
+    if (!this._drawStart) return;
+    const s = this._session;
+    const power = bowPower(Date.now() - this._drawStart);
+    this._drawStart = 0;
+    const held = s.inventory.getActiveItem();
+    if (!power || held?.id !== 'bow' || !s.inventory.takeItem('arrow', 1)) return;
+    this._release('arrow', power, (held.enchantments ?? []).find((e) => e.id === 'power')?.level ?? 0);
+  }
+
+  /** A projectile leaves my eye where I look: every game draws it, and its flight here decides what it hits. */
+  _release(kind, power, powerLevel = 0) {
+    const s = this._session;
+    const eye = { x: s.position.x, y: s.position.y + 1.52, z: s.position.z };
+    const start = launch(kind, { eye, yaw: s.yaw, pitch: s.pitch, power });
+    s.sendPacket({ t: 'shot', shot: { kind, x: eye.x, y: eye.y, z: eye.z, vx: start.vel.x * 20, vy: start.vel.y * 20, vz: start.vel.z * 20 } });
+    s.broadcastState({ swinging: true });
+    const isSolid = (x, y, z) => s.isSolid(x, y, z);
+    // The players it can hit, where they are now (they move while it flies): not me, not a spectator, and in a
+    // mini-game only the round's living players.
+    const targetsAt = () => {
+      const list = s.gameMode === 'skywars' ? s.skywarsState?.players : s.gameMode === 'bedwars' ? s.bedwarsState?.players : null;
+      return [...s.peers.values()].filter((p) => {
+        if (p.id === s.clientId || p.dead || p.gamemode === 'spectator') return false;
+        if (!list?.length) return true;
+        const q = list.find((x) => x.id === p.id);
+        return !!q && q.alive !== false && !q.dead;
+      }).map((p) => ({ id: p.id, x: p.x ?? 0, y: p.y ?? 0, z: p.z ?? 0 }));
+    };
+    const wait = () => new Promise((r) => setTimeout(r, 50));
+    void flyShot(kind, start, { isSolid, targetsAt, wait, maxTicks: 100, voidY: -64 }).then((end) => {
+      if (end.hit) {
+        const speed = Math.hypot(end.vel.x, end.vel.y, end.vel.z);
+        s.sendPacket({
+          t: 'attack', target: end.hit.id, projectile: kind === 'ender_pearl' ? 'snowball' : kind,
+          // An arrow's damage, scaled as the shooter's melee is at its difficulty (a house bot's, or a program's under the
+          // autopilot's standard); full otherwise.
+          // Java: speed x 2 rounded up (6 at full draw); a full draw is a critical arrow, up to (that / 2 + 1) more.
+          damage: kind === 'arrow' ? arrowDamage(speed, powerLevel) + (power >= 1 ? Math.floor(Math.random() * (Math.floor(arrowDamage(speed, powerLevel) / 2) + 2)) : 0) : 0,
+          ...(kind === 'arrow' ? { weapon: 'bow' } : {}),
+          direction: { x: end.vel.x, z: end.vel.z },
+        });
+      }
+      if (kind === 'ender_pearl' && (end.hit || end.block) && !s.isDead) {
+        // Teleported where it landed (on top of a block it struck from above), for 5 damage. A pearl that struck a wall
+        // from the side or below leaves the player against it, not in it: the nearest place the body fits.
+        const at = end.at;
+        const onTop = end.block && end.block.y < at.y;
+        const landing = { x: at.x, y: onTop ? end.block.y + 1 : at.y, z: at.z };
+        s.position = nearestFreeSpot(landing, isSolid) ?? landing;
+        s.velocity = { x: 0, y: 0, z: 0 };
+        s.knockbackActive = false;
+        s.fallPeakY = null; // a teleport, not a fall
+        s.hurtSelf(PEARL_DAMAGE, 'ender_pearl');
+      }
+      this.emit('projectileEnd', { kind, ...end });
+    }).catch(() => { /* the session closed */ });
+  }
 
   async equip(item, destination = 'hand') {
     const gen = this.gen;
@@ -4809,19 +5408,27 @@ export class MineflayerBot extends EventEmitter {
     const peer = entity?.id !== undefined ? s.peers.get(entity.id) : null;
     if (!peer) throw new Error('attack needs a player entity (bot.players[name].entity or bot.nearestEntity())');
     if (!s.settings.pvp && s.gameMode === 'base') throw new Error('PvP is off in this world');
-    const dist = Math.hypot((peer.x ?? 0) - s.position.x, (peer.y ?? 0) - s.position.y, (peer.z ?? 0) - s.position.z);
-    if (dist > 4.2) throw new Error(`Target is ${dist.toFixed(1)} blocks away; get within 3 blocks first`);
-    const wait = s.profile.meleeCooldownMs - (Date.now() - s.lastMeleeAt);
-    if (wait > 0) await this._sleep(wait, gen);
-    s.lastMeleeAt = Date.now();
-    s.lookAt(peer.x, (peer.y ?? 0) + 1.2, peer.z);
+    // Under the autopilot's standard (profile.botMeleeReach): its reach, eyes to the target's body; otherwise the
+    // arena's 4.2 blocks between the two players' places.
+    const dist = s.profile.botMeleeReach
+      ? meleeReachDistance(s.position, peer)
+      : Math.hypot((peer.x ?? 0) - s.position.x, (peer.y ?? 0) - s.position.y, (peer.z ?? 0) - s.position.z);
+    const reach = s.profile.botMeleeReach ?? 4.2;
+    if (dist > reach) throw new Error(`Target is ${dist.toFixed(1)} blocks away; reach is ${reach}`);
     const held = s.inventory.getActiveItem();
     const weapon = held && typeof held.id === 'string' ? held.id : null;
+    // Java's recharge for this weapon: the swing waits for full strength (and for eating to finish).
+    const wait = Math.max(attackCooldownMs(weapon) - (Date.now() - s.lastMeleeAt), (s.eatingUntil ?? 0) - Date.now());
+    if (wait > 0) await this._sleep(wait, gen);
+    s.lastMeleeAt = Date.now();
+    s.addExhaustion(0.1);
+    s.lookAt(peer.x, (peer.y ?? 0) + 1.2, peer.z);
     let damage = (weapon && WEAPON_DAMAGE[weapon]) || 1;
     const sharp = (held?.enchantments ?? []).find((e) => e.id === 'sharpness');
     if (sharp) damage += 0.5 * sharp.level + 0.5;
     s.broadcastState({ swinging: true });
-    s.sendPacket({ t: 'attack', target: peer.id, damage, weapon, isCritical: false, isSprint: this.controlState.sprint, knockbackLevel: 0, fireAspect: 0 });
+    // A sprint hit (extra knock-back) only where the rules allow sprinting: at the normal and easy difficulties nobody sprints.
+    s.sendPacket({ t: 'attack', target: peer.id, damage, weapon, isCritical: false, isSprint: !!(this.controlState.sprint && s.profile.sprintAllowed), knockbackLevel: 0, fireAspect: 0 });
   }
   swingArm() { this._session.broadcastState({ swinging: true }); }
 
@@ -4829,12 +5436,9 @@ export class MineflayerBot extends EventEmitter {
     const gen = this.gen;
     const held = this._session.inventory.getActiveItem();
     const name = held ? this.registry.nameOf(held.id) : null;
-    if (!name || !(name in FOOD)) throw new Error('Hold food first');
-    await this._sleep(1600, gen);
-    this.inventory._take(name, 1);
-    this.food = Math.min(20, this.food + FOOD[name]);
-    this._session.health = Math.min(this._session.maxHealth, this._session.health + (name === 'golden_apple' ? 4 : 1));
-    this._session.broadcastState();
+    if (!name || !(name in JAVA_FOODS || /potion/.test(name))) throw new Error('Hold food first');
+    if (!this._session.startEating(name)) throw new Error(this._session.food >= 20 && !name.includes('golden_apple') ? 'Not hungry' : 'Cannot eat now');
+    await this._sleep(name.startsWith('splash_') ? 0 : EAT_MS + 20, gen);
   }
 
   async openContainer(block) {
@@ -5235,6 +5839,39 @@ function canHarvest(name, held) {
   return true;
 }
 
+/** A pause in digging longer than this starts the block over (a player who lets go of the button). */
+const DIG_GAP_MS = 1250;
+const TIER_RANK = { wooden: 0, golden: 0, stone: 1, iron: 2, diamond: 3, netherite: 4 };
+/** Bed Wars' blocks: [name, hardness, the tool that speeds it, needs that tool to drop, the lowest tier that drops it]. */
+const BREAK_RULES = [
+  [/_wool$|^wool$/, 0.8, 'shears'], [/terracotta$/, 1.25, 'pickaxe', true], [/glass$|glass_pane$/, 0.3, null],
+  [/^end_stone$/, 3, 'pickaxe', true], [/_planks$/, 2, 'axe'], [/_log$|_wood$/, 2, 'axe'], [/^obsidian$/, 50, 'pickaxe', true, 'diamond'],
+  [/_bed$|^bed/, 0.2, null], [/^ladder$/, 0.4, 'axe'], [/^sponge$/, 0.6, 'hoe'],
+];
+/**
+ * Java Edition's time to break a block, in ms (1.21: each tick does speed / hardness / 30 of it, or / 100 without the
+ * tool the block needs; speed is the tool's tier speed on its own blocks -- shears 5 on wool -- plus Efficiency's
+ * level^2 + 1, times 1 + 0.2 per level of Haste, divided by 5 off the ground; whole ticks, and none when one tick
+ * is enough). Wool: 1.2 s by hand, 0.25 s with shears; end stone: 15 s by hand, 1.15 s with the shop's wooden pickaxe.
+ */
+export function breakMs(name, held, { haste = 0, onGround = true } = {}) {
+  const rule = BREAK_RULES.find(([re]) => re.test(name ?? ''));
+  const known = BLOCK_HARDNESS[name];
+  const [hardness, toolKind, needsTool, minTier] = rule ? rule.slice(1) : known ? [known[0], known[1], !!known[2], name === 'obsidian' ? 'diamond' : null] : [1, null, false, null];
+  if (!hardness) return 0;
+  const tool = toolParts(held);
+  let speed = 1;
+  if (toolKind === 'shears' && held?.id === 'shears') speed = 5;
+  else if (tool && tool.kind === toolKind) speed = TOOL_SPEED[tool.tier];
+  const eff = (held?.enchantments ?? []).find((e) => e.id === 'efficiency')?.level ?? 0;
+  if (speed > 1 && eff) speed += eff * eff + 1;
+  if (haste) speed *= 1 + 0.2 * haste;
+  if (!onGround) speed /= 5;
+  const harvest = !needsTool || (tool && tool.kind === toolKind && (!minTier || TIER_RANK[tool.tier] >= TIER_RANK[minTier]));
+  const perTick = speed / hardness / (harvest ? 30 : 100);
+  return perTick >= 1 ? 0 : Math.ceil(1 / perTick) * 50;
+}
+
 function digSeconds(name, held) {
   const [hardness, toolKind] = BLOCK_HARDNESS[name] ?? [/_log$|_planks$/.test(name ?? '') ? 2 : 1, /_log$|_planks$/.test(name ?? '') ? 'axe' : null];
   if (!hardness) return 0.05;
@@ -5451,3 +6088,6 @@ export function createModelBrain({ env = process.env, fetchImpl = globalThis.fet
   brain.model = model;
   return brain;
 }
+
+// For the Agent Arena (agentArena/botRunner.mjs): the shop and upgrade catalogues it shows as windows, and block names.
+export { BEDWARS_ITEM_SHOP, BEDWARS_UPGRADES, BEDWARS_TRAPS, NAME_BY_BLOCK, BLOCK_BY_NAME, buildBedWarsArenaLayout };

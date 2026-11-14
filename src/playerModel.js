@@ -474,6 +474,11 @@ function createArmorMaterials(item) {
   };
 }
 
+// Armour sits outside the body part it covers and outside that part's outer skin layer (hat 0.03, jacket 0.025, sleeves
+// and trousers about 0.02 out), as Java's does (HumanoidArmorModel: armour 1 px = 1/16 out, leggings 1/2 px). A face of
+// armour in the very plane of a skin face, or skin out past armour by a sliver, flickers as the camera moves
+// (z-fighting). Decorations of another colour stand proud of the piece they sit on, never flush with it.
+// tests/armorFit.test.js checks every piece against the body.
 function buildHelmet(item) {
   const materials = createArmorMaterials(item);
   const helmetGroup = new THREE.Group();
@@ -500,8 +505,8 @@ function buildHelmet(item) {
   helmetGroup.add(rightCheek);
 
   // 5. Forehead Brow Band (above eyes)
-  const browMesh = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.13, 0.09), materials.light));
-  browMesh.position.set(0, 0.375, -0.245);
+  const browMesh = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.60, 0.13, 0.09), materials.light));
+  browMesh.position.set(0, 0.355, -0.257);
   helmetGroup.add(browMesh);
 
   // 6. Nose Guard or Turtle Shell Crest
@@ -511,14 +516,14 @@ function buildHelmet(item) {
     helmetGroup.add(crestMesh);
   } else if (materials.matKey !== 'leather') {
     const noseMesh = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.09), materials.accent));
-    noseMesh.position.set(0, 0.23, -0.245);
+    noseMesh.position.set(0, 0.23, -0.275);
     helmetGroup.add(noseMesh);
   }
 
   // 7. Trim Overlay
   if (materials.trim) {
-    const trimBrow = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.59, 0.04, 0.10), materials.trim));
-    trimBrow.position.set(0, 0.375, -0.25);
+    const trimBrow = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.04, 0.10), materials.trim));
+    trimBrow.position.set(0, 0.355, -0.27);
     helmetGroup.add(trimBrow);
   }
 
@@ -532,43 +537,43 @@ function buildChestplate(item, armW) {
   const torsoPiece = new THREE.Group();
   torsoPiece.name = 'armor_chestplate_torso';
 
-  const bodyBox = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.78, 0.33), materials.main));
+  const bodyBox = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.625, 0.875, 0.375), materials.main));
   bodyBox.position.set(0, 0, 0);
   torsoPiece.add(bodyBox);
 
   const crest = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.46, 0.04), materials.light));
-  crest.position.set(0, 0.08, -0.165);
+  crest.position.set(0, 0.08, -0.1975);
   torsoPiece.add(crest);
 
   if (materials.trim) {
     const trimPlate = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.04), materials.trim));
-    trimPlate.position.set(0, 0.08, -0.17);
+    trimPlate.position.set(0, 0.08, -0.2125);
     torsoPiece.add(trimPlate);
   }
 
   // Left Shoulder Pauldron
   const leftPauldron = new THREE.Group();
   leftPauldron.name = 'armor_chestplate_leftArm';
-  const pauldronW = armW + 0.06;
+  const pauldronW = armW + 0.125;
 
-  const leftBox = markShadows(new THREE.Mesh(new THREE.BoxGeometry(pauldronW, 0.44, 0.32), materials.main));
-  leftBox.position.set(0, -0.22, 0);
+  const leftBox = markShadows(new THREE.Mesh(new THREE.BoxGeometry(pauldronW, 0.5025, 0.375), materials.main));
+  leftBox.position.set(0, -0.18875, 0);
   leftPauldron.add(leftBox);
 
-  const leftCap = markShadows(new THREE.Mesh(new THREE.BoxGeometry(pauldronW + 0.03, 0.08, 0.34), materials.light));
-  leftCap.position.set(0, -0.04, 0);
+  const leftCap = markShadows(new THREE.Mesh(new THREE.BoxGeometry(pauldronW + 0.03, 0.08, 0.395), materials.light));
+  leftCap.position.set(0, 0.0625, 0);
   leftPauldron.add(leftCap);
 
   // Right Shoulder Pauldron
   const rightPauldron = new THREE.Group();
   rightPauldron.name = 'armor_chestplate_rightArm';
 
-  const rightBox = markShadows(new THREE.Mesh(new THREE.BoxGeometry(pauldronW, 0.44, 0.32), materials.main));
-  rightBox.position.set(0, -0.22, 0);
+  const rightBox = markShadows(new THREE.Mesh(new THREE.BoxGeometry(pauldronW, 0.5025, 0.375), materials.main));
+  rightBox.position.set(0, -0.18875, 0);
   rightPauldron.add(rightBox);
 
-  const rightCap = markShadows(new THREE.Mesh(new THREE.BoxGeometry(pauldronW + 0.03, 0.08, 0.34), materials.light));
-  rightCap.position.set(0, -0.04, 0);
+  const rightCap = markShadows(new THREE.Mesh(new THREE.BoxGeometry(pauldronW + 0.03, 0.08, 0.395), materials.light));
+  rightCap.position.set(0, 0.0625, 0);
   rightPauldron.add(rightCap);
 
   return { torso: torsoPiece, leftArm: leftPauldron, rightArm: rightPauldron };
@@ -581,17 +586,17 @@ function buildLeggings(item) {
   const beltPiece = new THREE.Group();
   beltPiece.name = 'armor_leggings_belt';
 
-  const beltBox = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.57, 0.22, 0.32), materials.main));
-  beltBox.position.set(0, -0.28, 0);
+  const beltBox = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.59, 0.24, 0.34), materials.main));
+  beltBox.position.set(0, -0.30, 0);
   beltPiece.add(beltBox);
 
   const buckle = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.10, 0.04), materials.accent));
-  buckle.position.set(0, -0.28, -0.165);
+  buckle.position.set(0, -0.30, -0.19);
   beltPiece.add(buckle);
 
   if (materials.trim) {
-    const trimBelt = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.04, 0.33), materials.trim));
-    trimBelt.position.set(0, -0.24, 0);
+    const trimBelt = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.61, 0.04, 0.36), materials.trim));
+    trimBelt.position.set(0, -0.26, 0);
     beltPiece.add(trimBelt);
   }
 
@@ -599,24 +604,24 @@ function buildLeggings(item) {
   const leftLegging = new THREE.Group();
   leftLegging.name = 'armor_leggings_leftLeg';
 
-  const leftThigh = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.50, 0.29), materials.main));
-  leftThigh.position.set(0, -0.25, 0);
+  const leftThigh = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.54, 0.32), materials.main));
+  leftThigh.position.set(0, -0.23, 0);
   leftLegging.add(leftThigh);
 
   const leftKnee = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.04), materials.light));
-  leftKnee.position.set(0, -0.38, -0.15);
+  leftKnee.position.set(0, -0.38, -0.17);
   leftLegging.add(leftKnee);
 
   // Right Leg guard
   const rightLegging = new THREE.Group();
   rightLegging.name = 'armor_leggings_rightLeg';
 
-  const rightThigh = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.50, 0.29), materials.main));
-  rightThigh.position.set(0, -0.25, 0);
+  const rightThigh = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.54, 0.32), materials.main));
+  rightThigh.position.set(0, -0.23, 0);
   rightLegging.add(rightThigh);
 
   const rightKnee = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.04), materials.light));
-  rightKnee.position.set(0, -0.38, -0.15);
+  rightKnee.position.set(0, -0.38, -0.17);
   rightLegging.add(rightKnee);
 
   return { torso: beltPiece, leftLeg: leftLegging, rightLeg: rightLegging };
@@ -629,21 +634,21 @@ function buildBoots(item) {
   const leftBoot = new THREE.Group();
   leftBoot.name = 'armor_boots_leftLeg';
 
-  const bMeshLeft = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.30, 0.32), materials.main));
-  bMeshLeft.position.set(0, -0.61, -0.01);
+  const bMeshLeft = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.30, 0.34), materials.main));
+  bMeshLeft.position.set(0, -0.635, -0.01);
   leftBoot.add(bMeshLeft);
 
-  const cuffLeft = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.33), materials.dark));
-  cuffLeft.position.set(0, -0.48, -0.01);
+  const cuffLeft = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 0.36), materials.dark));
+  cuffLeft.position.set(0, -0.49, -0.01);
   leftBoot.add(cuffLeft);
 
-  const soleLeft = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 0.34), materials.accent));
-  soleLeft.position.set(0, -0.74, -0.015);
+  const soleLeft = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.05, 0.37), materials.accent));
+  soleLeft.position.set(0, -0.79, -0.015);
   leftBoot.add(soleLeft);
 
   if (materials.trim) {
     const trimToe = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.04, 0.04), materials.trim));
-    trimToe.position.set(0, -0.68, -0.175);
+    trimToe.position.set(0, -0.68, -0.19);
     leftBoot.add(trimToe);
   }
 
@@ -651,21 +656,21 @@ function buildBoots(item) {
   const rightBoot = new THREE.Group();
   rightBoot.name = 'armor_boots_rightLeg';
 
-  const bMeshRight = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.30, 0.32), materials.main));
-  bMeshRight.position.set(0, -0.61, -0.01);
+  const bMeshRight = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.30, 0.34), materials.main));
+  bMeshRight.position.set(0, -0.635, -0.01);
   rightBoot.add(bMeshRight);
 
-  const cuffRight = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.33), materials.dark));
-  cuffRight.position.set(0, -0.48, -0.01);
+  const cuffRight = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 0.36), materials.dark));
+  cuffRight.position.set(0, -0.49, -0.01);
   rightBoot.add(cuffRight);
 
-  const soleRight = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 0.34), materials.accent));
-  soleRight.position.set(0, -0.74, -0.015);
+  const soleRight = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.05, 0.37), materials.accent));
+  soleRight.position.set(0, -0.79, -0.015);
   rightBoot.add(soleRight);
 
   if (materials.trim) {
     const trimToe = markShadows(new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.04, 0.04), materials.trim));
-    trimToe.position.set(0, -0.68, -0.175);
+    trimToe.position.set(0, -0.68, -0.19);
     rightBoot.add(trimToe);
   }
 

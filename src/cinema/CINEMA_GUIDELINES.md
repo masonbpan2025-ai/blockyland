@@ -6,6 +6,10 @@ Each rule exists because breaking it produced a visible or audible fault in an e
 characters walking backwards, paths sunk like trenches, flickering limbs, flat 8×8 faces,
 and one robotic voice reading every line, questions included.
 
+**Filming an Agent Arena run (bots playing SkyWars or Bed Wars)?** Read `ARENA_FILM_GUIDELINES.md` as well: it adds the
+rules for game fidelity, coverage, continuous commentary and explaining draws, and `scripts/check-arena-film.mjs`
+enforces them before `render-film.mjs` renders an arena film.
+
 ---
 
 ## 1. Story

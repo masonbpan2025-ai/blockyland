@@ -229,6 +229,24 @@ test('a relay flood beyond its allowance gets the connection closed', async () =
   await s.stop();
 });
 
+test('a host has the allowance toward each guest: a full room\'s movement passes, one guest\'s flood still does not', async () => {
+  const s = await service({ relayLimits: { burst: 50, perSecond: 1, burstBytes: 1e9, bytesPerSecond: 1 } });
+  const host = s.client(); await host.connect(); await host.host('5153');
+  const guests = [];
+  for (let i = 0; i < 3; i++) { const g = s.client(); await g.connect(); const { guestId } = await g.join('5153'); let got = 0; g.on('relay', () => { got++; }); guests.push({ guestId, got: () => got }); }
+  let closed = false; host.on('close', () => { closed = true; });
+  // 40 to each of three guests: 120 in all, more than one allowance of 50, but within each guest's.
+  for (const g of guests) for (let i = 0; i < 40; i++) host.relay('x', g.guestId);
+  await settle(60);
+  assert.equal(closed, false);
+  assert.deepEqual(guests.map((g) => g.got()), [40, 40, 40]);
+  // Past the allowance toward one guest: closed.
+  const gone = new Promise((resolve) => host.on('close', resolve));
+  for (let i = 0; i < 20; i++) host.relay('x', guests[0].guestId);
+  await gone;
+  await s.stop();
+});
+
 test('nothing is relayed for a connection that has not hosted or joined a room', async () => {
   const s = await service();
   const lone = s.client(); await lone.connect();

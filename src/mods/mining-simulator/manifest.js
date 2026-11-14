@@ -1,0 +1,20 @@
+// Generated from mod.json by scripts/generate-mod-catalog.mjs.
+export default {
+  "id": "mining_simulator",
+  "name": "Mining Simulator",
+  "version": "1.0.0",
+  "description": "Start with a wooden pickaxe and a hut. Dig ores in the mine, sell them to the Trader for coins, and buy better pickaxes, a bigger house and the Superstick -- the only thing that can hurt a player, and a kill takes a fifth of their coins. Peaceful, no fall or lava damage, and your progress is saved. Friends join with the room code.",
+  "entrypoint": "./index.js",
+  "mechanism": "mining_simulator",
+  "maps": [
+    "Mining_Simulator.json"
+  ],
+  "provides": {
+    "managers": [
+      {
+        "id": "miningSim",
+        "name": "Mining Simulator"
+      }
+    ]
+  }
+};

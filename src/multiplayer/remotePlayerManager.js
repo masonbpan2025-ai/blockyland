@@ -122,6 +122,21 @@ export class RemotePlayerManager {
     this.skins = new Map();
   }
 
+  /**
+   * The other players who push the local player (packages/blockyland-mcp/playerPush.js): every one whose position has
+   * been heard, alive, and shown. A player the world's game hides (a mini-game's spectator or referee) is not there to
+   * push, as a Java spectator is not.
+   * @returns {{x, y, z, sneaking}[]}
+   */
+  pushers() {
+    const out = [];
+    for (const peer of this.remotePlayers.values()) {
+      if (!peer.hasInitialPos || peer.dead || peer.avatar?.mesh?.visible === false) continue;
+      out.push({ x: peer.currentPos.x, y: peer.currentPos.y, z: peer.currentPos.z, sneaking: Boolean(peer.isSneaking) });
+    }
+    return out;
+  }
+
   /** Another player's skin (`{png, model}`), now and from here on. */
   setSkin(peerId, skin) {
     if (!skin?.png) return;

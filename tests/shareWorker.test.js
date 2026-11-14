@@ -71,7 +71,8 @@ test('worker: relayed frames have their own allowance -- a world\'s worth passes
 test('worker: a relay flood past its allowance closes the connection', async () => {
   const w = worker();
   const { host, guestId } = await room(w);
-  for (let i = 0; i < 4100 && host.closedWith === null; i++) await w.say(host, { type: 'relay', to: guestId, data: 'x' });
+  // Well past the burst of 4000: on a slow machine the allowance refills (800 a second) while the flood is sent.
+  for (let i = 0; i < 12000 && host.closedWith === null; i++) await w.say(host, { type: 'relay', to: guestId, data: 'x' });
   assert.equal(host.closedWith, 1008);
   assert.ok(host.sent.some((m) => m.type === 'error' && m.code === 'rate_limited'));
 });

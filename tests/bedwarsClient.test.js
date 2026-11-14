@@ -136,6 +136,8 @@ test('the guest breaks the host\'s bed: everyone is told, it is gone on both, an
   assert.equal(guest.canBreakBlock(...bed.foot), true, 'an enemy bed');
   assert.equal(host.canBreakBlock(...bed.foot), false, 'not your own');
   assert.equal(guest.canBreakBlock(bed.foot[0], ARENA.surfaceY, bed.foot[2]), false, 'nor the map');
+  // Where the host last saw the guest: beside the bed (its state messages carry this in a real game).
+  standBeside(host, guest, bed);
   guestGame.world.setVoxel(...bed.foot, BLOCKS.AIR);
   guest.onBlockBroken(...bed.foot);
   await tick([host, guest], 0.6);
@@ -151,6 +153,33 @@ test('the guest breaks the host\'s bed: everyone is told, it is gone on both, an
   assert.equal(host.phase, 'ended');
   assert.equal(host.state.winner, guest.me().team);
   assert.equal(hostGame.player.gamemode, 'spectator');
+});
+
+/** Where the host last saw the guest, as its state messages would put it: two blocks out from the bed's foot. */
+function standBeside(host, guest, bed, away = 2) {
+  const f = host.myBase().facing;
+  host.session.positions.set(guest.me().id, { x: bed.foot[0] + 0.5 - f.x * away, y: bed.foot[1], z: bed.foot[2] + 0.5 - f.z * away });
+}
+
+test('a bed is broken only from within reach, and only through an open face (Java: 4.5 blocks from the eyes)', async (t) => {
+  const { host, guest, hostGame } = await started(t);
+  const hostTeam = host.myBase().team, bed = host.myBase().bed;
+  const ask = () => host.fromGuest(guest.me().id, { type: 'bed', team: hostTeam });
+  // From its own base, far across the void: refused.
+  ask();
+  assert.equal(host.match.teams.get(hostTeam).bed, true, 'a bed broken from another island');
+  // Beside it but the bed covered on top and all round: refused until a face is open.
+  standBeside(host, guest, bed);
+  const halves = [bed.foot, bed.head], cover = [];
+  for (const [x, y, z] of halves) for (const [dx, dy, dz] of [[0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) {
+    const c = [x + dx, y + dy, z + dz];
+    if (!halves.some((h) => h.join() === c.join())) { cover.push(c); hostGame.world.setVoxel(...c, BLOCKS.WHITE_WOOL); }
+  }
+  ask();
+  assert.equal(host.match.teams.get(hostTeam).bed, true, 'a covered bed');
+  hostGame.world.setVoxel(...cover[0], BLOCKS.AIR);
+  ask();
+  assert.equal(host.match.teams.get(hostTeam).bed, false, 'one face open, and in reach');
 });
 
 test('a death with the bed standing: watching for five seconds, then back at the base, tools a tier lower', async (t) => {
@@ -173,7 +202,9 @@ test('a death with the bed standing: watching for five seconds, then back at the
 test('blocks: placed ones can be broken, the map\'s cannot; nothing can be placed on a generator or a spawn', async (t) => {
   const { host } = await started(t);
   const base = host.myBase();
-  const free = { x: Math.floor(base.center.x) + 3, y: ARENA.surfaceY + 1, z: Math.floor(base.center.z) + 3 };
+  // A plain spot of the base island: 6 blocks forward of its centre, past the bed's platform (the map turns with its
+  // seed, so the spot follows the base's own facing).
+  const free = { x: Math.floor(base.center.x) + base.facing.x * 6, y: ARENA.surfaceY + 1, z: Math.floor(base.center.z) + base.facing.z * 6 };
   assert.equal(host.canBreakBlock(free.x, ARENA.surfaceY, free.z), false, 'the island');
   assert.equal(host.canBreakBlock(free.x, free.y, free.z), true, 'air-built: what a player placed');
   assert.equal(host.canPlaceBlock(Math.floor(base.forge.x), base.forge.y, Math.floor(base.forge.z)), false, 'the forge');

@@ -19,6 +19,7 @@ import { fireAspectSeconds } from '../enchantmentEffects.js';
 import { RemoteShots } from './remoteShots.js';
 import { lookOf } from './playerLook.js';
 import { knockbackDirection } from '../../packages/blockyland-mcp/knockback.js';
+import { pushPlayer, blastProtectionResistance } from '../windCharge.js';
 
 const NAME_KEY = 'mc-player-name';
 /** The host's last choice about PvP, kept between sessions: 'on' or 'off'. */
@@ -283,9 +284,10 @@ export class WorldSyncManager {
    * Another player hit this one. Taken as a melee hit from where the attacker stood, so armour, a raised shield, the
    * hit-invulnerability window, Creative mode and the knockback all apply as they do to a mob's hit.
    */
-  takeHit({ attackerName, damage, from, weapon, isSprint, isCritical, knockbackLevel = 0, fireAspect = 0, projectile = null, flame = false, direction = null }) {
+  takeHit({ attackerName, damage, from, weapon, isSprint, isCritical, knockbackLevel = 0, fireAspect = 0, projectile = null, flame = false, direction = null, push = null, floorY = null }) {
     const player = this.game.player;
     if (!player || player.isDead) return;
+    if (projectile === 'wind_charge') return this.takeWindCharge({ attackerName, damage, push, floorY });
     const flight = projectile && knockbackDirection(direction);
     const source = flight ? { x: player.position.x - flight.x, y: player.position.y, z: player.position.z - flight.z }
       : from ? { x: from.x, y: from.y, z: from.z } : null;
@@ -306,6 +308,47 @@ export class WorldSyncManager {
       const verb = projectile === 'arrow' ? 'was shot by' : projectile ? 'was pummeled by' : 'was slain by';
       this.chat(`<span style="color:#ef4444;">${escapeHtml(this.client.playerName)} ${verb} ${escapeHtml(attackerName)}</span>`);
     }
+  }
+
+  /**
+   * Another player's wind charge reached this player (the host judged it): a direct hit's 1 damage, and its burst's
+   * push -- less this player's Blast Protection (15% a level) -- as a burst here would push (windCharge.js). A player's
+   * charge leaves fall damage counted only below the burst's height (Wind Charge). A flying Creative player is not
+   * pushed (Explosion).
+   */
+  takeWindCharge({ attackerName, damage = 0, push = null, floorY = null }) {
+    const player = this.game.player;
+    if (damage > 0) player.takeDamage(damage, null, 'wind_charge', null, { fromPlayer: true });
+    if (push && !(player.isFlying && player.gamemode === 'creative')) {
+      const keep = 1 - blastProtectionResistance(this.game.inventory?.armor);
+      const impulse = { x: push.x * keep, y: push.y * keep, z: push.z * keep };
+      if (Math.hypot(impulse.x, impulse.y, impulse.z) > 0) pushPlayer(player, impulse, Number.isFinite(floorY) ? floorY : null);
+    }
+    this.game.ui?.updateStats?.();
+    if (player.isDead || player.health <= 0) this.chat(`<span style="color:#ef4444;">${escapeHtml(this.client.playerName)} was pummeled by ${escapeHtml(attackerName)}</span>`);
+  }
+
+  /** The other players, where this game draws them, for a wind charge this player threw (windCharge.js bodies). */
+  remoteBodies() {
+    if (!this.client.connected) return [];
+    const out = [];
+    for (const [peerId, peer] of this.remotePlayers.remotePlayers ?? []) {
+      if (peer?.dead || peer?.avatar?.mesh?.visible === false || !peer?.currentPos) continue;
+      out.push({ peerId, feet: { x: peer.currentPos.x, y: peer.currentPos.y, z: peer.currentPos.z } });
+    }
+    return out;
+  }
+
+  /**
+   * This player's wind charge reached another player: `damage` (a direct hit's 1, else 0) and its burst's `push`
+   * ({x, y, z} blocks a tick), for the host to judge and the target's game to apply.
+   * @returns {string|null} why it was refused, or null when it went
+   */
+  windChargeHit(peerId, damage, push, { floorY = null } = {}) {
+    if (!this.client.connected) return 'not_connected';
+    const refused = this.client.attackPlayer(peerId, damage, { projectile: 'wind_charge', push, ...(Number.isFinite(floorY) ? { floorY } : {}) });
+    if (refused === null && damage > 0) this.remotePlayers.triggerHurt?.(peerId);
+    return refused;
   }
 
   /**

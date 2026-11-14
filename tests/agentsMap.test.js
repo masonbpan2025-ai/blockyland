@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { AREAS } from '../scripts/test.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ROOT_DIRS = ['tests/', 'scripts/', 'docs/', 'e2e/', 'public/', 'server/', 'cloudflare/', 'src/', 'packages/', 'replication/'];
+const ROOT_DIRS = ['tests/', 'scripts/', 'docs/', 'e2e/', 'public/', 'server/', 'cloudflare/', 'src/', 'packages/', 'replication/', 'agentArena/'];
 const PATH_LIKE = /(\/$|\.(js|mjs|html|css|md|json)$)/;
 
 /** The map section: from its heading to the next one. */

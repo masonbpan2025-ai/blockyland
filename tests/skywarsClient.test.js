@@ -180,6 +180,7 @@ test('a dead player\'s loot goes to the first who claims it, once', async (t) =>
   host.match.players.get('p9').alive = true;
   host.match.players.get('p9').slot = 2;
   hostGame.inventory.hotbar[0] = { id: 'diamond_sword', count: 1, isBlock: false, enchantments: [{ id: 'sharpness', level: 1 }] };
+  let clock = 1_000_000; host.now = () => clock; // the host's clock for the pickup delay
   host.onLocalDeath(); // the host dies, and its loot drops
   await tick([host, guest], 0.3);
   assert.equal(host.match.phase, 'playing');
@@ -187,6 +188,12 @@ test('a dead player\'s loot goes to the first who claims it, once', async (t) =>
   assert.ok(dropId, 'the guest sees the drop');
   // The guest walks over it: a claim goes to the host, which gives it to the guest and removes it everywhere.
   const entry = guestGame.entities.droppedItems[0];
+  // Java: a player's death drops cannot be picked up for 40 ticks (2 s). A claim at once is refused; the drop stays.
+  entry.claim(entry);
+  await tick([host, guest], 0.3);
+  assert.equal(guestGame.inventory.hotbar.filter(Boolean).length, 0, 'too soon: nothing picked up');
+  assert.equal(guestGame.entities.droppedItems.length, 1);
+  clock += 2000;
   entry.claim(entry);
   await tick([host, guest], 0.3);
   assert.deepEqual(guestGame.inventory.hotbar[0], { id: 'diamond_sword', isBlock: false, count: 1, enchantments: [{ id: 'sharpness', level: 1 }] });

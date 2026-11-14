@@ -323,8 +323,10 @@ test('it fires a wind charge on the wiki cooldown and the burst damages and knoc
 });
 
 test('the wind burst knocks back but is not itself the damage', () => {
-  // Wiki: the burst "deals knockback but does not deal any damage by itself".
-  assert.equal(WIND_CHARGE_BURST.radius, 3);
+  // Wiki (Wind Charge): the burst "deals knockback but does not deal any damage by itself"; a breeze's reaches "a
+  // 6-block sphere" (power 3) with "40% less knockback than regular explosions" (0.6).
+  assert.equal(WIND_CHARGE_BURST.radius, 6);
+  assert.equal(WIND_CHARGE_BURST.knockbackMultiplier, 0.6);
   const { manager, player } = fixture();
   const breeze = manager.spawnMob('breeze', 0, 1, 0);
   player.position.set(1.5, 1, 0);
@@ -338,6 +340,8 @@ test('the wind burst knocks back but is not itself the damage', () => {
   assert.equal(player.health, before, 'the burst itself deals no damage');
   assert.ok(player.velocity.y > 0, 'but it knocks them upward');
   assert.ok(player.velocity.x !== 0 || player.velocity.z !== 0, 'and away');
+  // 0.5 blocks from the burst: (1 - 0.5 / 6) x 0.6 = 0.55 blocks a tick, 11 a second (Explosion's rule).
+  assert.ok(Math.abs(player.velocity.length() - 11) < 1e-6, `pushed at ${player.velocity.length()} blocks a second`);
 });
 
 test('a wind charge fired through the real loop damages the player', () => {
@@ -348,7 +352,7 @@ test('a wind charge fired through the real loop damages the player', () => {
   let sawBurst = false;
   for (let i = 0; i < 400; i++) {
     manager.update(1 / 60, player);
-    if (manager.windCharges?.length) sawCharge = true;
+    if (manager.breezeChargeSystem().charges.length) sawCharge = true;
     else if (sawCharge) { sawBurst = true; break; }
   }
   assert.equal(sawCharge, true, 'a wind charge was fired');
